@@ -1,0 +1,20 @@
+{
+	"name": "maci",
+	"version": "1.0.0",
+	"private": true,
+	"scripts": {
+		"build": "pnpm -r build",
+		"test": "pnpm -r test",
+		"lint": "pnpm -r lint",
+		"compile": "pnpm -r compile",
+		"deploy": "pnpm -r deploy"
+	},
+	"devDependencies": {
+		"typescript": "^5.3.3",
+		"prettier": "^3.2.5",
+		"eslint": "^8.57.0",
+		"@types/node": "^20.11.19",
+		"hardhat": "^2.19.5",
+		"ts-node": "^10.9.2"
+	}
+}
