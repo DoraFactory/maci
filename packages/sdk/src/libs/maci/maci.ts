@@ -15,7 +15,7 @@ import {
 } from '@cosmjs/cosmwasm-stargate';
 import { GasPrice, calculateFee, StdFee } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
-import { CertificateEcosystem, ErrorResponse } from '../../types';
+import { CertificateEcosystem, ErrorResponse, RoundType } from '../../types';
 import { SignatureResponse } from '../oracle-certificate/types';
 import { OracleWhitelistConfig } from '../contract/ts/OracleMaci.types';
 import { getAMaciRoundCircuitFee } from '../contract/utils';
@@ -130,6 +130,24 @@ export class MACI {
     }
   }
 
+  async hasFeegrant({
+    address,
+    contractAddress,
+  }: {
+    address: string;
+    contractAddress: string;
+  }): Promise<boolean> {
+    try {
+      const response = await this.oracleCertificate.feegrantAllowance(
+        contractAddress,
+        address
+      );
+      return response.spend_limit.length > 0;
+    } catch (error) {
+      return false;
+    }
+  }
+
   // only for maci and oracle maci, amaci will set the voice credit when deploy the contract
   async queryWhitelistBalanceOf({
     signer,
@@ -152,10 +170,16 @@ export class MACI {
       });
 
       if (isWhiteListed) {
-        const round = await this.indexer.getRoundById(contractAddress);
+        const round = await this.indexer.getRoundWithFields(contractAddress, [
+          'voiceCreditAmount',
+        ]);
 
         if (!isErrorResponse(round)) {
-          return round.data.round.voiceCreditAmount;
+          if (round.data.round.voiceCreditAmount) {
+            return round.data.round.voiceCreditAmount;
+          } else {
+            return '0';
+          }
         } else {
           throw new Error(
             `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
@@ -231,7 +255,7 @@ export class MACI {
   }
 
   async getRoundInfo({ contractAddress }: { contractAddress: string }) {
-    const roundInfo = await this.indexer.getRoundById(contractAddress);
+    const roundInfo = await this.indexer.getRoundWithFields(contractAddress);
 
     if (isErrorResponse(roundInfo)) {
       throw new Error(
@@ -239,7 +263,7 @@ export class MACI {
       );
     }
 
-    return roundInfo.data.round;
+    return roundInfo.data.round as RoundType;
   }
 
   async getRoundCircuitType({ contractAddress }: { contractAddress: string }) {

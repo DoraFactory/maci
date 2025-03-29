@@ -1,6 +1,6 @@
 {
   "name": "@dorafactory/maci-sdk",
-  "version": "0.0.27",
+  "version": "0.0.28",
   "description": "SDK for interacting with maci",
   "keywords": [
     "maci",
@@ -53,13 +53,13 @@
     "prettier": "^2.8.4"
   },
   "dependencies": {
+    "@dorafactory/circomlib": "workspace:*",
     "@cosmjs/amino": "^0.32.1",
     "@cosmjs/cosmwasm-stargate": "^0.32.1",
     "@cosmjs/crypto": "^0.32.1",
     "@cosmjs/launchpad": "^0.27.1",
     "@cosmjs/proto-signing": "^0.32.1",
     "@cosmjs/stargate": "^0.32.1",
-    "@dorafactory/circomlib": "^0.0.3",
     "assert": "^2.1.0",
     "bech32": "1.1.4",
     "blake-hash": "^2.0.0",

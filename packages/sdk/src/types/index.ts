@@ -93,6 +93,7 @@ export type RoundType = {
   voiceCreditAmount: string;
   preDeactivateRoot: string;
   identity: string;
+  funds: string;
   operatorLogoUrl?: string;
   operatorMoniker?: string;
   resultsList?: {
@@ -100,6 +101,8 @@ export type RoundType = {
     v2: number;
   }[];
 };
+
+export type SelectiveRoundType = Partial<RoundType>;
 
 export type ProofType = {
   nodes: {
@@ -355,6 +358,12 @@ export type RoundResponse =
     }>
   | ErrorResponse;
 
+export type SelectiveRoundResponse =
+  | SuccessResponse<{
+      round: SelectiveRoundType;
+    }>
+  | ErrorResponse;
+
 export type RoundsResponse =
   | SuccessResponse<{
       rounds: {
@@ -374,6 +383,15 @@ export type RoundsResponse =
 export type RoundGraphqlResponse = {
   data: {
     round: RoundType;
+  };
+};
+
+/**
+ * GraphQL response type for selective round fields
+ */
+export type SelectiveRoundGraphqlResponse = {
+  data: {
+    round: SelectiveRoundType;
   };
 };
 

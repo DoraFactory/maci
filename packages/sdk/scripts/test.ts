@@ -14,7 +14,7 @@ function delay(ms: number) {
 
 async function main() {
   const client = new MaciClient({
-    network: 'mainnet',
+    network: 'testnet',
   });
 
   console.log('======= start test contract logic =======');
@@ -33,7 +33,7 @@ async function main() {
   const newRound = await client.createOracleMaciRound({
     signer: wallet,
     operatorPubkey:
-      '1ba52e08674869d14714857081bc9059d19be089978717d5787f7f674defc9e62ca7180b7673b6755afdda4a84f6d7c2f32139d38955799afdd2df60ddf69583',
+      '0d622736d5630a9e39a2998599bebf703a794978b64d30148cf7a15870f014fe2d79c78ccd5fffa53897b817075bdeef74a2ea9f244983d2f0829e19f44c59b5',
     startVoting: new Date(new Date().getTime()),
     endVoting: new Date(new Date().getTime() + 15 * 60 * 1000),
     title: 'new oracle maci round',
@@ -54,18 +54,17 @@ async function main() {
   //   contractAddress: newRound.contractAddress,
   // });
   // console.log('roundInfo:', roundInfo);
-  // const oracleMaciClient = await client.oracleMaciClient({
-  //   signer: wallet,
-  //   contractAddress:
-  //     'dora1s7ldv49q43pv6nwsp2gx97jy7xadgu9dgpc8yqsqj035h4awtycq57xjzm',
-  // });
+  const oracleMaciClient = await client.oracleMaciClient({
+    signer: wallet,
+    contractAddress: newRound.contractAddress,
+  });
 
-  // await oracleMaciClient.bond(undefined, undefined, [
-  //   {
-  //     denom: 'peaka',
-  //     amount: '20000000000000000000',
-  //   },
-  // ]);
+  await oracleMaciClient.bond(undefined, undefined, [
+    {
+      denom: 'peaka',
+      amount: '20000000000000000000',
+    },
+  ]);
 }
 
 main();

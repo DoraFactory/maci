@@ -153,6 +153,7 @@ export interface NetworkConfig {
   oracleCodeId: number;
   oracleWhitelistBackendPubkey: string;
   oracleFeegrantOperator: string;
+  oracleCodeIds: string[];
 }
 
 export function getDefaultParams(
@@ -172,10 +173,11 @@ export function getDefaultParams(
           'dora1smg5qp5trjdkcekdjssqpjehdjf6n4cjss0clyvqcud3t3u3948s8rmgg4',
         maciCodeId: 106,
         // oracleCodeId: 116,// 9-4-3-625
-        oracleCodeId: 117, // 6-3-3-125
+        oracleCodeId: 119, // 6-3-3-125
         oracleWhitelistBackendPubkey:
           'A61YtCv2ibMZmDeM02nEElil8wlHx1tLKogBk5dPgf/Q',
         oracleFeegrantOperator: 'dora16s9tljk8dy9ae335yvyzlm8gvkypx9228q8pq8',
+        oracleCodeIds: ['101', '116', '117', '119'],
       };
     case 'testnet':
       return {
@@ -190,10 +192,11 @@ export function getDefaultParams(
           'dora13c8aecstyxrhax9znvvh5zey89edrmd2k5va57pxvpe3fxtfsfeqlhsjnd',
         maciCodeId: 107,
         // oracleCodeId: 113, // 9-4-3-625
-        oracleCodeId: 115, // 6-3-3-125
+        oracleCodeId: 123, // 6-3-3-125
         oracleWhitelistBackendPubkey:
           'AoYo/zENN/JquagPdG0/NMbWBBYxOM8BVN677mBXJKJQ',
         oracleFeegrantOperator: 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78',
+        oracleCodeIds: ['102', '105', '108', '110', '113', '115', '123'],
       };
   }
 }

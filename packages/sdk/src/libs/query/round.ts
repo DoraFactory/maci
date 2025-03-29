@@ -3,6 +3,8 @@ import {
   RoundResponse,
   RoundGraphqlResponse,
   RoundsGraphqlResponse,
+  SelectiveRoundResponse,
+  SelectiveRoundGraphqlResponse,
 } from '../../types';
 import { Http } from '../../libs';
 import { isValidAddress } from '../../utils';
@@ -125,6 +127,116 @@ export class Round {
             : ((v.v2 / totalVotes.v2) * 100).toFixed(3),
       }));
       response.data.round.resultsList = resultsList;
+
+      return {
+        code: 200,
+        data: response.data,
+      };
+    } catch (error: any) {
+      return handleError(error as ErrorType);
+    }
+  }
+
+  /**
+   * Get round information with selective fields
+   * @param address Round address
+   * @param fields Array of fields to return, returns all fields if empty
+   * @returns Round information response
+   */
+  async getRoundWithFields(
+    address: string,
+    fields?: string[]
+  ): Promise<SelectiveRoundResponse> {
+    try {
+      if (!isValidAddress(address)) {
+        return {
+          code: 400,
+          error: {
+            message: 'Invalid round address format',
+            type: ERROR.ERROR_ROUND_INVALID_ADDRESS,
+          },
+        };
+      }
+
+      const defaultFields = [
+        'id',
+        'blockHeight',
+        'txHash',
+        'caller',
+        'admin',
+        'operator',
+        'contractAddress',
+        'circuitName',
+        'timestamp',
+        'votingStart',
+        'votingEnd',
+        'status',
+        'period',
+        'actionType',
+        'roundTitle',
+        'roundDescription',
+        'roundLink',
+        'coordinatorPubkeyX',
+        'coordinatorPubkeyY',
+        'voteOptionMap',
+        'results',
+        'allResult',
+        'gasStationEnable',
+        'totalGrant',
+        'baseGrant',
+        'totalBond',
+        'circuitType',
+        'circuitPower',
+        'certificationSystem',
+        'codeId',
+        'maciType',
+        'voiceCreditAmount',
+        'preDeactivateRoot',
+        'identity',
+        'funds',
+      ];
+
+      if (fields && fields.length > 0) {
+        const invalidFields = fields.filter(
+          (field) => !defaultFields.includes(field)
+        );
+        if (invalidFields.length > 0) {
+          return {
+            code: 400,
+            error: {
+              message: `Invalid fields: ${invalidFields.join(', ')}`,
+              type: ERROR.ERROR_INVALID_FIELDS,
+            },
+          };
+        }
+      }
+
+      const selectedFields =
+        fields && fields.length > 0 ? fields : defaultFields;
+
+      const fieldString = selectedFields.join('\n        ');
+
+      const ROUND_QUERY = `query {
+          round(id: "${address}") {
+            ${fieldString}
+          }
+        }`;
+
+      const response =
+        await this.http.fetchGraphql<SelectiveRoundGraphqlResponse>(
+          ROUND_QUERY,
+          ''
+        );
+
+      if (!response || !response.data || !response.data.round) {
+        return {
+          code: 404,
+          error: {
+            message: `No round data found for address ${address}`,
+            type: ERROR.ERROR_ROUND_NOT_FOUND,
+          },
+        };
+      }
 
       return {
         code: 200,

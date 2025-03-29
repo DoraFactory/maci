@@ -10,6 +10,7 @@ import {
   TransactionsResponse,
   CircuitsResponse,
   ProofResponse,
+  SelectiveRoundResponse,
 } from './types';
 import {
   Http,
@@ -189,6 +190,20 @@ export class MaciClient {
    */
   async getRoundById(id: string): Promise<RoundResponse> {
     return await this.indexer.round.getRoundById(id);
+  }
+
+  /**
+   * @method getRoundWithFields
+   * @description Get a round by its address with selective fields.
+   * @param {string} address - The address of the round.
+   * @param {string[]} [fields] - The fields to retrieve.
+   * @returns {Promise<SelectiveRoundResponse>} The round response.
+   */
+  async getRoundWithFields(
+    address: string,
+    fields?: string[]
+  ): Promise<SelectiveRoundResponse> {
+    return await this.indexer.round.getRoundWithFields(address, fields);
   }
 
   /**

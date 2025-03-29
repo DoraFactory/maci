@@ -1,7 +1,10 @@
-import { MaciClient } from '../src';
-import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { MaciClient, MaciCircuitType, compressPublicKey } from '../src';
+import { Secp256k1HdWallet } from '@cosmjs/amino';
+import {
+  DirectSecp256k1HdWallet,
+  DirectSecp256k1Wallet,
+} from '@cosmjs/proto-signing';
 import dotenv from 'dotenv';
-import { isErrorResponse } from '../src/libs/maci/maci';
 
 dotenv.config();
 
@@ -27,13 +30,43 @@ async function main() {
     'dora'
   );
 
+  const newRound = await client.createOracleMaciRound({
+    signer: wallet,
+    operatorPubkey:
+      '0d622736d5630a9e39a2998599bebf703a794978b64d30148cf7a15870f014fe2d79c78ccd5fffa53897b817075bdeef74a2ea9f244983d2f0829e19f44c59b5',
+    startVoting: new Date(new Date().getTime()),
+    endVoting: new Date(new Date().getTime() + 15 * 60 * 1000),
+    title: 'new oracle maci round',
+    voteOptionMap: ['option1: A', 'option2: B', 'option3: C'],
+    circuitType: MaciCircuitType.IP1V,
+    whitelistEcosystem: 'doravota',
+    whitelistSnapshotHeight: '0',
+    whitelistVotingPowerArgs: {
+      mode: 'slope',
+      slope: '1000000',
+      threshold: '1000000',
+    },
+  });
+  console.log('newRound:', newRound);
+
+  // const roundInfo = await client.contract.queryRoundInfo({
+  //   signer: wallet,
+  //   contractAddress: newRound.contractAddress,
+  // });
+  // console.log('roundInfo:', roundInfo);
   const address = (await wallet.getAccounts())[0].address;
-  console.log('address', address);
+  const RoundAddress = newRound.contractAddress;
+  const oracleMaciClient = await client.oracleMaciClient({
+    signer: wallet,
+    contractAddress: RoundAddress,
+  });
 
-  // ================ test oracle signup and vote
-
-  const RoundAddress =
-    'dora1au0hfu4wdnlkm2wk2sy6r0mfp3895mj7n98gpqcv90ffpvu5fd3qx77ned';
+  await oracleMaciClient.bond(undefined, undefined, [
+    {
+      denom: 'peaka',
+      amount: '10000000000000000000',
+    },
+  ]);
 
   const roundInfo = await client.maci.getRoundInfo({
     contractAddress: RoundAddress,
@@ -105,7 +138,7 @@ async function main() {
       amount: certificate.amount,
       signature: certificate.signature,
     },
-    gasStation: false,
+    gasStation: true,
   });
 
   console.log('signup tx:', signupResponse.transactionHash);
@@ -134,7 +167,7 @@ async function main() {
       BigInt(roundInfo.coordinatorPubkeyY),
     ],
     maciAccount,
-    gasStation: false,
+    gasStation: true,
   });
 
   console.log('vote tx:', voteResponse.transactionHash);
