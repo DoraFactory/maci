@@ -161,14 +161,16 @@ const certificate = await client.maci.requestOracleCertificate({
 });
 
 // 3. Check Gas Station status
-let gasStationEnable = await client.maci.queryRoundGasStation({
+let hasFeegrant = await client.maci.hasFeegrant({
+  address,
   contractAddress: 'dora1...',
 });
 
 // Wait for Gas Station to be enabled
-while (!gasStationEnable) {
+while (!hasFeegrant) {
   await delay(1000); // Delay 1 second
-  gasStationEnable = await client.maci.queryRoundGasStation({
+  hasFeegrant = await client.maci.hasFeegrant({
+    address,
     contractAddress: 'dora1...',
   });
 }
