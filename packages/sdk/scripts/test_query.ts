@@ -33,12 +33,9 @@ async function main() {
   // ================ test oracle signup and vote
 
   const RoundAddress =
-    'dora1yttutgra9fhcn2yvrfa5g3f2tway3ggg0ehgc5egcvj3qd2yzm4qqztceg';
+    'dora1hhxfw6tw9ef9467gphkfgrq0cg0dndndk875agrkaa479x9hx03qncmw48';
 
-  const allowance = await client.maci.feegrantAllowance({
-    address,
-    contractAddress: RoundAddress,
-  });
+  const allowance = await client.balanceOf(RoundAddress);
   console.log('allowance', allowance);
 }
 

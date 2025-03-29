@@ -193,7 +193,7 @@ export class Round {
         'voiceCreditAmount',
         'preDeactivateRoot',
         'identity',
-        'funds',
+        // 'funds',
       ];
 
       if (fields && fields.length > 0) {

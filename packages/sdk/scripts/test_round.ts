@@ -14,7 +14,7 @@ function delay(ms: number) {
 
 async function main() {
   const client = new MaciClient({
-    network: 'testnet',
+    network: 'mainnet',
   });
 
   console.log('======= start test contract logic =======');
@@ -33,7 +33,7 @@ async function main() {
   const newRound = await client.createOracleMaciRound({
     signer: wallet,
     operatorPubkey:
-      '0d622736d5630a9e39a2998599bebf703a794978b64d30148cf7a15870f014fe2d79c78ccd5fffa53897b817075bdeef74a2ea9f244983d2f0829e19f44c59b5',
+      '1c3b06925c6239136b827dfd20b7b83218514418ba904d1dffcccc00a391f5d01d5f2dd3f387f1fee338b299167ddffed5a464be352a8a7fe2121340395d4c06',
     startVoting: new Date(new Date().getTime()),
     endVoting: new Date(new Date().getTime() + 15 * 60 * 1000),
     title: 'new oracle maci round',

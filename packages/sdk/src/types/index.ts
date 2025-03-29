@@ -93,7 +93,7 @@ export type RoundType = {
   voiceCreditAmount: string;
   preDeactivateRoot: string;
   identity: string;
-  funds: string;
+  // funds: string;
   operatorLogoUrl?: string;
   operatorMoniker?: string;
   resultsList?: {
