@@ -185,7 +185,7 @@ export class Contract {
         groth16_tally_vkey: groth16TallyVkey,
         plonk_process_vkey: plonkProcessVkey,
         plonk_tally_vkey: plonkTallyVkey,
-        max_vote_options: maxOption,
+        max_vote_options: maxOption.toString(),
         whitelist,
         circuit_type: maciVoteType,
         certification_system: maciCertSystem,
