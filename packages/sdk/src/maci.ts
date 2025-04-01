@@ -11,6 +11,9 @@ import {
   CircuitsResponse,
   ProofResponse,
   SelectiveRoundResponse,
+  CertificateEcosystem,
+  ErrorResponse,
+  RoundType,
 } from './types';
 import {
   Http,
@@ -27,6 +30,11 @@ import {
   CreateOracleMaciRoundParams,
 } from './libs/contract/types';
 import { OfflineSigner } from '@cosmjs/proto-signing';
+import { Account, PublicKey } from './libs/circom';
+import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
+import { OracleWhitelistConfig } from './libs/contract/ts/OracleMaci.types';
+import { SignatureResponse } from './libs/oracle-certificate/types';
+import { StdFee } from '@cosmjs/stargate';
 
 /**
  * @class MaciClient
@@ -172,193 +180,332 @@ export class MaciClient {
     return await this.contract.createOracleMaciRound(params);
   }
 
-  /**
-   * @method balanceOf
-   * @description Get the balance of a specific address.
-   * @param {string} address - The address to check the balance for.
-   * @returns {Promise<BalanceResponse>} The balance response.
-   */
-  async balanceOf(address: string): Promise<BalanceResponse> {
-    return await this.indexer.account.balanceOf(address);
-  }
-
-  /**
-   * @method getRoundById
-   * @description Get a round by its ID.
-   * @param {string} id - The ID of the round.
-   * @returns {Promise<RoundResponse>} The round response.
-   */
-  async getRoundById(id: string): Promise<RoundResponse> {
-    return await this.indexer.round.getRoundById(id);
-  }
-
-  /**
-   * @method getRoundWithFields
-   * @description Get a round by its address with selective fields.
-   * @param {string} address - The address of the round.
-   * @param {string[]} [fields] - The fields to retrieve.
-   * @returns {Promise<SelectiveRoundResponse>} The round response.
-   */
-  async getRoundWithFields(
-    address: string,
-    fields?: string[]
-  ): Promise<SelectiveRoundResponse> {
-    return await this.indexer.round.getRoundWithFields(address, fields);
-  }
-
-  /**
-   * @method getRounds
-   * @description Get multiple rounds.
-   * @param {string} after - The cursor to start after.
-   * @param {number} [limit] - The number of rounds to retrieve.
-   * @returns {Promise<RoundsResponse>} The rounds response.
-   */
-  async getRounds(after: string, limit?: number): Promise<RoundsResponse> {
-    return await this.indexer.round.getRounds(after, limit);
-  }
-
-  /**
-   * @method getRoundsByStatus
-   * @description Get rounds by their status.
-   * @param {string} status - The status of the rounds to retrieve.
-   * @param {string} after - The cursor to start after.
-   * @param {number} [limit] - The number of rounds to retrieve.
-   * @returns {Promise<RoundsResponse>} The rounds response.
-   */
-  async getRoundsByStatus(
-    status: string,
-    after: string,
-    limit?: number
-  ): Promise<RoundsResponse> {
-    return await this.indexer.round.getRoundsByStatus(status, after, limit);
-  }
-
-  /**
-   * @method getRoundsByCircuitName
-   * @description Get rounds by their circuit name.
-   * @param {string} name - The name of the circuit.
-   * @param {string} after - The cursor to start after.
-   * @param {number} [limit] - The number of rounds to retrieve.
-   * @returns {Promise<RoundsResponse>} The rounds response.
-   */
-  async getRoundsByCircuitName(
-    name: string,
-    after: string,
-    limit?: number
-  ): Promise<RoundsResponse> {
-    return await this.indexer.round.getRoundsByCircuitName(name, after, limit);
-  }
-
-  /**
-   * @method getRoundsByOperator
-   * @description Get rounds by their operator address.
-   * @param {string} address - The address of the operator.
-   * @param {string} after - The cursor to start after.
-   * @param {number} [limit] - The number of rounds to retrieve.
-   * @returns {Promise<RoundsResponse>} The rounds response.
-   */
-  async getRoundsByOperator(
-    address: string,
-    after: string,
-    limit?: number
-  ): Promise<RoundsResponse> {
-    return await this.indexer.round.getRoundsByOperator(address, after, limit);
-  }
-
-  /**
-   * @method getOperatorByAddress
-   * @description Get an operator by their address.
-   * @param {string} address - The address of the operator.
-   * @returns {Promise<OperatorResponse>} The operator response.
-   */
-  async getOperatorByAddress(address: string): Promise<OperatorResponse> {
-    return await this.indexer.operator.getOperatorByAddress(address);
-  }
-
-  /**
-   * @method getOperators
-   * @description Get multiple operators.
-   * @param {string} after - The cursor to start after.
-   * @param {number} [limit] - The number of operators to retrieve.
-   * @returns {Promise<OperatorsResponse>} The operators response.
-   */
-  async getOperators(
-    after: string,
-    limit?: number
-  ): Promise<OperatorsResponse> {
-    return await this.indexer.operator.getOperators(after, limit);
-  }
-
-  /**
-   * @method getCircuitByName
-   * @description Get a circuit by its name.
-   * @param {string} name - The name of the circuit.
-   * @returns {Promise<CircuitResponse>} The circuit response.
-   */
-  async getCircuitByName(name: string): Promise<CircuitResponse> {
-    return await this.indexer.circuit.getCircuitByName(name);
-  }
-
-  /**
-   * @method getCircuits
-   * @description Get all available circuits.
-   * @returns {Promise<CircuitsResponse>} The circuits response.
-   */
-  async getCircuits(): Promise<CircuitsResponse> {
-    return await this.indexer.circuit.getCircuits();
-  }
-
-  /**
-   * @method getTransactionByHash
-   * @description Get a transaction by its hash.
-   * @param {string} hash - The hash of the transaction.
-   * @returns {Promise<TransactionResponse>} The transaction response.
-   */
-  async getTransactionByHash(hash: string): Promise<TransactionResponse> {
-    return await this.indexer.transaction.getTransactionByHash(hash);
-  }
-
-  /**
-   * @method getTransactions
-   * @description Get multiple transactions.
-   * @param {string} after - The cursor to start after.
-   * @param {number} [limit] - The number of transactions to retrieve.
-   * @returns {Promise<TransactionsResponse>} The transactions response.
-   */
-  async getTransactions(
-    after: string,
-    limit?: number
-  ): Promise<TransactionsResponse> {
-    return await this.indexer.transaction.getTransactions(after, limit);
-  }
-
-  /**
-   * @method getTransactionsByContractAddress
-   * @description Get transactions by contract address.
-   * @param {string} address - The contract address.
-   * @param {string} after - The cursor to start after.
-   * @param {number} [limit] - The number of transactions to retrieve.
-   * @returns {Promise<TransactionsResponse>} The transactions response.
-   */
-  async getTransactionsByContractAddress(
-    address: string,
-    after: string,
-    limit?: number
-  ): Promise<TransactionsResponse> {
-    return await this.indexer.transaction.getTransactionsByContractAddress(
+  async getStateIdxInc({
+    signer,
+    address,
+    contractAddress,
+  }: {
+    signer: OfflineSigner;
+    address: string;
+    contractAddress: string;
+  }) {
+    return await this.maci.getStateIdxInc({
+      signer,
       address,
-      after,
-      limit
+      contractAddress,
+    });
+  }
+
+  async getVoiceCreditBalance({
+    signer,
+    stateIdx,
+    contractAddress,
+  }: {
+    signer: OfflineSigner;
+    stateIdx: number;
+    contractAddress: string;
+  }) {
+    return await this.maci.getVoiceCreditBalance({
+      signer,
+      stateIdx,
+      contractAddress,
+    });
+  }
+
+  async getStateIdxByPubKey({
+    contractAddress,
+    pubKey,
+  }: {
+    contractAddress: string;
+    pubKey: bigint[];
+  }) {
+    return await this.maci.getStateIdxByPubKey({
+      contractAddress,
+      pubKey,
+    });
+  }
+
+  async feegrantAllowance({
+    address,
+    contractAddress,
+  }: {
+    address: string;
+    contractAddress: string;
+  }) {
+    return await this.maci.feegrantAllowance({
+      address,
+      contractAddress,
+    });
+  }
+
+  async hasFeegrant({
+    address,
+    contractAddress,
+  }: {
+    address: string;
+    contractAddress: string;
+  }): Promise<boolean> {
+    return await this.maci.hasFeegrant({
+      address,
+      contractAddress,
+    });
+  }
+
+  async queryWhitelistBalanceOf({
+    signer,
+    address,
+    contractAddress,
+    certificate,
+    mode = 'maci',
+  }: {
+    signer: OfflineSigner;
+    address: string;
+    contractAddress: string;
+    certificate?: string;
+    mode?: 'maci' | 'amaci';
+  }): Promise<string> {
+    return await this.maci.queryWhitelistBalanceOf({
+      signer,
+      address,
+      contractAddress,
+      certificate,
+      mode,
+    });
+  }
+
+  async isWhitelisted({
+    signer,
+    address,
+    contractAddress,
+  }: {
+    signer: OfflineSigner;
+    address: string;
+    contractAddress: string;
+  }) {
+    return await this.maci.isWhitelisted({
+      signer,
+      address,
+      contractAddress,
+    });
+  }
+
+  async getOracleWhitelistConfig({
+    signer,
+    contractAddress,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+  }): Promise<OracleWhitelistConfig> {
+    return await this.maci.getOracleWhitelistConfig({
+      signer,
+      contractAddress,
+    });
+  }
+
+  async getRoundInfo({ contractAddress }: { contractAddress: string }) {
+    return await this.maci.getRoundInfo({ contractAddress });
+  }
+
+  async getRoundCircuitType({ contractAddress }: { contractAddress: string }) {
+    return await this.maci.getRoundCircuitType({ contractAddress });
+  }
+
+  async queryRoundIsQv({ contractAddress }: { contractAddress: string }) {
+    return await this.maci.queryRoundIsQv({ contractAddress });
+  }
+
+  async queryRoundClaimable({
+    contractAddress,
+  }: {
+    contractAddress: string;
+  }): Promise<{
+    claimable: boolean | null;
+    balance: string | null;
+  }> {
+    return await this.maci.queryRoundClaimable({ contractAddress });
+  }
+
+  async queryAMaciChargeFee({
+    maxVoter,
+    maxOption,
+  }: {
+    maxVoter: number;
+    maxOption: number;
+  }) {
+    return await this.maci.queryAMaciChargeFee({
+      maxVoter,
+      maxOption,
+    });
+  }
+
+  async queryRoundGasStation({ contractAddress }: { contractAddress: string }) {
+    return await this.maci.queryRoundGasStation({ contractAddress });
+  }
+
+  parseRoundStatus(
+    votingStart: number,
+    votingEnd: number,
+    status: string,
+    currentTime: Date
+  ): string {
+    return this.maci.parseRoundStatus(
+      votingStart,
+      votingEnd,
+      status,
+      currentTime
     );
   }
 
-  /**
-   * @method getProofByContractAddress
-   * @description Get proof data by contract address.
-   * @param {string} address - The contract address.
-   * @returns {Promise<ProofResponse>} The proof response.
-   */
-  async getProofByContractAddress(address: string): Promise<ProofResponse> {
-    return await this.indexer.proof.getProofByContractAddress(address);
+  async queryRoundBalance({ contractAddress }: { contractAddress: string }) {
+    return await this.maci.queryRoundBalance({ contractAddress });
+  }
+
+  async requestOracleCertificate({
+    signer,
+    ecosystem,
+    address,
+    contractAddress,
+  }: {
+    signer: OfflineSigner;
+    ecosystem: CertificateEcosystem;
+    address: string;
+    contractAddress: string;
+  }): Promise<SignatureResponse> {
+    return await this.maci.requestOracleCertificate({
+      signer,
+      ecosystem,
+      address,
+      contractAddress,
+    });
+  }
+
+  async signup({
+    signer,
+    address,
+    contractAddress,
+    maciAccount,
+    oracleCertificate,
+    gasStation = false,
+  }: {
+    signer: OfflineSigner;
+    address: string;
+    contractAddress: string;
+    maciAccount?: Account;
+    oracleCertificate?: {
+      amount: string;
+      signature: string;
+    };
+    gasStation?: boolean;
+  }) {
+    return await this.maci.signup({
+      signer,
+      address,
+      contractAddress,
+      maciAccount,
+      oracleCertificate,
+      gasStation,
+    });
+  }
+
+  async vote({
+    signer,
+    address,
+    stateIdx,
+    contractAddress,
+    selectedOptions,
+    operatorCoordPubKey,
+    maciAccount,
+    gasStation = false,
+  }: {
+    signer: OfflineSigner;
+    address: string;
+    stateIdx: number;
+    contractAddress: string;
+    selectedOptions: {
+      idx: number;
+      vc: number;
+    }[];
+    operatorCoordPubKey: PublicKey;
+    maciAccount?: Account;
+    gasStation?: boolean;
+  }) {
+    return await this.maci.vote({
+      signer,
+      address,
+      stateIdx,
+      contractAddress,
+      selectedOptions,
+      operatorCoordPubKey,
+      maciAccount,
+      gasStation,
+    });
+  }
+
+  async publishMessage({
+    client,
+    address,
+    payload,
+    contractAddress,
+    gasStation,
+  }: {
+    client: SigningCosmWasmClient;
+    address: string;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PublicKey;
+    }[];
+    contractAddress: string;
+    gasStation: boolean;
+  }) {
+    return await this.maci.publishMessage({
+      client,
+      address,
+      payload,
+      contractAddress,
+      gasStation,
+    });
+  }
+
+  async claimAMaciRound({
+    signer,
+    contractAddress,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+  }) {
+    return await this.maci.claimAMaciRound({
+      signer,
+      contractAddress,
+    });
+  }
+
+  async getOracleCertificateConfig() {
+    return await this.maci.getOracleCertificateConfig();
+  }
+
+  async batchGrantWithBond(
+    client: SigningCosmWasmClient,
+    contractAddress: string,
+    address: string,
+    amount: string
+  ) {
+    return await this.maci.batchGrantWithBond(
+      client,
+      contractAddress,
+      address,
+      amount
+    );
+  }
+
+  async batchRevokeWithdraw(
+    client: SigningCosmWasmClient,
+    contractAddress: string,
+    address: string
+  ) {
+    return await this.maci.batchRevokeWithdraw(
+      client,
+      contractAddress,
+      address
+    );
   }
 }
