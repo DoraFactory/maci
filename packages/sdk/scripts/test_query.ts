@@ -35,7 +35,7 @@ async function main() {
   const RoundAddress =
     'dora1hhxfw6tw9ef9467gphkfgrq0cg0dndndk875agrkaa479x9hx03qncmw48';
 
-  const allowance = await client.balanceOf(RoundAddress);
+  const allowance = await client.indexer.balanceOf(RoundAddress);
   console.log('allowance', allowance);
 }
 
