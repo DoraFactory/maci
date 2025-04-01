@@ -186,7 +186,7 @@ export class MaciClient {
     contractAddress,
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     contractAddress: string;
   }) {
     return await this.maci.getStateIdxInc({
@@ -259,7 +259,7 @@ export class MaciClient {
     mode = 'maci',
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     contractAddress: string;
     certificate?: string;
     mode?: 'maci' | 'amaci';
@@ -279,7 +279,7 @@ export class MaciClient {
     contractAddress,
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     contractAddress: string;
   }) {
     return await this.maci.isWhitelisted({
@@ -368,7 +368,7 @@ export class MaciClient {
   }: {
     signer: OfflineSigner;
     ecosystem: CertificateEcosystem;
-    address: string;
+    address?: string;
     contractAddress: string;
   }): Promise<SignatureResponse> {
     return await this.maci.requestOracleCertificate({
@@ -388,7 +388,7 @@ export class MaciClient {
     gasStation = false,
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     contractAddress: string;
     maciAccount?: Account;
     oracleCertificate?: {
@@ -418,7 +418,7 @@ export class MaciClient {
     gasStation = false,
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     stateIdx: number;
     contractAddress: string;
     selectedOptions: {
@@ -437,31 +437,6 @@ export class MaciClient {
       selectedOptions,
       operatorCoordPubKey,
       maciAccount,
-      gasStation,
-    });
-  }
-
-  async publishMessage({
-    client,
-    address,
-    payload,
-    contractAddress,
-    gasStation,
-  }: {
-    client: SigningCosmWasmClient;
-    address: string;
-    payload: {
-      msg: bigint[];
-      encPubkeys: PublicKey;
-    }[];
-    contractAddress: string;
-    gasStation: boolean;
-  }) {
-    return await this.maci.publishMessage({
-      client,
-      address,
-      payload,
-      contractAddress,
       gasStation,
     });
   }
@@ -491,7 +466,7 @@ export class MaciClient {
   }: {
     signer: OfflineSigner;
     contractAddress: string;
-    address: string;
+    address?: string;
     amount: string;
   }) {
     return await this.maci.batchGrantWithBond({
@@ -509,7 +484,7 @@ export class MaciClient {
   }: {
     signer: OfflineSigner;
     contractAddress: string;
-    address: string;
+    address?: string;
   }) {
     return await this.maci.batchRevokeWithdraw({
       signer,
