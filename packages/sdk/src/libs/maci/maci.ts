@@ -770,4 +770,116 @@ export class MACI {
     const ecosystems = await this.oracleCertificate.listEcosystems();
     return ecosystems;
   }
+
+  /**
+   * Batch grant with bond (for maci)
+   * @param client
+   * @param contractAddress
+   * @param address
+   * @param amount
+   * @returns
+   */
+  async batchGrantWithBond(
+    client: SigningCosmWasmClient,
+    contractAddress: string,
+    address: string,
+    amount: string
+  ) {
+    const msgs: MsgExecuteContractEncodeObject[] = [
+      {
+        typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+        value: MsgExecuteContract.fromPartial({
+          sender: address,
+          contract: contractAddress,
+          msg: new TextEncoder().encode(
+            JSON.stringify(
+              stringizing({
+                grant: {
+                  max_amount: BigInt('100000000000000000000000'),
+                },
+              })
+            )
+          ),
+        }),
+      },
+      {
+        typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+        value: MsgExecuteContract.fromPartial({
+          sender: address,
+          contract: contractAddress,
+          msg: new TextEncoder().encode(
+            JSON.stringify(
+              stringizing({
+                bond: {},
+              })
+            )
+          ),
+          funds: [
+            {
+              denom: 'peaka',
+              amount,
+            },
+          ],
+        }),
+      },
+    ];
+
+    try {
+      const result = await client.signAndBroadcast(address, msgs, 'auto');
+      return result;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  /**
+   * Batch revoke with withdraw (for maci)
+   * @param client
+   * @param contractAddress
+   * @param address
+   * @returns
+   */
+  async batchRevokeWithdraw(
+    client: SigningCosmWasmClient,
+    contractAddress: string,
+    address: string
+  ) {
+    const msgs: MsgExecuteContractEncodeObject[] = [
+      {
+        typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+        value: MsgExecuteContract.fromPartial({
+          sender: address,
+          contract: contractAddress,
+          msg: new TextEncoder().encode(
+            JSON.stringify(
+              stringizing({
+                withdraw: {},
+              })
+            )
+          ),
+        }),
+      },
+      {
+        typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+        value: MsgExecuteContract.fromPartial({
+          sender: address,
+          contract: contractAddress,
+          msg: new TextEncoder().encode(
+            JSON.stringify(
+              stringizing({
+                revoke: {},
+              })
+            )
+          ),
+        }),
+      },
+    ];
+
+    try {
+      const result = await client.signAndBroadcast(address, msgs, 'auto');
+      return result;
+    } catch (err) {
+      throw err;
+    }
+  }
 }
