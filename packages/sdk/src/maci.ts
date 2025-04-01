@@ -483,29 +483,38 @@ export class MaciClient {
     return await this.maci.getOracleCertificateConfig();
   }
 
-  async batchGrantWithBond(
-    client: SigningCosmWasmClient,
-    contractAddress: string,
-    address: string,
-    amount: string
-  ) {
-    return await this.maci.batchGrantWithBond(
-      client,
+  async batchGrantWithBond({
+    signer,
+    contractAddress,
+    address,
+    amount,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    address: string;
+    amount: string;
+  }) {
+    return await this.maci.batchGrantWithBond({
+      signer,
       contractAddress,
       address,
-      amount
-    );
+      amount,
+    });
   }
 
-  async batchRevokeWithdraw(
-    client: SigningCosmWasmClient,
-    contractAddress: string,
-    address: string
-  ) {
-    return await this.maci.batchRevokeWithdraw(
-      client,
+  async batchRevokeWithdraw({
+    signer,
+    contractAddress,
+    address,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    address: string;
+  }) {
+    return await this.maci.batchRevokeWithdraw({
+      signer,
       contractAddress,
-      address
-    );
+      address,
+    });
   }
 }

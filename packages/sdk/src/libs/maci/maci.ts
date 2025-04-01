@@ -773,18 +773,27 @@ export class MACI {
 
   /**
    * Batch grant with bond (for maci)
-   * @param client
+   * @param signer
    * @param contractAddress
    * @param address
    * @param amount
    * @returns
    */
-  async batchGrantWithBond(
-    client: SigningCosmWasmClient,
-    contractAddress: string,
-    address: string,
-    amount: string
-  ) {
+  async batchGrantWithBond({
+    signer,
+    contractAddress,
+    address,
+    amount,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    address: string;
+    amount: string;
+  }) {
+    const client = await this.contract.contractClient({
+      signer,
+    });
+
     const msgs: MsgExecuteContractEncodeObject[] = [
       {
         typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
@@ -839,11 +848,19 @@ export class MACI {
    * @param address
    * @returns
    */
-  async batchRevokeWithdraw(
-    client: SigningCosmWasmClient,
-    contractAddress: string,
-    address: string
-  ) {
+  async batchRevokeWithdraw({
+    signer,
+    contractAddress,
+    address,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    address: string;
+  }) {
+    const client = await this.contract.contractClient({
+      signer,
+    });
+
     const msgs: MsgExecuteContractEncodeObject[] = [
       {
         typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
