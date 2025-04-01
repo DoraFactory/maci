@@ -58,9 +58,13 @@ export class MACI {
     contractAddress,
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     contractAddress: string;
   }) {
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
+
     const client = await this.contract.maciClient({
       signer,
       contractAddress,
@@ -157,11 +161,15 @@ export class MACI {
     mode = 'maci',
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     contractAddress: string;
     certificate?: string;
     mode?: 'maci' | 'amaci';
   }): Promise<string> {
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
+
     if (mode === 'amaci') {
       const isWhiteListed = await this.isWhitelisted({
         signer,
@@ -223,9 +231,13 @@ export class MACI {
     contractAddress,
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     contractAddress: string;
   }) {
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
+
     const client = await this.contract.amaciClient({
       signer,
       contractAddress,
@@ -406,13 +418,17 @@ export class MACI {
   }: {
     signer: OfflineSigner;
     ecosystem: CertificateEcosystem;
-    address: string;
+    address?: string;
     contractAddress: string;
   }): Promise<SignatureResponse> {
     const oracleWhitelistConfig = await this.getOracleWhitelistConfig({
       signer,
       contractAddress,
     });
+
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
 
     const signResponse = await this.oracleCertificate.sign({
       ecosystem,
@@ -433,7 +449,7 @@ export class MACI {
     gasStation = false,
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     contractAddress: string;
     maciAccount?: Account;
     oracleCertificate?: {
@@ -443,6 +459,10 @@ export class MACI {
     gasStation?: boolean;
   }) {
     try {
+      if (!address) {
+        address = (await signer.getAccounts())[0].address;
+      }
+
       if (maciAccount === undefined) {
         maciAccount = await this.circom.genKeypairFromSign(signer, address);
       }
@@ -524,7 +544,7 @@ export class MACI {
     gasStation = false,
   }: {
     signer: OfflineSigner;
-    address: string;
+    address?: string;
     stateIdx: number;
     contractAddress: string;
     selectedOptions: {
@@ -551,6 +571,10 @@ export class MACI {
         contractAddress,
         voiceCreditBalance,
       });
+
+      if (!address) {
+        address = (await signer.getAccounts())[0].address;
+      }
 
       if (maciAccount === undefined) {
         maciAccount = await this.circom.genKeypairFromSign(signer, address);
@@ -787,12 +811,16 @@ export class MACI {
   }: {
     signer: OfflineSigner;
     contractAddress: string;
-    address: string;
     amount: string;
+    address?: string;
   }) {
     const client = await this.contract.contractClient({
       signer,
     });
+
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
 
     const msgs: MsgExecuteContractEncodeObject[] = [
       {
@@ -855,11 +883,15 @@ export class MACI {
   }: {
     signer: OfflineSigner;
     contractAddress: string;
-    address: string;
+    address?: string;
   }) {
     const client = await this.contract.contractClient({
       signer,
     });
+
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
 
     const msgs: MsgExecuteContractEncodeObject[] = [
       {
