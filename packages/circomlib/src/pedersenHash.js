@@ -1,7 +1,8 @@
 const babyJub = require("./babyjub");
 const createBlakeHash = require("blake-hash");
 const blake2b = require("blake2b");
-const Scalar = require("ffjavascript").Scalar;
+const { Scalar } = require("../../ffjavascript");
+
 
 const GENPOINT_PREFIX = "PedersenGenerator";
 const windowSize = 4;

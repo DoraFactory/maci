@@ -3,9 +3,7 @@ const path = require("path");
 
 const assert = chai.assert;
 
-const Scalar = require("ffjavascript").Scalar;
-const F1Field = require("ffjavascript").F1Field;
-const utils = require("ffjavascript").utils;
+const { Scalar, F1Field, utils } = require("../ff");
 const q = Scalar.fromString("21888242871839275222246405745257275088548364400416034343698204186575808495617");
 const F = new F1Field(q);
 

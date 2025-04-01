@@ -8,8 +8,7 @@ const F = require("../src/babyjub.js").F;
 const assert = chai.assert;
 
 const tester = require("circom").tester;
-const utils = require("ffjavascript").utils;
-const Scalar = require("ffjavascript").Scalar;
+const { Scalar, utils } = require("../ffjavascript/index.js");
 
 describe("Baby Jub test", function () {
     let circuitAdd;

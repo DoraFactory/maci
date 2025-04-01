@@ -1,4 +1,4 @@
-const Scalar = require("ffjavascript").Scalar;
+const { Scalar } = require("../../ffjavascript");
 const SMTMemDB = require("./smt_memdb");
 const {hash0, hash1, F} = require("./smt_hashes_poseidon");
 

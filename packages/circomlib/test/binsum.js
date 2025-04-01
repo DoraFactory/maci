@@ -3,7 +3,8 @@ const path = require("path");
 
 const tester = require("circom").tester;
 
-const Fr = require("ffjavascript").bn128.Fr;
+const { Fr } = require("../ffjavascript").bn128.Fr;
+
 
 const assert = chai.assert;
 

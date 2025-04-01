@@ -3,8 +3,9 @@
 //
 
 const Contract = require("./evmasm");
-const { unstringifyBigInts } = require("ffjavascript").utils;
 const Web3Utils = require("web3-utils");
+const { unstringifyBigInts } = require("../ffjavascript").utils;
+
 
 const { C:K, M } = unstringifyBigInts(require("./poseidon_constants.json"));
 

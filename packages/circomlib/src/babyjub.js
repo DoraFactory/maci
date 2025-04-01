@@ -1,6 +1,4 @@
-const F1Field = require("ffjavascript").F1Field;
-const Scalar = require("ffjavascript").Scalar;
-const utils = require("ffjavascript").utils;
+const { F1Field, Scalar, utils } = require("../../ffjavascript");
 
 exports.addPoint = addPoint;
 exports.mulPointEscalar = mulPointEscalar;

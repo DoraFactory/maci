@@ -5,7 +5,7 @@ import {
   poseidon,
   poseidonEncrypt,
   Tree,
-} from '@dorafactory/circomlib';
+} from 'circomlib';
 import { Scalar, utils } from 'ffjavascript';
 import createBlakeHash from 'blake-hash';
 import { solidityPackedSha256 } from 'ethers';

@@ -2,6 +2,11 @@ const path = require("path");
 
 const Fr = require("ffjavascript").bn128.Fr;
 const Scalar = require("ffjavascript").Scalar;
+
+const { Scalar } = require("../ffjavascript");
+const { Fr } = require("../ffjavascript").buildBn128.Fr;
+
+
 const tester = require("circom").tester;
 
 function print(circuit, w, s) {

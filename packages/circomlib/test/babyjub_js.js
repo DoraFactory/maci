@@ -1,6 +1,6 @@
 const chai = require("chai");
 const babyjub = require("../src/babyjub.js");
-const Scalar = require("ffjavascript").Scalar;
+const { Scalar } = require("../ffjavascript/index.js");
 
 const assert = chai.assert;
 

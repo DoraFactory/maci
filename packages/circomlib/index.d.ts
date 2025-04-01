@@ -1,4 +1,4 @@
-declare module '@dorafactory/circomlib' {
+declare module 'circomlib' {
 	export interface SMT {
 		insert(
 			key: Uint8Array | string,
@@ -49,10 +49,10 @@ declare module '@dorafactory/circomlib' {
 	};
 }
 
-declare module 'ffjavascript' {
-	export const Scalar: any;
-	export const utils: any;
-}
+// declare module 'ffjavascript' {
+// 	export const Scalar: any;
+// 	export const utils: any;
+// }
 
 declare module 'blake-hash' {
 	interface BlakeHash {

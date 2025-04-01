@@ -1,12 +1,11 @@
 const createBlakeHash = require("blake-hash");
-const Scalar = require("ffjavascript").Scalar;
-const F1Field = require("ffjavascript").F1Field;
 const babyJub = require("./babyjub");
-const utils = require("ffjavascript").utils;
 const pedersenHash = require("./pedersenHash").hash;
 const mimc7 = require("./mimc7");
 const poseidon = require("./poseidon.js");
 const mimcsponge = require("./mimcsponge");
+const { F1Field, Scalar, utils } = require("../../ffjavascript/index.js");
+
 
 
 exports.prv2pub= prv2pub;

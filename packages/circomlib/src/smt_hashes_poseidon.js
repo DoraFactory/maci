@@ -1,6 +1,5 @@
 
-const ZqField = require("ffjavascript").ZqField;
-const Scalar = require("ffjavascript").Scalar;
+const { Scalar, ZqField } = require("../../ffjavascript");
 
 const poseidon = require("./poseidon");
 
