@@ -1,5 +1,8 @@
+import { OfflineSigner } from '@cosmjs/proto-signing';
+import { Keypair } from '../libs/crypto';
 import { FetchOptions } from '../libs/http/http';
 export type * from '../libs/contract/types';
+export type * from '../libs/crypto/types';
 
 export enum MaciCircuitType {
   IP1V = '0',
@@ -32,6 +35,10 @@ export type ClientParams = {
   defaultOptions?: FetchOptions;
   feegrantOperator?: string;
   whitelistBackendPubkey?: string;
+  maciKeypair?: Keypair;
+  signer?: OfflineSigner;
+  secretKey?: string;
+  mnemonic?: string;
 };
 
 export type ContractParams = {

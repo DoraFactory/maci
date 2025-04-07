@@ -1,11 +1,5 @@
 import { OfflineSigner } from '@cosmjs/proto-signing';
-import {
-  Account,
-  batchGenMessage,
-  Circom,
-  PublicKey,
-  stringizing,
-} from '../circom';
+import { Keypair, batchGenMessage, PubKey, stringizing } from '../crypto';
 import { Contract } from '../contract';
 import { Indexer } from '../indexer';
 import { OracleCertificate } from '../oracle-certificate';
@@ -31,25 +25,25 @@ export function isErrorResponse(response: unknown): response is ErrorResponse {
 }
 
 export class MACI {
-  public circom: Circom;
   public contract: Contract;
   public indexer: Indexer;
   public oracleCertificate: OracleCertificate;
+  public maciKeypair: Keypair;
   constructor({
-    circom,
     contract,
     indexer,
     oracleCertificate,
+    maciKeypair,
   }: {
-    circom: Circom;
     contract: Contract;
     indexer: Indexer;
     oracleCertificate: OracleCertificate;
+    maciKeypair: Keypair;
   }) {
-    this.circom = circom;
     this.contract = contract;
     this.indexer = indexer;
     this.oracleCertificate = oracleCertificate;
+    this.maciKeypair = maciKeypair;
   }
 
   async getStateIdxInc({
@@ -163,7 +157,10 @@ export class MACI {
     signer: OfflineSigner;
     address?: string;
     contractAddress: string;
-    certificate?: string;
+    certificate?: {
+      signature: string;
+      amount: string;
+    };
     mode?: 'maci' | 'amaci';
   }): Promise<string> {
     if (!address) {
@@ -205,8 +202,8 @@ export class MACI {
       });
 
       const balance = await client.whiteBalanceOf({
-        amount: address,
-        certificate,
+        amount: certificate.amount,
+        certificate: certificate.signature,
         sender: address,
       });
 
@@ -444,14 +441,14 @@ export class MACI {
     signer,
     address,
     contractAddress,
-    maciAccount,
+    maciKeypair,
     oracleCertificate,
     gasStation = false,
   }: {
     signer: OfflineSigner;
     address?: string;
     contractAddress: string;
-    maciAccount?: Account;
+    maciKeypair?: Keypair;
     oracleCertificate?: {
       amount: string;
       signature: string;
@@ -463,8 +460,9 @@ export class MACI {
         address = (await signer.getAccounts())[0].address;
       }
 
-      if (maciAccount === undefined) {
-        maciAccount = await this.circom.genKeypairFromSign(signer, address);
+      if (maciKeypair === undefined) {
+        maciKeypair = this.maciKeypair;
+        // maciKeypair = await this.crypto.genKeypairFromSign(signer, address);
       }
 
       const client = await this.contract.contractClient({
@@ -475,7 +473,7 @@ export class MACI {
         return await this.signupOracle({
           client,
           address,
-          pubKey: maciAccount.pubKey,
+          pubKey: maciKeypair.pubKey,
           contractAddress,
           oracleCertificate,
           gasStation,
@@ -484,7 +482,7 @@ export class MACI {
         return await this.signupSimple({
           client,
           address,
-          pubKey: maciAccount.pubKey,
+          pubKey: maciKeypair.pubKey,
           contractAddress,
           gasStation,
         });
@@ -540,7 +538,7 @@ export class MACI {
     contractAddress,
     selectedOptions,
     operatorCoordPubKey,
-    maciAccount,
+    maciKeypair,
     gasStation = false,
   }: {
     signer: OfflineSigner;
@@ -551,8 +549,8 @@ export class MACI {
       idx: number;
       vc: number;
     }[];
-    operatorCoordPubKey: PublicKey;
-    maciAccount?: Account;
+    operatorCoordPubKey: PubKey;
+    maciKeypair?: Keypair;
     gasStation?: boolean;
   }) {
     if (stateIdx === -1) {
@@ -576,8 +574,9 @@ export class MACI {
         address = (await signer.getAccounts())[0].address;
       }
 
-      if (maciAccount === undefined) {
-        maciAccount = await this.circom.genKeypairFromSign(signer, address);
+      if (maciKeypair === undefined) {
+        maciKeypair = this.maciKeypair;
+        // maciKeypair = await this.crypto.genKeypairFromSign(signer, address);
       }
 
       const plan = options.map((o) => {
@@ -586,7 +585,7 @@ export class MACI {
 
       const payload = batchGenMessage(
         stateIdx,
-        maciAccount,
+        maciKeypair,
         operatorCoordPubKey,
         plan
       );
@@ -618,7 +617,7 @@ export class MACI {
     address: string;
     payload: {
       msg: bigint[];
-      encPubkeys: PublicKey;
+      encPubkeys: PubKey;
     }[];
     contractAddress: string;
     gasStation: boolean;
@@ -671,7 +670,7 @@ export class MACI {
   }: {
     client: SigningCosmWasmClient;
     address: string;
-    pubKey: PublicKey;
+    pubKey: PubKey;
     contractAddress: string;
     gasStation?: boolean;
   }) {
@@ -724,7 +723,7 @@ export class MACI {
   }: {
     client: SigningCosmWasmClient;
     address: string;
-    pubKey: PublicKey;
+    pubKey: PubKey;
     contractAddress: string;
     oracleCertificate: {
       amount: string;

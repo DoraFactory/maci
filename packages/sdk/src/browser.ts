@@ -12,6 +12,5 @@ export {
   Proof,
   Transaction,
 } from './libs/query';
-export * from './libs/circom';
+export * from './libs/crypto';
 export * from './utils';
-export { Scalar, utils } from 'ffjavascript';

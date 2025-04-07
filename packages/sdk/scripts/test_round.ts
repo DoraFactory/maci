@@ -1,4 +1,4 @@
-import { MaciClient, MaciCircuitType, compressPublicKey } from '../src';
+import { MaciClient, MaciCircuitType, genKeypair } from '../src';
 import { Secp256k1HdWallet } from '@cosmjs/amino';
 import {
   DirectSecp256k1HdWallet,
@@ -14,7 +14,7 @@ function delay(ms: number) {
 
 async function main() {
   const client = new MaciClient({
-    network: 'mainnet',
+    network: 'testnet',
   });
 
   console.log('======= start test contract logic =======');
@@ -33,9 +33,11 @@ async function main() {
   const newRound = await client.createOracleMaciRound({
     signer: wallet,
     operatorPubkey:
-      '1c3b06925c6239136b827dfd20b7b83218514418ba904d1dffcccc00a391f5d01d5f2dd3f387f1fee338b299167ddffed5a464be352a8a7fe2121340395d4c06',
+      '20569243924629228035563759081356417640308543737009765586195076626319661619637',
+    // '0e752cc9fe60255a607191dc8b56455eb459a34068fcec6701a80787cac532d02d61d1f14d35e3553e4abacdee2d47b417716d02c4c0379fc161c8c4f8863177',
+    // '1c3b06925c6239136b827dfd20b7b83218514418ba904d1dffcccc00a391f5d01d5f2dd3f387f1fee338b299167ddffed5a464be352a8a7fe2121340395d4c06',
     startVoting: new Date(new Date().getTime()),
-    endVoting: new Date(new Date().getTime() + 15 * 60 * 1000),
+    endVoting: new Date(new Date().getTime() + 5 * 60 * 1000),
     title: 'new oracle maci round',
     voteOptionMap: ['option1: A', 'option2: B', 'option3: C'],
     circuitType: MaciCircuitType.IP1V,
@@ -68,26 +70,26 @@ async function main() {
     },
   ]);
 
-  const roundInfo = await client.maci.getRoundInfo({
+  const roundInfo = await client.getRoundInfo({
     contractAddress: RoundAddress,
   });
   console.log('roundInfo', roundInfo);
 
-  const status = client.maci.parseRoundStatus(
+  const status = client.parseRoundStatus(
     Number(roundInfo.votingStart),
     Number(roundInfo.votingEnd),
     roundInfo.status,
     new Date()
   );
   console.log('status', status);
-  const oracleClient = await client.contract.oracleMaciClient({
+  const oracleClient = await client.oracleMaciClient({
     signer: wallet,
     contractAddress: RoundAddress,
   });
   const oracleConfig = await oracleClient.queryOracleWhitelistConfig();
   console.log('oracleConfig', oracleConfig);
 
-  const roundBalance = await client.maci.queryRoundBalance({
+  const roundBalance = await client.queryRoundBalance({
     contractAddress: RoundAddress,
   });
   console.log(`roundBalance: ${Number(roundBalance) / 10 ** 18} DORA`);
@@ -96,12 +98,11 @@ async function main() {
   console.log(`totalBond: ${Number(totalBond) / 10 ** 18} DORA`);
 
   // generate maci account
-  // generate maci account
-  const maciAccount = await client.circom.genKeypairFromSign(wallet, address);
-  console.log('maciAccount First', maciAccount);
+  const maciKeypair = await client.genKeypairFromSign(wallet, address);
+  console.log('maciKeypair', maciKeypair);
 
   // get certificate
-  const certificate = await client.maci.requestOracleCertificate({
+  const certificate = await client.requestOracleCertificate({
     signer: wallet,
     ecosystem: 'doravota',
     address,
@@ -111,7 +112,7 @@ async function main() {
 
   let gasStationEnable = roundInfo.gasStationEnable;
   console.log('gasStationEnable', gasStationEnable);
-  let hasFeegrant = await client.maci.hasFeegrant({
+  let hasFeegrant = await client.hasFeegrant({
     address,
     contractAddress: RoundAddress,
   });
@@ -119,7 +120,7 @@ async function main() {
 
   while (!hasFeegrant) {
     await delay(1000);
-    hasFeegrant = await client.maci.hasFeegrant({
+    hasFeegrant = await client.hasFeegrant({
       address,
       contractAddress: RoundAddress,
     });
@@ -129,11 +130,11 @@ async function main() {
   await delay(6000);
 
   // oracle maci sign up
-  const signupResponse = await client.maci.signup({
+  const signupResponse = await client.signup({
     signer: wallet,
     address,
     contractAddress: RoundAddress,
-    maciAccount,
+    maciKeypair,
     oracleCertificate: {
       amount: certificate.amount,
       signature: certificate.signature,
@@ -146,14 +147,25 @@ async function main() {
   await delay(6000);
 
   // get user state idx
-  const stateIdx = await client.maci.getStateIdxByPubKey({
+  const stateIdx = await client.getStateIdxByPubKey({
     contractAddress: RoundAddress,
-    pubKey: maciAccount.pubKey,
+    pubKey: maciKeypair.pubKey,
   });
   console.log('stateIdx', stateIdx);
+  const balance = await client.queryWhitelistBalanceOf({
+    signer: wallet,
+    address,
+    contractAddress: RoundAddress,
+    certificate: certificate,
+  });
+  console.log('balance', balance);
 
+  const voiceBalance = await oracleClient.getVoiceCreditBalance({
+    index: stateIdx.toString(),
+  });
+  console.log('voiceBalance', voiceBalance);
   // vote
-  const voteResponse = await client.maci.vote({
+  const voteResponse = await client.vote({
     signer: wallet,
     address,
     stateIdx,
@@ -166,7 +178,7 @@ async function main() {
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY),
     ],
-    maciAccount,
+    maciKeypair,
     gasStation: true,
   });
 

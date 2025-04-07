@@ -1,6 +1,0 @@
-test/
-.git*
-.eslintrc.js
-*.log
-coverage/
-docs/

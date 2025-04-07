@@ -1,28 +1,5 @@
-import {
-  BalanceResponse,
-  ClientParams,
-  RoundResponse,
-  RoundsResponse,
-  OperatorResponse,
-  OperatorsResponse,
-  CircuitResponse,
-  TransactionResponse,
-  TransactionsResponse,
-  CircuitsResponse,
-  ProofResponse,
-  SelectiveRoundResponse,
-  CertificateEcosystem,
-  ErrorResponse,
-  RoundType,
-} from './types';
-import {
-  Http,
-  Indexer,
-  Contract,
-  OracleCertificate,
-  Circom,
-  MACI,
-} from './libs';
+import { ClientParams, CertificateEcosystem } from './types';
+import { Http, Indexer, Contract, OracleCertificate, MACI } from './libs';
 import { getDefaultParams } from './libs/const';
 import {
   CreateAMaciRoundParams,
@@ -30,17 +7,20 @@ import {
   CreateOracleMaciRoundParams,
 } from './libs/contract/types';
 import { OfflineSigner } from '@cosmjs/proto-signing';
-import { Account, PublicKey } from './libs/circom';
-import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
+import { genKeypair, genKeypairFromSign, Keypair, PubKey } from './libs/crypto';
 import { OracleWhitelistConfig } from './libs/contract/ts/OracleMaci.types';
 import { SignatureResponse } from './libs/oracle-certificate/types';
-import { StdFee } from '@cosmjs/stargate';
+import {
+  DirectSecp256k1HdWallet,
+  DirectSecp256k1Wallet,
+} from '@cosmjs/proto-signing';
 
 /**
  * @class MaciClient
  * @description This class is used to interact with Maci Client.
  */
 export class MaciClient {
+  public network: 'mainnet' | 'testnet';
   public rpcEndpoint: string;
   public restEndpoint: string;
   public apiEndpoint: string;
@@ -55,9 +35,11 @@ export class MaciClient {
   public http: Http;
   public indexer: Indexer;
   public contract: Contract;
-  public circom: Circom;
   public oracleCertificate: OracleCertificate;
   public maci: MACI;
+  public maciKeypair: Keypair;
+
+  public signer?: OfflineSigner;
 
   /**
    * @constructor
@@ -76,8 +58,13 @@ export class MaciClient {
     feegrantOperator,
     whitelistBackendPubkey,
     certificateApiEndpoint,
+    maciKeypair,
+    signer,
   }: ClientParams) {
+    this.network = network;
     const defaultParams = getDefaultParams(network);
+
+    this.signer = signer;
 
     this.rpcEndpoint = rpcEndpoint || defaultParams.rpcEndpoint;
     this.restEndpoint = restEndpoint || defaultParams.restEndpoint;
@@ -91,6 +78,7 @@ export class MaciClient {
       feegrantOperator || defaultParams.oracleFeegrantOperator;
     this.whitelistBackendPubkey =
       whitelistBackendPubkey || defaultParams.oracleWhitelistBackendPubkey;
+    this.maciKeypair = maciKeypair ?? genKeypair();
 
     this.http = new Http(
       this.apiEndpoint,
@@ -112,16 +100,15 @@ export class MaciClient {
       feegrantOperator: this.feegrantOperator,
       whitelistBackendPubkey: this.whitelistBackendPubkey,
     });
-    this.circom = new Circom({ network });
     this.oracleCertificate = new OracleCertificate({
       certificateApiEndpoint: this.certificateApiEndpoint,
       http: this.http,
     });
     this.maci = new MACI({
-      circom: this.circom,
       contract: this.contract,
       indexer: this.indexer,
       oracleCertificate: this.oracleCertificate,
+      maciKeypair: this.maciKeypair,
     });
   }
 
@@ -178,6 +165,10 @@ export class MaciClient {
 
   async createOracleMaciRound(params: CreateOracleMaciRoundParams) {
     return await this.contract.createOracleMaciRound(params);
+  }
+
+  async genKeypairFromSign(signer: OfflineSigner, address: string) {
+    return await genKeypairFromSign(signer, address, this.network);
   }
 
   async getStateIdxInc({
@@ -261,7 +252,10 @@ export class MaciClient {
     signer: OfflineSigner;
     address?: string;
     contractAddress: string;
-    certificate?: string;
+    certificate?: {
+      signature: string;
+      amount: string;
+    };
     mode?: 'maci' | 'amaci';
   }): Promise<string> {
     return await this.maci.queryWhitelistBalanceOf({
@@ -383,14 +377,14 @@ export class MaciClient {
     signer,
     address,
     contractAddress,
-    maciAccount,
+    maciKeypair,
     oracleCertificate,
     gasStation = false,
   }: {
     signer: OfflineSigner;
     address?: string;
     contractAddress: string;
-    maciAccount?: Account;
+    maciKeypair?: Keypair;
     oracleCertificate?: {
       amount: string;
       signature: string;
@@ -401,7 +395,7 @@ export class MaciClient {
       signer,
       address,
       contractAddress,
-      maciAccount,
+      maciKeypair,
       oracleCertificate,
       gasStation,
     });
@@ -414,7 +408,7 @@ export class MaciClient {
     contractAddress,
     selectedOptions,
     operatorCoordPubKey,
-    maciAccount,
+    maciKeypair,
     gasStation = false,
   }: {
     signer: OfflineSigner;
@@ -425,8 +419,8 @@ export class MaciClient {
       idx: number;
       vc: number;
     }[];
-    operatorCoordPubKey: PublicKey;
-    maciAccount?: Account;
+    operatorCoordPubKey: PubKey;
+    maciKeypair?: Keypair;
     gasStation?: boolean;
   }) {
     return await this.maci.vote({
@@ -436,7 +430,7 @@ export class MaciClient {
       contractAddress,
       selectedOptions,
       operatorCoordPubKey,
-      maciAccount,
+      maciKeypair,
       gasStation,
     });
   }

@@ -1,4 +1,4 @@
-import { MaciClient, MaciCircuitType, compressPublicKey } from '../src';
+import { MaciClient, MaciCircuitType } from '../src';
 import { Secp256k1HdWallet } from '@cosmjs/amino';
 import {
   DirectSecp256k1HdWallet,

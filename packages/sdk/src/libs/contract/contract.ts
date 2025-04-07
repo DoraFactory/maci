@@ -34,7 +34,7 @@ import {
 } from './utils';
 import { QTR_LIB } from './vars';
 import { MaciRoundType, MaciCertSystemType } from '../../types';
-import { decompressPublicKey } from '../../utils';
+import { unpackPubKey } from '../crypto';
 
 export const prefix = 'dora';
 
@@ -150,8 +150,9 @@ export class Contract {
     const end_time = (endVoting.getTime() * 10 ** 6).toString();
     const [{ address }] = await signer.getAccounts();
     const client = await createContractClientByWallet(this.rpcEndpoint, signer);
-    const { x: operatorPubkeyX, y: operatorPubkeyY } =
-      decompressPublicKey(operatorPubkey);
+    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(
+      BigInt(operatorPubkey)
+    );
     const {
       parameters,
       groth16ProcessVkey,
@@ -178,8 +179,8 @@ export class Contract {
         },
         parameters,
         coordinator: {
-          x: operatorPubkeyX,
-          y: operatorPubkeyY,
+          x: operatorPubkeyX.toString(),
+          y: operatorPubkeyY.toString(),
         },
         groth16_process_vkey: groth16ProcessVkey,
         groth16_tally_vkey: groth16TallyVkey,
@@ -216,8 +217,9 @@ export class Contract {
     const end_time = (endVoting.getTime() * 1_000_000).toString();
     const [{ address }] = await signer.getAccounts();
     const client = await createContractClientByWallet(this.rpcEndpoint, signer);
-    const { x: operatorPubkeyX, y: operatorPubkeyY } =
-      decompressPublicKey(operatorPubkey);
+    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(
+      BigInt(operatorPubkey)
+    );
     const { maciVoteType, maciCertSystem } = getContractParams(
       MaciRoundType.ORACLE_MACI,
       circuitType,
@@ -235,8 +237,8 @@ export class Contract {
           end_time,
         },
         coordinator: {
-          x: operatorPubkeyX,
-          y: operatorPubkeyY,
+          x: operatorPubkeyX.toString(),
+          y: operatorPubkeyY.toString(),
         },
         vote_option_map: voteOptionMap,
         whitelist_backend_pubkey: this.whitelistBackendPubkey,

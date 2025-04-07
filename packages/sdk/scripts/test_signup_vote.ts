@@ -64,8 +64,8 @@ async function main() {
 
   // generate maci account
   // generate maci account
-  const maciAccount = await client.circom.genKeypairFromSign(wallet, address);
-  console.log('maciAccount First', maciAccount);
+  const maciKeypair = await client.genKeypairFromSign(wallet, address);
+  console.log('maciKeypair', maciKeypair);
 
   // get certificate
   const certificate = await client.maci.requestOracleCertificate({
@@ -100,7 +100,7 @@ async function main() {
     signer: wallet,
     address,
     contractAddress: RoundAddress,
-    maciAccount,
+    maciKeypair,
     oracleCertificate: {
       amount: certificate.amount,
       signature: certificate.signature,
@@ -115,7 +115,7 @@ async function main() {
   // get user state idx
   const stateIdx = await client.maci.getStateIdxByPubKey({
     contractAddress: RoundAddress,
-    pubKey: maciAccount.pubKey,
+    pubKey: maciKeypair.pubKey,
   });
   console.log('stateIdx', stateIdx);
 
@@ -133,7 +133,7 @@ async function main() {
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY),
     ],
-    maciAccount,
+    maciKeypair,
     gasStation: false,
   });
 
