@@ -5,10 +5,7 @@ import {
   SigningStargateClient,
   SigningStargateClientOptions,
 } from '@cosmjs/stargate';
-import {
-  SigningCosmWasmClient,
-  SigningCosmWasmClientOptions,
-} from '@cosmjs/cosmwasm-stargate';
+import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { MaciClient } from './ts/Maci.client';
 import { AMaciClient } from './ts/AMaci.client';
 import { RegistryClient } from './ts/Registry.client';

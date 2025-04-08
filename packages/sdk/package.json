@@ -1,6 +1,6 @@
 {
   "name": "@dorafactory/maci-sdk",
-  "version": "0.0.38",
+  "version": "0.0.39",
   "description": "SDK for interacting with maci",
   "keywords": [
     "maci",
@@ -47,30 +47,16 @@
   "dependencies": {
     "@cosmjs/amino": "^0.32.1",
     "@cosmjs/cosmwasm-stargate": "^0.32.1",
-    "@cosmjs/crypto": "^0.32.1",
     "@cosmjs/launchpad": "^0.27.1",
     "@cosmjs/proto-signing": "^0.32.1",
     "@cosmjs/stargate": "^0.32.1",
     "@zk-kit/baby-jubjub": "^1.0.3",
     "@zk-kit/eddsa-poseidon": "^1.1.0",
     "@zk-kit/poseidon-cipher": "^0.3.2",
-    "@zk-kit/utils": "^1.4.1",
     "assert": "^2.1.0",
     "bech32": "1.1.4",
-    "blake-hash": "^2.0.0",
-    "colorts": "^0.1.63",
     "cosmjs-types": "^0.9.0",
-    "ethers": "^6.13.4",
-    "gql.tada": "^1.7.0",
-    "graphql": "^16.8.1",
-    "husky": "^8.0.3",
-    "keccak256": "^1.0.6",
-    "micro-ftch": "^0.4.2",
-    "superstruct": "^1.0.3",
-    "tmp": "^0.2.1",
-    "ts-retry-promise": "^0.7.1",
-    "tweetnacl": "^1.0.3",
-    "valibot": "0.36.0"
+    "ethers": "^6.13.4"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.0.0",

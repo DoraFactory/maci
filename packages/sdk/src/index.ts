@@ -1,14 +1,28 @@
-export * from './libs';
-export type * from './types';
-export * from './types';
-export * from './libs/const';
+// Core
 export { MaciClient } from './maci';
 export { Http } from './libs/http';
-export { Round } from './libs/query';
-export { UserAccount } from './libs/query';
-export { Circuit } from './libs/query';
-export { Operator } from './libs/query';
-export { Proof } from './libs/query';
-export { Transaction } from './libs/query';
+
+// Query Types
+export {
+  Round,
+  UserAccount,
+  Circuit,
+  Operator,
+  Proof,
+  Transaction,
+} from './libs/query';
+
+// Crypto
 export * from './libs/crypto';
-export * from './utils';
+
+// Types
+export * from './types';
+export type * from './types';
+
+// Constants
+export { circuits, getDefaultParams, type NetworkConfig } from './libs/const';
+
+// Utils
+export { stringizing, bigInt2Buffer } from './libs/crypto/bigintUtils';
+export { isValidAddress } from './utils';
+export { getAMaciRoundCircuitFee } from './libs/contract/utils';

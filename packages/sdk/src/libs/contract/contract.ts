@@ -1,17 +1,4 @@
-import { Secp256k1HdWallet } from '@cosmjs/launchpad';
-import { DirectSecp256k1HdWallet, OfflineSigner } from '@cosmjs/proto-signing';
-import {
-  GasPrice,
-  SigningStargateClient,
-  SigningStargateClientOptions,
-} from '@cosmjs/stargate';
-import {
-  SigningCosmWasmClient,
-  SigningCosmWasmClientOptions,
-} from '@cosmjs/cosmwasm-stargate';
-import { MaciClient } from './ts/Maci.client';
-import { AMaciClient } from './ts/AMaci.client';
-import { RegistryClient } from './ts/Registry.client';
+import { OfflineSigner } from '@cosmjs/proto-signing';
 import { ContractParams } from '../../types';
 import {
   createAMaciClientBy,
@@ -20,18 +7,12 @@ import {
   createOracleMaciClientBy,
   createRegistryClientBy,
 } from './config';
-import { Whitelist } from './ts/Registry.types';
-import { getDefaultParams } from '../const';
 import {
   CreateAMaciRoundParams,
   CreateMaciRoundParams,
   CreateOracleMaciRoundParams,
 } from './types';
-import {
-  getAMaciRoundCircuitFee,
-  getCircuitType,
-  getContractParams,
-} from './utils';
+import { getAMaciRoundCircuitFee, getContractParams } from './utils';
 import { QTR_LIB } from './vars';
 import { MaciRoundType, MaciCertSystemType } from '../../types';
 import { unpackPubKey } from '../crypto';
