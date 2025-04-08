@@ -5,30 +5,6 @@ import {
 } from '../../types';
 import { CIRCUIT_INFO } from './vars';
 
-type MixedData<T> = T | Array<MixedData<T>> | { [key: string]: MixedData<T> };
-
-export const stringizing = (
-  o: MixedData<bigint>,
-  path: MixedData<bigint>[] = []
-): MixedData<string> => {
-  if (path.includes(o)) {
-    throw new Error('loop nesting!');
-  }
-  const newPath = [...path, o];
-
-  if (Array.isArray(o)) {
-    return o.map((item) => stringizing(item, newPath));
-  } else if (typeof o === 'object') {
-    const output: { [key: string]: MixedData<string> } = {};
-    for (const key in o) {
-      output[key] = stringizing(o[key], newPath);
-    }
-    return output;
-  } else {
-    return o.toString();
-  }
-};
-
 export function getCircuitType(circuitType: MaciCircuitType) {
   let maciVoteType = null;
   switch (circuitType) {
