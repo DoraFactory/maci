@@ -13,10 +13,6 @@ function delay(ms: number) {
 }
 
 async function main() {
-  const client = new MaciClient({
-    network: 'testnet',
-  });
-
   console.log('======= start test contract logic =======');
   let key = process.env.ADMIN_PRIVATE_KEY;
   if (!key) {
@@ -29,9 +25,12 @@ async function main() {
     Buffer.from(key, 'hex'),
     'dora'
   );
+  const client = new MaciClient({
+    network: 'testnet',
+    signer: wallet,
+  });
 
   const newRound = await client.createOracleMaciRound({
-    signer: wallet,
     operatorPubkey:
       '0d622736d5630a9e39a2998599bebf703a794978b64d30148cf7a15870f014fe2d79c78ccd5fffa53897b817075bdeef74a2ea9f244983d2f0829e19f44c59b5',
     startVoting: new Date(new Date().getTime()),

@@ -76,10 +76,9 @@ export class Contract {
     voiceCreditAmount,
     circuitType,
     preDeactivateRoot,
-  }: CreateAMaciRoundParams) {
+  }: CreateAMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 10 ** 6).toString();
     const end_time = (endVoting.getTime() * 10 ** 6).toString();
-
     const client = await createRegistryClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
@@ -145,7 +144,7 @@ export class Contract {
     maxOption,
     circuitType,
     certSystemType,
-  }: CreateMaciRoundParams) {
+  }: CreateMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 10 ** 6).toString();
     const end_time = (endVoting.getTime() * 10 ** 6).toString();
     const [{ address }] = await signer.getAccounts();
@@ -212,7 +211,7 @@ export class Contract {
     whitelistEcosystem,
     whitelistSnapshotHeight,
     whitelistVotingPowerArgs,
-  }: CreateOracleMaciRoundParams) {
+  }: CreateOracleMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 1_000_000).toString();
     const end_time = (endVoting.getTime() * 1_000_000).toString();
     const [{ address }] = await signer.getAccounts();

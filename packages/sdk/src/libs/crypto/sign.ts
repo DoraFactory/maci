@@ -7,7 +7,7 @@ import { StdSignDoc } from '@cosmjs/amino';
 import { SignDoc } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { getDefaultParams } from '../const';
 import { genKeypair } from './keys';
-import { SignResult, CircomParams } from './types';
+import { SignResult } from './types';
 
 export async function signMessage(
   signer: OfflineSigner,
@@ -67,11 +67,19 @@ export async function genKeypairFromSignature(signature: string) {
   return genKeypair(sign);
 }
 
-export async function genKeypairFromSign(
-  signer: OfflineSigner,
-  address: string,
-  network: 'mainnet' | 'testnet'
-) {
+export async function genKeypairFromSign({
+  signer,
+  address,
+  network,
+}: {
+  signer: OfflineSigner;
+  address?: string;
+  network: 'mainnet' | 'testnet';
+}) {
+  if (!address) {
+    [{ address }] = await signer.getAccounts();
+  }
+
   const sig = await signMessage(
     signer,
     address,

@@ -10,10 +10,6 @@ function delay(ms: number) {
 }
 
 async function main() {
-  const client = new MaciClient({
-    network: 'testnet',
-  });
-
   console.log('======= start test contract logic =======');
   let key = process.env.ADMIN_PRIVATE_KEY;
   if (!key) {
@@ -27,8 +23,13 @@ async function main() {
     'dora'
   );
 
-  const address = (await wallet.getAccounts())[0].address;
-  console.log('address', address);
+  const network = 'testnet';
+  const client = new MaciClient({
+    network,
+    signer: wallet,
+  });
+
+  const address = await client.getAddress();
 
   // ================ test oracle signup and vote
 
@@ -64,7 +65,7 @@ async function main() {
 
   // generate maci account
   // generate maci account
-  const maciKeypair = await client.genKeypairFromSign(wallet, address);
+  const maciKeypair = await client.genKeypairFromSign();
   console.log('maciKeypair', maciKeypair);
 
   // get certificate

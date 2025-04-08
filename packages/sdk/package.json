@@ -1,6 +1,6 @@
 {
   "name": "@dorafactory/maci-sdk",
-  "version": "0.0.35",
+  "version": "0.0.36",
   "description": "SDK for interacting with maci",
   "keywords": [
     "maci",
@@ -20,18 +20,9 @@
   "engines": {
     "node": ">=18"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
-    "./browser": {
-      "types": "./dist/browser.d.ts",
-      "import": "./dist/browser.mjs"
-    }
-  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src"
@@ -39,18 +30,19 @@
   "scripts": {
     "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
     "build": "npm run build:types && npm run build:tsup",
-    "build:tsup": "tsup",
-    "build:types": "tsc --emitDeclarationOnly --declaration --declarationDir dist",
+    "build:tsup": "tsup ./src/index.ts --format esm,cjs --sourcemap",
+    "build:types": "tsc --build",
     "watch:tsup": "tsup ./src/index.ts --format esm,cjs --clean --splitting --watch",
     "watch:types": "tsc --watch",
     "watch": "pnpm run clean & pnpm run watch:types & pnpm run watch:tsup",
     "test": "pnpm test:typecheck && pnpm test:unit",
+    "test:typecheck": "tsc -p ./test",
+    "test:unit": "vitest run --test-timeout=60000",
+    "test:watch": "vitest",
     "format:fix": "prettier --ignore-path 'dist/* docs/*' --write '**/*.{ts,json,md}'",
     "lint:fix": "eslint . --ignore-pattern dist --ext .ts --fix",
     "commit": "commit",
-    "doc": "typedoc --out docs src/index.ts",
-    "chalk": "^5.0.1",
-    "prettier": "^2.8.4"
+    "doc": "typedoc --out docs src/index.ts"
   },
   "dependencies": {
     "@cosmjs/amino": "^0.32.1",

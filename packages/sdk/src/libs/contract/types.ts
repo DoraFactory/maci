@@ -8,7 +8,7 @@ import {
 } from '../../types';
 
 export type CreateRoundParams = {
-  signer: OfflineSigner;
+  signer?: OfflineSigner;
   title: string;
   description?: string;
   link?: string;

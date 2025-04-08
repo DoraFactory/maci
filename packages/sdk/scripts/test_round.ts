@@ -13,10 +13,6 @@ function delay(ms: number) {
 }
 
 async function main() {
-  const client = new MaciClient({
-    network: 'testnet',
-  });
-
   console.log('======= start test contract logic =======');
   let key = process.env.ADMIN_PRIVATE_KEY;
   if (!key) {
@@ -30,8 +26,12 @@ async function main() {
     'dora'
   );
 
-  const newRound = await client.createOracleMaciRound({
+  const client = new MaciClient({
+    network: 'testnet',
     signer: wallet,
+  });
+
+  const newRound = await client.createOracleMaciRound({
     operatorPubkey:
       '20569243924629228035563759081356417640308543737009765586195076626319661619637',
     // '0e752cc9fe60255a607191dc8b56455eb459a34068fcec6701a80787cac532d02d61d1f14d35e3553e4abacdee2d47b417716d02c4c0379fc161c8c4f8863177',
@@ -56,10 +56,9 @@ async function main() {
   //   contractAddress: newRound.contractAddress,
   // });
   // console.log('roundInfo:', roundInfo);
-  const address = (await wallet.getAccounts())[0].address;
+  const address = await client.getAddress();
   const RoundAddress = newRound.contractAddress;
   const oracleMaciClient = await client.oracleMaciClient({
-    signer: wallet,
     contractAddress: RoundAddress,
   });
 
@@ -83,7 +82,6 @@ async function main() {
   );
   console.log('status', status);
   const oracleClient = await client.oracleMaciClient({
-    signer: wallet,
     contractAddress: RoundAddress,
   });
   const oracleConfig = await oracleClient.queryOracleWhitelistConfig();
@@ -98,12 +96,11 @@ async function main() {
   console.log(`totalBond: ${Number(totalBond) / 10 ** 18} DORA`);
 
   // generate maci account
-  const maciKeypair = await client.genKeypairFromSign(wallet, address);
+  const maciKeypair = await client.genKeypairFromSign();
   console.log('maciKeypair', maciKeypair);
 
   // get certificate
   const certificate = await client.requestOracleCertificate({
-    signer: wallet,
     ecosystem: 'doravota',
     address,
     contractAddress: RoundAddress,
@@ -131,7 +128,6 @@ async function main() {
 
   // oracle maci sign up
   const signupResponse = await client.signup({
-    signer: wallet,
     address,
     contractAddress: RoundAddress,
     maciKeypair,
@@ -153,7 +149,6 @@ async function main() {
   });
   console.log('stateIdx', stateIdx);
   const balance = await client.queryWhitelistBalanceOf({
-    signer: wallet,
     address,
     contractAddress: RoundAddress,
     certificate: certificate,
@@ -166,7 +161,6 @@ async function main() {
   console.log('voiceBalance', voiceBalance);
   // vote
   const voteResponse = await client.vote({
-    signer: wallet,
     address,
     stateIdx,
     contractAddress: RoundAddress,

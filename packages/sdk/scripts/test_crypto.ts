@@ -34,3 +34,6 @@ const maciKeypair =
     6975805202513792793165722197797990523098997808096663894316103287476995716256n
   );
 console.log('maciKeypair', maciKeypair);
+
+const newKey = genKeypair(maciKeypair.formatedPrivKey);
+console.log('newKey', newKey);
