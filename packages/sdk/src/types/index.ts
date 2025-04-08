@@ -23,7 +23,7 @@ export enum MaciRoundType {
 export type CertificateEcosystem = 'cosmoshub' | 'doravota';
 
 export type ClientParams = {
-  signer: OfflineSigner;
+  signer?: OfflineSigner;
   network: 'mainnet' | 'testnet';
   rpcEndpoint?: string;
   restEndpoint?: string;

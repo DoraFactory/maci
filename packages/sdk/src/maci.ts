@@ -42,7 +42,7 @@ export class MaciClient {
   public maci: MACI;
   public maciKeypair: Keypair;
 
-  public signer: OfflineSigner;
+  public signer?: OfflineSigner;
 
   /**
    * @constructor
@@ -115,7 +115,13 @@ export class MaciClient {
   }
 
   getSigner(signer?: OfflineSigner) {
-    return signer || this.signer;
+    if (signer) {
+      return signer;
+    }
+    if (this.signer) {
+      return this.signer;
+    }
+    throw new Error('No signer provided, please provide a signer');
   }
 
   getMaciKeypair() {
