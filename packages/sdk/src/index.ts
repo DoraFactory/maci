@@ -10,7 +10,5 @@ export { Circuit } from './libs/query';
 export { Operator } from './libs/query';
 export { Proof } from './libs/query';
 export { Transaction } from './libs/query';
-export * from './libs/circom';
+export * from './libs/crypto';
 export * from './utils';
-export { Scalar, utils } from 'ffjavascript';
-export { default as createBlakeHash } from 'blake-hash';

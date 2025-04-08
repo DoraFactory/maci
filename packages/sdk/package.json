@@ -1,6 +1,6 @@
 {
   "name": "@dorafactory/maci-sdk",
-  "version": "0.0.35",
+  "version": "0.0.36",
   "description": "SDK for interacting with maci",
   "keywords": [
     "maci",
@@ -20,18 +20,9 @@
   "engines": {
     "node": ">=18"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
-    "./browser": {
-      "types": "./dist/browser.d.ts",
-      "import": "./dist/browser.mjs"
-    }
-  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src"
@@ -39,34 +30,37 @@
   "scripts": {
     "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
     "build": "npm run build:types && npm run build:tsup",
-    "build:tsup": "tsup",
-    "build:types": "tsc --emitDeclarationOnly --declaration --declarationDir dist",
+    "build:tsup": "tsup ./src/index.ts --format esm,cjs --sourcemap",
+    "build:types": "tsc --build",
     "watch:tsup": "tsup ./src/index.ts --format esm,cjs --clean --splitting --watch",
     "watch:types": "tsc --watch",
     "watch": "pnpm run clean & pnpm run watch:types & pnpm run watch:tsup",
     "test": "pnpm test:typecheck && pnpm test:unit",
+    "test:typecheck": "tsc -p ./test",
+    "test:unit": "vitest run --test-timeout=60000",
+    "test:watch": "vitest",
     "format:fix": "prettier --ignore-path 'dist/* docs/*' --write '**/*.{ts,json,md}'",
     "lint:fix": "eslint . --ignore-pattern dist --ext .ts --fix",
     "commit": "commit",
-    "doc": "typedoc --out docs src/index.ts",
-    "chalk": "^5.0.1",
-    "prettier": "^2.8.4"
+    "doc": "typedoc --out docs src/index.ts"
   },
   "dependencies": {
-    "@dorafactory/circomlib": "workspace:*",
     "@cosmjs/amino": "^0.32.1",
     "@cosmjs/cosmwasm-stargate": "^0.32.1",
     "@cosmjs/crypto": "^0.32.1",
     "@cosmjs/launchpad": "^0.27.1",
     "@cosmjs/proto-signing": "^0.32.1",
     "@cosmjs/stargate": "^0.32.1",
+    "@zk-kit/baby-jubjub": "^1.0.3",
+    "@zk-kit/eddsa-poseidon": "^1.1.0",
+    "@zk-kit/poseidon-cipher": "^0.3.2",
+    "@zk-kit/utils": "^1.4.1",
     "assert": "^2.1.0",
     "bech32": "1.1.4",
     "blake-hash": "^2.0.0",
     "colorts": "^0.1.63",
     "cosmjs-types": "^0.9.0",
     "ethers": "^6.13.4",
-    "ffjavascript": "^0.2.60",
     "gql.tada": "^1.7.0",
     "graphql": "^16.8.1",
     "husky": "^8.0.3",
@@ -86,6 +80,7 @@
     "@types/tmp": "^0.2.5",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.8.0",
+    "browserify-zlib": "^0.2.0",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
     "dotenv": "^16.3.1",
@@ -97,7 +92,7 @@
     "events-browserify": "^0.0.1",
     "https-browserify": "^1.0.0",
     "lint-staged": "^15.0.2",
-    "prettier": "^2.8.8",
+    "prettier": "^3.5.3",
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
@@ -105,8 +100,7 @@
     "tsconfig-paths": "^4.2.0",
     "tsup": "^8.0.0",
     "typedoc": "^0.25.2",
-    "typescript": "^5.2.2",
-    "browserify-zlib": "^0.2.0"
+    "typescript": "^5.2.2"
   },
   "lint-staged": {
     "**/*.ts": [

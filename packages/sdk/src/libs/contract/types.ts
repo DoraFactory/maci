@@ -8,7 +8,7 @@ import {
 } from '../../types';
 
 export type CreateRoundParams = {
-  signer: OfflineSigner;
+  signer?: OfflineSigner;
   title: string;
   description?: string;
   link?: string;
@@ -29,14 +29,14 @@ export type CreateAMaciRoundParams = {
 export type CreateMaciRoundParams = {
   maxVoter: number;
   maxOption: number;
-  operatorPubkey: string;
+  operatorPubkey: bigint | string;
   whitelist: MaciWhitelist;
   certSystemType: MaciCertSystemType;
 } & CreateRoundParams;
 
 export type CreateOracleMaciRoundParams = {
   voteOptionMap: string[];
-  operatorPubkey: string;
+  operatorPubkey: bigint | string;
   whitelistEcosystem: CertificateEcosystem;
   whitelistSnapshotHeight: string;
   whitelistVotingPowerArgs: {

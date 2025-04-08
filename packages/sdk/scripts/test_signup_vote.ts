@@ -10,10 +10,6 @@ function delay(ms: number) {
 }
 
 async function main() {
-  const client = new MaciClient({
-    network: 'testnet',
-  });
-
   console.log('======= start test contract logic =======');
   let key = process.env.ADMIN_PRIVATE_KEY;
   if (!key) {
@@ -27,8 +23,13 @@ async function main() {
     'dora'
   );
 
-  const address = (await wallet.getAccounts())[0].address;
-  console.log('address', address);
+  const network = 'testnet';
+  const client = new MaciClient({
+    network,
+    signer: wallet,
+  });
+
+  const address = await client.getAddress();
 
   // ================ test oracle signup and vote
 
@@ -64,8 +65,8 @@ async function main() {
 
   // generate maci account
   // generate maci account
-  const maciAccount = await client.circom.genKeypairFromSign(wallet, address);
-  console.log('maciAccount First', maciAccount);
+  const maciKeypair = await client.genKeypairFromSign();
+  console.log('maciKeypair', maciKeypair);
 
   // get certificate
   const certificate = await client.maci.requestOracleCertificate({
@@ -100,7 +101,7 @@ async function main() {
     signer: wallet,
     address,
     contractAddress: RoundAddress,
-    maciAccount,
+    maciKeypair,
     oracleCertificate: {
       amount: certificate.amount,
       signature: certificate.signature,
@@ -115,7 +116,7 @@ async function main() {
   // get user state idx
   const stateIdx = await client.maci.getStateIdxByPubKey({
     contractAddress: RoundAddress,
-    pubKey: maciAccount.pubKey,
+    pubKey: maciKeypair.pubKey,
   });
   console.log('stateIdx', stateIdx);
 
@@ -133,7 +134,7 @@ async function main() {
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY),
     ],
-    maciAccount,
+    maciKeypair,
     gasStation: false,
   });
 
