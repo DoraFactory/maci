@@ -6,6 +6,7 @@ import {
   MaciCertSystemType,
   CertificateEcosystem,
 } from '../../types';
+import { StdFee } from '@cosmjs/amino';
 
 export type CreateRoundParams = {
   signer: OfflineSigner;
@@ -15,6 +16,7 @@ export type CreateRoundParams = {
   startVoting: Date;
   endVoting: Date;
   circuitType: MaciCircuitType;
+  fee?: number | StdFee | 'auto';
 };
 
 export type CreateAMaciRoundParams = {
