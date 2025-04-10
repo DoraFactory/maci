@@ -444,6 +444,7 @@ export class MACI {
     maciKeypair,
     oracleCertificate,
     gasStation = false,
+    fee,
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -454,6 +455,7 @@ export class MACI {
       signature: string;
     };
     gasStation?: boolean;
+    fee?: StdFee;
   }) {
     try {
       if (!address) {
@@ -477,6 +479,7 @@ export class MACI {
           contractAddress,
           oracleCertificate,
           gasStation,
+          fee,
         });
       } else {
         return await this.signupSimple({
@@ -485,6 +488,7 @@ export class MACI {
           pubKey: maciKeypair.pubKey,
           contractAddress,
           gasStation,
+          fee,
         });
       }
     } catch (error) {
@@ -667,15 +671,17 @@ export class MACI {
     pubKey,
     contractAddress,
     gasStation,
+    fee,
   }: {
     client: SigningCosmWasmClient;
     address: string;
     pubKey: PubKey;
     contractAddress: string;
     gasStation?: boolean;
+    fee?: StdFee;
   }) {
     const gasPrice = GasPrice.fromString('100000000000peaka');
-    const fee = calculateFee(60000000, gasPrice);
+    fee = fee || calculateFee(60000000, gasPrice);
 
     if (gasStation === true) {
       const grantFee: StdFee = {
@@ -720,6 +726,7 @@ export class MACI {
     contractAddress,
     oracleCertificate,
     gasStation,
+    fee,
   }: {
     client: SigningCosmWasmClient;
     address: string;
@@ -730,9 +737,10 @@ export class MACI {
       signature: string;
     };
     gasStation?: boolean;
+    fee?: StdFee;
   }) {
     const gasPrice = GasPrice.fromString('100000000000peaka');
-    const fee = calculateFee(60000000, gasPrice);
+    fee = fee || calculateFee(60000000, gasPrice);
 
     if (gasStation === true) {
       const grantFee: StdFee = {
@@ -777,16 +785,18 @@ export class MACI {
   async claimAMaciRound({
     signer,
     contractAddress,
+    fee = 'auto',
   }: {
     signer: OfflineSigner;
     contractAddress: string;
+    fee?: number | StdFee | 'auto';
   }) {
     const client = await this.contract.amaciClient({
       signer,
       contractAddress,
     });
 
-    return client.claim();
+    return client.claim(fee);
   }
 
   async getOracleCertificateConfig() {
@@ -807,11 +817,13 @@ export class MACI {
     contractAddress,
     address,
     amount,
+    fee = 'auto',
   }: {
     signer: OfflineSigner;
     contractAddress: string;
     amount: string;
     address?: string;
+    fee?: number | StdFee | 'auto';
   }) {
     const client = await this.contract.contractClient({
       signer,
@@ -861,7 +873,7 @@ export class MACI {
     ];
 
     try {
-      const result = await client.signAndBroadcast(address, msgs, 'auto');
+      const result = await client.signAndBroadcast(address, msgs, fee);
       return result;
     } catch (err) {
       throw err;
@@ -879,10 +891,12 @@ export class MACI {
     signer,
     contractAddress,
     address,
+    fee = 'auto',
   }: {
     signer: OfflineSigner;
     contractAddress: string;
     address?: string;
+    fee?: number | StdFee | 'auto';
   }) {
     const client = await this.contract.contractClient({
       signer,
@@ -924,7 +938,7 @@ export class MACI {
     ];
 
     try {
-      const result = await client.signAndBroadcast(address, msgs, 'auto');
+      const result = await client.signAndBroadcast(address, msgs, fee);
       return result;
     } catch (err) {
       throw err;

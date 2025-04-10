@@ -57,6 +57,7 @@ export class Contract {
     voiceCreditAmount,
     circuitType,
     preDeactivateRoot,
+    fee = 'auto',
   }: CreateAMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 10 ** 6).toString();
     const end_time = (endVoting.getTime() * 10 ** 6).toString();
@@ -89,7 +90,7 @@ export class Contract {
         certificationSystem: '0',
         circuitType,
       },
-      'auto',
+      fee,
       undefined,
       [requiredFee]
     );
@@ -125,6 +126,7 @@ export class Contract {
     maxOption,
     circuitType,
     certSystemType,
+    fee = 'auto',
   }: CreateMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 10 ** 6).toString();
     const end_time = (endVoting.getTime() * 10 ** 6).toString();
@@ -148,6 +150,7 @@ export class Contract {
       maxVoter,
       maxOption
     );
+
     const instantiateResponse = await client.instantiate(
       address,
       this.maciCodeId,
@@ -173,7 +176,7 @@ export class Contract {
         qtr_lib: QTR_LIB,
       },
       `[MACI] ${title}`,
-      'auto'
+      fee
     );
 
     return instantiateResponse;
@@ -192,6 +195,7 @@ export class Contract {
     whitelistEcosystem,
     whitelistSnapshotHeight,
     whitelistVotingPowerArgs,
+    fee = 'auto',
   }: CreateOracleMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 1_000_000).toString();
     const end_time = (endVoting.getTime() * 1_000_000).toString();
@@ -207,6 +211,7 @@ export class Contract {
       0,
       0
     );
+
     const instantiateResponse = await client.instantiate(
       address,
       this.oracleCodeId,
@@ -230,7 +235,7 @@ export class Contract {
         feegrant_operator: this.feegrantOperator,
       },
       `[Oracle MACI] ${title}`,
-      'auto'
+      fee
     );
 
     return instantiateResponse;

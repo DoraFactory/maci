@@ -17,6 +17,7 @@ import {
 } from './libs/crypto';
 import { OracleWhitelistConfig } from './libs/contract/ts/OracleMaci.types';
 import { SignatureResponse } from './libs/oracle-certificate/types';
+import { StdFee } from '@cosmjs/amino';
 
 /**
  * @class MaciClient
@@ -450,6 +451,7 @@ export class MaciClient {
     maciKeypair,
     oracleCertificate,
     gasStation = false,
+    fee,
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -460,6 +462,7 @@ export class MaciClient {
       signature: string;
     };
     gasStation?: boolean;
+    fee?: StdFee;
   }) {
     return await this.maci.signup({
       signer: this.getSigner(signer),
@@ -468,6 +471,7 @@ export class MaciClient {
       maciKeypair,
       oracleCertificate,
       gasStation,
+      fee,
     });
   }
 
@@ -508,14 +512,16 @@ export class MaciClient {
   async claimAMaciRound({
     signer,
     contractAddress,
+    fee = 'auto',
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
+    fee?: number | StdFee | 'auto';
   }) {
-    signer = this.getSigner(signer);
     return await this.maci.claimAMaciRound({
-      signer,
+      signer: this.getSigner(signer),
       contractAddress,
+      fee,
     });
   }
 
@@ -528,11 +534,13 @@ export class MaciClient {
     contractAddress,
     address,
     amount,
+    fee = 'auto',
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
     address?: string;
     amount: string;
+    fee?: number | StdFee | 'auto';
   }) {
     if (!address) {
       address = await this.getAddress(signer);
@@ -542,6 +550,7 @@ export class MaciClient {
       contractAddress,
       address,
       amount,
+      fee,
     });
   }
 
@@ -549,10 +558,12 @@ export class MaciClient {
     signer,
     contractAddress,
     address,
+    fee = 'auto',
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
     address?: string;
+    fee?: number | StdFee | 'auto';
   }) {
     if (!address) {
       address = await this.getAddress(signer);
@@ -561,6 +572,7 @@ export class MaciClient {
       signer: this.getSigner(signer),
       contractAddress,
       address,
+      fee,
     });
   }
 }

@@ -45,6 +45,7 @@ async function main() {
       slope: '1000000',
       threshold: '1000000',
     },
+    fee: 'auto',
   });
   console.log('newRound:', newRound);
 

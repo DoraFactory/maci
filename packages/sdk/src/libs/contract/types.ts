@@ -1,6 +1,8 @@
+import { OfflineSigner } from '@cosmjs/proto-signing';
+import { StdFee } from '@cosmjs/amino';
+
 import { Whitelist as RegistryWhitelist } from './ts/Registry.types';
 import { Whitelist as MaciWhitelist } from './ts/Maci.types';
-import { OfflineSigner } from '@cosmjs/proto-signing';
 import {
   MaciCircuitType,
   MaciCertSystemType,
@@ -15,6 +17,7 @@ export type CreateRoundParams = {
   startVoting: Date;
   endVoting: Date;
   circuitType: MaciCircuitType;
+  fee?: number | StdFee | 'auto';
 };
 
 export type CreateAMaciRoundParams = {
