@@ -1,5 +1,11 @@
 import { OfflineSigner } from '@cosmjs/proto-signing';
-import { Keypair, batchGenMessage, PubKey, stringizing } from '../crypto';
+import {
+  Keypair,
+  batchGenMessage,
+  PubKey,
+  stringizing,
+  genAddKeyProof,
+} from '../crypto';
 import { Contract } from '../contract';
 import { Indexer } from '../indexer';
 import { OracleCertificate } from '../oracle-certificate';
@@ -781,6 +787,123 @@ export class MACI {
       fee
     );
   }
+
+  // async submitDeactivate({
+  //   signer,
+  //   client,
+  //   address,
+  //   maciAccount,
+  //   contractAddress,
+  //   gasStation,
+  //   fee,
+  // }: {
+  //   signer: OfflineSigner;
+  //   client: SigningCosmWasmClient;
+  //   address?: string;
+  //   maciAccount: Keypair;
+  //   contractAddress: string;
+  //   gasStation: boolean;
+  //   fee?: StdFee;
+  // }) {
+  //   try {
+  //     address = address || (await signer.getAccounts())[0].address;
+
+  //     const stateIdx = await this.getStateIdxInc({
+  //       signer,
+  //       address,
+  //       contractAddress,
+  //     });
+
+  //     const operatorCoordPubKey = await this.getRoundInfo({
+  //       contractAddress,
+  //     });
+
+  //     const payload = batchGenMessage(
+  //       Number(stateIdx),
+  //       maciAccount,
+  //       [
+  //         BigInt(operatorCoordPubKey.coordinatorPubkeyX),
+  //         BigInt(operatorCoordPubKey.coordinatorPubkeyY),
+  //       ],
+  //       [[0, 0]]
+  //     );
+
+  //     const { msg, encPubkeys } = payload[0];
+
+  //     const gasPrice = GasPrice.fromString('100000000000peaka');
+  //     fee = fee || calculateFee(20000000, gasPrice);
+
+  //     return client.execute(
+  //       address,
+  //       contractAddress,
+  //       stringizing({
+  //         publish_deactivate_message: {
+  //           enc_pub_key: {
+  //             x: encPubkeys[0],
+  //             y: encPubkeys[1],
+  //           },
+  //           message: {
+  //             data: msg,
+  //           },
+  //         },
+  //       }),
+  //       gasStation === true
+  //         ? {
+  //             amount: fee.amount,
+  //             gas: fee.gas,
+  //             granter: contractAddress,
+  //           }
+  //         : fee
+  //     );
+  //   } catch (error) {
+  //     throw Error(`Submit deactivate failed! ${error}`);
+  //   }
+  // }
+
+  async fetchAllDeactivateLogs({
+    contractAddress,
+  }: {
+    contractAddress: string;
+  }) {
+    const deactivates =
+      await this.indexer.fetchAllDeactivateLogs(contractAddress);
+    return deactivates;
+  }
+
+  // async addNewKey({
+  //   signer,
+  //   client,
+  //   address,
+  //   maciAccount,
+  //   contractAddress,
+  //   gasStation,
+  //   fee,
+  // }: {
+  //   signer: OfflineSigner;
+  //   client: SigningCosmWasmClient;
+  //   address?: string;
+  //   maciAccount: Keypair;
+  //   contractAddress: string;
+  //   gasStation: boolean;
+  //   fee?: StdFee;
+  // }) {
+  //   const deactivates = await this.fetchAllDeactivateLogs({
+  //     contractAddress,
+  //   });
+
+  //   const roundInfo = await this.getRoundInfo({
+  //     contractAddress,
+  //   });
+
+  //   const inputObj = await genAddKeyProof(4, {
+  //     coordPubKey: [
+  //       BigInt(roundInfo.coordinatorPubkeyX),
+  //       BigInt(roundInfo.coordinatorPubkeyY),
+  //     ],
+  //     oldKey: maciAccount,
+  //     deactivates: deactivates.map((d: any) => d.map(BigInt)),
+  //   });
+  // }
 
   async claimAMaciRound({
     signer,

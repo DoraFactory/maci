@@ -39,7 +39,7 @@ async function main() {
     link: 'test',
     circuitType: MaciCircuitType.IP1V,
     maxVoter: 2,
-    maxOption: 3,
+    maxOption: 25,
     operator: 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm',
     whitelist: {
       users: [

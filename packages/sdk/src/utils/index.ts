@@ -1,4 +1,5 @@
 import { decode } from 'bech32';
+import { packPubKey, PubKey } from 'src/libs/crypto';
 
 function verifyIsBech32(address: string): Error | undefined {
   try {
@@ -25,6 +26,16 @@ export function hexToDecimalString(hexString: string) {
   return decimalString;
 }
 
+/**
+ * Converts a hexadecimal string to a BigInt.
+ * @param hexString - The hexadecimal string to convert.
+ * @returns The BigInt representation of the input.
+ */
+export function hexToBigInt(hexString: string) {
+  return BigInt('0x' + hexString);
+}
+
+
 function padWithZerosIfNeeded(inputString: string) {
   if (inputString.length === 64) {
     return inputString;
@@ -36,25 +47,37 @@ function padWithZerosIfNeeded(inputString: string) {
   throw new Error('Invalid input string length');
 }
 
-// /**
-//  * Parses a public key string into its x and y coordinates.
-//  * @param publickKey - The public key string to parse (128 characters long).
-//  * @returns An object containing the x and y coordinates as decimal strings.
-//  */
-// export function decompressPublicKey(compressedPubkey: string) {
-//   const x = compressedPubkey.slice(0, 64);
-//   const y = compressedPubkey.slice(64);
+/**
+ * Parses a public key string into its x and y coordinates.
+ * @param publickKey - The public key string to parse (128 characters long).
+ * @returns An object containing the x and y coordinates as decimal strings.
+ */
+export function decompressPublicKey(compressedPubkey: string) {
+  const x = compressedPubkey.slice(0, 64);
+  const y = compressedPubkey.slice(64);
 
-//   return {
-//     x: hexToDecimalString(x),
-//     y: hexToDecimalString(y),
-//   };
-// }
+  return {
+    x: hexToDecimalString(x),
+    y: hexToDecimalString(y),
+  };
+}
 
-// export function compressPublicKey(decompressedPubkey: any[]) {
-//   const x = decompressedPubkey[0];
-//   const y = decompressedPubkey[1];
-//   const compressedPubkey =
-//     padWithZerosIfNeeded(x.toString(16)) + padWithZerosIfNeeded(y.toString(16));
-//   return compressedPubkey;
-// }
+export function compressPublicKey(decompressedPubkey: any[]) {
+  const x = decompressedPubkey[0];
+  const y = decompressedPubkey[1];
+  const compressedPubkey =
+    padWithZerosIfNeeded(x.toString(16)) + padWithZerosIfNeeded(y.toString(16));
+  return compressedPubkey;
+}
+
+
+export function transformPubkey(oldPubkey: string) {
+  const x = oldPubkey.slice(0, 64);
+  const y = oldPubkey.slice(64);
+
+  const pubkey: PubKey = [hexToBigInt(x), hexToBigInt(y)];
+  console.log(pubkey)
+  console.log([hexToDecimalString(x), hexToDecimalString(y)])
+  const packedPubkey = packPubKey(pubkey);
+  return packedPubkey;
+}

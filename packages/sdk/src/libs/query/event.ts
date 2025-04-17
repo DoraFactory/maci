@@ -1,5 +1,9 @@
 import { Http } from '../../libs';
-import { SignUpEventsGraphqlResponse, SignUpEventsResponse } from '../../types';
+import {
+  DeactivateMessage,
+  SignUpEventsGraphqlResponse,
+  SignUpEventsResponse,
+} from '../../types';
 import { handleError, ErrorType } from '../errors';
 import { ERROR } from '../errors/types';
 
@@ -74,5 +78,44 @@ query signUpEvents($limit: Int, $after: Cursor) {
     } catch (error: any) {
       return handleError(error as ErrorType);
     }
+  }
+
+  async fetchAllDeactivateLogs(contractAddress: string) {
+    const DEACTIVATE_MESSAGE_QUERY = `query ($limit: Int, $offset: Int) {
+  deactivateMessages(
+    first: $limit,
+    offset: $offset,
+    orderBy: [BLOCK_HEIGHT_ASC],
+    filter: {
+      maciContractAddress: { 
+        equalTo: "${contractAddress}" 
+      },
+    }
+  ) {
+	  totalCount
+	  pageInfo {
+      endCursor
+      hasNextPage
+	  }
+    nodes {
+      id
+      blockHeight
+      timestamp
+      txHash
+      deactivateMessage
+      maciContractAddress
+      maciOperator
+    }
+  }
+}`;
+    const ds = await this.http.fetchAllGraphqlPages<DeactivateMessage>(
+      DEACTIVATE_MESSAGE_QUERY,
+      {}
+    );
+
+    return ds.reduce(
+      (s, c) => [...s, ...JSON.parse(c.deactivateMessage)],
+      [] as string[][]
+    );
   }
 }

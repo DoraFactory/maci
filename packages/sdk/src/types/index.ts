@@ -459,3 +459,13 @@ export type MissRateType = {
   deactivateCount: number;
   missRate: number;
 };
+
+export type DeactivateMessage = {
+  id: string;
+  blockHeight: string;
+  timestamp: string;
+  txHash: string;
+  deactivateMessage: string; // '[["0", "1", "2", "3", "4"]]'
+  maciContractAddress: string;
+  maciOperator: string;
+};

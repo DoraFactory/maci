@@ -296,3 +296,26 @@ export const genAddKeyProof = async (
 
   return input;
 };
+
+// LIB
+function randomUint256() {
+  const buffer = [];
+  for (let i = 0; i < 64; i++) {
+    buffer.push(
+      Math.floor(Math.random() * 256)
+        .toString(16)
+        .padStart(2, '0')
+    );
+  }
+  return buffer.join('');
+}
+
+export const genRandomKey = () => {
+  const key = [
+    randomUint256(),
+    randomUint256(),
+    randomUint256(),
+    randomUint256(),
+  ].join('');
+  return ['-----BEGIN MACI KEY-----', key, '-----END MACI KEY-----'].join('\n');
+};

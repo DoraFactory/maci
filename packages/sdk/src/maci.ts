@@ -195,21 +195,21 @@ export class MaciClient {
 
   async createAMaciRound(params: CreateAMaciRoundParams) {
     return await this.contract.createAMaciRound({
-      signer: this.getSigner(),
+      signer: this.getSigner(params.signer),
       ...params,
     });
   }
 
   async createMaciRound(params: CreateMaciRoundParams) {
     return await this.contract.createMaciRound({
-      signer: this.getSigner(),
+      signer: this.getSigner(params.signer),
       ...params,
     });
   }
 
   async createOracleMaciRound(params: CreateOracleMaciRoundParams) {
     return await this.contract.createOracleMaciRound({
-      signer: this.getSigner(),
+      signer: this.getSigner(params.signer),
       ...params,
     });
   }

@@ -13,9 +13,7 @@ function delay(ms: number) {
 }
 
 async function main() {
-  const client = new MaciClient({
-    network: 'testnet',
-  });
+
 
   console.log('======= start test contract logic =======');
   let key = process.env.ADMIN_PRIVATE_KEY;
@@ -28,7 +26,11 @@ async function main() {
   const wallet = await DirectSecp256k1Wallet.fromKey(
     Buffer.from(key, 'hex'),
     'dora'
-  );
+  );  
+  const client = new MaciClient({
+    network: 'testnet',
+    signer: wallet,
+  });
 
   const address = (await wallet.getAccounts())[0].address;
   const signResult = await client.genKeypairFromSign();

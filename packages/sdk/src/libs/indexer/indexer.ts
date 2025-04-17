@@ -13,6 +13,7 @@ import {
   OperatorDelayOperationsResponse,
   MissRateResponse,
   SelectiveRoundResponse,
+  DeactivateMessage,
 } from '../../types';
 import { IndexerParams } from './types';
 import { Http } from '../http';
@@ -290,5 +291,11 @@ export class Indexer {
     pubKey: bigint[]
   ): Promise<SignUpEventsResponse> {
     return await this.event.getSignUpEventByPubKey(contractAddress, pubKey);
+  }
+
+  async fetchAllDeactivateLogs(
+    contractAddress: string
+  ): Promise<DeactivateMessage[]> {
+    return await this.event.fetchAllDeactivateLogs(contractAddress);
   }
 }

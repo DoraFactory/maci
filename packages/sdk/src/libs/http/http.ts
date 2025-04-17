@@ -146,4 +146,34 @@ export class Http {
       );
     }
   }
+
+  async fetchAllGraphqlPages<T>(query: string, variables: any): Promise<T[]> {
+    let hasNextPage = true;
+    let offset = 0;
+    const limit = 100; // Adjust the limit as needed
+    const allData: T[] = [];
+
+    while (hasNextPage) {
+      const response = await this.fetch(this.apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          query,
+          variables: { ...variables, limit, offset },
+        }),
+      }).then((res) => res.json());
+
+      const key = Object.keys(response.data)[0];
+
+      const { nodes, pageInfo } = response.data[key];
+      allData.push(...nodes);
+      hasNextPage = pageInfo.hasNextPage;
+      offset += limit;
+    }
+
+    return allData;
+  }
 }
