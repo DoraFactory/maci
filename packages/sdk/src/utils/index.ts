@@ -35,7 +35,6 @@ export function hexToBigInt(hexString: string) {
   return BigInt('0x' + hexString);
 }
 
-
 function padWithZerosIfNeeded(inputString: string) {
   if (inputString.length === 64) {
     return inputString;
@@ -70,14 +69,13 @@ export function compressPublicKey(decompressedPubkey: any[]) {
   return compressedPubkey;
 }
 
-
 export function transformPubkey(oldPubkey: string) {
   const x = oldPubkey.slice(0, 64);
   const y = oldPubkey.slice(64);
 
   const pubkey: PubKey = [hexToBigInt(x), hexToBigInt(y)];
-  console.log(pubkey)
-  console.log([hexToDecimalString(x), hexToDecimalString(y)])
+  console.log(pubkey);
+  console.log([hexToDecimalString(x), hexToDecimalString(y)]);
   const packedPubkey = packPubKey(pubkey);
   return packedPubkey;
 }

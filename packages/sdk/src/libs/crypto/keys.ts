@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import CryptoJS from 'crypto-js';
 import { bigInt2Buffer, stringizing } from './bigintUtils';
 import { poseidonEncrypt } from '@zk-kit/poseidon-cipher';
 import * as BabyJub from '@zk-kit/baby-jubjub';
@@ -27,7 +27,7 @@ const SNARK_FIELD_SIZE =
  * @returns A random seed for a private key.
  */
 export const genPrivKey = (): bigint =>
-  BigInt(`0x${randomBytes(32).toString('hex')}`);
+  BigInt(`0x${CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex)}`);
 
 /**
  * Generate a random value
@@ -116,7 +116,9 @@ export const genMessageFactory =
   ): bigint[] => {
     if (!salt) {
       // uint56
-      salt = BigInt('0x' + randomBytes(7).toString('hex'));
+      salt = BigInt(
+        `0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`
+      );
     }
 
     const packaged =
@@ -223,7 +225,7 @@ const rerandomize = (
   } as { d1: bigint[]; d2: bigint[] };
 };
 
-export const genAddKeyProof = async (
+export const genAddKeyInput = (
   depth: number,
   {
     coordPubKey,

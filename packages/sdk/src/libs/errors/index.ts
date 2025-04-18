@@ -1,5 +1,9 @@
 export class BaseError extends Error {
-  constructor(message: string, public code: number, public type: string) {
+  constructor(
+    message: string,
+    public code: number,
+    public type: string
+  ) {
     super(message);
     this.name = this.constructor.name;
   }

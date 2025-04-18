@@ -217,10 +217,12 @@ const voteResponse = await client.maci.vote({
 **Voting Rules:**
 
 MACI supports two voting rules:
+
 1. 1P1V (One Person One Vote): Each voting weight (vc) directly counts as votes
 2. QV (Quadratic Voting): The sum of squares of voting weights (vc) is consumed as total voting power
 
 Vote options format:
+
 ```typescript
 selectedOptions: [
   { idx: number, vc: number }, // idx: option index, vc: voting weight
@@ -229,13 +231,14 @@ selectedOptions: [
 ```
 
 Examples:
+
 ```typescript
 // 1P1V mode example (total voting power: 4)
 const options1p1v = [
   { idx: 0, vc: 2 }, // 2 votes for option 0
   { idx: 1, vc: 1 }, // 1 vote for option 1
   { idx: 4, vc: 1 }, // 1 vote for option 4
-]; 
+];
 // Total voting power consumed = 2 + 1 + 1 = 4
 
 // QV mode example (total voting power: 6)
@@ -248,6 +251,7 @@ const optionsQv = [
 ```
 
 **Important Notes:**
+
 - Option indices (idx) must be unique
 - Voting weights (vc) must be positive integers
 - In QV mode, total voting power consumed is the sum of squares of voting weights

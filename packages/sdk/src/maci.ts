@@ -265,11 +265,11 @@ export class MaciClient {
     pubKey,
   }: {
     contractAddress: string;
-    pubKey: bigint[];
+    pubKey?: bigint[];
   }) {
     return await this.maci.getStateIdxByPubKey({
       contractAddress,
-      pubKey,
+      pubKey: pubKey || this.maciKeypair.pubKey,
     });
   }
 
@@ -310,7 +310,6 @@ export class MaciClient {
     address,
     contractAddress,
     certificate,
-    mode = 'maci',
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -319,7 +318,6 @@ export class MaciClient {
       signature: string;
       amount: string;
     };
-    mode?: 'maci' | 'amaci';
   }): Promise<string> {
     signer = this.getSigner(signer);
     if (!address) {
@@ -330,7 +328,6 @@ export class MaciClient {
       address,
       contractAddress,
       certificate,
-      mode,
     });
   }
 
@@ -506,6 +503,31 @@ export class MaciClient {
       operatorCoordPubKey,
       maciKeypair,
       gasStation,
+    });
+  }
+
+  async deactivate({
+    signer,
+    address,
+    contractAddress,
+    gasStation = false,
+    maciKeypair,
+    fee,
+  }: {
+    signer?: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    gasStation?: boolean;
+    maciKeypair?: Keypair;
+    fee?: StdFee;
+  }) {
+    return await this.maci.deactivate({
+      signer: this.getSigner(signer),
+      address,
+      maciKeypair,
+      contractAddress,
+      gasStation,
+      fee,
     });
   }
 

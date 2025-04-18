@@ -65,7 +65,7 @@ export interface QuinaryTreeRoot {
     Uint256,
     Uint256,
     Uint256,
-    Uint256
+    Uint256,
   ];
 }
 export interface RoundInfo {

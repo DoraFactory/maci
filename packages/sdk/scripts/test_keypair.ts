@@ -13,8 +13,6 @@ function delay(ms: number) {
 }
 
 async function main() {
-
-
   console.log('======= start test contract logic =======');
   let key = process.env.ADMIN_PRIVATE_KEY;
   if (!key) {
@@ -26,7 +24,7 @@ async function main() {
   const wallet = await DirectSecp256k1Wallet.fromKey(
     Buffer.from(key, 'hex'),
     'dora'
-  );  
+  );
   const client = new MaciClient({
     network: 'testnet',
     signer: wallet,
