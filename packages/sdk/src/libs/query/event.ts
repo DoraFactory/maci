@@ -1,6 +1,8 @@
 import { Http } from '../../libs';
 import {
   DeactivateMessage,
+  DeactivateMessageGraphqlResponse,
+  DeactivateMessageResponse,
   SignUpEventsGraphqlResponse,
   SignUpEventsResponse,
 } from '../../types';
@@ -80,7 +82,7 @@ query signUpEvents($limit: Int, $after: Cursor) {
     }
   }
 
-  async fetchAllDeactivateLogs(contractAddress: string) {
+  async fetchAllDeactivateLogs(contractAddress: string): Promise<string[][]> {
     const DEACTIVATE_MESSAGE_QUERY = `query ($limit: Int, $offset: Int) {
   deactivateMessages(
     first: $limit,
@@ -117,5 +119,62 @@ query signUpEvents($limit: Int, $after: Cursor) {
       (s, c) => [...s, ...JSON.parse(c.deactivateMessage)],
       [] as string[][]
     );
+  }
+
+  async fetchDeactivateLogsByPubKey(
+    contractAddress: string,
+    dHash: string
+  ): Promise<DeactivateMessageResponse> {
+    const DEACTIVATE_MESSAGE_QUERY = `query DeactivateMessagesByLastValue {
+  deactivateMessages(
+    filter: {
+      maciContractAddress: {
+        equalTo: "${contractAddress}"
+      },
+      deactivateMessage: {
+        includesInsensitive: "${dHash}"
+      }
+    }
+  ) {
+    nodes {
+      maciContractAddress
+      maciOperator
+      deactivateMessage
+      txHash
+      timestamp
+      blockHeight
+      id
+    }
+  }
+}`;
+
+    const response =
+      await this.http.fetchGraphql<DeactivateMessageGraphqlResponse>(
+        DEACTIVATE_MESSAGE_QUERY,
+        ''
+      );
+
+    if (
+      !response ||
+      !response.data ||
+      !response.data.deactivateMessages ||
+      !response.data.deactivateMessages.nodes ||
+      response.data.deactivateMessages.nodes.length === 0
+    ) {
+      return {
+        code: 404,
+        error: {
+          message: `No deactivateMessages found for dHash ${dHash}`,
+          type: ERROR.ERROR_DEACTIVATE_MESSAGES_NOT_FOUND,
+        },
+      };
+    }
+
+    return {
+      code: 200,
+      data: {
+        deactivateMessages: response.data.deactivateMessages.nodes,
+      },
+    };
   }
 }

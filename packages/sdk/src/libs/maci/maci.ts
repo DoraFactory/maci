@@ -158,7 +158,6 @@ export class MACI {
     address,
     contractAddress,
     certificate,
-    mode = 'maci',
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -167,13 +166,23 @@ export class MACI {
       signature: string;
       amount: string;
     };
-    mode?: 'maci' | 'amaci';
   }): Promise<string> {
     if (!address) {
       address = (await signer.getAccounts())[0].address;
     }
 
-    if (mode === 'amaci') {
+    const round = await this.indexer.getRoundWithFields(contractAddress, [
+      'maciType',
+      'voiceCreditAmount',
+    ]);
+
+    if (isErrorResponse(round)) {
+      throw new Error(
+        `Failed to get round info: ${round.error.type} ${round.error.message}`
+      );
+    }
+
+    if (round.data.round.maciType === 'aMACI') {
       const isWhiteListed = await this.isWhitelisted({
         signer,
         address,
@@ -568,25 +577,63 @@ export class MACI {
     }
 
     try {
-      const voiceCreditBalance = await this.getVoiceCreditBalance({
-        signer,
-        stateIdx,
-        contractAddress,
-      });
+      const round = await this.indexer.getRoundWithFields(contractAddress, [
+        'maciType',
+        'voiceCreditAmount',
+      ]);
+
+      if (isErrorResponse(round)) {
+        throw new Error(
+          `Failed to get round info: ${round.error.type} ${round.error.message}`
+        );
+      }
+
+      let voiceCreditBalance;
+      if (round.data.round.maciType === 'aMACI') {
+        const isWhiteListed = await this.isWhitelisted({
+          signer,
+          address,
+          contractAddress,
+        });
+
+        if (isWhiteListed) {
+          const round = await this.indexer.getRoundWithFields(contractAddress, [
+            'voiceCreditAmount',
+          ]);
+
+          if (!isErrorResponse(round)) {
+            if (round.data.round.voiceCreditAmount) {
+              voiceCreditBalance = round.data.round.voiceCreditAmount;
+            } else {
+              voiceCreditBalance = '0';
+            }
+          } else {
+            throw new Error(
+              `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
+            );
+          }
+        } else {
+          voiceCreditBalance = '0';
+        }
+      } else {
+        voiceCreditBalance = await this.getVoiceCreditBalance({
+          signer,
+          stateIdx,
+          contractAddress,
+        });
+      }
 
       const options = await this.processVoteOptions({
         selectedOptions,
         contractAddress,
         voiceCreditBalance,
       });
-
       if (!address) {
         address = (await signer.getAccounts())[0].address;
       }
 
       if (maciKeypair === undefined) {
         maciKeypair = this.maciKeypair;
-        // maciKeypair = await this.crypto.genKeypairFromSign(signer, address);
       }
 
       const plan = options.map((o) => {
@@ -599,7 +646,6 @@ export class MACI {
         operatorCoordPubKey,
         plan
       );
-
       const client = await this.contract.contractClient({
         signer,
       });
@@ -748,29 +794,6 @@ export class MACI {
     const gasPrice = GasPrice.fromString('100000000000peaka');
     fee = fee || calculateFee(60000000, gasPrice);
 
-    if (gasStation === true) {
-      const grantFee: StdFee = {
-        amount: fee.amount,
-        gas: fee.gas,
-        granter: contractAddress,
-      };
-      return client.execute(
-        address,
-        contractAddress,
-        {
-          sign_up: {
-            pubkey: {
-              x: pubKey[0].toString(),
-              y: pubKey[1].toString(),
-            },
-            amount: oracleCertificate.amount,
-            certificate: oracleCertificate.signature,
-          },
-        },
-        grantFee
-      );
-    }
-
     return client.execute(
       address,
       contractAddress,
@@ -784,81 +807,93 @@ export class MACI {
           certificate: oracleCertificate.signature,
         },
       },
-      fee
+      gasStation === true
+        ? {
+            amount: fee.amount,
+            gas: fee.gas,
+            granter: contractAddress,
+          }
+        : fee
     );
   }
 
-  // async submitDeactivate({
-  //   signer,
-  //   client,
-  //   address,
-  //   maciAccount,
-  //   contractAddress,
-  //   gasStation,
-  //   fee,
-  // }: {
-  //   signer: OfflineSigner;
-  //   client: SigningCosmWasmClient;
-  //   address?: string;
-  //   maciAccount: Keypair;
-  //   contractAddress: string;
-  //   gasStation: boolean;
-  //   fee?: StdFee;
-  // }) {
-  //   try {
-  //     address = address || (await signer.getAccounts())[0].address;
+  async deactivate({
+    signer,
+    address,
+    maciKeypair,
+    contractAddress,
+    gasStation,
+    fee,
+  }: {
+    signer: OfflineSigner;
+    address?: string;
+    maciKeypair?: Keypair;
+    contractAddress: string;
+    gasStation?: boolean;
+    fee?: StdFee;
+  }) {
+    try {
+      address = address || (await signer.getAccounts())[0].address;
 
-  //     const stateIdx = await this.getStateIdxInc({
-  //       signer,
-  //       address,
-  //       contractAddress,
-  //     });
+      if (maciKeypair === undefined) {
+        maciKeypair = this.maciKeypair;
+      }
 
-  //     const operatorCoordPubKey = await this.getRoundInfo({
-  //       contractAddress,
-  //     });
+      const client = await this.contract.contractClient({
+        signer,
+      });
 
-  //     const payload = batchGenMessage(
-  //       Number(stateIdx),
-  //       maciAccount,
-  //       [
-  //         BigInt(operatorCoordPubKey.coordinatorPubkeyX),
-  //         BigInt(operatorCoordPubKey.coordinatorPubkeyY),
-  //       ],
-  //       [[0, 0]]
-  //     );
+      const stateIdx = await this.getStateIdxInc({
+        signer,
+        address,
+        contractAddress,
+      });
 
-  //     const { msg, encPubkeys } = payload[0];
+      const operatorCoordPubKey = await this.getRoundInfo({
+        contractAddress,
+      });
 
-  //     const gasPrice = GasPrice.fromString('100000000000peaka');
-  //     fee = fee || calculateFee(20000000, gasPrice);
+      const payload = batchGenMessage(
+        Number(stateIdx),
+        maciKeypair,
+        [
+          BigInt(operatorCoordPubKey.coordinatorPubkeyX),
+          BigInt(operatorCoordPubKey.coordinatorPubkeyY),
+        ],
+        [[0, 0]]
+      );
 
-  //     return client.execute(
-  //       address,
-  //       contractAddress,
-  //       stringizing({
-  //         publish_deactivate_message: {
-  //           enc_pub_key: {
-  //             x: encPubkeys[0],
-  //             y: encPubkeys[1],
-  //           },
-  //           message: {
-  //             data: msg,
-  //           },
-  //         },
-  //       }),
-  //       gasStation === true
-  //         ? {
-  //             amount: fee.amount,
-  //             gas: fee.gas,
-  //             granter: contractAddress,
-  //           }
-  //         : fee
-  //     );
-  //   } catch (error) {
-  //     throw Error(`Submit deactivate failed! ${error}`);
-  //   }
-  // }
+      const { msg, encPubkeys } = payload[0];
+
+      const gasPrice = GasPrice.fromString('100000000000peaka');
+      fee = fee || calculateFee(20000000, gasPrice);
+
+      return client.execute(
+        address,
+        contractAddress,
+        stringizing({
+          publish_deactivate_message: {
+            enc_pub_key: {
+              x: encPubkeys[0],
+              y: encPubkeys[1],
+            },
+            message: {
+              data: msg,
+            },
+          },
+        }),
+        gasStation === true
+          ? {
+              amount: fee.amount,
+              gas: fee.gas,
+              granter: contractAddress,
+            }
+          : fee
+      );
+    } catch (error) {
+      throw Error(`Submit deactivate failed! ${error}`);
+    }
+  }
 
   async fetchAllDeactivateLogs({
     contractAddress,
@@ -870,40 +905,66 @@ export class MACI {
     return deactivates;
   }
 
-  // async addNewKey({
-  //   signer,
-  //   client,
-  //   address,
-  //   maciAccount,
-  //   contractAddress,
-  //   gasStation,
-  //   fee,
-  // }: {
-  //   signer: OfflineSigner;
-  //   client: SigningCosmWasmClient;
-  //   address?: string;
-  //   maciAccount: Keypair;
-  //   contractAddress: string;
-  //   gasStation: boolean;
-  //   fee?: StdFee;
-  // }) {
-  //   const deactivates = await this.fetchAllDeactivateLogs({
-  //     contractAddress,
-  //   });
+  async addNewKey({
+    signer,
+    client,
+    address,
+    maciKeypair,
+    newMaciKeypair,
+    contractAddress,
+    gasStation,
+    fee,
+  }: {
+    signer: OfflineSigner;
+    client: SigningCosmWasmClient;
+    address?: string;
+    maciKeypair: Keypair;
+    newMaciKeypair: Keypair;
+    contractAddress: string;
+    gasStation: boolean;
+    fee?: StdFee;
+  }) {
+    const deactivates = await this.fetchAllDeactivateLogs({
+      contractAddress,
+    });
 
-  //   const roundInfo = await this.getRoundInfo({
-  //     contractAddress,
-  //   });
+    const roundInfo = await this.getRoundInfo({
+      contractAddress,
+    });
 
-  //   const inputObj = await genAddKeyProof(4, {
-  //     coordPubKey: [
-  //       BigInt(roundInfo.coordinatorPubkeyX),
-  //       BigInt(roundInfo.coordinatorPubkeyY),
-  //     ],
-  //     oldKey: maciAccount,
-  //     deactivates: deactivates.map((d: any) => d.map(BigInt)),
-  //   });
-  // }
+    const inputObj = await genAddKeyProof(4, {
+      coordPubKey: [
+        BigInt(roundInfo.coordinatorPubkeyX),
+        BigInt(roundInfo.coordinatorPubkeyY),
+      ],
+      oldKey: maciKeypair,
+      deactivates: deactivates.map((d: any) => d.map(BigInt)),
+    });
+    if (!inputObj) {
+      throw new Error('Failed to generate add key proof');
+    }
+
+    const amaciClient = await this.contract.amaciClient({
+      signer,
+      contractAddress,
+    });
+    const d = [
+      inputObj.c1[0].toString(),
+      inputObj.c1[1].toString(),
+      inputObj.c2[0].toString(),
+      inputObj.c2[1].toString(),
+    ];
+    const result = await amaciClient.addNewKey({
+      d: d,
+      groth16Proof: inputObj.proof,
+      nullifier: inputObj.nullifier.toString(),
+      pubkey: {
+        x: newMaciKeypair.pubKey[0].toString(),
+        y: newMaciKeypair.pubKey[1].toString(),
+      },
+    });
+    return result;
+  }
 
   async claimAMaciRound({
     signer,

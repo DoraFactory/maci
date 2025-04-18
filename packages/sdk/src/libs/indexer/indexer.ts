@@ -293,9 +293,7 @@ export class Indexer {
     return await this.event.getSignUpEventByPubKey(contractAddress, pubKey);
   }
 
-  async fetchAllDeactivateLogs(
-    contractAddress: string
-  ): Promise<DeactivateMessage[]> {
+  async fetchAllDeactivateLogs(contractAddress: string): Promise<string[][]> {
     return await this.event.fetchAllDeactivateLogs(contractAddress);
   }
 }

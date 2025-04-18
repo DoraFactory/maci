@@ -9,6 +9,8 @@ import {
   deriveSecretScalar,
 } from '@zk-kit/eddsa-poseidon';
 
+import { groth16 } from 'snarkjs';
+
 import { solidityPackedSha256 } from 'ethers';
 
 import { mulPointEscalar } from '@zk-kit/baby-jubjub';
@@ -18,6 +20,7 @@ import { genRandomBabyJubValue } from './babyjub';
 import { EcdhSharedKey, Keypair, PrivKey, PubKey } from './types';
 import { poseidon } from './hashing';
 import Tree from './tree';
+import { adaptToUncompressed } from './adapt';
 
 const SNARK_FIELD_SIZE =
   21888242871839275222246405745257275088548364400416034343698204186575808495617n;
@@ -294,7 +297,17 @@ export const genAddKeyProof = async (
     oldPrivateKey: oldKey.formatedPrivKey,
   };
 
-  return input;
+  const { proof } = await groth16.fullProve(
+    input,
+    './add-new-key_v3/2-1-1-5/addKey.wasm',
+    './add-new-key_v3/2-1-1-5/addKey.zkey'
+  );
+  const proofHex = await adaptToUncompressed(proof);
+
+  return {
+    ...input,
+    proof: proofHex,
+  };
 };
 
 // LIB

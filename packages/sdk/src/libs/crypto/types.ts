@@ -1,3 +1,5 @@
+import { Groth16Proof } from 'snarkjs';
+
 export type SignResult = {
   signature: string;
   pubkey: Uint8Array;
@@ -86,6 +88,7 @@ export type StringifiedBigInts =
   | string[]
   | string[][]
   | string[][][]
+  | Groth16Proof
   | { [key: string]: StringifiedBigInts }
   | null;
 

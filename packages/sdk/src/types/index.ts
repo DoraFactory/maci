@@ -469,3 +469,17 @@ export type DeactivateMessage = {
   maciContractAddress: string;
   maciOperator: string;
 };
+
+export type DeactivateMessageGraphqlResponse = {
+  data: {
+    deactivateMessages: {
+      nodes: DeactivateMessage[];
+    };
+  };
+};
+
+export type DeactivateMessageResponse =
+  | SuccessResponse<{
+      deactivateMessages: DeactivateMessage[];
+    }>
+  | ErrorResponse;
