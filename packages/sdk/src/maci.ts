@@ -18,6 +18,7 @@ import {
 import { OracleWhitelistConfig } from './libs/contract/ts/OracleMaci.types';
 import { SignatureResponse } from './libs/oracle-certificate/types';
 import { StdFee } from '@cosmjs/amino';
+import { Groth16ProofType } from './libs/contract/ts/Maci.types';
 
 /**
  * @class MaciClient
@@ -527,6 +528,47 @@ export class MaciClient {
       maciKeypair,
       contractAddress,
       gasStation,
+      fee,
+    });
+  }
+
+  async genAddKeyInput({
+    contractAddress,
+    maciKeypair,
+  }: {
+    contractAddress: string;
+    maciKeypair?: Keypair;
+  }) {
+    return await this.maci.genAddKeyInput({
+      maciKeypair: maciKeypair || this.maciKeypair,
+      contractAddress,
+    });
+  }
+
+  async addNewKey({
+    signer,
+    contractAddress,
+    d,
+    proof,
+    nullifier,
+    newMaciKeypair,
+    fee = 'auto',
+  }: {
+    signer?: OfflineSigner;
+    contractAddress: string;
+    d: string[];
+    proof: Groth16ProofType;
+    nullifier: bigint;
+    newMaciKeypair: Keypair;
+    fee?: number | StdFee | 'auto';
+  }) {
+    return await this.maci.addNewKey({
+      signer: this.getSigner(signer),
+      contractAddress,
+      d,
+      proof,
+      nullifier,
+      newMaciKeypair,
       fee,
     });
   }

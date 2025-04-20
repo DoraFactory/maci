@@ -19,6 +19,7 @@ import { CertificateEcosystem, ErrorResponse, RoundType } from '../../types';
 import { SignatureResponse } from '../oracle-certificate/types';
 import { OracleWhitelistConfig } from '../contract/ts/OracleMaci.types';
 import { getAMaciRoundCircuitFee } from '../contract/utils';
+import { Groth16ProofType } from '../contract/ts/Maci.types';
 
 export function isErrorResponse(response: unknown): response is ErrorResponse {
   return (
@@ -905,66 +906,75 @@ export class MACI {
     return deactivates;
   }
 
-  // async addNewKey({
-  //   signer,
-  //   client,
-  //   address,
-  //   maciKeypair,
-  //   newMaciKeypair,
-  //   contractAddress,
-  //   gasStation,
-  //   fee,
-  // }: {
-  //   signer: OfflineSigner;
-  //   client: SigningCosmWasmClient;
-  //   address?: string;
-  //   maciKeypair: Keypair;
-  //   newMaciKeypair: Keypair;
-  //   contractAddress: string;
-  //   gasStation: boolean;
-  //   fee?: StdFee;
-  // }) {
-  //   const deactivates = await this.fetchAllDeactivateLogs({
-  //     contractAddress,
-  //   });
+  async genAddKeyInput({
+    maciKeypair,
+    contractAddress,
+  }: {
+    maciKeypair: Keypair;
+    contractAddress: string;
+  }) {
+    const deactivates = await this.fetchAllDeactivateLogs({
+      contractAddress,
+    });
 
-  //   const roundInfo = await this.getRoundInfo({
-  //     contractAddress,
-  //   });
+    const roundInfo = await this.getRoundInfo({
+      contractAddress,
+    });
 
-  //   const inputObj = await genAddKeyProof(4, {
-  //     coordPubKey: [
-  //       BigInt(roundInfo.coordinatorPubkeyX),
-  //       BigInt(roundInfo.coordinatorPubkeyY),
-  //     ],
-  //     oldKey: maciKeypair,
-  //     deactivates: deactivates.map((d: any) => d.map(BigInt)),
-  //   });
-  //   if (!inputObj) {
-  //     throw new Error('Failed to generate add key proof');
-  //   }
+    const circuitPower = roundInfo.circuitPower;
+    const stateTreeDepth = Number(circuitPower.split('-')[0]);
+    const inputObj = genAddKeyInput(stateTreeDepth + 2, {
+      coordPubKey: [
+        BigInt(roundInfo.coordinatorPubkeyX),
+        BigInt(roundInfo.coordinatorPubkeyY),
+      ],
+      oldKey: maciKeypair,
+      deactivates: deactivates.map((d: any) => d.map(BigInt)),
+    });
+    return inputObj;
 
-  //   const amaciClient = await this.contract.amaciClient({
-  //     signer,
-  //     contractAddress,
-  //   });
-  //   const d = [
-  //     inputObj.c1[0].toString(),
-  //     inputObj.c1[1].toString(),
-  //     inputObj.c2[0].toString(),
-  //     inputObj.c2[1].toString(),
-  //   ];
-  //   const result = await amaciClient.addNewKey({
-  //     d: d,
-  //     groth16Proof: inputObj.proof,
-  //     nullifier: inputObj.nullifier.toString(),
-  //     pubkey: {
-  //       x: newMaciKeypair.pubKey[0].toString(),
-  //       y: newMaciKeypair.pubKey[1].toString(),
-  //     },
-  //   });
-  //   return result;
-  // }
+    // 1. generate proof
+
+    // 2. compress proof to vote proof
+
+    // 3. send addNewKey tx
+  }
+
+  async addNewKey({
+    signer,
+    contractAddress,
+    d,
+    proof,
+    nullifier,
+    newMaciKeypair,
+    fee = 'auto',
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    d: string[];
+    proof: Groth16ProofType;
+    nullifier: bigint;
+    newMaciKeypair: Keypair;
+    fee?: number | StdFee | 'auto';
+  }) {
+    const client = await this.contract.amaciClient({
+      signer,
+      contractAddress,
+    });
+
+    return await client.addNewKey(
+      {
+        d,
+        groth16Proof: proof,
+        nullifier: nullifier.toString(),
+        pubkey: {
+          x: newMaciKeypair.pubKey[0].toString(),
+          y: newMaciKeypair.pubKey[1].toString(),
+        },
+      },
+      fee
+    );
+  }
 
   async claimAMaciRound({
     signer,

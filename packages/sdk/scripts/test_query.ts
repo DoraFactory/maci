@@ -1,4 +1,4 @@
-import { MaciClient } from '../src';
+import { MaciClient, genAddKeyInput } from '../src';
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import dotenv from 'dotenv';
 import { isErrorResponse } from '../src/libs/maci/maci';
@@ -35,11 +35,28 @@ async function main() {
 
   // ================ test oracle signup and vote
 
-  const RoundAddress =
-    'dora1hhxfw6tw9ef9467gphkfgrq0cg0dndndk875agrkaa479x9hx03qncmw48';
+  const rounds = await client.indexer.getRounds('first', 1);
+  console.log('rounds', JSON.stringify(rounds, null, 2));
 
-  const allowance = await client.indexer.balanceOf(RoundAddress);
-  console.log('allowance', allowance);
+  if (isErrorResponse(rounds)) {
+    throw new Error(rounds.error.message);
+  }
+  console.log(rounds);
+  const data = rounds.data.rounds.edges.map((edge: any) => ({
+    name: edge.node.roundTitle,
+    contract: edge.node.contractAddress,
+    circuit: edge.node.circuitName,
+    status: edge.node.status,
+    startTime: edge.node.votingStart,
+    endTime: edge.node.votingEnd,
+    link: `https://maci.dora.xyz/round/${edge.node.contractAddress}`,
+  }));
+  console.log('data', JSON.stringify(data, null, 2));
+  // const RoundAddress =
+  //   'dora1hhxfw6tw9ef9467gphkfgrq0cg0dndndk875agrkaa479x9hx03qncmw48';
+
+  // const allowance = await client.indexer.balanceOf(RoundAddress);
+  // console.log('allowance', allowance);
 }
 
 main();
