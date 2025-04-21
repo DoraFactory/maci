@@ -27,15 +27,15 @@ export class Tree {
     return this.nodes[0];
   }
 
-  private async initZero(zero: bigint): Promise<void> {
+  private initZero(zero: bigint) {
     this.zeros = new Array<bigint>(this.HEIGHT);
     this.zeros[0] = zero;
     for (let i = 1; i < this.zeros.length; i++) {
-      this.zeros[i] = await poseidon([this.zeros[i - 1], this.zeros[i - 1]]);
+      this.zeros[i] = poseidon([this.zeros[i - 1], this.zeros[i - 1]]);
     }
   }
 
-  private async initNodes(): Promise<void> {
+  private initNodes() {
     const DEGREE = this.DEGREE;
 
     this.nodes = new Array<bigint>(this.NODES_COUNT);
@@ -159,12 +159,12 @@ export class Tree {
     return subTree;
   }
 
-  private async _update(nodeIdx: number): Promise<void> {
+  private _update(nodeIdx: number) {
     let idx = nodeIdx;
     while (idx > 0) {
       const parentIdx = Math.floor((idx - 1) / this.DEGREE);
       const childrenIdx0 = parentIdx * this.DEGREE + 1;
-      this.nodes[parentIdx] = await poseidon(
+      this.nodes[parentIdx] = poseidon(
         this.nodes.slice(childrenIdx0, childrenIdx0 + this.DEGREE)
       );
 

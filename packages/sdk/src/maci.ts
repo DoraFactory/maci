@@ -19,6 +19,7 @@ import { OracleWhitelistConfig } from './libs/contract/ts/OracleMaci.types';
 import { SignatureResponse } from './libs/oracle-certificate/types';
 import { StdFee } from '@cosmjs/amino';
 import { Groth16ProofType } from './libs/contract/ts/Maci.types';
+import { isErrorResponse } from './libs/maci/maci';
 
 /**
  * @class MaciClient
@@ -363,6 +364,18 @@ export class MaciClient {
       signer: this.getSigner(signer),
       contractAddress,
     });
+  }
+
+  async getRounds(after?: string, limit?: number) {
+    const rounds = await this.indexer.getRounds(after || '', limit || 10);
+
+    if (isErrorResponse(rounds)) {
+      throw new Error(
+        `Failed to get rounds: ${rounds.code} ${rounds.error.message}`
+      );
+    }
+
+    return rounds;
   }
 
   async getRoundInfo({ contractAddress }: { contractAddress: string }) {
