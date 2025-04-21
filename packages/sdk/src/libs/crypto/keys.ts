@@ -14,10 +14,10 @@ import { solidityPackedSha256 } from 'ethers';
 import { mulPointEscalar } from '@zk-kit/baby-jubjub';
 import { packPublicKey, unpackPublicKey } from '@zk-kit/eddsa-poseidon';
 
-import { genRandomBabyJubValue } from './babyjub';
 import { EcdhSharedKey, Keypair, PrivKey, PubKey } from './types';
 import { poseidon } from './hashing';
 import Tree from './tree';
+import { genRandomBabyJubValue } from './babyjub';
 
 const SNARK_FIELD_SIZE =
   21888242871839275222246405745257275088548364400416034343698204186575808495617n;

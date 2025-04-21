@@ -108,34 +108,57 @@ export class G2Point {
   }
 }
 
-/**
- * Returns a BabyJub-compatible random value. We create it by first generating
- * a random value (initially 256 bits large) modulo the snark field size as
- * described in EIP197. This results in a key size of roughly 253 bits and no
- * more than 254 bits. To prevent modulo bias, we then use this efficient
- * algorithm:
- * http://cvsweb.openbsd.org/cgi-bin/cvsweb/~checkout~/src/lib/libc/crypt/arc4random_uniform.c
- * @returns A BabyJub-compatible random value.
- */
-export const genRandomBabyJubValue = (): bigint => {
+// /**
+//  * Returns a BabyJub-compatible random value. We create it by first generating
+//  * a random value (initially 256 bits large) modulo the snark field size as
+//  * described in EIP197. This results in a key size of roughly 253 bits and no
+//  * more than 254 bits. To prevent modulo bias, we then use this efficient
+//  * algorithm:
+//  * http://cvsweb.openbsd.org/cgi-bin/cvsweb/~checkout~/src/lib/libc/crypt/arc4random_uniform.c
+//  * @returns A BabyJub-compatible random value.
+//  */
+// export const genRandomBabyJubValue = (): bigint => {
+//   // Prevent modulo bias
+//   // const lim = BigInt('0x10000000000000000000000000000000000000000000000000000000000000000')
+//   // const min = (lim - SNARK_FIELD_SIZE) % SNARK_FIELD_SIZE
+//   const min = BigInt(
+//     '6350874878119819312338956282401532410528162663560392320966563075034087161851'
+//   );
+
+//   let privKey: PrivKey = SNARK_FIELD_SIZE;
+
+//   do {
+//     const rand = BigInt(
+//       `0x${CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex)}`
+//     );
+
+//     if (rand >= min) {
+//       privKey = rand % SNARK_FIELD_SIZE;
+//     }
+//   } while (privKey >= SNARK_FIELD_SIZE);
+//    privKey =
+//   return privKey;
+// };
+
+export const genRandomBabyJubValue = () => {
   // Prevent modulo bias
-  // const lim = BigInt('0x10000000000000000000000000000000000000000000000000000000000000000')
-  // const min = (lim - SNARK_FIELD_SIZE) % SNARK_FIELD_SIZE
-  const min = BigInt(
-    '6350874878119819312338956282401532410528162663560392320966563075034087161851'
-  );
+  //const lim = BigInt('0x10000000000000000000000000000000000000000000000000000000000000000')
+  //const min = (lim - SNARK_FIELD_SIZE) % SNARK_FIELD_SIZE
+  const min =
+    6350874878119819312338956282401532410528162663560392320966563075034087161851n;
 
-  let privKey: PrivKey = SNARK_FIELD_SIZE;
-
-  do {
-    const rand = BigInt(
+  let rand;
+  while (true) {
+    rand = BigInt(
       `0x${CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex)}`
     );
 
     if (rand >= min) {
-      privKey = rand % SNARK_FIELD_SIZE;
+      break;
     }
-  } while (privKey >= SNARK_FIELD_SIZE);
+  }
 
+  // const privKey = rand % SNARK_FIELD_SIZE;
+  const privKey = rand % 2n ** 253n;
   return privKey;
 };
