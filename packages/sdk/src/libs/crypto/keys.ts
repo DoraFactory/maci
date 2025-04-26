@@ -16,7 +16,7 @@ import { packPublicKey, unpackPublicKey } from '@zk-kit/eddsa-poseidon';
 
 import { EcdhSharedKey, Keypair, PrivKey, PubKey } from './types';
 import { poseidon } from './hashing';
-import Tree from './tree';
+import { Tree } from './tree';
 import { genRandomBabyJubValue } from './babyjub';
 
 const SNARK_FIELD_SIZE =

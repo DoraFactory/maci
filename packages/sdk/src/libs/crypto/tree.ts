@@ -1,14 +1,15 @@
 import { poseidon } from './hashing';
 
 export class Tree {
-  private DEPTH: number;
-  private HEIGHT: number;
-  private DEGREE: number;
-  private LEAVES_COUNT: number;
-  private LEAVES_IDX_0: number;
-  private NODES_COUNT: number;
-  private zeros!: bigint[];
-  private nodes!: bigint[];
+  public readonly DEPTH: number;
+  public readonly HEIGHT: number;
+  public readonly DEGREE: number;
+  public readonly LEAVES_COUNT: number;
+  public readonly LEAVES_IDX_0: number;
+  public readonly NODES_COUNT: number;
+
+  protected nodes: bigint[] = [];
+  protected zeros: bigint[] = [];
 
   constructor(degree: number, depth: number, zero: bigint) {
     this.DEPTH = depth;
@@ -23,34 +24,38 @@ export class Tree {
     this.initNodes();
   }
 
-  get root(): bigint {
+  get root() {
     return this.nodes[0];
   }
 
-  private initZero(zero: bigint) {
-    this.zeros = new Array<bigint>(this.HEIGHT);
-    this.zeros[0] = zero;
-    for (let i = 1; i < this.zeros.length; i++) {
-      this.zeros[i] = poseidon([this.zeros[i - 1], this.zeros[i - 1]]);
+  initZero(zero: bigint) {
+    const zeros = new Array(this.HEIGHT);
+    zeros[0] = zero;
+    for (let i = 1; i < zeros.length; i++) {
+      const children = new Array(this.DEGREE).fill(zeros[i - 1]);
+      zeros[i] = poseidon(children);
     }
+    this.zeros = zeros;
   }
 
-  private initNodes() {
+  initNodes() {
     const DEGREE = this.DEGREE;
 
-    this.nodes = new Array<bigint>(this.NODES_COUNT);
+    const nodes = new Array(this.NODES_COUNT);
 
     for (let d = this.DEPTH; d >= 0; d--) {
       const size = DEGREE ** d;
       const idx0 = (DEGREE ** d - 1) / (DEGREE - 1);
       const zero = this.zeros[this.DEPTH - d];
       for (let i = 0; i < size; i++) {
-        this.nodes[idx0 + i] = zero;
+        nodes[idx0 + i] = zero;
       }
     }
+
+    this.nodes = nodes;
   }
 
-  initLeaves(leaves: (bigint | string | number)[]): void {
+  initLeaves(leaves: bigint[]) {
     const DEGREE = this.DEGREE;
     for (let i = 0; i < leaves.length; i++) {
       if (i >= this.LEAVES_COUNT) {
@@ -71,7 +76,7 @@ export class Tree {
     }
   }
 
-  leaf(leafIdx: number): bigint {
+  leaf(leafIdx: number) {
     if (leafIdx > this.LEAVES_COUNT || leafIdx < 0) {
       throw new Error('wrong leaf index');
     }
@@ -79,11 +84,11 @@ export class Tree {
     return this.nodes[nodeIdx];
   }
 
-  leaves(): bigint[] {
+  leaves() {
     return this.nodes.slice(this.LEAVES_IDX_0);
   }
 
-  updateLeaf(leafIdx: number, leaf: bigint): void {
+  updateLeaf(leafIdx: number, leaf: bigint) {
     if (leafIdx > this.LEAVES_COUNT || leafIdx < 0) {
       throw new Error('wrong leaf index');
     }
@@ -93,18 +98,18 @@ export class Tree {
     this._update(nodeIdx);
   }
 
-  pathIdxOf(leafIdx: number): number[] {
+  pathIdxOf(leafIdx: number) {
     if (leafIdx > this.LEAVES_COUNT || leafIdx < 0) {
       throw new Error('wrong leaf index');
     }
     let idx = this.LEAVES_IDX_0 + leafIdx;
-    const pathIdx: number[] = [];
+    const pathIdx: bigint[] = [];
 
     for (let i = 0; i < this.DEPTH; i++) {
       const parentIdx = Math.floor((idx - 1) / this.DEGREE);
       const childrenIdx0 = parentIdx * this.DEGREE + 1;
 
-      pathIdx.push(idx - childrenIdx0);
+      pathIdx.push(BigInt(idx - childrenIdx0));
 
       idx = parentIdx;
     }
@@ -112,7 +117,7 @@ export class Tree {
     return pathIdx;
   }
 
-  pathElementOf(leafIdx: number): bigint[][] {
+  pathElementOf(leafIdx: number) {
     if (leafIdx > this.LEAVES_COUNT || leafIdx < 0) {
       throw new Error('wrong leaf index');
     }
@@ -137,7 +142,7 @@ export class Tree {
     return pathElement;
   }
 
-  subTree(length: number): Tree {
+  subTree(length: number) {
     const subTree = new Tree(this.DEGREE, this.DEPTH, this.zeros[0]);
     const nodes = [...this.nodes];
 
@@ -159,18 +164,16 @@ export class Tree {
     return subTree;
   }
 
-  private _update(nodeIdx: number) {
+  protected _update(nodeIdx: number) {
     let idx = nodeIdx;
     while (idx > 0) {
       const parentIdx = Math.floor((idx - 1) / this.DEGREE);
       const childrenIdx0 = parentIdx * this.DEGREE + 1;
       this.nodes[parentIdx] = poseidon(
-        this.nodes.slice(childrenIdx0, childrenIdx0 + this.DEGREE)
+        this.nodes.slice(childrenIdx0, childrenIdx0 + 5)
       );
 
       idx = parentIdx;
     }
   }
 }
-
-export default Tree;
