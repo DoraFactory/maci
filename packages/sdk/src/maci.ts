@@ -249,12 +249,25 @@ export class MaciClient {
   async getVoiceCreditBalance({
     signer,
     stateIdx,
+    maciKeypair,
     contractAddress,
   }: {
     signer?: OfflineSigner;
-    stateIdx: number;
+    stateIdx?: number;
+    maciKeypair?: Keypair;
     contractAddress: string;
   }) {
+    if (maciKeypair === undefined) {
+      maciKeypair = this.maciKeypair;
+    }
+
+    if (stateIdx === undefined) {
+      stateIdx = await this.getStateIdxByPubKey({
+        contractAddress,
+        pubKey: maciKeypair.pubKey,
+      });
+    }
+
     return await this.maci.getVoiceCreditBalance({
       signer: this.getSigner(signer),
       stateIdx,
@@ -489,7 +502,6 @@ export class MaciClient {
   async vote({
     signer,
     address,
-    stateIdx,
     contractAddress,
     selectedOptions,
     operatorCoordPubKey,
@@ -498,7 +510,6 @@ export class MaciClient {
   }: {
     signer?: OfflineSigner;
     address?: string;
-    stateIdx: number;
     contractAddress: string;
     selectedOptions: {
       idx: number;
@@ -511,7 +522,6 @@ export class MaciClient {
     return await this.maci.vote({
       signer: this.getSigner(signer),
       address,
-      stateIdx,
       contractAddress,
       selectedOptions,
       operatorCoordPubKey,

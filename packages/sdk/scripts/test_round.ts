@@ -164,7 +164,6 @@ async function main() {
   // vote
   const voteResponse = await client.vote({
     address,
-    stateIdx,
     contractAddress: RoundAddress,
     selectedOptions: [
       { idx: 0, vc: 1 },

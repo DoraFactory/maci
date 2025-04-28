@@ -124,7 +124,6 @@ async function main() {
   const voteResponse = await client.maci.vote({
     signer: wallet,
     address,
-    stateIdx,
     contractAddress: RoundAddress,
     selectedOptions: [
       { idx: 0, vc: 1 },

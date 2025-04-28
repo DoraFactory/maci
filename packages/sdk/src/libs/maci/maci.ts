@@ -554,7 +554,6 @@ export class MACI {
   async vote({
     signer,
     address,
-    stateIdx,
     contractAddress,
     selectedOptions,
     operatorCoordPubKey,
@@ -563,7 +562,6 @@ export class MACI {
   }: {
     signer: OfflineSigner;
     address?: string;
-    stateIdx: number;
     contractAddress: string;
     selectedOptions: {
       idx: number;
@@ -573,8 +571,19 @@ export class MACI {
     maciKeypair?: Keypair;
     gasStation?: boolean;
   }) {
+    if (maciKeypair === undefined) {
+      maciKeypair = this.maciKeypair;
+    }
+
+    const stateIdx = await this.getStateIdxByPubKey({
+      contractAddress,
+      pubKey: maciKeypair.pubKey,
+    });
+
     if (stateIdx === -1) {
-      throw new Error('State index is not set, Please signup first');
+      throw new Error(
+        'State index is not set, Please signup or addNewKey first'
+      );
     }
 
     try {
@@ -631,10 +640,6 @@ export class MACI {
       });
       if (!address) {
         address = (await signer.getAccounts())[0].address;
-      }
-
-      if (maciKeypair === undefined) {
-        maciKeypair = this.maciKeypair;
       }
 
       const plan = options.map((o) => {

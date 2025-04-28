@@ -188,17 +188,10 @@ const signupResponse = await client.maci.signup({
   gasStation: true, // Whether to use gas station
 });
 
-// 5. Get user state index
-const stateIdx = await client.maci.getStateIdxByPubKey({
-  contractAddress: 'dora1...',
-  pubKey: maciAccount.pubKey,
-});
-
-// 6. Cast vote
+// 5. Cast vote
 const voteResponse = await client.maci.vote({
   signer: wallet,
   address,
-  stateIdx,
   contractAddress: 'dora1...',
   selectedOptions: [
     { idx: 0, vc: 2 }, // Option index and voting weight
