@@ -20,6 +20,7 @@ import { unpackPubKey } from '../crypto';
 export const prefix = 'dora';
 
 export class Contract {
+  public network: 'mainnet' | 'testnet';
   public rpcEndpoint: string;
   public registryAddress: string;
   public maciCodeId: number;
@@ -28,6 +29,7 @@ export class Contract {
   public whitelistBackendPubkey: string;
 
   constructor({
+    network,
     rpcEndpoint,
     registryAddress,
     maciCodeId,
@@ -35,6 +37,7 @@ export class Contract {
     feegrantOperator,
     whitelistBackendPubkey,
   }: ContractParams) {
+    this.network = network;
     this.rpcEndpoint = rpcEndpoint;
     this.registryAddress = registryAddress;
     this.maciCodeId = maciCodeId;
@@ -67,7 +70,11 @@ export class Contract {
       contractAddress: this.registryAddress,
     });
 
-    const requiredFee = getAMaciRoundCircuitFee(maxVoter, maxOption);
+    const requiredFee = getAMaciRoundCircuitFee(
+      this.network,
+      maxVoter,
+      maxOption
+    );
 
     preDeactivateRoot = preDeactivateRoot || '0';
     const res = await client.createRound(

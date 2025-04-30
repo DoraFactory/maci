@@ -98,6 +98,7 @@ export class MaciClient {
       http: this.http,
     });
     this.contract = new Contract({
+      network: this.network,
       rpcEndpoint: this.rpcEndpoint,
       registryAddress: this.registryAddress,
       maciCodeId: this.maciCodeId,

@@ -162,7 +162,11 @@ export function getContractParams(
   }
 }
 
-export function getAMaciRoundCircuitFee(maxVoter: number, maxOption: number) {
+export function getAMaciRoundCircuitFee(
+  network: 'mainnet' | 'testnet',
+  maxVoter: number,
+  maxOption: number
+) {
   let requiredFee = {
     denom: 'peaka',
     amount: '0',
@@ -170,11 +174,19 @@ export function getAMaciRoundCircuitFee(maxVoter: number, maxOption: number) {
   if (maxVoter <= 25 && maxOption <= 5) {
     // state_tree_depth: 2
     // vote_option_tree_depth: 1
-    requiredFee.amount = '50000000000000000000';
+    if (network === 'mainnet') {
+      requiredFee.amount = '20000000000000000000';
+    } else {
+      requiredFee.amount = '50000000000000000000';
+    }
   } else if (maxVoter <= 625 && maxOption <= 25) {
     // state_tree_depth: 4
     // vote_option_tree_depth: 2
-    requiredFee.amount = '100000000000000000000';
+    if (network === 'mainnet') {
+      requiredFee.amount = '750000000000000000000';
+    } else {
+      requiredFee.amount = '100000000000000000000';
+    }
   } else {
     throw new Error('Number of voters or options is too large.');
   }

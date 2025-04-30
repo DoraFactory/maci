@@ -42,6 +42,7 @@ export type ClientParams = {
 };
 
 export type ContractParams = {
+  network: 'mainnet' | 'testnet';
   rpcEndpoint: string;
   registryAddress: string;
   maciCodeId: number;
