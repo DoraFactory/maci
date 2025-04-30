@@ -32,6 +32,7 @@ export function isErrorResponse(response: unknown): response is ErrorResponse {
 }
 
 export class MACI {
+  public network: 'mainnet' | 'testnet';
   public contract: Contract;
   public indexer: Indexer;
   public oracleCertificate: OracleCertificate;
@@ -47,6 +48,7 @@ export class MACI {
     oracleCertificate: OracleCertificate;
     maciKeypair: Keypair;
   }) {
+    this.network = contract.network;
     this.contract = contract;
     this.indexer = indexer;
     this.oracleCertificate = oracleCertificate;
@@ -370,7 +372,7 @@ export class MACI {
     maxVoter: number;
     maxOption: number;
   }) {
-    const fee = getAMaciRoundCircuitFee(maxVoter, maxOption);
+    const fee = getAMaciRoundCircuitFee(this.network, maxVoter, maxOption);
     return fee;
   }
 
