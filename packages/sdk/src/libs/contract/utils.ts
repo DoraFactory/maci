@@ -177,7 +177,7 @@ export function getAMaciRoundCircuitFee(
     if (network === 'mainnet') {
       requiredFee.amount = '20000000000000000000';
     } else {
-      requiredFee.amount = '50000000000000000000';
+      requiredFee.amount = '20000000000000000000';
     }
   } else if (maxVoter <= 625 && maxOption <= 25) {
     // state_tree_depth: 4
@@ -185,7 +185,7 @@ export function getAMaciRoundCircuitFee(
     if (network === 'mainnet') {
       requiredFee.amount = '750000000000000000000';
     } else {
-      requiredFee.amount = '100000000000000000000';
+      requiredFee.amount = '750000000000000000000';
     }
   } else {
     throw new Error('Number of voters or options is too large.');
