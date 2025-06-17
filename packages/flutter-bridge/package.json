@@ -10,12 +10,7 @@
 		"test": "echo \"No tests yet\""
 	},
 	"dependencies": {
-		"@dorafactory/maci-sdk": "workspace:*",
-		"@cosmjs/amino": "^0.32.1",
-		"@cosmjs/cosmwasm-stargate": "^0.32.1",
-		"@cosmjs/launchpad": "^0.27.1",
-		"@cosmjs/proto-signing": "^0.32.1",
-		"@cosmjs/stargate": "^0.32.1"
+		"@dorafactory/maci-sdk": "workspace:*"
 	},
 	"devDependencies": {
 		"buffer": "^6.0.3",

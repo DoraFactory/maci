@@ -74,12 +74,23 @@ class _MyHomePageState extends State<MyHomePage> {
   Map<String, dynamic> _roundResults = {};
   Map<String, dynamic> _votingResults = {};
 
+  // Loading states for transaction operations
+  Map<String, bool> _loadingStates = {
+    'createRound': false,
+    'signup': false,
+    'vote': false,
+  };
+
   // Input controllers
   final TextEditingController _privateKeyController = TextEditingController();
   final TextEditingController _mnemonicController = TextEditingController();
   final TextEditingController _roundNameController = TextEditingController();
   final TextEditingController _voteOptionController = TextEditingController();
   final TextEditingController _voteWeightController = TextEditingController();
+  final TextEditingController _voteOptionsJsonController =
+      TextEditingController();
+  final TextEditingController _contractAddressController =
+      TextEditingController();
 
   @override
   void initState() {
@@ -92,6 +103,8 @@ class _MyHomePageState extends State<MyHomePage> {
     _roundNameController.addListener(() => setState(() {}));
     _voteOptionController.addListener(() => setState(() {}));
     _voteWeightController.addListener(() => setState(() {}));
+    _voteOptionsJsonController.addListener(() => setState(() {}));
+    _contractAddressController.addListener(() => setState(() {}));
   }
 
   @override
@@ -101,6 +114,8 @@ class _MyHomePageState extends State<MyHomePage> {
     _roundNameController.dispose();
     _voteOptionController.dispose();
     _voteWeightController.dispose();
+    _voteOptionsJsonController.dispose();
+    _contractAddressController.dispose();
     super.dispose();
   }
 
@@ -253,10 +268,10 @@ class _MyHomePageState extends State<MyHomePage> {
               String icon = logType == 'error'
                   ? '❌'
                   : logType == 'success'
-                  ? '✅'
-                  : logType == 'warning'
-                  ? '⚠️'
-                  : 'ℹ️';
+                      ? '✅'
+                      : logType == 'warning'
+                          ? '⚠️'
+                          : 'ℹ️';
               _addLog(
                 '$icon ${data['timestamp']} [${logType.toUpperCase()}]: ${data['message']}',
               );
@@ -300,6 +315,34 @@ class _MyHomePageState extends State<MyHomePage> {
         }
       },
     );
+
+    // Add transaction loading state handler
+    _controller.addJavaScriptChannel(
+      'onTransactionLoading',
+      onMessageReceived: (JavaScriptMessage message) {
+        debugPrint('Transaction loading message: ${message.message}');
+        try {
+          Map<String, dynamic> data = jsonDecode(message.message);
+          final operation = data['operation'] as String?;
+          final isLoading = data['loading'] as bool? ?? false;
+
+          if (operation != null) {
+            setState(() {
+              _loadingStates[operation] = isLoading;
+            });
+
+            if (isLoading) {
+              _addLog('🔄 Transaction started: $operation');
+            } else {
+              _addLog('✅ Transaction completed: $operation');
+            }
+          }
+        } catch (e) {
+          debugPrint('Failed to parse transaction loading message: $e');
+          _addLog('❌ Failed to parse loading state: $e');
+        }
+      },
+    );
   }
 
   void _handleJavaScriptMessage(String message) {
@@ -323,6 +366,8 @@ class _MyHomePageState extends State<MyHomePage> {
       _maciResults.clear();
       _roundResults.clear();
       _votingResults.clear();
+      // Reset loading states
+      _loadingStates.updateAll((key, value) => false);
     });
   }
 
@@ -350,14 +395,14 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget _buildStatusCard() {
     Color statusColor = _isPageReady
         ? (_isInitialized && _hasSigner
-              ? Colors.green.shade100
-              : Colors.blue.shade100)
+            ? Colors.green.shade100
+            : Colors.blue.shade100)
         : (_isLoading ? Colors.orange.shade100 : Colors.red.shade100);
 
     Color textColor = _isPageReady
         ? (_isInitialized && _hasSigner
-              ? Colors.green.shade800
-              : Colors.blue.shade800)
+            ? Colors.green.shade800
+            : Colors.blue.shade800)
         : (_isLoading ? Colors.orange.shade800 : Colors.red.shade800);
 
     return Card(
@@ -372,8 +417,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 Icon(
                   _isPageReady
                       ? (_isInitialized && _hasSigner
-                            ? Icons.check_circle
-                            : Icons.wifi)
+                          ? Icons.check_circle
+                          : Icons.wifi)
                       : (_isLoading ? Icons.hourglass_empty : Icons.error),
                   color: textColor,
                 ),
@@ -494,20 +539,20 @@ class _MyHomePageState extends State<MyHomePage> {
                 ElevatedButton.icon(
                   onPressed:
                       _isPageReady && _privateKeyController.text.isNotEmpty
-                      ? () => _callJavaScriptFunction('createSigner', {
-                          'type': 'privateKey',
-                          'value': _privateKeyController.text,
-                        })
-                      : null,
+                          ? () => _callJavaScriptFunction('createSigner', {
+                                'type': 'privateKey',
+                                'value': _privateKeyController.text,
+                              })
+                          : null,
                   icon: const Icon(Icons.create),
                   label: const Text('Create from Private Key'),
                 ),
                 ElevatedButton.icon(
                   onPressed: _isPageReady && _mnemonicController.text.isNotEmpty
                       ? () => _callJavaScriptFunction('createSigner', {
-                          'type': 'mnemonic',
-                          'value': _mnemonicController.text,
-                        })
+                            'type': 'mnemonic',
+                            'value': _mnemonicController.text,
+                          })
                       : null,
                   icon: const Icon(Icons.create),
                   label: const Text('Create from Mnemonic'),
@@ -651,14 +696,25 @@ class _MyHomePageState extends State<MyHomePage> {
                   label: const Text('Current Round Info'),
                 ),
                 ElevatedButton.icon(
-                  onPressed:
-                      _isPageReady && _roundNameController.text.isNotEmpty
+                  onPressed: _isPageReady &&
+                          _roundNameController.text.isNotEmpty &&
+                          !(_loadingStates['createRound'] ?? false)
                       ? () => _callJavaScriptFunction('createAMaciRound', {
-                          'name': _roundNameController.text,
-                        })
+                            'name': _roundNameController.text,
+                          })
                       : null,
-                  icon: const Icon(Icons.add_circle),
-                  label: const Text('Create New Round'),
+                  icon: (_loadingStates['createRound'] ?? false)
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_circle),
+                  label: Text(
+                    (_loadingStates['createRound'] ?? false)
+                        ? 'Creating...'
+                        : 'Create New Round',
+                  ),
                 ),
               ],
             ),
@@ -695,14 +751,28 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             const SizedBox(height: 16),
 
+            // Contract address input
+            TextField(
+              controller: _contractAddressController,
+              decoration: const InputDecoration(
+                labelText: 'Contract Address',
+                hintText: 'Enter contract address for voting',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.link),
+                helperText: 'If empty, will use the address from HTML form',
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Single vote option input
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _voteOptionController,
                     decoration: const InputDecoration(
-                      labelText: 'Vote Option',
-                      hintText: 'Enter vote option ID',
+                      labelText: 'Vote Option ID',
+                      hintText: 'Enter single vote option ID',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.check_box),
                     ),
@@ -724,6 +794,21 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+
+            // Multiple vote options (JSON format)
+            TextField(
+              controller: _voteOptionsJsonController,
+              decoration: const InputDecoration(
+                labelText: 'Multiple Vote Options (JSON)',
+                hintText: '[{"idx": 0, "vc": 1}, {"idx": 1, "vc": 2}]',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.format_list_numbered),
+                helperText:
+                    'JSON format for multiple votes. If filled, will override single option above.',
+              ),
+              maxLines: 3,
+            ),
             const SizedBox(height: 16),
 
             Wrap(
@@ -731,26 +816,71 @@ class _MyHomePageState extends State<MyHomePage> {
               runSpacing: 8,
               children: [
                 ElevatedButton.icon(
-                  onPressed: _isPageReady
-                      ? () => _callJavaScriptFunction('signup')
-                      : null,
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Sign Up to Vote'),
+                  onPressed:
+                      _isPageReady && !(_loadingStates['signup'] ?? false)
+                          ? () => _callJavaScriptFunction('signup')
+                          : null,
+                  icon: (_loadingStates['signup'] ?? false)
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.person_add),
+                  label: Text(
+                    (_loadingStates['signup'] ?? false)
+                        ? 'Signing up...'
+                        : 'Sign Up to Vote',
+                  ),
                 ),
                 ElevatedButton.icon(
-                  onPressed:
-                      _isPageReady &&
-                          _voteOptionController.text.isNotEmpty &&
-                          _voteWeightController.text.isNotEmpty
-                      ? () => _callJavaScriptFunction('vote', {
-                          'option':
-                              int.tryParse(_voteOptionController.text) ?? 0,
-                          'weight':
-                              int.tryParse(_voteWeightController.text) ?? 1,
-                        })
+                  onPressed: _isPageReady &&
+                          (_voteOptionsJsonController.text.isNotEmpty ||
+                              (_voteOptionController.text.isNotEmpty &&
+                                  _voteWeightController.text.isNotEmpty)) &&
+                          !(_loadingStates['vote'] ?? false)
+                      ? () {
+                          Map<String, dynamic> voteParams = {};
+
+                          // Add contract address if provided
+                          if (_contractAddressController.text.isNotEmpty) {
+                            voteParams['contractAddress'] =
+                                _contractAddressController.text;
+                          }
+
+                          // Priority: JSON options > single option
+                          if (_voteOptionsJsonController.text.isNotEmpty) {
+                            try {
+                              final options =
+                                  jsonDecode(_voteOptionsJsonController.text);
+                              voteParams['options'] = options;
+                            } catch (e) {
+                              // If JSON parsing fails, show error
+                              _addLog(
+                                  '❌ Invalid JSON format for vote options: $e');
+                              return;
+                            }
+                          } else {
+                            // Use single option format
+                            voteParams['option'] =
+                                int.tryParse(_voteOptionController.text) ?? 0;
+                            voteParams['weight'] =
+                                int.tryParse(_voteWeightController.text) ?? 1;
+                          }
+
+                          _callJavaScriptFunction('vote', voteParams);
+                        }
                       : null,
-                  icon: const Icon(Icons.how_to_vote),
-                  label: const Text('Vote'),
+                  icon: (_loadingStates['vote'] ?? false)
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.how_to_vote),
+                  label: Text(
+                    (_loadingStates['vote'] ?? false) ? 'Voting...' : 'Vote',
+                  ),
                 ),
                 ElevatedButton.icon(
                   onPressed: _isPageReady
@@ -758,6 +888,55 @@ class _MyHomePageState extends State<MyHomePage> {
                       : null,
                   icon: const Icon(Icons.tag),
                   label: const Text('Get State Index'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Quick vote presets
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                const Text(
+                  'Quick Presets:',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () {
+                    _voteOptionsJsonController.text = '[{"idx": 0, "vc": 1}]';
+                  },
+                  child: const Text('Vote for Option 0'),
+                ),
+                OutlinedButton(
+                  onPressed: () {
+                    _voteOptionsJsonController.text = '[{"idx": 1, "vc": 1}]';
+                  },
+                  child: const Text('Vote for Option 1'),
+                ),
+                OutlinedButton(
+                  onPressed: () {
+                    _voteOptionsJsonController.text =
+                        '[{"idx": 0, "vc": 1}, {"idx": 1, "vc": 1}]';
+                  },
+                  child: const Text('Vote for Both'),
+                ),
+                OutlinedButton(
+                  onPressed: () {
+                    _contractAddressController.text =
+                        'dora1mwe6mapexwp4qzqr6en00lljewsfs32jus3qkcq2x8dns9qds296mqa';
+                  },
+                  child: const Text('Use Demo Contract'),
+                ),
+                OutlinedButton(
+                  onPressed: () {
+                    _voteOptionsJsonController.clear();
+                    _voteOptionController.clear();
+                    _voteWeightController.clear();
+                    _contractAddressController.clear();
+                  },
+                  child: const Text('Clear All'),
                 ),
               ],
             ),
@@ -967,10 +1146,10 @@ class _MyHomePageState extends State<MyHomePage> {
                               color: isError
                                   ? Colors.red.shade700
                                   : (isSuccess
-                                        ? Colors.green.shade700
-                                        : (isWarning
-                                              ? Colors.orange.shade700
-                                              : Colors.black87)),
+                                      ? Colors.green.shade700
+                                      : (isWarning
+                                          ? Colors.orange.shade700
+                                          : Colors.black87)),
                             ),
                           ),
                         );

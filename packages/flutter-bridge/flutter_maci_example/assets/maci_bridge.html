@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MACI Bridge for Flutter</title>
+    <title>MACI SDK for Flutter</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -127,9 +127,9 @@
 
 <body>
     <div class="container">
-        <h1>🚀 MACI Bridge Flutter Demo</h1>
+        <h1>🚀 MACI SDK Flutter Demo</h1>
 
-        <div id="status" class="status info">Initializing MACI Bridge...</div>
+        <div id="status" class="status info">Initializing MACI SDK...</div>
 
         <!-- Network Selection -->
         <div class="section">
@@ -230,59 +230,53 @@
 
     <script src="maci-bridge.js"></script>
     <script>
-        let isInitialized = false;
+        // Global variables
+        let maciClient = null;
         let currentSigner = null;
         let currentMaciKeypair = null;
 
-        // Create real Signer using MACI Bridge
+        // Loading states for transaction operations
+        let loadingStates = {
+            createRound: false,
+            signup: false,
+            vote: false
+        };
+
+        // Create real Signer using MACI SDK
         async function createSignerFromPrivateKey(privateKey) {
             try {
-                await waitForMaciBridge();
+                await waitForMaciSDK();
 
-                log(`Check genSignerFromKey method: ${typeof window.MaciBridge.genSignerFromKey}`);
-
-                if (!window.MaciBridge || typeof window.MaciBridge.genSignerFromKey !== 'function') {
-                    log(`Bridge object status: exists=${!!window.MaciBridge}, method list: ${window.MaciBridge ? Object.keys(window.MaciBridge).join(', ') : 'N/A'}`);
-                    throw new Error('MaciBridge.genSignerFromKey method not available');
+                if (!window.MaciSDK || typeof window.MaciSDK.genSignerFromKey !== 'function') {
+                    throw new Error('MaciSDK.genSignerFromKey method not available');
                 }
 
-                log('Creating Signer from private key using MaciBridge...');
-                const signer = await window.MaciBridge.genSignerFromKey(privateKey);
-                log('✅ Successfully created private key Signer using Bridge');
+                log('Creating Signer from private key using MaciSDK...');
+                const signer = await window.MaciSDK.genSignerFromKey(privateKey);
+                log('✅ Successfully created private key Signer using SDK');
 
                 return signer;
             } catch (error) {
-                throw new Error(`Failed to create private key Signer using Bridge: ${error.message}`);
+                throw new Error(`Failed to create private key Signer using SDK: ${error.message}`);
             }
         }
 
         async function createSignerFromMnemonic(mnemonic) {
             try {
-                await waitForMaciBridge();
+                await waitForMaciSDK();
 
-                log(`Check genSignerFromMnemonic method: ${typeof window.MaciBridge.genSignerFromMnemonic}`);
-
-                if (!window.MaciBridge || typeof window.MaciBridge.genSignerFromMnemonic !== 'function') {
-                    log(`Bridge object status: exists=${!!window.MaciBridge}, method list: ${window.MaciBridge ? Object.keys(window.MaciBridge).join(', ') : 'N/A'}`);
-                    throw new Error('MaciBridge.genSignerFromMnemonic method not available');
+                if (!window.MaciSDK || typeof window.MaciSDK.genSignerFromMnemonic !== 'function') {
+                    throw new Error('MaciSDK.genSignerFromMnemonic method not available');
                 }
 
-                log('Creating Signer from mnemonic using MaciBridge...');
-                const signer = await window.MaciBridge.genSignerFromMnemonic(mnemonic);
-                log('✅ Successfully created mnemonic Signer using Bridge');
+                log('Creating Signer from mnemonic using MaciSDK...');
+                const signer = await window.MaciSDK.genSignerFromMnemonic(mnemonic);
+                log('✅ Successfully created mnemonic Signer using SDK');
 
                 return signer;
             } catch (error) {
-                throw new Error(`Failed to create mnemonic Signer using Bridge: ${error.message}`);
+                throw new Error(`Failed to create mnemonic Signer using SDK: ${error.message}`);
             }
-        }
-
-        async function getSignerAddress(signer) {
-            if (signer && typeof signer.getAccounts === 'function') {
-                const accounts = await signer.getAccounts();
-                return accounts[0]?.address || 'unknown';
-            }
-            return 'unknown';
         }
 
         // Log function
@@ -293,7 +287,7 @@
             logs.textContent += logEntry;
             logs.scrollTop = logs.scrollHeight;
 
-            // Send to Flutter (compatible with multiple WebView types)
+            // Send to Flutter
             try {
                 if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
                     window.flutter_inappwebview.callHandler('onMaciLog', {
@@ -329,6 +323,25 @@
                 }
             } catch (e) {
                 console.log('Unable to send result to Flutter:', e);
+            }
+        }
+
+        // Send loading state to Flutter
+        function sendLoadingStateToFlutter(operation, isLoading) {
+            try {
+                const loadingData = {
+                    operation: operation,
+                    loading: isLoading,
+                    timestamp: new Date().toISOString()
+                };
+
+                if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                    window.flutter_inappwebview.callHandler('onTransactionLoading', loadingData);
+                } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onTransactionLoading) {
+                    window.webkit.messageHandlers.onTransactionLoading.postMessage(JSON.stringify(loadingData));
+                }
+            } catch (e) {
+                console.log('Unable to send loading state to Flutter:', e);
             }
         }
 
@@ -404,6 +417,7 @@
                 const result = {
                     type: signerType,
                     created: true,
+                    address: address,
                     timestamp: new Date().toISOString()
                 };
 
@@ -411,7 +425,6 @@
 
                 // Notify Flutter of successful Signer creation
                 try {
-                    const address = await currentSigner.getAccounts().then(accounts => accounts[0]?.address || 'unknown');
                     const notifyData = {
                         success: true,
                         address: address,
@@ -479,32 +492,29 @@
             }
         }
 
-        // Wait for MaciBridge to load
-        function waitForMaciBridge() {
+        // Wait for MaciSDK to load
+        function waitForMaciSDK() {
             return new Promise((resolve, reject) => {
                 let attempts = 0;
                 const maxAttempts = 50;
 
                 function check() {
-                    log(`Checking MaciBridge (attempt ${attempts + 1}/${maxAttempts})`);
+                    log(`Checking MaciSDK (attempt ${attempts + 1}/${maxAttempts})`);
 
-                    if (window.MaciBridge) {
-                        log(`MaciBridge object exists: ${typeof window.MaciBridge}`);
-                        log(`MaciBridge methods: ${Object.keys(window.MaciBridge).join(', ')}`);
-
-                        if (typeof window.MaciBridge.initialize === 'function') {
-                            log('✅ MaciBridge.initialize method available');
+                    if (window.MaciSDK) {
+                        if (typeof window.MaciSDK.MaciClient === 'function') {
+                            log('✅ MaciSDK.MaciClient available');
                             resolve();
                             return;
                         } else {
-                            log('❌ MaciBridge.initialize method not available');
+                            log('❌ MaciSDK.MaciClient not available');
                         }
                     } else {
-                        log('❌ window.MaciBridge does not exist');
+                        log('❌ window.MaciSDK does not exist');
                     }
 
                     if (attempts >= maxAttempts) {
-                        reject(new Error('MaciBridge loading timeout'));
+                        reject(new Error('MaciSDK loading timeout'));
                     } else {
                         attempts++;
                         setTimeout(check, 100);
@@ -518,7 +528,7 @@
         async function initializeMaci() {
             try {
                 log('Starting MACI client initialization...');
-                await waitForMaciBridge();
+                await waitForMaciSDK();
 
                 const network = document.getElementById('network').value;
 
@@ -529,12 +539,12 @@
 
                 const config = {
                     network,
-                    signer: currentSigner
+                    signer: currentSigner,
+                    maciKeypair: currentMaciKeypair
                 };
 
-                log('Initializing MACI Bridge with Signer...');
-                await window.MaciBridge.initialize(config);
-                isInitialized = true;
+                log('Initializing MACI Client with Signer...');
+                maciClient = new window.MaciSDK.MaciClient(config);
 
                 log('✅ MACI client initialization successful');
                 updateStatus('✅ MACI client is ready', 'success');
@@ -616,14 +626,14 @@
         // Get client information
         async function getClientInfo() {
             try {
-                if (!isInitialized) {
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
 
                 log('Getting client information...');
 
-                const pubkey = await window.MaciBridge.getMaciPubkey();
-                const keypair = await window.MaciBridge.getMaciKeypair();
+                const pubkey = maciClient.getMaciPubkey();
+                const keypair = maciClient.getMaciKeypair();
 
                 const info = {
                     network: document.getElementById('network').value,
@@ -649,12 +659,12 @@
         // Generate keypair
         async function generateKeypair() {
             try {
-                if (!isInitialized) {
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
 
                 log('Generating new MACI keypair...');
-                const result = await window.MaciBridge.genKeypairFromSign();
+                const result = await maciClient.genKeypairFromSign();
                 currentMaciKeypair = result;
 
                 // Use deep conversion to handle BigInt
@@ -675,7 +685,7 @@
         // Get round information
         async function getRoundInfo() {
             try {
-                if (!isInitialized) {
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
 
@@ -685,7 +695,7 @@
                 }
 
                 log('Getting round information...');
-                const result = await window.MaciBridge.getRoundInfo({ contractAddress });
+                const result = await maciClient.getRoundInfo({ contractAddress });
                 const safeResult = convertBigIntToString(result);
 
                 document.getElementById('roundInfo').textContent = JSON.stringify(safeResult, null, 2);
@@ -704,12 +714,12 @@
         // Get round list
         async function getRounds() {
             try {
-                if (!isInitialized) {
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
 
                 log('Getting round list...');
-                const result = await window.MaciBridge.getRounds('', 5);
+                const result = await maciClient.getRounds('', 5);
                 const safeResult = convertBigIntToString(result);
 
                 document.getElementById('roundInfo').textContent = JSON.stringify(safeResult, null, 2);
@@ -728,12 +738,22 @@
         // Create AMaci round
         async function createAMaciRound(params) {
             try {
-                if (!isInitialized) {
+                // Check if already loading
+                if (loadingStates.createRound) {
+                    log('⚠️ Create round operation already in progress', 'warning');
+                    return;
+                }
+
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
                 if (!currentSigner) {
                     throw new Error('Please create Signer first');
                 }
+
+                // Start loading
+                loadingStates.createRound = true;
+                sendLoadingStateToFlutter('createRound', true);
 
                 // Get round name from parameters (from Flutter) or from HTML input
                 let roundName = 'Flutter Demo Round'; // default name
@@ -749,13 +769,13 @@
                     }
                 }
 
-                log(`Creating new AMaci round with title: ${roundName}`);
+                log(`🚀 Creating new AMaci round with title: ${roundName}`);
 
-                const address = await window.MaciBridge.getAddress();
+                const address = await maciClient.getAddress();
                 const now = new Date();
                 const endTime = new Date(now.getTime() + 11 * 60 * 1000); // End after 11 minutes
 
-                const result = await window.MaciBridge.createAMaciRound({
+                const result = await maciClient.createAMaciRound({
                     maxVoter: 2,
                     maxOption: 5,
                     operator: 'dora18mph6ekhf70pxqxpq0lfj3z7j3k4mqn8m2cna5',
@@ -766,7 +786,7 @@
                     startVoting: now,
                     endVoting: endTime,
                     title: roundName,
-                    circuitType: '0' // 1p1v
+                    circuitType: window.MaciSDK.MaciCircuitType?.IP1V || '0' // 1p1v
                 });
 
                 const safeResult = convertBigIntToString(result);
@@ -781,13 +801,23 @@
                 log(`❌ Failed to create AMaci round: ${error.message}`, 'error');
                 document.getElementById('roundInfo').textContent = `Error: ${error.message}`;
                 sendResultToFlutter('createAMaciRound', { error: error.message });
+            } finally {
+                // End loading
+                loadingStates.createRound = false;
+                sendLoadingStateToFlutter('createRound', false);
             }
         }
 
         // Sign up to vote
         async function signup() {
             try {
-                if (!isInitialized) {
+                // Check if already loading
+                if (loadingStates.signup) {
+                    log('⚠️ Signup operation already in progress', 'warning');
+                    return;
+                }
+
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
                 if (!currentMaciKeypair) {
@@ -799,10 +829,14 @@
                     throw new Error('Please enter contract address');
                 }
 
-                log('Signing up to vote...');
-                const address = await window.MaciBridge.getAddress();
+                // Start loading
+                loadingStates.signup = true;
+                sendLoadingStateToFlutter('signup', true);
 
-                const result = await window.MaciBridge.signup({
+                log('🚀 Signing up to vote...');
+                const address = await maciClient.getAddress();
+
+                const result = await maciClient.signup({
                     address,
                     contractAddress,
                     maciKeypair: currentMaciKeypair
@@ -819,13 +853,17 @@
                 log(`❌ Vote signup failed: ${error.message}`, 'error');
                 document.getElementById('voteInfo').textContent = `Error: ${error.message}`;
                 sendResultToFlutter('signup', { error: error.message });
+            } finally {
+                // End loading
+                loadingStates.signup = false;
+                sendLoadingStateToFlutter('signup', false);
             }
         }
 
         // Check balance
         async function checkBalance() {
             try {
-                if (!isInitialized) {
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
 
@@ -835,8 +873,8 @@
                 }
 
                 log('Checking balance...');
-                const address = await window.MaciBridge.getAddress();
-                const balance = await window.MaciBridge.queryWhitelistBalanceOf({
+                const address = await maciClient.getAddress();
+                const balance = await maciClient.queryWhitelistBalanceOf({
                     address,
                     contractAddress
                 });
@@ -857,7 +895,7 @@
         // Get state index
         async function getStateIdx() {
             try {
-                if (!isInitialized) {
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
                 if (!currentMaciKeypair) {
@@ -870,7 +908,7 @@
                 }
 
                 log('Getting state index...');
-                const stateIdx = await window.MaciBridge.getStateIdxByPubKey({
+                const stateIdx = await maciClient.getStateIdxByPubKey({
                     contractAddress,
                     pubKey: currentMaciKeypair.pubKey
                 });
@@ -894,35 +932,72 @@
         }
 
         // Vote
-        async function vote() {
+        async function vote(params) {
             try {
-                if (!isInitialized) {
+                // Check if already loading
+                if (loadingStates.vote) {
+                    log('⚠️ Vote operation already in progress', 'warning');
+                    return;
+                }
+
+                if (!maciClient) {
                     throw new Error('Please initialize MACI client first');
                 }
                 if (!currentMaciKeypair) {
                     throw new Error('Please generate MACI keypair first');
                 }
 
-                const contractAddress = document.getElementById('contractAddress').value;
+                // Get contract address from parameters or HTML form
+                let contractAddress;
+                if (params && params.contractAddress) {
+                    contractAddress = params.contractAddress;
+                    log(`Using contract address from Flutter: ${contractAddress}`);
+                } else {
+                    contractAddress = document.getElementById('contractAddress').value;
+                    log('Using contract address from HTML form');
+                }
+
                 if (!contractAddress) {
-                    throw new Error('Please enter contract address');
+                    throw new Error('Please provide contract address either in Flutter or enter in the form');
                 }
 
-                const voteOptionsText = document.getElementById('voteOptions').value;
                 let selectedOptions;
-                try {
-                    selectedOptions = JSON.parse(voteOptionsText);
-                } catch (e) {
-                    throw new Error('Vote options JSON format error');
+
+                // If parameters are passed from Flutter, use them; otherwise use HTML form
+                if (params && (params.option !== undefined || params.options)) {
+                    if (params.options) {
+                        // If multiple options are passed as an array
+                        selectedOptions = params.options;
+                        log(`Using vote options from Flutter: ${JSON.stringify(selectedOptions)}`);
+                    } else {
+                        // If single option and weight are passed
+                        const option = params.option || 0;
+                        const weight = params.weight || 1;
+                        selectedOptions = [{ idx: option, vc: weight }];
+                        log(`Using vote option from Flutter: option=${option}, weight=${weight}`);
+                    }
+                } else {
+                    // Fallback to HTML form input
+                    const voteOptionsText = document.getElementById('voteOptions').value;
+                    try {
+                        selectedOptions = JSON.parse(voteOptionsText);
+                        log('Using vote options from HTML form');
+                    } catch (e) {
+                        throw new Error('Vote options JSON format error');
+                    }
                 }
 
-                log('Starting to vote...');
+                // Start loading
+                loadingStates.vote = true;
+                sendLoadingStateToFlutter('vote', true);
+
+                log('🚀 Starting to vote...');
 
                 // Get round information to get coordinator public key
-                const roundInfo = await window.MaciBridge.getRoundInfo({ contractAddress });
-                const address = await window.MaciBridge.getAddress();
+                const roundInfo = await maciClient.getRoundInfo({ contractAddress });
+                const address = await maciClient.getAddress();
 
-                const result = await window.MaciBridge.vote({
+                const result = await maciClient.vote({
                     address,
                     contractAddress,
                     selectedOptions,
@@ -944,17 +1019,21 @@
                 log(`❌ Vote failed: ${error.message}`, 'error');
                 document.getElementById('voteInfo').textContent = `Error: ${error.message}`;
                 sendResultToFlutter('vote', { error: error.message });
+            } finally {
+                // End loading
+                loadingStates.vote = false;
+                sendLoadingStateToFlutter('vote', false);
             }
         }
 
         // Page loaded
         window.addEventListener('load', async function () {
             try {
-                log('Page loaded, checking MaciBridge...');
-                await waitForMaciBridge();
+                log('Page loaded, checking MaciSDK...');
+                await waitForMaciSDK();
 
-                log('✅ MaciBridge loaded successfully');
-                updateStatus('✅ MACI Bridge loaded, click initialize to start using', 'success');
+                log('✅ MaciSDK loaded successfully');
+                updateStatus('✅ MACI SDK loaded, click initialize to start using', 'success');
 
                 // Notify Flutter that page is ready
                 try {
@@ -974,8 +1053,8 @@
                 }
 
             } catch (error) {
-                log(`❌ MaciBridge loading failed: ${error.message}`, 'error');
-                updateStatus('❌ MACI Bridge loading failed', 'error');
+                log(`❌ MaciSDK loading failed: ${error.message}`, 'error');
+                updateStatus('❌ MACI SDK loading failed', 'error');
             }
         });
 
