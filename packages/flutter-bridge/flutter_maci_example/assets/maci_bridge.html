@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MACI Bridge for Flutter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 8px 4px;
+            min-width: 120px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .input-group {
+            margin: 15px 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f8f9fa;
+            padding: 12px;
+            font-weight: 600;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .section-body {
+            padding: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 MACI Bridge Flutter Demo</h1>
+
+        <div id="status" class="status info">Initializing MACI Bridge...</div>
+
+        <!-- Network Selection -->
+        <div class="section">
+            <div class="section-header">⚙️ Configuration</div>
+            <div class="section-body">
+                <div class="input-group">
+                    <label for="network">Network:</label>
+                    <select id="network">
+                        <option value="testnet">Testnet</option>
+                        <option value="mainnet">Mainnet</option>
+                    </select>
+                </div>
+                <button onclick="initializeMaci()">Initialize MACI Client</button>
+            </div>
+        </div>
+
+        <!-- Signer Configuration -->
+        <div class="section">
+            <div class="section-header">🔐 Signer Configuration</div>
+            <div class="section-body">
+                <div class="input-group">
+                    <label for="signerType">Signer Type:</label>
+                    <select id="signerType" onchange="toggleSignerInputs()">
+                        <option value="key">Private Key</option>
+                        <option value="mnemonic">Mnemonic</option>
+                    </select>
+                </div>
+                <div class="input-group" id="privateKeyGroup">
+                    <label for="privateKey">Private Key:</label>
+                    <input type="password" id="privateKey" placeholder="Enter private key (without 0x prefix)">
+                </div>
+                <div class="input-group" id="mnemonicGroup" style="display: none;">
+                    <label for="mnemonic">Mnemonic:</label>
+                    <textarea id="mnemonic" rows="3" placeholder="Enter 12 or 24 word mnemonic"></textarea>
+                </div>
+                <button onclick="createSigner()">Create Signer</button>
+                <button onclick="getSignerAddress()">Get Address</button>
+                <div id="signerInfo" class="result-box">Waiting to create...</div>
+            </div>
+        </div>
+
+        <!-- Basic Information -->
+        <div class="section">
+            <div class="section-header">📊 Client Information</div>
+            <div class="section-body">
+                <button onclick="getClientInfo()">Get Client Info</button>
+                <button onclick="generateKeypair()">Generate Keypair</button>
+                <div id="clientInfo" class="result-box">Waiting to fetch...</div>
+            </div>
+        </div>
+
+        <!-- Round Information -->
+        <div class="section">
+            <div class="section-header">🎯 Round Management</div>
+            <div class="section-body">
+                <div class="input-group">
+                    <label for="contractAddress">Contract Address:</label>
+                    <input type="text" id="contractAddress"
+                        placeholder="dora1mwe6mapexwp4qzqr6en00lljewsfs32jus3qkcq2x8dns9qds296mqa">
+                </div>
+                <div class="input-group">
+                    <label for="roundName">Round Name:</label>
+                    <input type="text" id="roundName" placeholder="Enter round name/title">
+                </div>
+                <button onclick="getRoundInfo()">Get Round Info</button>
+                <button onclick="getRounds()">Get Round List</button>
+                <button onclick="createAMaciRound()">Create New Round</button>
+                <div id="roundInfo" class="result-box">Waiting to query...</div>
+            </div>
+        </div>
+
+        <!-- Voting Functions -->
+        <div class="section">
+            <div class="section-header">🗳️ Voting Functions</div>
+            <div class="section-body">
+                <button onclick="signup()">Sign Up to Vote</button>
+                <button onclick="checkBalance()">Check Balance</button>
+                <button onclick="getStateIdx()">Get State Index</button>
+                <button onclick="vote()">Vote</button>
+                <div class="input-group">
+                    <label for="voteOptions">Vote Options (JSON format):</label>
+                    <textarea id="voteOptions" rows="3"
+                        placeholder='[{"idx": 0, "vc": 1}, {"idx": 1, "vc": 1}]'>[{"idx": 0, "vc": 1}, {"idx": 1, "vc": 1}]</textarea>
+                </div>
+                <div id="voteInfo" class="result-box">Waiting for operation...</div>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="section">
+            <div class="section-header">📝 Operation Logs</div>
+            <div class="section-body">
+                <button onclick="clearLogs()">Clear Logs</button>
+                <div id="logs" class="result-box">Waiting for operation...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="maci-bridge.js"></script>
+    <script>
+        let isInitialized = false;
+        let currentSigner = null;
+        let currentMaciKeypair = null;
+
+        // Create real Signer using MACI Bridge
+        async function createSignerFromPrivateKey(privateKey) {
+            try {
+                await waitForMaciBridge();
+
+                log(`Check genSignerFromKey method: ${typeof window.MaciBridge.genSignerFromKey}`);
+
+                if (!window.MaciBridge || typeof window.MaciBridge.genSignerFromKey !== 'function') {
+                    log(`Bridge object status: exists=${!!window.MaciBridge}, method list: ${window.MaciBridge ? Object.keys(window.MaciBridge).join(', ') : 'N/A'}`);
+                    throw new Error('MaciBridge.genSignerFromKey method not available');
+                }
+
+                log('Creating Signer from private key using MaciBridge...');
+                const signer = await window.MaciBridge.genSignerFromKey(privateKey);
+                log('✅ Successfully created private key Signer using Bridge');
+
+                return signer;
+            } catch (error) {
+                throw new Error(`Failed to create private key Signer using Bridge: ${error.message}`);
+            }
+        }
+
+        async function createSignerFromMnemonic(mnemonic) {
+            try {
+                await waitForMaciBridge();
+
+                log(`Check genSignerFromMnemonic method: ${typeof window.MaciBridge.genSignerFromMnemonic}`);
+
+                if (!window.MaciBridge || typeof window.MaciBridge.genSignerFromMnemonic !== 'function') {
+                    log(`Bridge object status: exists=${!!window.MaciBridge}, method list: ${window.MaciBridge ? Object.keys(window.MaciBridge).join(', ') : 'N/A'}`);
+                    throw new Error('MaciBridge.genSignerFromMnemonic method not available');
+                }
+
+                log('Creating Signer from mnemonic using MaciBridge...');
+                const signer = await window.MaciBridge.genSignerFromMnemonic(mnemonic);
+                log('✅ Successfully created mnemonic Signer using Bridge');
+
+                return signer;
+            } catch (error) {
+                throw new Error(`Failed to create mnemonic Signer using Bridge: ${error.message}`);
+            }
+        }
+
+        async function getSignerAddress(signer) {
+            if (signer && typeof signer.getAccounts === 'function') {
+                const accounts = await signer.getAccounts();
+                return accounts[0]?.address || 'unknown';
+            }
+            return 'unknown';
+        }
+
+        // Log function
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+            logs.textContent += logEntry;
+            logs.scrollTop = logs.scrollHeight;
+
+            // Send to Flutter (compatible with multiple WebView types)
+            try {
+                if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                    window.flutter_inappwebview.callHandler('onMaciLog', {
+                        timestamp,
+                        type,
+                        message
+                    });
+                } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onMaciLog) {
+                    window.webkit.messageHandlers.onMaciLog.postMessage(JSON.stringify({
+                        timestamp,
+                        type,
+                        message
+                    }));
+                }
+            } catch (e) {
+                console.log('Flutter communication failed:', e);
+            }
+        }
+
+        // Send operation results to Flutter
+        function sendResultToFlutter(operation, result) {
+            try {
+                const resultData = {
+                    operation: operation,
+                    result: result,
+                    timestamp: new Date().toISOString()
+                };
+
+                if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                    window.flutter_inappwebview.callHandler('onMaciLog', resultData);
+                } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onMaciLog) {
+                    window.webkit.messageHandlers.onMaciLog.postMessage(JSON.stringify(resultData));
+                }
+            } catch (e) {
+                console.log('Unable to send result to Flutter:', e);
+            }
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').textContent = '';
+        }
+
+        // Signer related functions
+        function toggleSignerInputs() {
+            const signerType = document.getElementById('signerType').value;
+            const privateKeyGroup = document.getElementById('privateKeyGroup');
+            const mnemonicGroup = document.getElementById('mnemonicGroup');
+
+            if (signerType === 'key') {
+                privateKeyGroup.style.display = 'block';
+                mnemonicGroup.style.display = 'none';
+            } else {
+                privateKeyGroup.style.display = 'none';
+                mnemonicGroup.style.display = 'block';
+            }
+        }
+
+        async function createSigner(params) {
+            try {
+                log('Starting to create Signer...');
+
+                let signerType, inputValue;
+
+                // If parameters are passed in (from Flutter), use parameters
+                if (params && params.type && params.value) {
+                    signerType = params.type === 'privateKey' ? 'key' : 'mnemonic';
+                    inputValue = params.value;
+                    log(`Received parameters from Flutter: type=${params.type}, value=${inputValue.substring(0, 10)}...`);
+                } else {
+                    // Otherwise read from HTML form
+                    signerType = document.getElementById('signerType').value;
+                    if (signerType === 'key') {
+                        inputValue = document.getElementById('privateKey').value;
+                    } else {
+                        inputValue = document.getElementById('mnemonic').value;
+                    }
+                }
+
+                let signer;
+
+                if (signerType === 'key') {
+                    if (!inputValue) {
+                        throw new Error('Please enter private key');
+                    }
+
+                    log('Creating Signer from private key...');
+                    signer = await createSignerFromPrivateKey(inputValue);
+                } else {
+                    if (!inputValue) {
+                        throw new Error('Please enter mnemonic');
+                    }
+
+                    log('Creating Signer from mnemonic...');
+                    signer = await createSignerFromMnemonic(inputValue);
+                }
+
+                currentSigner = signer;
+                log('✅ Signer created successfully');
+                let address = (await currentSigner.getAccounts())[0].address;
+                log('address', address);
+
+                const result = {
+                    type: signerType,
+                    created: true,
+                    timestamp: new Date().toISOString()
+                };
+
+                document.getElementById('signerInfo').textContent = JSON.stringify(result, null, 2);
+
+                // Notify Flutter of successful Signer creation
+                try {
+                    const address = await currentSigner.getAccounts().then(accounts => accounts[0]?.address || 'unknown');
+                    const notifyData = {
+                        success: true,
+                        address: address,
+                        type: signerType
+                    };
+
+                    if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        window.flutter_inappwebview.callHandler('onSignerCreated', notifyData);
+                    } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onSignerCreated) {
+                        window.webkit.messageHandlers.onSignerCreated.postMessage(JSON.stringify(notifyData));
+                    }
+                } catch (e) {
+                    log(`Flutter communication failed: ${e.message}`, 'warning');
+                }
+
+            } catch (error) {
+                log(`❌ Failed to create Signer: ${error.message}`, 'error');
+                document.getElementById('signerInfo').textContent = `Error: ${error.message}`;
+
+                // Notify Flutter of Signer creation failure
+                try {
+                    const notifyData = {
+                        success: false,
+                        error: error.message
+                    };
+
+                    if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        window.flutter_inappwebview.callHandler('onSignerCreated', notifyData);
+                    } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onSignerCreated) {
+                        window.webkit.messageHandlers.onSignerCreated.postMessage(JSON.stringify(notifyData));
+                    }
+                } catch (e) {
+                    log(`Flutter communication failed: ${e.message}`, 'warning');
+                }
+            }
+        }
+
+        async function getSignerAddress() {
+            try {
+                if (!currentSigner) {
+                    throw new Error('Please create Signer first');
+                }
+
+                log('Getting Signer address...');
+
+                const address = await currentSigner.getAccounts().then(accounts => accounts[0]?.address || 'unknown');
+                const network = document.getElementById('network').value;
+
+                log('✅ Address retrieved successfully');
+
+                const addressInfo = {
+                    address: address,
+                    network: network,
+                    signerReady: true
+                };
+                document.getElementById('signerInfo').textContent = JSON.stringify(addressInfo, null, 2);
+
+                // Send result to Flutter
+                sendResultToFlutter('getSignerAddress', addressInfo);
+
+            } catch (error) {
+                log(`❌ Failed to get address: ${error.message}`, 'error');
+                document.getElementById('signerInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('getSignerAddress', { error: error.message });
+            }
+        }
+
+        // Wait for MaciBridge to load
+        function waitForMaciBridge() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+
+                function check() {
+                    log(`Checking MaciBridge (attempt ${attempts + 1}/${maxAttempts})`);
+
+                    if (window.MaciBridge) {
+                        log(`MaciBridge object exists: ${typeof window.MaciBridge}`);
+                        log(`MaciBridge methods: ${Object.keys(window.MaciBridge).join(', ')}`);
+
+                        if (typeof window.MaciBridge.initialize === 'function') {
+                            log('✅ MaciBridge.initialize method available');
+                            resolve();
+                            return;
+                        } else {
+                            log('❌ MaciBridge.initialize method not available');
+                        }
+                    } else {
+                        log('❌ window.MaciBridge does not exist');
+                    }
+
+                    if (attempts >= maxAttempts) {
+                        reject(new Error('MaciBridge loading timeout'));
+                    } else {
+                        attempts++;
+                        setTimeout(check, 100);
+                    }
+                }
+                check();
+            });
+        }
+
+        // Initialize MACI
+        async function initializeMaci() {
+            try {
+                log('Starting MACI client initialization...');
+                await waitForMaciBridge();
+
+                const network = document.getElementById('network').value;
+
+                // Ensure Signer exists before initialization
+                if (!currentSigner) {
+                    throw new Error('Please create Signer first');
+                }
+
+                const config = {
+                    network,
+                    signer: currentSigner
+                };
+
+                log('Initializing MACI Bridge with Signer...');
+                await window.MaciBridge.initialize(config);
+                isInitialized = true;
+
+                log('✅ MACI client initialization successful');
+                updateStatus('✅ MACI client is ready', 'success');
+
+                // Notify Flutter
+                try {
+                    if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        window.flutter_inappwebview.callHandler('onMaciInitialized', {
+                            success: true,
+                            network
+                        });
+                    } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onMaciInitialized) {
+                        window.webkit.messageHandlers.onMaciInitialized.postMessage(JSON.stringify({
+                            success: true,
+                            network
+                        }));
+                    }
+                } catch (e) {
+                    console.log('Flutter communication failed:', e);
+                }
+
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+                updateStatus('❌ Initialization failed', 'error');
+
+                try {
+                    if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        window.flutter_inappwebview.callHandler('onMaciInitialized', {
+                            success: false,
+                            error: error.message
+                        });
+                    } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onMaciInitialized) {
+                        window.webkit.messageHandlers.onMaciInitialized.postMessage(JSON.stringify({
+                            success: false,
+                            error: error.message
+                        }));
+                    }
+                } catch (e) {
+                    console.log('Flutter communication failed:', e);
+                }
+            }
+        }
+
+        // BigInt serialization helper function
+        function serializeBigInt(obj) {
+            return JSON.stringify(obj, (key, value) => {
+                if (typeof value === 'bigint') {
+                    return value.toString();
+                }
+                return value;
+            }, 2);
+        }
+
+        // Deep convert BigInt to string
+        function convertBigIntToString(obj) {
+            if (obj === null || obj === undefined) {
+                return obj;
+            }
+
+            if (typeof obj === 'bigint') {
+                return obj.toString();
+            }
+
+            if (Array.isArray(obj)) {
+                return obj.map(convertBigIntToString);
+            }
+
+            if (typeof obj === 'object') {
+                const result = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    result[key] = convertBigIntToString(value);
+                }
+                return result;
+            }
+
+            return obj;
+        }
+
+        // Get client information
+        async function getClientInfo() {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+
+                log('Getting client information...');
+
+                const pubkey = await window.MaciBridge.getMaciPubkey();
+                const keypair = await window.MaciBridge.getMaciKeypair();
+
+                const info = {
+                    network: document.getElementById('network').value,
+                    pubkey: pubkey,
+                    keypair: keypair
+                };
+
+                // Use deep conversion to handle all BigInt
+                const safeInfo = convertBigIntToString(info);
+                document.getElementById('clientInfo').textContent = JSON.stringify(safeInfo, null, 2);
+                log('✅ Client information retrieved successfully');
+
+                // Send result to Flutter
+                sendResultToFlutter('getClientInfo', safeInfo);
+
+            } catch (error) {
+                log(`❌ Failed to get client information: ${error.message}`, 'error');
+                document.getElementById('clientInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('getClientInfo', { error: error.message });
+            }
+        }
+
+        // Generate keypair
+        async function generateKeypair() {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+
+                log('Generating new MACI keypair...');
+                const result = await window.MaciBridge.genKeypairFromSign();
+                currentMaciKeypair = result;
+
+                // Use deep conversion to handle BigInt
+                const safeResult = convertBigIntToString(result);
+                document.getElementById('clientInfo').textContent = JSON.stringify(safeResult, null, 2);
+                log('✅ MACI keypair generated successfully');
+
+                // Send result to Flutter
+                sendResultToFlutter('generateKeypair', safeResult);
+
+            } catch (error) {
+                log(`❌ Failed to generate MACI keypair: ${error.message}`, 'error');
+                document.getElementById('clientInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('generateKeypair', { error: error.message });
+            }
+        }
+
+        // Get round information
+        async function getRoundInfo() {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+
+                const contractAddress = document.getElementById('contractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('Please enter contract address');
+                }
+
+                log('Getting round information...');
+                const result = await window.MaciBridge.getRoundInfo({ contractAddress });
+                const safeResult = convertBigIntToString(result);
+
+                document.getElementById('roundInfo').textContent = JSON.stringify(safeResult, null, 2);
+                log('✅ Round information retrieved successfully');
+
+                // Send result to Flutter
+                sendResultToFlutter('getRoundInfo', safeResult);
+
+            } catch (error) {
+                log(`❌ Failed to get round information: ${error.message}`, 'error');
+                document.getElementById('roundInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('getRoundInfo', { error: error.message });
+            }
+        }
+
+        // Get round list
+        async function getRounds() {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+
+                log('Getting round list...');
+                const result = await window.MaciBridge.getRounds('', 5);
+                const safeResult = convertBigIntToString(result);
+
+                document.getElementById('roundInfo').textContent = JSON.stringify(safeResult, null, 2);
+                log('✅ Round list retrieved successfully');
+
+                // Send result to Flutter
+                sendResultToFlutter('getRounds', safeResult);
+
+            } catch (error) {
+                log(`❌ Failed to get round list: ${error.message}`, 'error');
+                document.getElementById('roundInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('getRounds', { error: error.message });
+            }
+        }
+
+        // Create AMaci round
+        async function createAMaciRound(params) {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+                if (!currentSigner) {
+                    throw new Error('Please create Signer first');
+                }
+
+                // Get round name from parameters (from Flutter) or from HTML input
+                let roundName = 'Flutter Demo Round'; // default name
+                if (params && params.name) {
+                    roundName = params.name;
+                    log(`Using round name from Flutter: ${roundName}`);
+                } else {
+                    // Try to get from HTML input if no params
+                    const roundNameInput = document.getElementById('roundName');
+                    if (roundNameInput && roundNameInput.value.trim()) {
+                        roundName = roundNameInput.value.trim();
+                        log(`Using round name from HTML input: ${roundName}`);
+                    }
+                }
+
+                log(`Creating new AMaci round with title: ${roundName}`);
+
+                const address = await window.MaciBridge.getAddress();
+                const now = new Date();
+                const endTime = new Date(now.getTime() + 11 * 60 * 1000); // End after 11 minutes
+
+                const result = await window.MaciBridge.createAMaciRound({
+                    maxVoter: 2,
+                    maxOption: 5,
+                    operator: 'dora18mph6ekhf70pxqxpq0lfj3z7j3k4mqn8m2cna5',
+                    whitelist: {
+                        users: [{ addr: address }]
+                    },
+                    voiceCreditAmount: '10000000000000000000',
+                    startVoting: now,
+                    endVoting: endTime,
+                    title: roundName,
+                    circuitType: '0' // 1p1v
+                });
+
+                const safeResult = convertBigIntToString(result);
+                document.getElementById('roundInfo').textContent = JSON.stringify(safeResult, null, 2);
+                document.getElementById('contractAddress').value = result.contractAddress;
+                log('✅ AMaci round created successfully');
+
+                // Send result to Flutter
+                sendResultToFlutter('createAMaciRound', safeResult);
+
+            } catch (error) {
+                log(`❌ Failed to create AMaci round: ${error.message}`, 'error');
+                document.getElementById('roundInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('createAMaciRound', { error: error.message });
+            }
+        }
+
+        // Sign up to vote
+        async function signup() {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+                if (!currentMaciKeypair) {
+                    throw new Error('Please generate MACI keypair first');
+                }
+
+                const contractAddress = document.getElementById('contractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('Please enter contract address');
+                }
+
+                log('Signing up to vote...');
+                const address = await window.MaciBridge.getAddress();
+
+                const result = await window.MaciBridge.signup({
+                    address,
+                    contractAddress,
+                    maciKeypair: currentMaciKeypair
+                });
+
+                const safeResult = convertBigIntToString(result);
+                document.getElementById('voteInfo').textContent = JSON.stringify(safeResult, null, 2);
+                log('✅ Vote signup successful');
+
+                // Send result to Flutter
+                sendResultToFlutter('signup', safeResult);
+
+            } catch (error) {
+                log(`❌ Vote signup failed: ${error.message}`, 'error');
+                document.getElementById('voteInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('signup', { error: error.message });
+            }
+        }
+
+        // Check balance
+        async function checkBalance() {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+
+                const contractAddress = document.getElementById('contractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('Please enter contract address');
+                }
+
+                log('Checking balance...');
+                const address = await window.MaciBridge.getAddress();
+                const balance = await window.MaciBridge.queryWhitelistBalanceOf({
+                    address,
+                    contractAddress
+                });
+
+                document.getElementById('voteInfo').textContent = `Balance: ${balance}`;
+                log('✅ Balance check completed');
+
+                // Send result to Flutter
+                sendResultToFlutter('checkBalance', { balance: balance });
+
+            } catch (error) {
+                log(`❌ Balance check failed: ${error.message}`, 'error');
+                document.getElementById('voteInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('checkBalance', { error: error.message });
+            }
+        }
+
+        // Get state index
+        async function getStateIdx() {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+                if (!currentMaciKeypair) {
+                    throw new Error('Please generate MACI keypair first');
+                }
+
+                const contractAddress = document.getElementById('contractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('Please enter contract address');
+                }
+
+                log('Getting state index...');
+                const stateIdx = await window.MaciBridge.getStateIdxByPubKey({
+                    contractAddress,
+                    pubKey: currentMaciKeypair.pubKey
+                });
+
+                const stateInfo = {
+                    stateIdx: stateIdx,
+                    pubKey: currentMaciKeypair.pubKey
+                };
+                const safeStateInfo = convertBigIntToString(stateInfo);
+                document.getElementById('voteInfo').textContent = JSON.stringify(safeStateInfo, null, 2);
+                log('✅ State index retrieved successfully');
+
+                // Send result to Flutter
+                sendResultToFlutter('getStateIdx', safeStateInfo);
+
+            } catch (error) {
+                log(`❌ Failed to get state index: ${error.message}`, 'error');
+                document.getElementById('voteInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('getStateIdx', { error: error.message });
+            }
+        }
+
+        // Vote
+        async function vote() {
+            try {
+                if (!isInitialized) {
+                    throw new Error('Please initialize MACI client first');
+                }
+                if (!currentMaciKeypair) {
+                    throw new Error('Please generate MACI keypair first');
+                }
+
+                const contractAddress = document.getElementById('contractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('Please enter contract address');
+                }
+
+                const voteOptionsText = document.getElementById('voteOptions').value;
+                let selectedOptions;
+                try {
+                    selectedOptions = JSON.parse(voteOptionsText);
+                } catch (e) {
+                    throw new Error('Vote options JSON format error');
+                }
+
+                log('Starting to vote...');
+
+                // Get round information to get coordinator public key
+                const roundInfo = await window.MaciBridge.getRoundInfo({ contractAddress });
+                const address = await window.MaciBridge.getAddress();
+
+                const result = await window.MaciBridge.vote({
+                    address,
+                    contractAddress,
+                    selectedOptions,
+                    operatorCoordPubKey: [
+                        BigInt(roundInfo.coordinatorPubkeyX),
+                        BigInt(roundInfo.coordinatorPubkeyY)
+                    ],
+                    maciKeypair: currentMaciKeypair
+                });
+
+                const safeResult = convertBigIntToString(result);
+                document.getElementById('voteInfo').textContent = JSON.stringify(safeResult, null, 2);
+                log('✅ Vote successful');
+
+                // Send result to Flutter
+                sendResultToFlutter('vote', safeResult);
+
+            } catch (error) {
+                log(`❌ Vote failed: ${error.message}`, 'error');
+                document.getElementById('voteInfo').textContent = `Error: ${error.message}`;
+                sendResultToFlutter('vote', { error: error.message });
+            }
+        }
+
+        // Page loaded
+        window.addEventListener('load', async function () {
+            try {
+                log('Page loaded, checking MaciBridge...');
+                await waitForMaciBridge();
+
+                log('✅ MaciBridge loaded successfully');
+                updateStatus('✅ MACI Bridge loaded, click initialize to start using', 'success');
+
+                // Notify Flutter that page is ready
+                try {
+                    if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        window.flutter_inappwebview.callHandler('onPageReady', {
+                            ready: true,
+                            timestamp: Date.now()
+                        });
+                    } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onPageReady) {
+                        window.webkit.messageHandlers.onPageReady.postMessage(JSON.stringify({
+                            ready: true,
+                            timestamp: Date.now()
+                        }));
+                    }
+                } catch (e) {
+                    console.log('Flutter communication failed:', e);
+                }
+
+            } catch (error) {
+                log(`❌ MaciBridge loading failed: ${error.message}`, 'error');
+                updateStatus('❌ MACI Bridge loading failed', 'error');
+            }
+        });
+
+        // Error listeners
+        window.addEventListener('error', function (event) {
+            log(`❌ Page error: ${event.error?.message || event.message}`, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', function (event) {
+            log(`❌ Unhandled Promise rejection: ${event.reason}`, 'error');
+        });
+    </script>
+</body>
+
+</html>

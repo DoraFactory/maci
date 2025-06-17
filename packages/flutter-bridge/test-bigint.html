@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>BigInt 序列化测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .result {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+
+        .error {
+            background: #ffeeee;
+            border: 1px solid #ffcccc;
+        }
+
+        .success {
+            background: #eeffee;
+            border: 1px solid #ccffcc;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>BigInt 序列化测试</h1>
+
+    <button onclick="testBigIntSerialization()">测试 BigInt 序列化</button>
+    <button onclick="testMaciKeypair()">测试 MACI Keypair 序列化</button>
+
+    <div id="result"></div>
+
+    <script>
+        // BigInt 序列化辅助函数
+        function serializeBigInt(obj) {
+            return JSON.stringify(obj, (key, value) => {
+                if (typeof value === 'bigint') {
+                    return value.toString();
+                }
+                return value;
+            }, 2);
+        }
+
+        // 深度转换BigInt为字符串
+        function convertBigIntToString(obj) {
+            if (obj === null || obj === undefined) {
+                return obj;
+            }
+
+            if (typeof obj === 'bigint') {
+                return obj.toString();
+            }
+
+            if (Array.isArray(obj)) {
+                return obj.map(convertBigIntToString);
+            }
+
+            if (typeof obj === 'object') {
+                const result = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    result[key] = convertBigIntToString(value);
+                }
+                return result;
+            }
+
+            return obj;
+        }
+
+        function addResult(content, className = '') {
+            const div = document.createElement('div');
+            div.className = `result ${className}`;
+            div.innerHTML = content;
+            document.getElementById('result').appendChild(div);
+        }
+
+        function testBigIntSerialization() {
+            try {
+                const testData = {
+                    normalNumber: 123,
+                    bigIntValue: 9007199254740991n,
+                    nestedObject: {
+                        innerBigInt: 18446744073709551615n,
+                        normalString: "hello"
+                    },
+                    bigIntArray: [123n, 456n, 789n],
+                    mixedArray: [1, 2n, "three", { four: 4n }]
+                };
+
+                addResult('<h3>原始数据（会失败）:</h3>', '');
+                try {
+                    const directJson = JSON.stringify(testData, null, 2);
+                    addResult(`<pre>${directJson}</pre>`, 'success');
+                } catch (e) {
+                    addResult(`❌ 直接JSON.stringify失败: ${e.message}`, 'error');
+                }
+
+                addResult('<h3>使用 serializeBigInt:</h3>', '');
+                try {
+                    const serialized = serializeBigInt(testData);
+                    addResult(`<pre>${serialized}</pre>`, 'success');
+                } catch (e) {
+                    addResult(`❌ serializeBigInt失败: ${e.message}`, 'error');
+                }
+
+                addResult('<h3>使用 convertBigIntToString:</h3>', '');
+                try {
+                    const converted = convertBigIntToString(testData);
+                    const jsonResult = JSON.stringify(converted, null, 2);
+                    addResult(`<pre>${jsonResult}</pre>`, 'success');
+                } catch (e) {
+                    addResult(`❌ convertBigIntToString失败: ${e.message}`, 'error');
+                }
+
+            } catch (error) {
+                addResult(`❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function testMaciKeypair() {
+            try {
+                // 模拟MACI密钥对数据结构
+                const mockMaciKeypair = {
+                    privKey: 123456789012345678901234567890n,
+                    formatedPrivKey: 987654321098765432109876543210n,
+                    pubKey: [
+                        12345678901234567890n,
+                        98765432109876543210n
+                    ]
+                };
+
+                addResult('<h3>模拟 MACI Keypair 序列化:</h3>', '');
+
+                try {
+                    const directJson = JSON.stringify(mockMaciKeypair, null, 2);
+                    addResult(`<pre>${directJson}</pre>`, 'success');
+                } catch (e) {
+                    addResult(`❌ 直接序列化失败: ${e.message}`, 'error');
+                }
+
+                addResult('<h3>使用 convertBigIntToString 处理:</h3>', '');
+                try {
+                    const converted = convertBigIntToString(mockMaciKeypair);
+                    const jsonResult = JSON.stringify(converted, null, 2);
+                    addResult(`<pre>${jsonResult}</pre>`, 'success');
+                } catch (e) {
+                    addResult(`❌ 转换失败: ${e.message}`, 'error');
+                }
+
+            } catch (error) {
+                addResult(`❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

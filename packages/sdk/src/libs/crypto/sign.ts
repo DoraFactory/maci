@@ -2,12 +2,43 @@ import {
   OfflineSigner,
   OfflineDirectSigner,
   isOfflineDirectSigner,
+  DirectSecp256k1Wallet,
+  DirectSecp256k1HdWallet,
+  DirectSecp256k1HdWalletOptions,
 } from '@cosmjs/proto-signing';
 import { StdSignDoc } from '@cosmjs/amino';
 import { SignDoc } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { getDefaultParams } from '../const';
 import { genKeypair } from './keys';
 import { SignResult } from './types';
+
+export async function genSignerFromKey(key: string) {
+  if (key.startsWith('0x')) {
+    key = key.slice(2);
+  }
+  const signer = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(key, 'hex'),
+    'dora'
+  );
+
+  return signer;
+}
+
+export async function genSignerFromMnemonic(
+  mnemonic: string,
+  options?: Partial<DirectSecp256k1HdWalletOptions>
+) {
+  if (!options) {
+    options = {
+      prefix: 'dora',
+      hdPaths: ["m/44'/118'/0'/0/0"],
+    };
+  }
+
+  const signer = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, options);
+
+  return signer;
+}
 
 export async function signMessage(
   signer: OfflineSigner,

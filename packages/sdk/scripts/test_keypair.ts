@@ -31,6 +31,7 @@ async function main() {
   });
 
   const address = (await wallet.getAccounts())[0].address;
+  console.log('address', address);
   const signResult = await client.genKeypairFromSign();
   console.log(signResult);
 }

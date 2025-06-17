@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MACI SDK Bridge</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="status" class="status">正在初始化MACI SDK桥接...</div>
+
+    <script src="./dist/maci-bridge.js"></script>
+    <script>
+        // 等待DOM加载完成
+        document.addEventListener('DOMContentLoaded', function () {
+            const statusEl = document.getElementById('status');
+
+            try {
+                // 检查桥接是否已加载
+                if (window.MaciBridge) {
+                    statusEl.textContent = 'MACI SDK桥接已准备就绪';
+                    statusEl.className = 'status ready';
+
+                    // 通知Flutter桥接已准备
+                    if (window.flutter_inappwebview) {
+                        window.flutter_inappwebview.callHandler('onBridgeReady', {
+                            success: true,
+                            timestamp: Date.now()
+                        });
+                    }
+                } else {
+                    throw new Error('MaciBridge未找到');
+                }
+            } catch (error) {
+                statusEl.textContent = '桥接初始化失败: ' + error.message;
+                statusEl.className = 'status error';
+
+                if (window.flutter_inappwebview) {
+                    window.flutter_inappwebview.callHandler('onBridgeReady', {
+                        success: false,
+                        error: error.message
+                    });
+                }
+            }
+        });
+
+        // 监听来自Flutter的消息
+        window.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'FLUTTER_TO_MACI') {
+                handleFlutterMessage(event.data);
+            }
+        });
+
+        async function handleFlutterMessage(message) {
+            const { method, params, requestId } = message;
+
+            try {
+                let result;
+
+                switch (method) {
+                    case 'initialize':
+                        result = await window.MaciBridge.initialize(params);
+                        break;
+                    case 'signup':
+                        result = await window.MaciBridge.signup(params);
+                        break;
+                    case 'publishMessage':
+                        result = await window.MaciBridge.publishMessage(params);
+                        break;
+                    case 'generateProof':
+                        result = await window.MaciBridge.generateProof(params);
+                        break;
+                    case 'getState':
+                        result = await window.MaciBridge.getState(params.stateIndex);
+                        break;
+                    default:
+                        throw new Error('未知方法: ' + method);
+                }
+
+                // 发送结果回Flutter
+                sendToFlutter('response', {
+                    requestId,
+                    success: true,
+                    data: result
+                });
+
+            } catch (error) {
+                sendToFlutter('response', {
+                    requestId,
+                    success: false,
+                    error: error.message
+                });
+            }
+        }
+
+        function sendToFlutter(type, data) {
+            if (window.flutter_inappwebview) {
+                window.flutter_inappwebview.callHandler('onMaciResponse', {
+                    type,
+                    data
+                });
+            } else {
+                // 备用方案
+                window.parent.postMessage({
+                    type: 'MACI_TO_FLUTTER',
+                    ...data
+                }, '*');
+            }
+        }
+    </script>
+</body>
+
+</html>

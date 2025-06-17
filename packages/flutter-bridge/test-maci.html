@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 MACI SDK 完整功能测试</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .status-bar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border-left: 4px solid #007bff;
+        }
+
+        .test-sections {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+        }
+
+        .test-section {
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .section-header h3 {
+            color: #495057;
+            font-size: 1.3rem;
+            margin-bottom: 5px;
+        }
+
+        .section-header p {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .section-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.15s ease-in-out;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, .25);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .result.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .config-section {
+            grid-column: 1 / -1;
+        }
+
+        .client-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .info-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .info-item .label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .info-item .value {
+            font-weight: 600;
+            color: #495057;
+            word-break: break-all;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 MACI SDK 完整功能测试</h1>
+            <p>基于 Flutter Bridge 的 MACI SDK 测试平台</p>
+        </div>
+
+        <div class="content">
+            <div class="status-bar">
+                <div id="status">正在加载 MACI Bridge...</div>
+            </div>
+
+            <div class="test-sections">
+                <!-- 配置和初始化 -->
+                <div class="test-section config-section">
+                    <div class="section-header">
+                        <h3>⚙️ 配置和初始化</h3>
+                        <p>配置 MACI 客户端并进行初始化</p>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-group">
+                            <label class="form-label">网络</label>
+                            <select id="network" class="form-control">
+                                <option value="testnet">Testnet</option>
+                                <option value="mainnet">Mainnet</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">私钥 (可选)</label>
+                            <input type="password" id="privateKey" class="form-control" placeholder="输入私钥进行测试，留空使用默认配置">
+                        </div>
+                        <button class="btn btn-primary" onclick="initializeMaci()">
+                            <span id="initLoading" class="loading" style="display: none;"></span>
+                            初始化 MACI 客户端
+                        </button>
+                        <div id="initResult" class="result" style="display: none;"></div>
+
+                        <div class="client-info" id="clientInfo" style="display: none;">
+                            <div class="info-item">
+                                <div class="label">网络</div>
+                                <div class="value" id="clientNetwork">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="label">地址</div>
+                                <div class="value" id="clientAddress">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="label">MACI 公钥</div>
+                                <div class="value" id="clientPubkey">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 密钥管理 -->
+                <div class="test-section">
+                    <div class="section-header">
+                        <h3>🔑 密钥管理</h3>
+                        <p>生成和管理 MACI 密钥对</p>
+                    </div>
+                    <div class="section-body">
+                        <button class="btn btn-primary" onclick="testGenKeypairFromSign()">从签名生成密钥对</button>
+                        <button class="btn btn-success" onclick="testGetMaciKeypair()">获取当前密钥对</button>
+                        <button class="btn btn-success" onclick="testGetMaciPubkey()">获取公钥</button>
+                        <div id="keyResult" class="result" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- 轮次管理 -->
+                <div class="test-section">
+                    <div class="section-header">
+                        <h3>🎯 轮次管理</h3>
+                        <p>查询和管理投票轮次</p>
+                    </div>
+                    <div class="section-body">
+                        <button class="btn btn-primary" onclick="testGetRounds()">获取轮次列表</button>
+                        <div class="form-group">
+                            <label class="form-label">合约地址</label>
+                            <input type="text" id="contractAddress" class="form-control" placeholder="输入轮次合约地址">
+                        </div>
+                        <button class="btn btn-success" onclick="testGetRoundInfo()">获取轮次信息</button>
+                        <button class="btn btn-success" onclick="testQueryRoundBalance()">查询轮次余额</button>
+                        <div id="roundResult" class="result" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- 用户状态 -->
+                <div class="test-section">
+                    <div class="section-header">
+                        <h3>👤 用户状态</h3>
+                        <p>查询用户在轮次中的状态</p>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-group">
+                            <label class="form-label">合约地址</label>
+                            <input type="text" id="userContractAddress" class="form-control" placeholder="输入轮次合约地址">
+                        </div>
+                        <button class="btn btn-primary" onclick="testGetStateIdxInc()">获取状态索引</button>
+                        <button class="btn btn-success" onclick="testGetVoiceCreditBalance()">获取声音币余额</button>
+                        <button class="btn btn-success" onclick="testGetStateIdxByPubKey()">通过公钥获取状态索引</button>
+                        <div id="userResult" class="result" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- 投票操作 -->
+                <div class="test-section">
+                    <div class="section-header">
+                        <h3>🗳️ 投票操作</h3>
+                        <p>注册、投票和停用操作</p>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-group">
+                            <label class="form-label">合约地址</label>
+                            <input type="text" id="voteContractAddress" class="form-control" placeholder="输入轮次合约地址">
+                        </div>
+                        <button class="btn btn-primary" onclick="testSignup()">用户注册</button>
+                        <button class="btn btn-success" onclick="testVote()">投票</button>
+                        <button class="btn btn-danger" onclick="testDeactivate()">停用账户</button>
+                        <div id="voteResult" class="result" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- 费用和白名单 -->
+                <div class="test-section">
+                    <div class="section-header">
+                        <h3>💰 费用和白名单</h3>
+                        <p>检查费用授权和白名单状态</p>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-group">
+                            <label class="form-label">合约地址</label>
+                            <input type="text" id="feeContractAddress" class="form-control" placeholder="输入轮次合约地址">
+                        </div>
+                        <button class="btn btn-primary" onclick="testHasFeegrant()">检查费用授权</button>
+                        <button class="btn btn-success" onclick="testIsWhitelisted()">检查白名单状态</button>
+                        <button class="btn btn-success" onclick="testQueryWhitelistBalance()">查询白名单余额</button>
+                        <div id="feeResult" class="result" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./dist/maci-bridge.js"></script>
+    <script>
+        let maciClient = null;
+        let isInitialized = false;
+
+        // 工具函数
+        function showResult(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${type}`;
+            element.textContent = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+        }
+
+        function showLoading(elementId, show = true) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.style.display = show ? 'inline-block' : 'none';
+            }
+        }
+
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.innerHTML = `<div class="result ${type}" style="margin: 0;">${message}</div>`;
+        }
+
+        // 初始化 MACI 客户端
+        async function initializeMaci() {
+            showLoading('initLoading', true);
+            try {
+                const network = document.getElementById('network').value;
+                const privateKey = document.getElementById('privateKey').value;
+
+                let config = {
+                    network: network
+                };
+
+                // 如果提供了私钥，创建 signer
+                if (privateKey) {
+                    // 这里需要实际的钱包创建逻辑
+                    config.privateKey = privateKey;
+                }
+
+                await window.MaciBridge.initialize(config);
+
+                isInitialized = true;
+                showResult('initResult', '✅ MACI 客户端初始化成功！', 'success');
+                updateStatus('🎉 MACI 客户端已就绪', 'success');
+
+                // 显示客户端信息
+                await updateClientInfo();
+
+            } catch (error) {
+                showResult('initResult', `❌ 初始化失败: ${error.message}`, 'error');
+                updateStatus('❌ 初始化失败', 'error');
+            } finally {
+                showLoading('initLoading', false);
+            }
+        }
+
+        // 更新客户端信息
+        async function updateClientInfo() {
+            try {
+                const network = document.getElementById('network').value;
+                document.getElementById('clientNetwork').textContent = network;
+
+                const address = await window.MaciBridge.getAddress();
+                document.getElementById('clientAddress').textContent = address;
+
+                const pubkey = await window.MaciBridge.getMaciPubkey();
+                document.getElementById('clientPubkey').textContent = JSON.stringify(pubkey);
+
+                document.getElementById('clientInfo').style.display = 'grid';
+            } catch (error) {
+                console.error('更新客户端信息失败:', error);
+            }
+        }
+
+        // 密钥管理测试
+        async function testGenKeypairFromSign() {
+            try {
+                const result = await window.MaciBridge.genKeypairFromSign();
+                showResult('keyResult', `✅ 从签名生成密钥对成功:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('keyResult', `❌ 生成密钥对失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetMaciKeypair() {
+            try {
+                const result = await window.MaciBridge.getMaciKeypair();
+                showResult('keyResult', `✅ 当前密钥对:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('keyResult', `❌ 获取密钥对失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetMaciPubkey() {
+            try {
+                const result = await window.MaciBridge.getMaciPubkey();
+                showResult('keyResult', `✅ MACI 公钥:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('keyResult', `❌ 获取公钥失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 轮次管理测试
+        async function testGetRounds() {
+            try {
+                const result = await window.MaciBridge.getRounds('', 10);
+                showResult('roundResult', `✅ 轮次列表:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('roundResult', `❌ 获取轮次列表失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetRoundInfo() {
+            try {
+                const contractAddress = document.getElementById('contractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.getRoundInfo({ contractAddress });
+                showResult('roundResult', `✅ 轮次信息:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('roundResult', `❌ 获取轮次信息失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testQueryRoundBalance() {
+            try {
+                const contractAddress = document.getElementById('contractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.queryRoundBalance({ contractAddress });
+                showResult('roundResult', `✅ 轮次余额:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('roundResult', `❌ 查询轮次余额失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 用户状态测试
+        async function testGetStateIdxInc() {
+            try {
+                const contractAddress = document.getElementById('userContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.getStateIdxInc({ contractAddress });
+                showResult('userResult', `✅ 状态索引:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('userResult', `❌ 获取状态索引失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetVoiceCreditBalance() {
+            try {
+                const contractAddress = document.getElementById('userContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.getVoiceCreditBalance({ contractAddress });
+                showResult('userResult', `✅ 声音币余额:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('userResult', `❌ 获取声音币余额失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetStateIdxByPubKey() {
+            try {
+                const contractAddress = document.getElementById('userContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.getStateIdxByPubKey({ contractAddress });
+                showResult('userResult', `✅ 通过公钥获取的状态索引:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('userResult', `❌ 获取状态索引失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 投票操作测试
+        async function testSignup() {
+            try {
+                const contractAddress = document.getElementById('voteContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.signup({ contractAddress });
+                showResult('voteResult', `✅ 用户注册成功:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('voteResult', `❌ 用户注册失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testVote() {
+            try {
+                const contractAddress = document.getElementById('voteContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                // 示例投票参数
+                const voteParams = {
+                    contractAddress,
+                    selectedOptions: [{ idx: 0, vc: 10 }],
+                    operatorCoordPubKey: [0n, 0n] // 示例坐标公钥
+                };
+                const result = await window.MaciBridge.vote(voteParams);
+                showResult('voteResult', `✅ 投票成功:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('voteResult', `❌ 投票失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDeactivate() {
+            try {
+                const contractAddress = document.getElementById('voteContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.deactivate({ contractAddress });
+                showResult('voteResult', `✅ 停用账户成功:\n${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('voteResult', `❌ 停用账户失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 费用和白名单测试
+        async function testHasFeegrant() {
+            try {
+                const contractAddress = document.getElementById('feeContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.hasFeegrant({ contractAddress });
+                showResult('feeResult', `✅ 费用授权状态: ${result}`, 'success');
+            } catch (error) {
+                showResult('feeResult', `❌ 检查费用授权失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testIsWhitelisted() {
+            try {
+                const contractAddress = document.getElementById('feeContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.isWhitelisted({ contractAddress });
+                showResult('feeResult', `✅ 白名单状态: ${result}`, 'success');
+            } catch (error) {
+                showResult('feeResult', `❌ 检查白名单状态失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testQueryWhitelistBalance() {
+            try {
+                const contractAddress = document.getElementById('feeContractAddress').value;
+                if (!contractAddress) {
+                    throw new Error('请输入合约地址');
+                }
+                const result = await window.MaciBridge.queryWhitelistBalanceOf({ contractAddress });
+                showResult('feeResult', `✅ 白名单余额: ${result}`, 'success');
+            } catch (error) {
+                showResult('feeResult', `❌ 查询白名单余额失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载时检查 Bridge 状态
+        window.addEventListener('load', function () {
+            if (typeof window.MaciBridge !== 'undefined') {
+                updateStatus('✅ MACI Bridge 已加载，请点击初始化开始测试', 'success');
+            } else {
+                updateStatus('❌ MACI Bridge 未加载', 'error');
+            }
+        });
+    </script>
+</body>
+
+</html>

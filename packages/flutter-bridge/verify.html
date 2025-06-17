@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>MACI Bridge 快速验证</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🚀 MACI Bridge 快速验证</h1>
+
+    <div id="status">加载中...</div>
+
+    <button onclick="quickTest()">快速测试</button>
+
+    <div id="results"></div>
+
+    <script src="./dist/maci-bridge.js"></script>
+    <script>
+        function updateStatus(message, type = 'success') {
+            document.getElementById('status').innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function addResult(message, type = 'success') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            document.getElementById('results').appendChild(div);
+        }
+
+        async function quickTest() {
+            addResult('开始测试...');
+
+            try {
+                // 检查 MaciBridge 是否存在
+                if (typeof window.MaciBridge === 'undefined') {
+                    throw new Error('MaciBridge 未定义');
+                }
+                addResult('✅ MaciBridge 对象存在');
+
+                // 检查所有方法
+                const methods = ['initialize', 'signup', 'publishMessage', 'generateProof', 'getState'];
+                for (const method of methods) {
+                    if (typeof window.MaciBridge[method] !== 'function') {
+                        throw new Error(`方法 ${method} 不存在或不是函数`);
+                    }
+                }
+                addResult('✅ 所有方法都存在');
+
+                // 测试初始化
+                await window.MaciBridge.initialize({ test: true });
+                addResult('✅ 初始化成功');
+
+                // 测试注册
+                const signupResult = await window.MaciBridge.signup({
+                    pubKey: 'test-key',
+                    stateIndex: 1,
+                    voiceCreditBalance: 100
+                });
+                addResult(`✅ 注册测试成功: ${JSON.stringify(signupResult)}`);
+
+                updateStatus('🎉 所有测试通过！', 'success');
+
+            } catch (error) {
+                addResult(`❌ 测试失败: ${error.message}`, 'error');
+                updateStatus(`❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载后自动检查
+        window.addEventListener('load', function () {
+            if (typeof window.MaciBridge !== 'undefined') {
+                updateStatus('✅ MaciBridge 已加载，点击按钮开始测试', 'success');
+            } else {
+                updateStatus('❌ MaciBridge 未加载', 'error');
+            }
+        });
+    </script>
+</body>
+
+</html>

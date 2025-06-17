@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MACI Bridge 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 MACI SDK Flutter Bridge 测试</h1>
+
+        <div id="status" class="status info">正在加载 MACI Bridge...</div>
+
+        <div class="test-section">
+            <h3>📋 基本信息</h3>
+            <p><strong>Node.js 版本:</strong> <span id="nodeVersion">检测中...</span></p>
+            <p><strong>Bridge 状态:</strong> <span id="bridgeStatus">未知</span></p>
+            <p><strong>文件大小:</strong> <span id="fileSize">计算中...</span></p>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 API 测试</h3>
+            <button onclick="testInitialize()" id="initBtn">测试初始化</button>
+            <button onclick="testSignup()" id="signupBtn" disabled>测试注册</button>
+            <button onclick="testPublishMessage()" id="messageBtn" disabled>测试发布消息</button>
+            <button onclick="testGenerateProof()" id="proofBtn" disabled>测试生成证明</button>
+            <button onclick="testGetState()" id="stateBtn" disabled>测试获取状态</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 测试结果</h3>
+            <div id="results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 日志</h3>
+            <pre id="logs"></pre>
+        </div>
+    </div>
+
+    <!-- 加载 MACI Bridge -->
+    <script src="./dist/maci-bridge.js"></script>
+
+    <script>
+        let logs = [];
+        let testResults = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            logs.push(logEntry);
+
+            const logsElement = document.getElementById('logs');
+            logsElement.textContent = logs.slice(-10).join('\n'); // 只显示最近10条
+
+            console.log(logEntry);
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function addResult(test, success, data) {
+            const resultsEl = document.getElementById('results');
+            const resultEl = document.createElement('div');
+            resultEl.className = `status ${success ? 'success' : 'error'}`;
+            resultEl.innerHTML = `
+                <strong>${test}:</strong> 
+                ${success ? '✅ 成功' : '❌ 失败'}
+                <br><small>${JSON.stringify(data, null, 2)}</small>
+            `;
+            resultsEl.appendChild(resultEl);
+        }
+
+        function enableButtons() {
+            ['signupBtn', 'messageBtn', 'proofBtn', 'stateBtn'].forEach(id => {
+                document.getElementById(id).disabled = false;
+            });
+        }
+
+        // 检查桥接是否加载
+        function checkBridge() {
+            if (typeof window.MaciBridge !== 'undefined') {
+                log('✅ MaciBridge 加载成功');
+                document.getElementById('bridgeStatus').textContent = '已加载';
+                updateStatus('MACI Bridge 已准备就绪', 'success');
+
+                // 获取文件大小信息
+                fetch('./dist/maci-bridge.js')
+                    .then(response => response.text())
+                    .then(content => {
+                        const size = (content.length / 1024).toFixed(2) + ' KB';
+                        document.getElementById('fileSize').textContent = size;
+                    });
+
+                return true;
+            } else {
+                log('❌ MaciBridge 未找到');
+                updateStatus('Bridge 加载失败', 'error');
+                return false;
+            }
+        }
+
+        // 测试函数
+        async function testInitialize() {
+            log('🔧 开始测试初始化...');
+            try {
+                await window.MaciBridge.initialize({
+                    rpcUrl: 'https://test-rpc.example.com',
+                    contractAddress: '0x1234567890123456789012345678901234567890'
+                });
+                log('✅ 初始化成功');
+                addResult('初始化', true, { status: 'initialized' });
+                enableButtons();
+            } catch (error) {
+                log(`❌ 初始化失败: ${error.message}`);
+                addResult('初始化', false, { error: error.message });
+            }
+        }
+
+        async function testSignup() {
+            log('👤 开始测试用户注册...');
+            try {
+                const result = await window.MaciBridge.signup({
+                    pubKey: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+                    stateIndex: 1,
+                    voiceCreditBalance: 100
+                });
+                log('✅ 用户注册成功');
+                addResult('用户注册', true, result);
+            } catch (error) {
+                log(`❌ 用户注册失败: ${error.message}`);
+                addResult('用户注册', false, { error: error.message });
+            }
+        }
+
+        async function testPublishMessage() {
+            log('📤 开始测试发布消息...');
+            try {
+                const result = await window.MaciBridge.publishMessage({
+                    message: { test: 'Hello MACI' },
+                    encPubKey: '0x9876543210987654321098765432109876543210987654321098765432109876'
+                });
+                log('✅ 消息发布成功');
+                addResult('发布消息', true, result);
+            } catch (error) {
+                log(`❌ 消息发布失败: ${error.message}`);
+                addResult('发布消息', false, { error: error.message });
+            }
+        }
+
+        async function testGenerateProof() {
+            log('🔐 开始测试生成证明...');
+            try {
+                const result = await window.MaciBridge.generateProof({
+                    inputs: { test: 'proof inputs' }
+                });
+                log('✅ 证明生成成功');
+                addResult('生成证明', true, result);
+            } catch (error) {
+                log(`❌ 证明生成失败: ${error.message}`);
+                addResult('生成证明', false, { error: error.message });
+            }
+        }
+
+        async function testGetState() {
+            log('📊 开始测试获取状态...');
+            try {
+                const result = await window.MaciBridge.getState('1');
+                log('✅ 状态获取成功');
+                addResult('获取状态', true, result);
+            } catch (error) {
+                log(`❌ 状态获取失败: ${error.message}`);
+                addResult('获取状态', false, { error: error.message });
+            }
+        }
+
+        // 页面加载完成后检查
+        window.addEventListener('load', function () {
+            log('📄 页面加载完成');
+
+            // 显示基本信息
+            document.getElementById('nodeVersion').textContent = navigator.userAgent;
+
+            // 延迟检查桥接（确保脚本加载完成）
+            setTimeout(() => {
+                if (checkBridge()) {
+                    log('🎉 所有检查通过，可以开始测试');
+                }
+            }, 100);
+        });
+
+        // 监听桥接事件（如果在Flutter环境中）
+        window.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'MACI_EVENT') {
+                log(`📨 收到 MACI 事件: ${event.data.event}`);
+                console.log('MACI Event:', event.data);
+            }
+        });
+    </script>
+</body>
+
+</html>
