@@ -33,25 +33,17 @@ async function main() {
   const address = await client.getAddress();
   console.log('address', address);
 
+  // generate maci account
+  const maciKeypair = await client.genKeypairFromSign();
+  console.log('maciKeypair', maciKeypair);
+  // get user state idx
+  const stateIdx = await client.getStateIdxByPubKey({
+    contractAddress:
+      'dora1fnx24jsexcpekus05la3msnv3cac79r40ur6xyka7exxjz3mu9xsvf6n6e',
+    pubKey: maciKeypair.pubKey,
+  });
+  console.log('stateIdx', stateIdx);
   // ================ test oracle signup and vote
-
-  const rounds = await client.indexer.getRounds('first', 1);
-  console.log('rounds', JSON.stringify(rounds, null, 2));
-
-  if (isErrorResponse(rounds)) {
-    throw new Error(rounds.error.message);
-  }
-  console.log(rounds);
-  const data = rounds.data.rounds.edges.map((edge: any) => ({
-    name: edge.node.roundTitle,
-    contract: edge.node.contractAddress,
-    circuit: edge.node.circuitName,
-    status: edge.node.status,
-    startTime: edge.node.votingStart,
-    endTime: edge.node.votingEnd,
-    link: `https://maci.dora.xyz/round/${edge.node.contractAddress}`,
-  }));
-  console.log('data', JSON.stringify(data, null, 2));
   // const RoundAddress =
   //   'dora1hhxfw6tw9ef9467gphkfgrq0cg0dndndk875agrkaa479x9hx03qncmw48';
 

@@ -10,11 +10,12 @@ import { MaciClient } from './ts/Maci.client';
 import { AMaciClient } from './ts/AMaci.client';
 import { RegistryClient } from './ts/Registry.client';
 import { OracleMaciClient } from './ts/OracleMaci.client';
+import { SaasClient } from './ts/Saas.client';
 
 const defaultSigningClientOptions: SigningStargateClientOptions = {
   broadcastPollIntervalMs: 8_000,
   broadcastTimeoutMs: 64_000,
-  gasPrice: GasPrice.fromString('100000000000peaka'),
+  gasPrice: GasPrice.fromString('10000000000peaka'),
 };
 
 export async function createMaciClientBy({
@@ -66,6 +67,23 @@ export async function createRegistryClientBy({
   );
   const [{ address }] = await wallet.getAccounts();
   return new RegistryClient(signingCosmWasmClient, address, contractAddress);
+}
+
+export async function createSaasClientBy({
+  rpcEndpoint,
+  wallet,
+  contractAddress,
+}: {
+  rpcEndpoint: string;
+  wallet: OfflineSigner;
+  contractAddress: string;
+}) {
+  const signingCosmWasmClient = await createContractClientByWallet(
+    rpcEndpoint,
+    wallet
+  );
+  const [{ address }] = await wallet.getAccounts();
+  return new SaasClient(signingCosmWasmClient, address, contractAddress);
 }
 
 export async function createOracleMaciClientBy({

@@ -5,6 +5,7 @@ import {
   CreateAMaciRoundParams,
   CreateMaciRoundParams,
   CreateOracleMaciRoundParams,
+  CreateSaasOracleMaciRoundParams,
 } from './libs/contract/types';
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import {
@@ -33,8 +34,10 @@ export class MaciClient {
   public certificateApiEndpoint: string;
 
   public registryAddress: string;
+  public saasAddress: string;
   public maciCodeId: number;
   public oracleCodeId: number;
+  public saasOracleCodeId: number;
   public feegrantOperator: string;
   public whitelistBackendPubkey: string;
 
@@ -58,8 +61,10 @@ export class MaciClient {
     restEndpoint,
     apiEndpoint,
     registryAddress,
+    saasAddress,
     maciCodeId,
     oracleCodeId,
+    saasOracleCodeId,
     customFetch,
     defaultOptions,
     feegrantOperator,
@@ -77,8 +82,10 @@ export class MaciClient {
     this.certificateApiEndpoint =
       certificateApiEndpoint || defaultParams.certificateApiEndpoint;
     this.registryAddress = registryAddress || defaultParams.registryAddress;
+    this.saasAddress = saasAddress || defaultParams.saasAddress;
     this.maciCodeId = maciCodeId || defaultParams.maciCodeId;
     this.oracleCodeId = oracleCodeId || defaultParams.oracleCodeId;
+    this.saasOracleCodeId = saasOracleCodeId || defaultParams.saasCodeId;
     this.feegrantOperator =
       feegrantOperator || defaultParams.oracleFeegrantOperator;
     this.whitelistBackendPubkey =
@@ -101,8 +108,10 @@ export class MaciClient {
       network: this.network,
       rpcEndpoint: this.rpcEndpoint,
       registryAddress: this.registryAddress,
+      saasAddress: this.saasAddress,
       maciCodeId: this.maciCodeId,
       oracleCodeId: this.oracleCodeId,
+      saasOracleCodeId: this.saasOracleCodeId,
       feegrantOperator: this.feegrantOperator,
       whitelistBackendPubkey: this.whitelistBackendPubkey,
     });
@@ -212,6 +221,13 @@ export class MaciClient {
 
   async createOracleMaciRound(params: CreateOracleMaciRoundParams) {
     return await this.contract.createOracleMaciRound({
+      signer: this.getSigner(params.signer),
+      ...params,
+    });
+  }
+
+  async createSaasOracleMaciRound(params: CreateSaasOracleMaciRoundParams) {
+    return await this.contract.createSaasOracleMaciRound({
       signer: this.getSigner(params.signer),
       ...params,
     });

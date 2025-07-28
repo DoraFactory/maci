@@ -38,6 +38,7 @@ export type CreateMaciRoundParams = {
 } & CreateRoundParams;
 
 export type CreateOracleMaciRoundParams = {
+  maxVoter: number;
   voteOptionMap: string[];
   operatorPubkey: bigint | string;
   whitelistEcosystem: CertificateEcosystem;
@@ -47,6 +48,14 @@ export type CreateOracleMaciRoundParams = {
     slope: string;
     threshold: string;
   };
-  // whitelistBackendPubkey?: string;
-  // feegrantOperator?: string;
+  whitelistBackendPubkey?: string;
+  feegrantOperator?: string;
+} & CreateRoundParams;
+
+export type CreateSaasOracleMaciRoundParams = {
+  maxVoter: number;
+  voteOptionMap: string[];
+  operatorPubkey: bigint | string;
+  whitelistBackendPubkey?: string;
+  feegrantOperator?: string;
 } & CreateRoundParams;

@@ -30,8 +30,10 @@ export type ClientParams = {
   apiEndpoint?: string;
   certificateApiEndpoint?: string;
   registryAddress?: string;
+  saasAddress?: string;
   maciCodeId?: number;
   oracleCodeId?: number;
+  saasOracleCodeId?: number;
   customFetch?: typeof fetch;
   defaultOptions?: FetchOptions;
   feegrantOperator?: string;
@@ -45,8 +47,10 @@ export type ContractParams = {
   network: 'mainnet' | 'testnet';
   rpcEndpoint: string;
   registryAddress: string;
+  saasAddress: string;
   maciCodeId: number;
   oracleCodeId: number;
+  saasOracleCodeId: number;
   whitelistBackendPubkey: string;
   feegrantOperator: string;
 };
