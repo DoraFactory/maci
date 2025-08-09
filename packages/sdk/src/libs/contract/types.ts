@@ -38,7 +38,6 @@ export type CreateMaciRoundParams = {
 } & CreateRoundParams;
 
 export type CreateOracleMaciRoundParams = {
-  maxVoter: number;
   voteOptionMap: string[];
   operatorPubkey: bigint | string;
   whitelistEcosystem: CertificateEcosystem;
