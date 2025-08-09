@@ -206,14 +206,11 @@ export class Contract {
     title,
     description,
     link,
-    maxVoter,
     voteOptionMap,
     circuitType,
     whitelistEcosystem,
     whitelistSnapshotHeight,
     whitelistVotingPowerArgs,
-    whitelistBackendPubkey,
-    feegrantOperator,
     fee = 'auto',
   }: CreateOracleMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 1_000_000).toString();
@@ -235,7 +232,6 @@ export class Contract {
       address,
       this.oracleCodeId,
       {
-        max_voters: maxVoter.toString(),
         round_info: { title, description: description || '', link: link || '' },
         voting_time: {
           start_time,
@@ -246,17 +242,13 @@ export class Contract {
           y: operatorPubkeyY.toString(),
         },
         vote_option_map: voteOptionMap,
-        whitelist_backend_pubkey: whitelistBackendPubkey
-          ? whitelistBackendPubkey
-          : this.whitelistBackendPubkey,
+        whitelist_backend_pubkey: this.whitelistBackendPubkey,
         whitelist_ecosystem: whitelistEcosystem,
         whitelist_snapshot_height: whitelistSnapshotHeight,
         whitelist_voting_power_args: whitelistVotingPowerArgs,
         circuit_type: maciVoteType,
         certification_system: maciCertSystem,
-        feegrant_operator: feegrantOperator
-          ? feegrantOperator
-          : this.feegrantOperator,
+        feegrant_operator: this.feegrantOperator,
       },
       `[Oracle MACI] ${title}`,
       fee
