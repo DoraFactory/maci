@@ -330,7 +330,9 @@ export class MaciClient {
     address?: string;
     contractAddress: string;
   }): Promise<boolean> {
-    address = await this.getAddress(signer);
+    if (address === undefined) {
+      address = await this.getAddress(signer);
+    }
     return await this.maci.hasFeegrant({
       address,
       contractAddress,
