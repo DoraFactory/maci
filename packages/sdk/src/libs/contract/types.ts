@@ -47,8 +47,6 @@ export type CreateOracleMaciRoundParams = {
     slope: string;
     threshold: string;
   };
-  whitelistBackendPubkey?: string;
-  feegrantOperator?: string;
 } & CreateRoundParams;
 
 export type CreateSaasOracleMaciRoundParams = {
