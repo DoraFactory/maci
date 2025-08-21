@@ -268,7 +268,13 @@ export class Contract {
     maxVoter,
     voteOptionMap,
     whitelistBackendPubkey,
-  }: CreateSaasOracleMaciRoundParams & { signer: OfflineSigner }) {
+    gasStation = false,
+    fee = 1.8,
+  }: CreateSaasOracleMaciRoundParams & {
+    signer: OfflineSigner;
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
     const startTime = (startVoting.getTime() * 1_000_000).toString();
     const endTime = (endVoting.getTime() * 1_000_000).toString();
 
@@ -281,7 +287,7 @@ export class Contract {
       BigInt(operatorPubkey)
     );
 
-    const createResponse = await client.createOracleMaciRound({
+    const roundParams = {
       certificationSystem: '0',
       circuitType: '0',
       coordinator: {
@@ -299,7 +305,59 @@ export class Contract {
       voteOptionMap,
       whitelistBackendPubkey:
         whitelistBackendPubkey || this.whitelistBackendPubkey,
-    });
+    };
+
+    let createResponse;
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        create_oracle_maci_round: roundParams,
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.saasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: this.saasAddress,
+      };
+      createResponse = await client.createOracleMaciRound(
+        roundParams,
+        grantFee
+      );
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: this.saasAddress,
+      };
+      createResponse = await client.createOracleMaciRound(
+        roundParams,
+        grantFee
+      );
+    } else {
+      createResponse = await client.createOracleMaciRound(roundParams, fee);
+    }
 
     let contractAddress = '';
     createResponse.events.map((event) => {
