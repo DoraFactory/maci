@@ -270,11 +270,7 @@ export class Contract {
     whitelistBackendPubkey,
     gasStation = false,
     fee = 1.8,
-  }: CreateSaasOracleMaciRoundParams & {
-    signer: OfflineSigner;
-    gasStation?: boolean;
-    fee?: StdFee | 'auto' | number;
-  }) {
+  }: CreateSaasOracleMaciRoundParams & { signer: OfflineSigner }) {
     const startTime = (startVoting.getTime() * 1_000_000).toString();
     const endTime = (endVoting.getTime() * 1_000_000).toString();
 
@@ -314,7 +310,17 @@ export class Contract {
       const [{ address }] = await signer.getAccounts();
       const contractClient = await this.contractClient({ signer });
       const msg = {
-        create_oracle_maci_round: roundParams,
+        create_oracle_maci_round: {
+          certification_system: '0',
+          circuit_type: '0',
+          coordinator: roundParams.coordinator,
+          max_voters: roundParams.maxVoters.toString(),
+          round_info: roundParams.roundInfo,
+          start_time: roundParams.startTime,
+          end_time: roundParams.endTime,
+          vote_option_map: roundParams.voteOptionMap,
+          whitelist_backend_pubkey: roundParams.whitelistBackendPubkey,
+        },
       };
       const gasEstimation = await contractClient.simulate(
         address,
