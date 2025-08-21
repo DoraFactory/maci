@@ -55,4 +55,6 @@ export type CreateSaasOracleMaciRoundParams = {
   operatorPubkey: bigint | string;
   whitelistBackendPubkey?: string;
   feegrantOperator?: string;
+  gasStation?: boolean;
+  fee?: StdFee | 'auto' | number;
 } & CreateRoundParams;
