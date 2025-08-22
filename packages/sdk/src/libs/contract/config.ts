@@ -14,7 +14,7 @@ import { SaasClient } from './ts/Saas.client';
 
 const defaultSigningClientOptions: SigningStargateClientOptions = {
   broadcastPollIntervalMs: 8_000,
-  broadcastTimeoutMs: 64_000,
+  broadcastTimeoutMs: 150_000, // 2min30s for the tx to be confirmed
   gasPrice: GasPrice.fromString('10000000000peaka'),
 };
 
