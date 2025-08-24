@@ -24,7 +24,7 @@ export type CertificateEcosystem = 'cosmoshub' | 'doravota';
 
 export type ClientParams = {
   signer?: OfflineSigner;
-  network: 'mainnet' | 'testnet';
+  network: 'mainnet' | 'testnet' | 'devnet';
   rpcEndpoint?: string;
   restEndpoint?: string;
   apiEndpoint?: string;
@@ -44,7 +44,7 @@ export type ClientParams = {
 };
 
 export type ContractParams = {
-  network: 'mainnet' | 'testnet';
+  network: 'mainnet' | 'testnet' | 'devnet';
   rpcEndpoint: string;
   registryAddress: string;
   saasAddress: string;

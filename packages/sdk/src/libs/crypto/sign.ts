@@ -13,7 +13,7 @@ export async function signMessage(
   signer: OfflineSigner,
   address: string,
   message: string,
-  network: 'mainnet' | 'testnet'
+  network: 'mainnet' | 'testnet' | 'devnet'
 ): Promise<SignResult> {
   const accounts = await signer.getAccounts();
   const account = accounts.find((acc) => acc.address === address);
@@ -74,7 +74,7 @@ export async function genKeypairFromSign({
 }: {
   signer: OfflineSigner;
   address?: string;
-  network: 'mainnet' | 'testnet';
+  network: 'mainnet' | 'testnet' | 'devnet';
 }) {
   if (!address) {
     [{ address }] = await signer.getAccounts();

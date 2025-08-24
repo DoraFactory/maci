@@ -27,7 +27,7 @@ import { isErrorResponse } from './libs/maci/maci';
  * @description This class is used to interact with Maci Client.
  */
 export class MaciClient {
-  public network: 'mainnet' | 'testnet';
+  public network: 'mainnet' | 'testnet' | 'devnet';
   public rpcEndpoint: string;
   public restEndpoint: string;
   public apiEndpoint: string;

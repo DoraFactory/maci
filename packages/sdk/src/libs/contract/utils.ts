@@ -163,7 +163,7 @@ export function getContractParams(
 }
 
 export function getAMaciRoundCircuitFee(
-  network: 'mainnet' | 'testnet',
+  network: 'mainnet' | 'testnet' | 'devnet',
   maxVoter: number,
   maxOption: number
 ) {

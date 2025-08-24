@@ -23,7 +23,7 @@ import { StdFee, GasPrice, calculateFee } from '@cosmjs/stargate';
 export const prefix = 'dora';
 
 export class Contract {
-  public network: 'mainnet' | 'testnet';
+  public network: 'mainnet' | 'testnet' | 'devnet';
   public rpcEndpoint: string;
   public registryAddress: string;
   public saasAddress: string;

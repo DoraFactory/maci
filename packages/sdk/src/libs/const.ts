@@ -160,7 +160,7 @@ export interface NetworkConfig {
 }
 
 export function getDefaultParams(
-  network: 'mainnet' | 'testnet' = 'mainnet'
+  network: 'mainnet' | 'testnet' | 'devnet' = 'mainnet'
 ): NetworkConfig {
   switch (network) {
     case 'mainnet':
@@ -197,6 +197,29 @@ export function getDefaultParams(
           'https://vota-testnet-certificate-api.dorafactory.org/api/v1',
         registryAddress:
           'dora13c8aecstyxrhax9znvvh5zey89edrmd2k5va57pxvpe3fxtfsfeqlhsjnd',
+        saasAddress:
+          'dora1dgnszrwnwxgr5djprrr6w4q45z8s3ghsew869g6tlp4ruqah39nqnemjya',
+        maciCodeId: 134,
+        // oracleCodeId: 113, // 9-4-3-625
+        oracleCodeId: 123, // 6-3-3-125
+        saasCodeId: 152,
+        oracleWhitelistBackendPubkey:
+          'AoYo/zENN/JquagPdG0/NMbWBBYxOM8BVN677mBXJKJQ',
+        oracleFeegrantOperator: 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78',
+        oracleCodeIds: ['102', '105', '108', '110', '113', '115', '123'],
+        saasCodeIds: ['152'],
+      };
+    case 'devnet':
+      return {
+        network: 'devnet',
+        chainId: 'vota-devnet',
+        rpcEndpoint: 'http://54.169.144.4:26657',
+        restEndpoint: 'http://54.169.144.4:1317',
+        apiEndpoint: 'http://54.179.120.111:3000',
+        certificateApiEndpoint:
+          'https://vota-testnet-certificate-api.dorafactory.org/api/v1',
+        registryAddress:
+          'dora153r9tg33had5c5s54sqzn879xww2q2egektyqnpj6nwxt8wls70qp9e45g',
         saasAddress:
           'dora1dgnszrwnwxgr5djprrr6w4q45z8s3ghsew869g6tlp4ruqah39nqnemjya',
         maciCodeId: 134,

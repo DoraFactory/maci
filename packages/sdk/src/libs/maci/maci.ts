@@ -32,7 +32,7 @@ export function isErrorResponse(response: unknown): response is ErrorResponse {
 }
 
 export class MACI {
-  public network: 'mainnet' | 'testnet';
+  public network: 'mainnet' | 'testnet' | 'devnet';
   public contract: Contract;
   public indexer: Indexer;
   public oracleCertificate: OracleCertificate;
