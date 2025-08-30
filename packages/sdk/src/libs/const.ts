@@ -175,16 +175,16 @@ export function getDefaultParams(
         registryAddress:
           'dora1smg5qp5trjdkcekdjssqpjehdjf6n4cjss0clyvqcud3t3u3948s8rmgg4',
         saasAddress:
-          'dora1dgnszrwnwxgr5djprrr6w4q45z8s3ghsew869g6tlp4ruqah39nqnemjya',
+          'dora1ksxvvve2nsw5uyvg7y6lnnxcqxadjepc78z0qa8enm5zhayxaqgqpsewf8',
         maciCodeId: 106,
         // oracleCodeId: 116,// 9-4-3-625
         oracleCodeId: 119, // 6-3-3-125
-        saasCodeId: 152,
+        saasCodeId: 124,
         oracleWhitelistBackendPubkey:
           'A61YtCv2ibMZmDeM02nEElil8wlHx1tLKogBk5dPgf/Q',
         oracleFeegrantOperator: 'dora16s9tljk8dy9ae335yvyzlm8gvkypx9228q8pq8',
         oracleCodeIds: ['101', '116', '117', '119'],
-        saasCodeIds: ['152'],
+        saasCodeIds: ['124'],
       };
     case 'testnet':
       return {
