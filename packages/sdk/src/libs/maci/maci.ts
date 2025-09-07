@@ -514,6 +514,60 @@ export class MACI {
     }
   }
 
+  async rawSignup({
+    signer,
+    address,
+    contractAddress,
+    pubKey,
+    oracleCertificate,
+    gasStation = false,
+    fee,
+  }: {
+    signer: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    pubKey: PubKey;
+    oracleCertificate?: {
+      amount: string;
+      signature: string;
+    };
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    try {
+      if (!address) {
+        address = (await signer.getAccounts())[0].address;
+      }
+
+      const client = await this.contract.contractClient({
+        signer,
+      });
+
+      if (oracleCertificate) {
+        return await this.signupOracle({
+          client,
+          address,
+          pubKey,
+          contractAddress,
+          oracleCertificate,
+          gasStation,
+          fee,
+        });
+      } else {
+        return await this.signupSimple({
+          client,
+          address,
+          pubKey,
+          contractAddress,
+          gasStation,
+          fee,
+        });
+      }
+    } catch (error) {
+      throw Error(`Signup failed! ${error}`);
+    }
+  }
+
   private async processVoteOptions({
     selectedOptions,
     contractAddress,
@@ -656,6 +710,106 @@ export class MACI {
         operatorCoordPubKey,
         plan
       );
+      const client = await this.contract.contractClient({
+        signer,
+      });
+
+      return await this.publishMessage({
+        client,
+        address,
+        payload,
+        contractAddress,
+        gasStation,
+        fee,
+      });
+    } catch (error) {
+      throw Error(`Vote failed! ${error}`);
+    }
+  }
+
+  async rawVote({
+    signer,
+    address,
+    contractAddress,
+    pubKey,
+    payload,
+    gasStation = false,
+    fee = 1.8,
+  }: {
+    signer: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    pubKey: PubKey;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PubKey;
+    }[];
+
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const stateIdx = await this.getStateIdxByPubKey({
+      contractAddress,
+      pubKey,
+    });
+
+    if (stateIdx === -1) {
+      throw new Error(
+        'State index is not set, Please signup or addNewKey first'
+      );
+    }
+
+    try {
+      const round = await this.indexer.getRoundWithFields(contractAddress, [
+        'maciType',
+        'voiceCreditAmount',
+      ]);
+
+      if (isErrorResponse(round)) {
+        throw new Error(
+          `Failed to get round info: ${round.error.type} ${round.error.message}`
+        );
+      }
+
+      let voiceCreditBalance;
+      if (round.data.round.maciType === 'aMACI') {
+        const isWhiteListed = await this.isWhitelisted({
+          signer,
+          address,
+          contractAddress,
+        });
+
+        if (isWhiteListed) {
+          const round = await this.indexer.getRoundWithFields(contractAddress, [
+            'voiceCreditAmount',
+          ]);
+
+          if (!isErrorResponse(round)) {
+            if (round.data.round.voiceCreditAmount) {
+              voiceCreditBalance = round.data.round.voiceCreditAmount;
+            } else {
+              voiceCreditBalance = '0';
+            }
+          } else {
+            throw new Error(
+              `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
+            );
+          }
+        } else {
+          voiceCreditBalance = '0';
+        }
+      } else {
+        voiceCreditBalance = await this.getVoiceCreditBalance({
+          signer,
+          stateIdx,
+          contractAddress,
+        });
+      }
+
+      if (!address) {
+        address = (await signer.getAccounts())[0].address;
+      }
+
       const client = await this.contract.contractClient({
         signer,
       });

@@ -1,5 +1,5 @@
 // Core
-// export { MaciClient } from './maci';
+export { VoterClient } from './voter';
 
 // Types
 export * from './types';

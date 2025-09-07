@@ -681,4 +681,64 @@ export class MaciClient {
       fee,
     });
   }
+
+  async rawSignup({
+    signer,
+    address,
+    contractAddress,
+    pubKey,
+    oracleCertificate,
+    gasStation = false,
+    fee,
+  }: {
+    signer?: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    pubKey: PubKey;
+    oracleCertificate?: {
+      amount: string;
+      signature: string;
+    };
+    gasStation?: boolean;
+    fee?: StdFee;
+  }) {
+    return await this.maci.rawSignup({
+      signer: this.getSigner(signer),
+      address,
+      contractAddress,
+      pubKey,
+      oracleCertificate,
+      gasStation,
+      fee,
+    });
+  }
+
+  async rawVote({
+    signer,
+    address,
+    contractAddress,
+    pubKey,
+    payload,
+    gasStation = false,
+  }: {
+    signer?: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    pubKey: PubKey;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PubKey;
+    }[];
+    gasStation?: boolean;
+    fee?: StdFee;
+  }) {
+    return await this.maci.rawVote({
+      signer: this.getSigner(signer),
+      address,
+      contractAddress,
+      pubKey,
+      payload,
+      gasStation,
+    });
+  }
 }

@@ -1,13 +1,13 @@
 {
-	"name": "@dorafactory/maci-crypto",
+	"name": "@dorafactory/maci-voter",
 	"version": "0.0.1",
-	"description": "Crypto for interacting with maci",
+	"description": "Voter for interacting with maci",
 	"keywords": [
 		"maci",
 		"blockchain"
 	],
 	"author": "team@dorafactory.org",
-	"homepage": "https://github.com/dorafactory/maci/tree/main/packages/crypto#readme",
+	"homepage": "https://github.com/dorafactory/maci/tree/main/packages/voter#readme",
 	"bugs": "https://github.com/dorafactory/maci/issues",
 	"repository": {
 		"type": "git",

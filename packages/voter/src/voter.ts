@@ -1,38 +1,28 @@
 import CryptoJS from 'crypto-js';
 import { MaciAccount } from './account';
 import {
-	batchGenMessage,
 	packPubKey,
 	unpackPubKey,
-	bigInt2Buffer,
 	genEcdhSharedKey,
 	genKeypair,
 } from './crypto';
 import { poseidon } from './crypto/hashing';
 import { poseidonEncrypt } from '@zk-kit/poseidon-cipher';
-import { signMessage } from '@zk-kit/eddsa-poseidon';
-import {
-	ClientParams,
-	CertificateEcosystem,
-	DerivePathParams,
-	PubKey,
-	PrivKey,
-	Keypair,
-} from './types';
+import { ClientParams, DerivePathParams, PubKey, PrivKey } from './types';
 
 /**
- * @class MaciClient
- * @description This class is used to interact with Maci Client.
+ * @class Maci Voter Client
+ * @description This class is used to interact with Maci Voter Client.
  */
-export class MaciClient {
+export class VoterClient {
 	public accountManager: MaciAccount;
 
 	/**
 	 * @constructor
-	 * @param {ClientParams} params - The parameters for the Maci Client instance.
+	 * @param {ClientParams} params - The parameters for the Maci Voter Client instance.
 	 */
-	constructor({ mnemonics, secretKey }: ClientParams) {
-		this.accountManager = new MaciAccount({ mnemonics, secretKey });
+	constructor({ mnemonic, secretKey }: ClientParams) {
+		this.accountManager = new MaciAccount({ mnemonic, secretKey });
 	}
 
 	/**
@@ -58,17 +48,19 @@ export class MaciClient {
 		return this.accountManager.getKeyPair(derivePathParams).getPublicKey();
 	}
 
-	private async processVoteOptions({
+	buildVotePayload({
+		stateIdx,
+		operatorPubkey,
 		selectedOptions,
-		// contractAddress,
-		voiceCreditBalance,
+		derivePathParams,
 	}: {
+		stateIdx: number;
+		operatorPubkey: bigint;
 		selectedOptions: {
 			idx: number;
 			vc: number;
 		}[];
-		// contractAddress: string;
-		voiceCreditBalance: string;
+		derivePathParams?: DerivePathParams;
 	}) {
 		// Check for duplicate options
 		const idxSet = new Set();
@@ -86,40 +78,6 @@ export class MaciClient {
 			.filter(o => !!o.vc)
 			.sort((a, b) => a.idx - b.idx);
 
-		// Calculate used voice credits
-		// const isQv = await this.queryRoundIsQv({ contractAddress });
-		const isQv = false;
-		const usedVc = options.reduce(
-			(s, o) => s + (isQv ? o.vc * o.vc : o.vc),
-			0
-		);
-
-		if (Number(voiceCreditBalance) < usedVc) {
-			throw new Error('Insufficient voice credit balance');
-		}
-
-		return options;
-	}
-
-	async buildVotePayload({
-		stateIdx,
-		operatorPubkey,
-		selectedOptions,
-		derivePathParams,
-	}: {
-		stateIdx: number;
-		operatorPubkey: bigint;
-		selectedOptions: {
-			idx: number;
-			vc: number;
-		}[];
-		derivePathParams?: DerivePathParams;
-	}) {
-		const options = await this.processVoteOptions({
-			selectedOptions,
-			voiceCreditBalance: '1',
-		});
-
 		const plan = options.map(o => {
 			return [o.idx, o.vc] as [number, number];
 		});
@@ -134,7 +92,7 @@ export class MaciClient {
 		return payload;
 	}
 
-	async batchGenMessage(
+	batchGenMessage(
 		stateIdx: number,
 		operatorPubkey: bigint,
 		plan: [number, number][],
