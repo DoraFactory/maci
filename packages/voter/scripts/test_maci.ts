@@ -6,8 +6,10 @@ dotenv.config();
 async function main() {
 	console.log('======= start test keypair logic =======');
 
-	const mnemonic =
-		'camp diet rescue speak rigid hotel wire stomach image rain thumb recycle spot aisle october shiver napkin simple fortune measure congress fiber season butter';
+	const mnemonic = process.env.MNEMONIC;
+	if (!mnemonic) {
+		throw new Error('MNEMONIC not found in environment variables');
+	}
 
 	const voterClient = new VoterClient({
 		mnemonic,
