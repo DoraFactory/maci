@@ -27,7 +27,6 @@ async function main() {
 		contractAddress: 'contract0',
 	};
 
-	console.log('pubkey', voterClient.getSigner().getPublicKey());
 	const credential = voterClient.getSigner().signCredential({
 		amount: payload.amount,
 		contractAddress: payload.contractAddress,

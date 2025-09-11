@@ -143,8 +143,7 @@ export class EdDSAPoseidonPublicKey extends PublicKey {
 		]);
 		const signatureBytes = fromBase64(signature);
 		const rawSignature = unpackSignature(new Buffer(signatureBytes));
-		console.log('messageHash', messageHash);
-		console.log('rawSignature', rawSignature);
+
 		return this.verify(bigInt2Buffer(messageHash), rawSignature);
 	}
 }

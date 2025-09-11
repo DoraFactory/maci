@@ -240,14 +240,7 @@ export class EdDSAPoseidonKeypair extends Keypair {
 			BigInt(addressToUint256(contractAddress)),
 			BigInt(0),
 		]);
-		console.log([
-			this.getPublicKey().toPoints()[0],
-			this.getPublicKey().toPoints()[1],
-			BigInt(amount),
-			BigInt(addressToUint256(contractAddress)),
-			BigInt(0),
-		]);
-		console.log('messageHash', messageHash);
+
 		const signature = this.sign(messageHash);
 		return toBase64(new Uint8Array(packSignature(signature)));
 	}
