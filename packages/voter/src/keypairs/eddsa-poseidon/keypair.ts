@@ -1,12 +1,15 @@
 import { blake2b } from '@noble/hashes/blake2b';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { HDKey } from '@scure/bip32';
+import { sha256 } from '@noble/hashes/sha256';
 
 import {
 	derivePublicKey,
 	signMessage,
 	deriveSecretScalar,
 	verifySignature,
+	packSignature,
+
 	//   packPublicKey,
 } from '@zk-kit/eddsa-poseidon';
 import { Keypair } from '../../cryptography/keypair';
@@ -19,10 +22,12 @@ import {
 	formatPrivKeyForBabyJub,
 	genKeypair,
 	genPubKey,
+	hash5,
 	packPubKey,
 	SNARK_FIELD_SIZE,
 } from '../../crypto';
 import { BigNumberish } from '@zk-kit/utils';
+import { addressToUint256, toBase64 } from 'src/utils';
 
 export const DEFAULT_EDDSA_POSEIDON_DERIVATION_PATH = "m/44'/118'/0'/0/0";
 
@@ -93,7 +98,11 @@ export class EdDSAPoseidonKeypair extends Keypair {
 		options?: { skipValidation?: boolean }
 	): EdDSAPoseidonKeypair {
 		if (typeof secretKey === 'string') {
-			const decoded = buffer2Bigint(hexToBytes(secretKey));
+			// Remove '0x' prefix if it exists
+			const cleanSecretKey = secretKey.startsWith('0x')
+				? secretKey.slice(2)
+				: secretKey;
+			const decoded = buffer2Bigint(hexToBytes(cleanSecretKey));
 
 			return this.fromSecretKey(decoded, options);
 		}
@@ -181,5 +190,65 @@ export class EdDSAPoseidonKeypair extends Keypair {
 			publicKey: pubKey,
 			secretKey: secretKey,
 		});
+	}
+
+	/**
+	 * Signs a payload containing an address and amount to generate a signature certificate.
+	 * The signature can be used as proof/credential for the specified address and amount.
+	 * @param address The address to sign for
+	 * @param amount The amount to sign for
+	 * @returns A signature and the original signed bytes
+	 */
+	signPayload({
+		amount,
+		contractAddress,
+	}: {
+		amount: string;
+		contractAddress: string;
+	}) {
+		const payload = {
+			amount,
+			pubkey_x: this.getPublicKey().toPoints()[0],
+			pubkey_y: this.getPublicKey().toPoints()[1],
+			contract_address: contractAddress,
+		};
+		const bytes = new TextEncoder().encode(JSON.stringify(payload));
+		const msgHash = sha256(bytes);
+		const signature = this.sign(msgHash);
+
+		return toBase64(new Uint8Array(packSignature(signature)));
+	}
+
+	/**
+	 * Signs a payload containing an address and amount to generate a signature certificate.
+	 * The signature can be used as proof/credential for the specified address and amount.
+	 * @param address The address to sign for
+	 * @param amount The amount to sign for
+	 * @returns A signature and the original signed bytes
+	 */
+	signCredential({
+		amount,
+		contractAddress,
+	}: {
+		amount: string;
+		contractAddress: string;
+	}) {
+		const messageHash = hash5([
+			this.getPublicKey().toPoints()[0],
+			this.getPublicKey().toPoints()[1],
+			BigInt(amount),
+			BigInt(addressToUint256(contractAddress)),
+			BigInt(0),
+		]);
+		console.log([
+			this.getPublicKey().toPoints()[0],
+			this.getPublicKey().toPoints()[1],
+			BigInt(amount),
+			BigInt(addressToUint256(contractAddress)),
+			BigInt(0),
+		]);
+		console.log('messageHash', messageHash);
+		const signature = this.sign(messageHash);
+		return toBase64(new Uint8Array(packSignature(signature)));
 	}
 }
