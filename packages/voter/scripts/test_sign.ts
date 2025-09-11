@@ -1,5 +1,6 @@
 import { VoterClient } from '../src';
 import dotenv from 'dotenv';
+import { SNARK_FIELD_SIZE } from '../src/crypto';
 
 dotenv.config();
 
@@ -40,6 +41,8 @@ async function main() {
 		signature: credential,
 	});
 	console.log('verified', verified);
+
+	console.log('SNARK_FIELD_SIZE', SNARK_FIELD_SIZE);
 }
 
 main();
