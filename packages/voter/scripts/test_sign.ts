@@ -41,7 +41,20 @@ async function main() {
 	});
 	console.log('verified', verified);
 
-	console.log('SNARK_FIELD_SIZE', SNARK_FIELD_SIZE);
+	console.log('================= test sign payload ==================');
+	const payloadSignature = voterClient.getSigner().signPayload({
+		amount: payload.amount,
+		contractAddress: payload.contractAddress,
+	});
+	console.log('payloadSignature', payloadSignature);
+
+	const verifiedPayload = publicKey.verifyPayload({
+		amount: payload.amount,
+		contractAddress: payload.contractAddress,
+		signature: payloadSignature,
+	});
+	console.log('verifiedPayload', verifiedPayload);
+	// console.log('SNARK_FIELD_SIZE', SNARK_FIELD_SIZE);
 }
 
 main();

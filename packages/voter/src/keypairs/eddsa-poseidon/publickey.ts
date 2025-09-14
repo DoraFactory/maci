@@ -109,9 +109,9 @@ export class EdDSAPoseidonPublicKey extends PublicKey {
 	}): boolean {
 		const payload = {
 			amount,
-			pubkey_x: this.toPoints()[0],
-			pubkey_y: this.toPoints()[1],
-			contract_address: contractAddress,
+			contract_address: addressToUint256(contractAddress).toString(),
+			pubkey_x: this.toPoints()[0].toString(),
+			pubkey_y: this.toPoints()[1].toString(),
 		};
 		const signatureBytes = fromBase64(signature);
 		const rawSignature = unpackSignature(new Buffer(signatureBytes));
@@ -135,10 +135,10 @@ export class EdDSAPoseidonPublicKey extends PublicKey {
 		signature: string;
 	}): boolean {
 		const messageHash = hash5([
-			this.toPoints()[0],
-			this.toPoints()[1],
 			BigInt(amount),
 			BigInt(addressToUint256(contractAddress)),
+			this.toPoints()[0],
+			this.toPoints()[1],
 			BigInt(0),
 		]);
 		const signatureBytes = fromBase64(signature);

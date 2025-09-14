@@ -35,9 +35,9 @@ export class MaciClient {
 
   public registryAddress: string;
   public saasAddress: string;
+  public apiSaasAddress: string;
   public maciCodeId: number;
   public oracleCodeId: number;
-  public saasOracleCodeId: number;
   public feegrantOperator: string;
   public whitelistBackendPubkey: string;
 
@@ -62,9 +62,9 @@ export class MaciClient {
     apiEndpoint,
     registryAddress,
     saasAddress,
+    apiSaasAddress,
     maciCodeId,
     oracleCodeId,
-    saasOracleCodeId,
     customFetch,
     defaultOptions,
     feegrantOperator,
@@ -83,9 +83,9 @@ export class MaciClient {
       certificateApiEndpoint || defaultParams.certificateApiEndpoint;
     this.registryAddress = registryAddress || defaultParams.registryAddress;
     this.saasAddress = saasAddress || defaultParams.saasAddress;
+    this.apiSaasAddress = apiSaasAddress || defaultParams.apiSaasAddress;
     this.maciCodeId = maciCodeId || defaultParams.maciCodeId;
     this.oracleCodeId = oracleCodeId || defaultParams.oracleCodeId;
-    this.saasOracleCodeId = saasOracleCodeId || defaultParams.saasCodeId;
     this.feegrantOperator =
       feegrantOperator || defaultParams.oracleFeegrantOperator;
     this.whitelistBackendPubkey =
@@ -109,9 +109,9 @@ export class MaciClient {
       rpcEndpoint: this.rpcEndpoint,
       registryAddress: this.registryAddress,
       saasAddress: this.saasAddress,
+      apiSaasAddress: this.apiSaasAddress,
       maciCodeId: this.maciCodeId,
       oracleCodeId: this.oracleCodeId,
-      saasOracleCodeId: this.saasOracleCodeId,
       feegrantOperator: this.feegrantOperator,
       whitelistBackendPubkey: this.whitelistBackendPubkey,
     });
@@ -720,6 +720,7 @@ export class MaciClient {
     pubKey,
     payload,
     gasStation = false,
+    fee,
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -730,7 +731,7 @@ export class MaciClient {
       encPubkeys: PubKey;
     }[];
     gasStation?: boolean;
-    fee?: StdFee;
+    fee?: StdFee | 'auto' | number;
   }) {
     return await this.maci.rawVote({
       signer: this.getSigner(signer),
@@ -739,6 +740,7 @@ export class MaciClient {
       pubKey,
       payload,
       gasStation,
+      fee,
     });
   }
 }

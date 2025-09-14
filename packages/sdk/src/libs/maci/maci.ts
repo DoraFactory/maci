@@ -744,7 +744,6 @@ export class MACI {
       msg: bigint[];
       encPubkeys: PubKey;
     }[];
-
     gasStation?: boolean;
     fee?: StdFee | 'auto' | number;
   }) {

@@ -2,6 +2,8 @@ import { OfflineSigner } from '@cosmjs/proto-signing';
 import { ContractParams } from '../../types';
 import {
   createAMaciClientBy,
+  createApiMaciClientBy,
+  createApiSaasClientBy,
   createContractClientByWallet,
   createMaciClientBy,
   createOracleMaciClientBy,
@@ -27,9 +29,9 @@ export class Contract {
   public rpcEndpoint: string;
   public registryAddress: string;
   public saasAddress: string;
+  public apiSaasAddress: string;
   public maciCodeId: number;
   public oracleCodeId: number;
-  public saasOracleCodeId: number;
   public feegrantOperator: string;
   public whitelistBackendPubkey: string;
 
@@ -38,9 +40,9 @@ export class Contract {
     rpcEndpoint,
     registryAddress,
     saasAddress,
+    apiSaasAddress,
     maciCodeId,
     oracleCodeId,
-    saasOracleCodeId,
     feegrantOperator,
     whitelistBackendPubkey,
   }: ContractParams) {
@@ -48,9 +50,9 @@ export class Contract {
     this.rpcEndpoint = rpcEndpoint;
     this.registryAddress = registryAddress;
     this.saasAddress = saasAddress;
+    this.apiSaasAddress = apiSaasAddress;
     this.maciCodeId = maciCodeId;
     this.oracleCodeId = oracleCodeId;
-    this.saasOracleCodeId = saasOracleCodeId;
     this.feegrantOperator = feegrantOperator;
     this.whitelistBackendPubkey = whitelistBackendPubkey;
   }
@@ -1005,6 +1007,20 @@ export class Contract {
     });
   }
 
+  async apiMaciClient({
+    signer,
+    contractAddress,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+  }) {
+    return createApiMaciClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress,
+    });
+  }
+
   async saasClient({
     signer,
     contractAddress,
@@ -1019,7 +1035,465 @@ export class Contract {
     });
   }
 
+  async apiSaasClient({
+    signer,
+    contractAddress,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+  }) {
+    return createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress,
+    });
+  }
+
   async contractClient({ signer }: { signer: OfflineSigner }) {
     return createContractClientByWallet(this.rpcEndpoint, signer);
+  }
+
+  async createApiSaasMaciRound({
+    signer,
+    operatorPubkey,
+    startVoting,
+    endVoting,
+    title,
+    description,
+    link,
+    maxVoter,
+    voteOptionMap,
+    whitelistBackendPubkey,
+    gasStation = false,
+    fee = 1.8,
+  }: CreateSaasOracleMaciRoundParams & { signer: OfflineSigner }) {
+    const startTime = (startVoting.getTime() * 1_000_000).toString();
+    const endTime = (endVoting.getTime() * 1_000_000).toString();
+
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.saasAddress,
+    });
+    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(
+      BigInt(operatorPubkey)
+    );
+
+    const roundParams = {
+      certificationSystem: '0',
+      circuitType: '0',
+      coordinator: {
+        x: operatorPubkeyX.toString(),
+        y: operatorPubkeyY.toString(),
+      },
+      maxVoters: maxVoter,
+      roundInfo: {
+        title,
+        description: description || '',
+        link: link || '',
+      },
+      startTime,
+      endTime,
+      voteOptionMap,
+      whitelistBackendPubkey:
+        whitelistBackendPubkey || this.whitelistBackendPubkey,
+    };
+
+    let createResponse;
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        create_oracle_maci_round: {
+          certification_system: '0',
+          circuit_type: '0',
+          coordinator: roundParams.coordinator,
+          max_voters: roundParams.maxVoters.toString(),
+          round_info: roundParams.roundInfo,
+          start_time: roundParams.startTime,
+          end_time: roundParams.endTime,
+          vote_option_map: roundParams.voteOptionMap,
+          whitelist_backend_pubkey: roundParams.whitelistBackendPubkey,
+        },
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.saasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: this.saasAddress,
+      };
+      createResponse = await client.createApiMaciRound(roundParams, grantFee);
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: this.saasAddress,
+      };
+      createResponse = await client.createApiMaciRound(roundParams, grantFee);
+    } else {
+      createResponse = await client.createApiMaciRound(roundParams, fee);
+    }
+
+    let contractAddress = '';
+    createResponse.events.map((event) => {
+      if (event.type === 'wasm') {
+        let actionEvent = event.attributes.find(
+          (attr) => attr.key === 'action'
+        )!;
+        if (actionEvent.value === 'created_api_maci_round') {
+          contractAddress = event.attributes
+            .find((attr) => attr.key === 'round_addr')!
+            .value.toString();
+        }
+      }
+    });
+    return {
+      ...createResponse,
+      contractAddress,
+    };
+  }
+
+  async setApiSaasMaciRoundInfo({
+    signer,
+    contractAddress,
+    title,
+    description,
+    link,
+    gasStation = false,
+    fee = 1.8,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    title: string;
+    description: string;
+    link: string;
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.saasAddress,
+    });
+
+    const roundInfo = {
+      title,
+      description,
+      link,
+    };
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        set_round_info: {
+          contract_addr: contractAddress,
+          round_info: roundInfo,
+        },
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.saasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: this.saasAddress,
+      };
+      return client.setRoundInfo(
+        {
+          contractAddr: contractAddress,
+          roundInfo,
+        },
+        grantFee
+      );
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: this.saasAddress,
+      };
+      return client.setRoundInfo(
+        {
+          contractAddr: contractAddress,
+          roundInfo,
+        },
+        grantFee
+      );
+    }
+
+    return client.setRoundInfo(
+      {
+        contractAddr: contractAddress,
+        roundInfo,
+      },
+      fee
+    );
+  }
+
+  async setApiSaasMaciRoundVoteOptions({
+    signer,
+    contractAddress,
+    voteOptionMap,
+    gasStation = false,
+    fee = 1.8,
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    voteOptionMap: string[];
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.saasAddress,
+    });
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        set_vote_options_map: {
+          contract_addr: contractAddress,
+          vote_option_map: voteOptionMap,
+        },
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.saasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: this.saasAddress,
+      };
+      return client.setVoteOptionsMap(
+        {
+          contractAddr: contractAddress,
+          voteOptionMap,
+        },
+        grantFee
+      );
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: this.saasAddress,
+      };
+      return client.setVoteOptionsMap(
+        {
+          contractAddr: contractAddress,
+          voteOptionMap,
+        },
+        grantFee
+      );
+    }
+
+    return client.setVoteOptionsMap(
+      {
+        contractAddr: contractAddress,
+        voteOptionMap,
+      },
+      fee
+    );
+  }
+
+  async addApiSaasOperator({
+    signer,
+    operator,
+    gasStation = false,
+    fee = 1.8,
+  }: {
+    signer: OfflineSigner;
+    operator: string;
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.saasAddress,
+    });
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        add_operator: {
+          operator,
+        },
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.saasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: this.saasAddress,
+      };
+      return client.addOperator({ operator }, grantFee);
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: this.saasAddress,
+      };
+      return client.addOperator({ operator }, grantFee);
+    }
+
+    return client.addOperator({ operator }, fee);
+  }
+
+  async removeApiSaasOperator({
+    signer,
+    operator,
+    gasStation = false,
+    fee = 1.8,
+  }: {
+    signer: OfflineSigner;
+    operator: string;
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.saasAddress,
+    });
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        remove_operator: {
+          operator,
+        },
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.saasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: this.saasAddress,
+      };
+      return client.removeOperator({ operator }, grantFee);
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: this.saasAddress,
+      };
+      return client.removeOperator({ operator }, grantFee);
+    }
+
+    return client.removeOperator({ operator }, fee);
+  }
+
+  async isApiSaasOperator({
+    signer,
+    operator,
+  }: {
+    signer: OfflineSigner;
+    operator: string;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.saasAddress,
+    });
+    return client.isOperator({ address: operator });
   }
 }
