@@ -47,14 +47,17 @@ jobs:
       - name: Update package versions
         run: |
           cd packages/sdk && pnpm version ${{ env.VERSION }} --no-git-tag-version
+          cd packages/voter && pnpm version ${{ env.VERSION }} --no-git-tag-version
 
       - name: Build packages
         run: |
           cd packages/sdk && pnpm build
+          cd packages/voter && pnpm build
 
       - name: Publish packages
         run: |
           cd packages/sdk && pnpm publish --access public --no-git-checks
+          cd packages/voter && pnpm publish --access public --no-git-checks
 
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

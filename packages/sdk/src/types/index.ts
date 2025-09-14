@@ -31,9 +31,9 @@ export type ClientParams = {
   certificateApiEndpoint?: string;
   registryAddress?: string;
   saasAddress?: string;
+  apiSaasAddress?: string;
   maciCodeId?: number;
   oracleCodeId?: number;
-  saasOracleCodeId?: number;
   customFetch?: typeof fetch;
   defaultOptions?: FetchOptions;
   feegrantOperator?: string;
@@ -48,9 +48,9 @@ export type ContractParams = {
   rpcEndpoint: string;
   registryAddress: string;
   saasAddress: string;
+  apiSaasAddress: string;
   maciCodeId: number;
   oracleCodeId: number;
-  saasOracleCodeId: number;
   whitelistBackendPubkey: string;
   feegrantOperator: string;
 };

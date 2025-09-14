@@ -150,13 +150,12 @@ export interface NetworkConfig {
   certificateApiEndpoint: string;
   registryAddress: string;
   saasAddress: string;
+  apiSaasAddress: string;
   maciCodeId: number;
   oracleCodeId: number;
-  saasCodeId: number;
   oracleWhitelistBackendPubkey: string;
   oracleFeegrantOperator: string;
   oracleCodeIds: string[];
-  saasCodeIds: string[];
 }
 
 export function getDefaultParams(
@@ -176,15 +175,15 @@ export function getDefaultParams(
           'dora1smg5qp5trjdkcekdjssqpjehdjf6n4cjss0clyvqcud3t3u3948s8rmgg4',
         saasAddress:
           'dora1ksxvvve2nsw5uyvg7y6lnnxcqxadjepc78z0qa8enm5zhayxaqgqpsewf8',
+        apiSaasAddress:
+          'dora1ksxvvve2nsw5uyvg7y6lnnxcqxadjepc78z0qa8enm5zhayxaqgqpsewf8',
         maciCodeId: 106,
         // oracleCodeId: 116,// 9-4-3-625
         oracleCodeId: 119, // 6-3-3-125
-        saasCodeId: 124,
         oracleWhitelistBackendPubkey:
           'A61YtCv2ibMZmDeM02nEElil8wlHx1tLKogBk5dPgf/Q',
         oracleFeegrantOperator: 'dora16s9tljk8dy9ae335yvyzlm8gvkypx9228q8pq8',
         oracleCodeIds: ['101', '116', '117', '119'],
-        saasCodeIds: ['124'],
       };
     case 'testnet':
       return {
@@ -199,15 +198,15 @@ export function getDefaultParams(
           'dora13c8aecstyxrhax9znvvh5zey89edrmd2k5va57pxvpe3fxtfsfeqlhsjnd',
         saasAddress:
           'dora1dgnszrwnwxgr5djprrr6w4q45z8s3ghsew869g6tlp4ruqah39nqnemjya',
+        apiSaasAddress:
+          'dora16xj2yrh3snq8f2qvma9uzjd5m2qgvzaqjcqmeuweh73t29c4rhusxm9hq6',
         maciCodeId: 134,
         // oracleCodeId: 113, // 9-4-3-625
         oracleCodeId: 123, // 6-3-3-125
-        saasCodeId: 152,
         oracleWhitelistBackendPubkey:
           'AoYo/zENN/JquagPdG0/NMbWBBYxOM8BVN677mBXJKJQ',
         oracleFeegrantOperator: 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78',
         oracleCodeIds: ['102', '105', '108', '110', '113', '115', '123'],
-        saasCodeIds: ['152'],
       };
   }
 }

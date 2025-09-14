@@ -11,6 +11,8 @@ import { AMaciClient } from './ts/AMaci.client';
 import { RegistryClient } from './ts/Registry.client';
 import { OracleMaciClient } from './ts/OracleMaci.client';
 import { SaasClient } from './ts/Saas.client';
+import { ApiMaciClient } from './ts/ApiMaci.client';
+import { ApiSaasClient } from './ts/ApiSaas.client';
 
 const defaultSigningClientOptions: SigningStargateClientOptions = {
   broadcastPollIntervalMs: 8_000,
@@ -52,6 +54,23 @@ export async function createAMaciClientBy({
   return new AMaciClient(signingCosmWasmClient, address, contractAddress);
 }
 
+export async function createApiMaciClientBy({
+  rpcEndpoint,
+  wallet,
+  contractAddress,
+}: {
+  rpcEndpoint: string;
+  wallet: OfflineSigner;
+  contractAddress: string;
+}) {
+  const signingCosmWasmClient = await createContractClientByWallet(
+    rpcEndpoint,
+    wallet
+  );
+  const [{ address }] = await wallet.getAccounts();
+  return new ApiMaciClient(signingCosmWasmClient, address, contractAddress);
+}
+
 export async function createRegistryClientBy({
   rpcEndpoint,
   wallet,
@@ -84,6 +103,23 @@ export async function createSaasClientBy({
   );
   const [{ address }] = await wallet.getAccounts();
   return new SaasClient(signingCosmWasmClient, address, contractAddress);
+}
+
+export async function createApiSaasClientBy({
+  rpcEndpoint,
+  wallet,
+  contractAddress,
+}: {
+  rpcEndpoint: string;
+  wallet: OfflineSigner;
+  contractAddress: string;
+}) {
+  const signingCosmWasmClient = await createContractClientByWallet(
+    rpcEndpoint,
+    wallet
+  );
+  const [{ address }] = await wallet.getAccounts();
+  return new ApiSaasClient(signingCosmWasmClient, address, contractAddress);
 }
 
 export async function createOracleMaciClientBy({

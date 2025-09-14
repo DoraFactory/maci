@@ -40,3 +40,7 @@ build
 dist
 
 pnpm-lock.yaml
+
+# claude only
+.claude
+CLAUDE.md

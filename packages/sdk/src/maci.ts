@@ -35,9 +35,9 @@ export class MaciClient {
 
   public registryAddress: string;
   public saasAddress: string;
+  public apiSaasAddress: string;
   public maciCodeId: number;
   public oracleCodeId: number;
-  public saasOracleCodeId: number;
   public feegrantOperator: string;
   public whitelistBackendPubkey: string;
 
@@ -62,9 +62,9 @@ export class MaciClient {
     apiEndpoint,
     registryAddress,
     saasAddress,
+    apiSaasAddress,
     maciCodeId,
     oracleCodeId,
-    saasOracleCodeId,
     customFetch,
     defaultOptions,
     feegrantOperator,
@@ -83,9 +83,9 @@ export class MaciClient {
       certificateApiEndpoint || defaultParams.certificateApiEndpoint;
     this.registryAddress = registryAddress || defaultParams.registryAddress;
     this.saasAddress = saasAddress || defaultParams.saasAddress;
+    this.apiSaasAddress = apiSaasAddress || defaultParams.apiSaasAddress;
     this.maciCodeId = maciCodeId || defaultParams.maciCodeId;
     this.oracleCodeId = oracleCodeId || defaultParams.oracleCodeId;
-    this.saasOracleCodeId = saasOracleCodeId || defaultParams.saasCodeId;
     this.feegrantOperator =
       feegrantOperator || defaultParams.oracleFeegrantOperator;
     this.whitelistBackendPubkey =
@@ -109,9 +109,9 @@ export class MaciClient {
       rpcEndpoint: this.rpcEndpoint,
       registryAddress: this.registryAddress,
       saasAddress: this.saasAddress,
+      apiSaasAddress: this.apiSaasAddress,
       maciCodeId: this.maciCodeId,
       oracleCodeId: this.oracleCodeId,
-      saasOracleCodeId: this.saasOracleCodeId,
       feegrantOperator: this.feegrantOperator,
       whitelistBackendPubkey: this.whitelistBackendPubkey,
     });
@@ -678,6 +678,68 @@ export class MaciClient {
       signer: this.getSigner(signer),
       contractAddress,
       address,
+      fee,
+    });
+  }
+
+  async rawSignup({
+    signer,
+    address,
+    contractAddress,
+    pubKey,
+    oracleCertificate,
+    gasStation = false,
+    fee,
+  }: {
+    signer?: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    pubKey: PubKey;
+    oracleCertificate?: {
+      amount: string;
+      signature: string;
+    };
+    gasStation?: boolean;
+    fee?: StdFee;
+  }) {
+    return await this.maci.rawSignup({
+      signer: this.getSigner(signer),
+      address,
+      contractAddress,
+      pubKey,
+      oracleCertificate,
+      gasStation,
+      fee,
+    });
+  }
+
+  async rawVote({
+    signer,
+    address,
+    contractAddress,
+    pubKey,
+    payload,
+    gasStation = false,
+    fee,
+  }: {
+    signer?: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    pubKey: PubKey;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PubKey;
+    }[];
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    return await this.maci.rawVote({
+      signer: this.getSigner(signer),
+      address,
+      contractAddress,
+      pubKey,
+      payload,
+      gasStation,
       fee,
     });
   }
