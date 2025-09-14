@@ -44,21 +44,31 @@ jobs:
       - name: Check changeset status
         run: pnpm changeset status --since origin/main
 
-      - name: Update package versions
-        run: |
-          cd packages/sdk && pnpm version ${{ env.VERSION }} --no-git-tag-version
-          cd packages/voter && pnpm version ${{ env.VERSION }} --no-git-tag-version
+      - name: Update SDK package version
+        working-directory: packages/sdk
+        run: pnpm version ${{ env.VERSION }} --no-git-tag-version
+        
+      - name: Update Voter package version
+        working-directory: packages/voter
+        run: pnpm version ${{ env.VERSION }} --no-git-tag-version
 
-      - name: Build packages
-        run: |
-          cd packages/sdk && pnpm build
-          cd packages/voter && pnpm build
+      - name: Build SDK package
+        working-directory: packages/sdk
+        run: pnpm build
+        
+      - name: Build Voter package
+        working-directory: packages/voter
+        run: pnpm build
 
-      - name: Publish packages
-        run: |
-          cd packages/sdk && pnpm publish --access public --no-git-checks
-          cd packages/voter && pnpm publish --access public --no-git-checks
-
+      - name: Publish SDK package
+        working-directory: packages/sdk
+        run: pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          
+      - name: Publish Voter package
+        working-directory: packages/voter
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -75,3 +85,66 @@ jobs:
           git push origin HEAD:main
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Generate Release Notes
+        id: generate_notes
+        if: success()
+        run: |
+          # Get current package version info
+          SDK_VERSION=$(cd packages/sdk && node -p "require('./package.json').version")
+          VOTER_VERSION=$(cd packages/voter && node -p "require('./package.json').version")
+          
+          # Try to generate changelog from changeset
+          if command -v jq >/dev/null 2>&1; then
+            CHANGESET_OUTPUT=$(pnpm changeset status --output=json 2>/dev/null || echo '{"releases":[]}')
+            CHANGELOG=$(echo "$CHANGESET_OUTPUT" | jq -r '.releases[] | "### " + .name + " v" + .newVersion + "\n" + (.changesets | map("- " + .summary) | join("\n"))' 2>/dev/null || echo "")
+          else
+            CHANGELOG=""
+          fi
+          
+          # If no changeset info or jq unavailable, use default release notes
+          if [ -z "$CHANGELOG" ] || [ "$CHANGELOG" = "null" ] || [ "$CHANGELOG" = "" ]; then
+            CHANGELOG="### 📦 Published Packages
+          
+          - **@dorafactory/maci-sdk**: \`$SDK_VERSION\`
+          - **@dorafactory/maci-voter**: \`$VOTER_VERSION\`
+          
+          ### ✨ What's Changed
+          
+          - Version updated to \`${{ env.VERSION }}\`
+          - Package build and publish process improvements
+          - Code quality and stability enhancements
+          
+          ### 📋 Installation
+          
+          \`\`\`bash
+          # Install SDK
+          npm install @dorafactory/maci-sdk@$SDK_VERSION
+          
+          # Install Voter
+          npm install @dorafactory/maci-voter@$VOTER_VERSION
+          \`\`\`
+          
+          ---
+          **Full Changelog**: [\`${{ github.event.before }}..${{ github.sha }}\`](${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }})"
+          fi
+          
+          # Save to environment variable, handle multiline content
+          {
+            echo "RELEASE_NOTES<<EOF"
+            echo "# 🚀 Release ${{ env.VERSION }}"
+            echo ""
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: ${{ env.RELEASE_NOTES }}
+          draft: false
+          prerelease: ${{ contains(env.VERSION, 'pre') || contains(env.VERSION, 'alpha') || contains(env.VERSION, 'beta') || contains(env.VERSION, 'rc') }}
+          token: ${{ secrets.RELEASE_TOKEN }}
