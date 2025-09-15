@@ -232,6 +232,12 @@ export class MaciClient {
       ...params,
     });
   }
+  async createApiSaasMaciRound(params: CreateSaasOracleMaciRoundParams) {
+    return await this.contract.createApiSaasMaciRound({
+      signer: this.getSigner(params.signer),
+      ...params,
+    });
+  }
 
   async genKeypairFromSign({
     signer,

@@ -1073,7 +1073,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.apiSaasAddress,
     });
     const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(
       BigInt(operatorPubkey)
@@ -1125,7 +1125,7 @@ export class Contract {
             typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
             value: {
               sender: address,
-              contract: this.saasAddress,
+              contract: this.apiSaasAddress,
               msg: new TextEncoder().encode(JSON.stringify(msg)),
             },
           },
@@ -1141,14 +1141,14 @@ export class Contract {
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       createResponse = await client.createApiMaciRound(roundParams, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       createResponse = await client.createApiMaciRound(roundParams, grantFee);
     } else {
@@ -1194,7 +1194,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.apiSaasAddress,
     });
 
     const roundInfo = {
@@ -1220,7 +1220,7 @@ export class Contract {
             typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
             value: {
               sender: address,
-              contract: this.saasAddress,
+              contract: this.apiSaasAddress,
               msg: new TextEncoder().encode(JSON.stringify(msg)),
             },
           },
@@ -1236,7 +1236,7 @@ export class Contract {
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       return client.setRoundInfo(
         {
@@ -1249,7 +1249,7 @@ export class Contract {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       return client.setRoundInfo(
         {
@@ -1285,7 +1285,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.apiSaasAddress,
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -1305,7 +1305,7 @@ export class Contract {
             typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
             value: {
               sender: address,
-              contract: this.saasAddress,
+              contract: this.apiSaasAddress,
               msg: new TextEncoder().encode(JSON.stringify(msg)),
             },
           },
@@ -1321,7 +1321,7 @@ export class Contract {
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       return client.setVoteOptionsMap(
         {
@@ -1334,7 +1334,7 @@ export class Contract {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       return client.setVoteOptionsMap(
         {
@@ -1368,7 +1368,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.apiSaasAddress,
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -1387,7 +1387,7 @@ export class Contract {
             typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
             value: {
               sender: address,
-              contract: this.saasAddress,
+              contract: this.apiSaasAddress,
               msg: new TextEncoder().encode(JSON.stringify(msg)),
             },
           },
@@ -1403,14 +1403,14 @@ export class Contract {
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       return client.addOperator({ operator }, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       return client.addOperator({ operator }, grantFee);
     }
@@ -1432,7 +1432,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.apiSaasAddress,
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -1451,7 +1451,7 @@ export class Contract {
             typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
             value: {
               sender: address,
-              contract: this.saasAddress,
+              contract: this.apiSaasAddress,
               msg: new TextEncoder().encode(JSON.stringify(msg)),
             },
           },
@@ -1467,14 +1467,14 @@ export class Contract {
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       return client.removeOperator({ operator }, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.apiSaasAddress,
       };
       return client.removeOperator({ operator }, grantFee);
     }
@@ -1492,7 +1492,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.apiSaasAddress,
     });
     return client.isOperator({ address: operator });
   }
