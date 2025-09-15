@@ -1106,7 +1106,7 @@ export class Contract {
       const [{ address }] = await signer.getAccounts();
       const contractClient = await this.contractClient({ signer });
       const msg = {
-        create_oracle_maci_round: {
+        create_api_maci_round: {
           certification_system: '0',
           circuit_type: '0',
           coordinator: roundParams.coordinator,
