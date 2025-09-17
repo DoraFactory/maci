@@ -521,6 +521,7 @@ export class MACI {
     pubKey,
     oracleCertificate,
     gasStation = false,
+    granter,
     fee,
   }: {
     signer: OfflineSigner;
@@ -532,6 +533,7 @@ export class MACI {
       signature: string;
     };
     gasStation?: boolean;
+    granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
     try {
@@ -551,6 +553,7 @@ export class MACI {
           contractAddress,
           oracleCertificate,
           gasStation,
+          granter,
           fee,
         });
       } else {
@@ -560,6 +563,7 @@ export class MACI {
           pubKey,
           contractAddress,
           gasStation,
+          granter,
           fee,
         });
       }
@@ -734,6 +738,7 @@ export class MACI {
     pubKey,
     payload,
     gasStation = false,
+    granter,
     fee = 1.8,
   }: {
     signer: OfflineSigner;
@@ -745,6 +750,7 @@ export class MACI {
       encPubkeys: PubKey;
     }[];
     gasStation?: boolean;
+    granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
     const stateIdx = await this.getStateIdxByPubKey({
@@ -819,6 +825,7 @@ export class MACI {
         payload,
         contractAddress,
         gasStation,
+        granter,
         fee,
       });
     } catch (error) {
@@ -832,6 +839,7 @@ export class MACI {
     payload,
     contractAddress,
     gasStation,
+    granter,
     fee = 1.8,
   }: {
     client: SigningCosmWasmClient;
@@ -842,6 +850,7 @@ export class MACI {
     }[];
     contractAddress: string;
     gasStation: boolean;
+    granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
     const msgs: MsgExecuteContractEncodeObject[] = payload.map(
@@ -881,14 +890,14 @@ export class MACI {
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: contractAddress,
+        granter: granter || contractAddress,
       };
       return client.signAndBroadcast(address, msgs, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: contractAddress,
+        granter: granter || contractAddress,
       };
       return client.signAndBroadcast(address, msgs, grantFee);
     }
@@ -902,6 +911,7 @@ export class MACI {
     pubKey,
     contractAddress,
     gasStation,
+    granter,
     fee = 1.8,
   }: {
     client: SigningCosmWasmClient;
@@ -909,6 +919,7 @@ export class MACI {
     pubKey: PubKey;
     contractAddress: string;
     gasStation?: boolean;
+    granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
     const msg = {
@@ -945,14 +956,14 @@ export class MACI {
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: contractAddress,
+        granter: granter || contractAddress,
       };
       return client.execute(address, contractAddress, msg, grantFee);
     } else if (gasStation === true && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: contractAddress,
+        granter: granter || contractAddress,
       };
       return client.execute(address, contractAddress, msg, grantFee);
     }
@@ -967,6 +978,7 @@ export class MACI {
     contractAddress,
     oracleCertificate,
     gasStation,
+    granter,
     fee = 1.8,
   }: {
     client: SigningCosmWasmClient;
@@ -978,6 +990,7 @@ export class MACI {
       signature: string;
     };
     gasStation?: boolean;
+    granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
     const msg = {
@@ -1016,14 +1029,14 @@ export class MACI {
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: contractAddress,
+        granter: granter || contractAddress,
       };
       return client.execute(address, contractAddress, msg, grantFee);
     } else if (gasStation === true && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: contractAddress,
+        granter: granter || contractAddress,
       };
       return client.execute(address, contractAddress, msg, grantFee);
     }

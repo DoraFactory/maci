@@ -695,6 +695,7 @@ export class MaciClient {
     pubKey,
     oracleCertificate,
     gasStation = false,
+    granter,
     fee,
   }: {
     signer?: OfflineSigner;
@@ -706,6 +707,7 @@ export class MaciClient {
       signature: string;
     };
     gasStation?: boolean;
+    granter?: string;
     fee?: StdFee;
   }) {
     return await this.maci.rawSignup({
@@ -715,6 +717,7 @@ export class MaciClient {
       pubKey,
       oracleCertificate,
       gasStation,
+      granter,
       fee,
     });
   }
@@ -726,6 +729,7 @@ export class MaciClient {
     pubKey,
     payload,
     gasStation = false,
+    granter,
     fee,
   }: {
     signer?: OfflineSigner;
@@ -737,6 +741,7 @@ export class MaciClient {
       encPubkeys: PubKey;
     }[];
     gasStation?: boolean;
+    granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
     return await this.maci.rawVote({
@@ -746,6 +751,7 @@ export class MaciClient {
       pubKey,
       payload,
       gasStation,
+      granter,
       fee,
     });
   }
