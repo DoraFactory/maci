@@ -24,7 +24,10 @@ const testPubkey = [
 ] as PubKey;
 
 const packedTestPubkey = packPubKey(testPubkey);
-console.log('packedTestPubkey', packedTestPubkey);
+// console.log('packedTestPubkey', packedTestPubkey);
+
+const genKey = genKeypair();
+console.log('genKey Pubkey', packPubKey(genKey.pubKey));
 
 // const unpackedTestPubkey = unpackPubKey(packedTestPubkey);
 // console.log('unpackedTestPubkey', unpackedTestPubkey);
