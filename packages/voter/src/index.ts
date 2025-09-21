@@ -13,3 +13,5 @@ export {
 	EdDSAPoseidonKeypair,
 	EdDSAPoseidonPublicKey,
 } from './keypairs/eddsa-poseidon';
+
+export * from './utils';
