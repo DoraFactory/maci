@@ -29,3 +29,31 @@ export const bigInt2Buffer = (i: bigint) => {
   }
   return Buffer.from(hex, 'hex');
 };
+
+export const buffer2Bigint = (buffer: Buffer | Uint8Array): bigint => {
+  const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const hex = buf.toString('hex');
+  return BigInt('0x' + hex);
+};
+
+export const destringizing = (
+  o: MixedData<string>,
+  path: MixedData<string>[] = []
+): MixedData<bigint> => {
+  if (path.includes(o)) {
+    throw new Error('loop nesting!');
+  }
+  const newPath = [...path, o];
+
+  if (Array.isArray(o)) {
+    return o.map((item) => destringizing(item, newPath));
+  } else if (typeof o === 'object' && o !== null) {
+    const output: { [key: string]: MixedData<bigint> } = {};
+    for (const key in o) {
+      output[key] = destringizing(o[key], newPath);
+    }
+    return output;
+  } else {
+    return BigInt(o);
+  }
+};

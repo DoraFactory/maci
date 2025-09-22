@@ -23,6 +23,10 @@ export type * from './types';
 export { circuits, getDefaultParams, type NetworkConfig } from './libs/const';
 
 // Utils
-export { stringizing, bigInt2Buffer } from './libs/crypto/bigintUtils';
+export {
+  stringizing,
+  destringizing,
+  bigInt2Buffer,
+} from './libs/crypto/bigintUtils';
 export { isValidAddress } from './utils';
 export { getAMaciRoundCircuitFee } from './libs/contract/utils';

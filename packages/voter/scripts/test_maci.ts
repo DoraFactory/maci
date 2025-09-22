@@ -1,4 +1,4 @@
-import { VoterClient } from '../src';
+import { stringizing, destringizing, VoterClient } from '../src';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -31,6 +31,20 @@ async function main() {
 		],
 	});
 	console.log('votePayload', votePayload);
+
+	const stringData = stringizing(votePayload);
+	console.log('stringData', stringData);
+
+	const restoredData = destringizing(stringData);
+	console.log('restoredData', restoredData);
+
+	const originalStringified = stringizing(votePayload);
+	const restoredStringified = stringizing(restoredData);
+	console.log(
+		'IS EQUAL:',
+		JSON.stringify(originalStringified) ===
+			JSON.stringify(restoredStringified)
+	);
 }
 
 main();
