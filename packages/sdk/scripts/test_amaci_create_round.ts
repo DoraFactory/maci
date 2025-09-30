@@ -35,7 +35,13 @@ async function main() {
 
   const newRound = await client.createAMaciRound({
     maxVoter: 2,
-    maxOption: 5,
+    voteOptionMap: [
+      'IoT Healthcare Platform',
+      'Autonomous Vehicle Systems',
+      'Carbon Capture Technology',
+      'Edge Computing Network',
+      'Biotech Data Analytics',
+    ],
     operator: 'dora18mph6ekhf70pxqxpq0lfj3z7j3k4mqn8m2cna5',
     whitelist: {
       users: [

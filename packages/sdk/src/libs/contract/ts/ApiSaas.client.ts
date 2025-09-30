@@ -20,6 +20,9 @@ import {
   Uint64,
   PubKey,
   RoundInfo,
+  VotingTime,
+  WhitelistBase,
+  WhitelistBaseConfig,
   QueryMsg,
   Config,
   Boolean,
@@ -153,7 +156,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
-  createApiMaciRound: (
+  createMaciRound: (
     {
       certificationSystem,
       circuitType,
@@ -174,6 +177,36 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       startTime: Timestamp;
       voteOptionMap: string[];
       whitelistBackendPubkey: string;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
+  createAmaciRound: (
+    {
+      certificationSystem,
+      circuitType,
+      maxVoter,
+      operator,
+      oracleWhitelistPubkey,
+      preDeactivateRoot,
+      roundInfo,
+      voiceCreditAmount,
+      voteOptionMap,
+      votingTime,
+      whitelist,
+    }: {
+      certificationSystem: Uint256;
+      circuitType: Uint256;
+      maxVoter: Uint256;
+      operator: Addr;
+      oracleWhitelistPubkey?: string;
+      preDeactivateRoot: Uint256;
+      roundInfo: RoundInfo;
+      voiceCreditAmount: Uint256;
+      voteOptionMap: string[];
+      votingTime: VotingTime;
+      whitelist?: WhitelistBase;
     },
     fee?: number | StdFee | 'auto',
     memo?: string,
@@ -228,7 +261,8 @@ export class ApiSaasClient
     this.removeOperator = this.removeOperator.bind(this);
     this.deposit = this.deposit.bind(this);
     this.withdraw = this.withdraw.bind(this);
-    this.createApiMaciRound = this.createApiMaciRound.bind(this);
+    this.createMaciRound = this.createMaciRound.bind(this);
+    this.createAmaciRound = this.createAmaciRound.bind(this);
     this.setRoundInfo = this.setRoundInfo.bind(this);
     this.setVoteOptionsMap = this.setVoteOptionsMap.bind(this);
   }
@@ -392,7 +426,7 @@ export class ApiSaasClient
       _funds
     );
   };
-  createApiMaciRound = async (
+  createMaciRound = async (
     {
       certificationSystem,
       circuitType,
@@ -422,7 +456,7 @@ export class ApiSaasClient
       this.sender,
       this.contractAddress,
       {
-        create_api_maci_round: {
+        create_maci_round: {
           certification_system: certificationSystem,
           circuit_type: circuitType,
           coordinator,
@@ -432,6 +466,59 @@ export class ApiSaasClient
           start_time: startTime,
           vote_option_map: voteOptionMap,
           whitelist_backend_pubkey: whitelistBackendPubkey,
+        },
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  createAmaciRound = async (
+    {
+      certificationSystem,
+      circuitType,
+      maxVoter,
+      operator,
+      oracleWhitelistPubkey,
+      preDeactivateRoot,
+      roundInfo,
+      voiceCreditAmount,
+      voteOptionMap,
+      votingTime,
+      whitelist,
+    }: {
+      certificationSystem: Uint256;
+      circuitType: Uint256;
+      maxVoter: Uint256;
+      operator: Addr;
+      oracleWhitelistPubkey?: string;
+      preDeactivateRoot: Uint256;
+      roundInfo: RoundInfo;
+      voiceCreditAmount: Uint256;
+      voteOptionMap: string[];
+      votingTime: VotingTime;
+      whitelist?: WhitelistBase;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        create_amaci_round: {
+          certification_system: certificationSystem,
+          circuit_type: circuitType,
+          max_voter: maxVoter,
+          operator,
+          oracle_whitelist_pubkey: oracleWhitelistPubkey,
+          pre_deactivate_root: preDeactivateRoot,
+          round_info: roundInfo,
+          voice_credit_amount: voiceCreditAmount,
+          vote_option_map: voteOptionMap,
+          voting_time: votingTime,
+          whitelist,
         },
       },
       fee,

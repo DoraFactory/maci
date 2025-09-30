@@ -15,6 +15,7 @@ import {
   CreateMaciRoundParams,
   CreateOracleMaciRoundParams,
   CreateSaasOracleMaciRoundParams,
+  CreateApiSaasAmaciRoundParams,
 } from './types';
 import { getAMaciRoundCircuitFee, getContractParams } from './utils';
 import { QTR_LIB } from './vars';
@@ -67,10 +68,11 @@ export class Contract {
     description,
     link,
     maxVoter,
-    maxOption,
+    voteOptionMap,
     voiceCreditAmount,
     circuitType,
     preDeactivateRoot,
+    oracleWhitelistPubkey,
     fee = 'auto',
   }: CreateAMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 10 ** 6).toString();
@@ -84,7 +86,7 @@ export class Contract {
     const requiredFee = getAMaciRoundCircuitFee(
       this.network,
       maxVoter,
-      maxOption
+      voteOptionMap.length
     );
 
     preDeactivateRoot = preDeactivateRoot || '0';
@@ -104,9 +106,10 @@ export class Contract {
           end_time,
         },
         maxVoter: maxVoter.toString(),
-        maxOption: maxOption.toString(),
+        voteOptionMap,
         certificationSystem: '0',
         circuitType,
+        oracleWhitelistPubkey,
       },
       fee,
       undefined,
@@ -1143,16 +1146,16 @@ export class Contract {
         gas: calculatedFee.gas,
         granter: this.apiSaasAddress,
       };
-      createResponse = await client.createApiMaciRound(roundParams, grantFee);
+      createResponse = await client.createMaciRound(roundParams, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
         granter: this.apiSaasAddress,
       };
-      createResponse = await client.createApiMaciRound(roundParams, grantFee);
+      createResponse = await client.createMaciRound(roundParams, grantFee);
     } else {
-      createResponse = await client.createApiMaciRound(roundParams, fee);
+      createResponse = await client.createMaciRound(roundParams, fee);
     }
 
     let contractAddress = '';
@@ -1161,7 +1164,7 @@ export class Contract {
         let actionEvent = event.attributes.find(
           (attr) => attr.key === 'action'
         )!;
-        if (actionEvent.value === 'created_api_maci_round') {
+        if (actionEvent.value === 'created_maci_round') {
           contractAddress = event.attributes
             .find((attr) => attr.key === 'round_addr')!
             .value.toString();
@@ -1495,5 +1498,133 @@ export class Contract {
       contractAddress: this.apiSaasAddress,
     });
     return client.isOperator({ address: operator });
+  }
+
+  async createApiSaasAmaciRound({
+    signer,
+    operator,
+    startVoting,
+    endVoting,
+    title,
+    description,
+    link,
+    maxVoter,
+    voteOptionMap,
+    whitelist,
+    voiceCreditAmount,
+    preDeactivateRoot,
+    oracleWhitelistPubkey,
+    circuitType,
+    gasStation = false,
+    fee = 1.8,
+  }: CreateApiSaasAmaciRoundParams & { signer: OfflineSigner }) {
+    const startTime = (startVoting.getTime() * 1_000_000).toString();
+    const endTime = (endVoting.getTime() * 1_000_000).toString();
+
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.apiSaasAddress,
+    });
+
+    const roundParams = {
+      certificationSystem: '0',
+      circuitType: circuitType.toString(),
+      maxVoter: maxVoter.toString(),
+      operator,
+      oracleWhitelistPubkey,
+      preDeactivateRoot: preDeactivateRoot || '0',
+      roundInfo: {
+        title,
+        description: description || '',
+        link: link || '',
+      },
+      voiceCreditAmount,
+      voteOptionMap,
+      votingTime: {
+        start_time: startTime,
+        end_time: endTime,
+      },
+      whitelist,
+    };
+
+    let createResponse;
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        create_amaci_round: {
+          certification_system: '0',
+          circuit_type: circuitType.toString(),
+          max_voter: maxVoter.toString(),
+          operator,
+          oracle_whitelist_pubkey: oracleWhitelistPubkey,
+          pre_deactivate_root: preDeactivateRoot || '0',
+          round_info: roundParams.roundInfo,
+          voice_credit_amount: voiceCreditAmount,
+          vote_option_map: voteOptionMap,
+          voting_time: roundParams.votingTime,
+          whitelist,
+        },
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.apiSaasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: this.apiSaasAddress,
+      };
+      createResponse = await client.createAmaciRound(roundParams, grantFee);
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: this.apiSaasAddress,
+      };
+      createResponse = await client.createAmaciRound(roundParams, grantFee);
+    } else {
+      createResponse = await client.createAmaciRound(roundParams, fee);
+    }
+
+    let contractAddress = '';
+    createResponse.events.map((event) => {
+      if (event.type === 'wasm') {
+        let actionEvent = event.attributes.find(
+          (attr) => attr.key === 'action'
+        );
+        if (actionEvent && actionEvent.value === 'created_round') {
+          const roundAddrEvent = event.attributes.find(
+            (attr) => attr.key === 'round_addr'
+          );
+          if (roundAddrEvent) {
+            contractAddress = roundAddrEvent.value.toString();
+          }
+        }
+      }
+    });
+    return {
+      ...createResponse,
+      contractAddress,
+    };
   }
 }

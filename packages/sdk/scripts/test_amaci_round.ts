@@ -35,7 +35,13 @@ async function main() {
 
   const newRound = await client.createAMaciRound({
     maxVoter: 2,
-    maxOption: 5,
+    voteOptionMap: [
+      'option1: A',
+      'option2: B',
+      'option3: C',
+      'option4: D',
+      'option5: E',
+    ],
     operator: 'dora18mph6ekhf70pxqxpq0lfj3z7j3k4mqn8m2cna5',
     whitelist: {
       users: [

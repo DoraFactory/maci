@@ -30,14 +30,15 @@ export type ExecuteMsg =
       create_round: {
         certification_system: Uint256;
         circuit_type: Uint256;
-        max_option: Uint256;
         max_voter: Uint256;
         operator: Addr;
+        oracle_whitelist_pubkey?: string | null;
         pre_deactivate_root: Uint256;
         round_info: RoundInfo;
         voice_credit_amount: Uint256;
+        vote_option_map: string[];
         voting_time: VotingTime;
-        whitelist?: Whitelist | null;
+        whitelist?: WhitelistBase | null;
       };
     }
   | {
@@ -59,10 +60,16 @@ export type ExecuteMsg =
       change_operator: {
         address: Addr;
       };
+    }
+  | {
+      change_charge_config: {
+        config: CircuitChargeConfig;
+      };
     };
 export type Uint256 = string;
 export type Timestamp = Uint64;
 export type Uint64 = string;
+export type Decimal = string;
 export interface PubKey {
   x: Uint256;
   y: Uint256;
@@ -76,14 +83,17 @@ export interface VotingTime {
   end_time: Timestamp;
   start_time: Timestamp;
 }
-export interface Whitelist {
-  users: WhitelistConfig[];
+export interface WhitelistBase {
+  users: WhitelistBaseConfig[];
 }
-export interface WhitelistConfig {
+export interface WhitelistBaseConfig {
   addr: Addr;
 }
 export interface ValidatorSet {
   addresses: Addr[];
+}
+export interface CircuitChargeConfig {
+  fee_rate: Decimal;
 }
 export type QueryMsg =
   | {
@@ -119,6 +129,9 @@ export type QueryMsg =
       get_maci_operator_identity: {
         address: Addr;
       };
+    }
+  | {
+      get_circuit_charge_config: {};
     };
 export interface AdminResponse {
   admin: Addr;

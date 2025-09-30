@@ -19,12 +19,12 @@ import {
 // console.log('unpackedPubKey', unpackedPubKey);
 
 const testPubkey = [
-  5827311466370685211952568539970388544663846262770445492598349735595460940711n,
-  8096496613329018595519364599638286511614469079761562124032946370102381859707n,
+  12769049093512815109805843157053374870333836219695398287873723750090127046096n,
+  13285239372849835644585193783492824965629774934774283703422141276472494345222n,
 ] as PubKey;
 
 const packedTestPubkey = packPubKey(testPubkey);
-// console.log('packedTestPubkey', packedTestPubkey);
+console.log('packedTestPubkey', packedTestPubkey);
 
 const genKey = genKeypair();
 console.log('genKey Pubkey', packPubKey(genKey.pubKey));

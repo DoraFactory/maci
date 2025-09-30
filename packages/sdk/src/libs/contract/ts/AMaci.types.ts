@@ -13,12 +13,14 @@ export interface InstantiateMsg {
   certification_system: Uint256;
   circuit_type: Uint256;
   coordinator: PubKey;
-  max_vote_options: Uint256;
+  fee_recipient: Addr;
   operator: Addr;
+  oracle_whitelist_pubkey?: string | null;
   parameters: MaciParameters;
   pre_deactivate_root: Uint256;
   round_info: RoundInfo;
   voice_credit_amount: Uint256;
+  vote_option_map: string[];
   voting_time: VotingTime;
   whitelist?: WhitelistBase | null;
 }
@@ -65,6 +67,7 @@ export type ExecuteMsg =
     }
   | {
       sign_up: {
+        certificate?: string | null;
         pubkey: PubKey;
       };
     }
@@ -237,6 +240,24 @@ export type QueryMsg =
     }
   | {
       get_delay_records: {};
+    }
+  | {
+      get_tally_delay: {};
+    }
+  | {
+      query_oracle_whitelist_config: {};
+    }
+  | {
+      can_sign_up_with_oracle: {
+        certificate: string;
+        pubkey: PubKey;
+      };
+    }
+  | {
+      white_balance_of: {
+        certificate: string;
+        pubkey: PubKey;
+      };
     };
 export type Boolean = boolean;
 export type DelayType = 'deactivate_delay' | 'tally_delay';
@@ -259,6 +280,14 @@ export type PeriodStatus =
 export interface Period {
   status: PeriodStatus;
 }
+export interface TallyDelayInfo {
+  calculated_hours: number;
+  delay_seconds: number;
+  msg_chain_length: Uint256;
+  num_sign_ups: Uint256;
+  total_work: number;
+}
+export type NullableString = string | null;
 export type Uint128 = string;
 export type ArrayOfString = string[];
 export interface Whitelist {

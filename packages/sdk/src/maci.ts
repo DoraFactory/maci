@@ -3,6 +3,7 @@ import { Http, Indexer, Contract, OracleCertificate, MACI } from './libs';
 import { getDefaultParams } from './libs/const';
 import {
   CreateAMaciRoundParams,
+  CreateApiSaasAmaciRoundParams,
   CreateMaciRoundParams,
   CreateOracleMaciRoundParams,
   CreateSaasOracleMaciRoundParams,
@@ -234,6 +235,13 @@ export class MaciClient {
   }
   async createApiSaasMaciRound(params: CreateSaasOracleMaciRoundParams) {
     return await this.contract.createApiSaasMaciRound({
+      signer: this.getSigner(params.signer),
+      ...params,
+    });
+  }
+
+  async createApiSaasAmaciRound(params: CreateApiSaasAmaciRoundParams) {
+    return await this.contract.createApiSaasAmaciRound({
       signer: this.getSigner(params.signer),
       ...params,
     });

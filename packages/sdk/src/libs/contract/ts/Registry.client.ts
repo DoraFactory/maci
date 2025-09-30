@@ -17,12 +17,14 @@ import {
   Uint256,
   Timestamp,
   Uint64,
+  Decimal,
   PubKey,
   RoundInfo,
   VotingTime,
-  Whitelist,
-  WhitelistConfig,
+  WhitelistBase,
+  WhitelistBaseConfig,
   ValidatorSet,
+  CircuitChargeConfig,
   QueryMsg,
   AdminResponse,
   String,
@@ -38,6 +40,7 @@ export interface RegistryReadOnlyInterface {
   getValidatorOperator: ({ address }: { address: Addr }) => Promise<Addr>;
   getMaciOperatorPubkey: ({ address }: { address: Addr }) => Promise<PubKey>;
   getMaciOperatorIdentity: ({ address }: { address: Addr }) => Promise<String>;
+  getCircuitChargeConfig: () => Promise<CircuitChargeConfig>;
 }
 export class RegistryQueryClient implements RegistryReadOnlyInterface {
   client: CosmWasmClient;
@@ -53,6 +56,7 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
     this.getValidatorOperator = this.getValidatorOperator.bind(this);
     this.getMaciOperatorPubkey = this.getMaciOperatorPubkey.bind(this);
     this.getMaciOperatorIdentity = this.getMaciOperatorIdentity.bind(this);
+    this.getCircuitChargeConfig = this.getCircuitChargeConfig.bind(this);
   }
   admin = async (): Promise<AdminResponse> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -116,6 +120,11 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
       },
     });
   };
+  getCircuitChargeConfig = async (): Promise<CircuitChargeConfig> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_circuit_charge_config: {},
+    });
+  };
 }
 export interface RegistryInterface extends RegistryReadOnlyInterface {
   contractAddress: string;
@@ -154,25 +163,27 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
     {
       certificationSystem,
       circuitType,
-      maxOption,
       maxVoter,
       operator,
+      oracleWhitelistPubkey,
       preDeactivateRoot,
       roundInfo,
       voiceCreditAmount,
+      voteOptionMap,
       votingTime,
       whitelist,
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
-      maxOption: Uint256;
       maxVoter: Uint256;
       operator: Addr;
+      oracleWhitelistPubkey?: string;
       preDeactivateRoot: Uint256;
       roundInfo: RoundInfo;
       voiceCreditAmount: Uint256;
+      voteOptionMap: string[];
       votingTime: VotingTime;
-      whitelist?: Whitelist;
+      whitelist?: WhitelistBase;
     },
     fee?: number | StdFee | 'auto',
     memo?: string,
@@ -218,6 +229,16 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
+  changeChargeConfig: (
+    {
+      config,
+    }: {
+      config: CircuitChargeConfig;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
 }
 export class RegistryClient
   extends RegistryQueryClient
@@ -243,6 +264,7 @@ export class RegistryClient
     this.removeValidator = this.removeValidator.bind(this);
     this.updateAmaciCodeId = this.updateAmaciCodeId.bind(this);
     this.changeOperator = this.changeOperator.bind(this);
+    this.changeChargeConfig = this.changeChargeConfig.bind(this);
   }
   setMaciOperator = async (
     {
@@ -317,25 +339,27 @@ export class RegistryClient
     {
       certificationSystem,
       circuitType,
-      maxOption,
       maxVoter,
       operator,
+      oracleWhitelistPubkey,
       preDeactivateRoot,
       roundInfo,
       voiceCreditAmount,
+      voteOptionMap,
       votingTime,
       whitelist,
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
-      maxOption: Uint256;
       maxVoter: Uint256;
       operator: Addr;
+      oracleWhitelistPubkey?: string;
       preDeactivateRoot: Uint256;
       roundInfo: RoundInfo;
       voiceCreditAmount: Uint256;
+      voteOptionMap: string[];
       votingTime: VotingTime;
-      whitelist?: Whitelist;
+      whitelist?: WhitelistBase;
     },
     fee: number | StdFee | 'auto' = 'auto',
     memo?: string,
@@ -348,12 +372,13 @@ export class RegistryClient
         create_round: {
           certification_system: certificationSystem,
           circuit_type: circuitType,
-          max_option: maxOption,
           max_voter: maxVoter,
           operator,
+          oracle_whitelist_pubkey: oracleWhitelistPubkey,
           pre_deactivate_root: preDeactivateRoot,
           round_info: roundInfo,
           voice_credit_amount: voiceCreditAmount,
+          vote_option_map: voteOptionMap,
           voting_time: votingTime,
           whitelist,
         },
@@ -448,6 +473,29 @@ export class RegistryClient
       {
         change_operator: {
           address,
+        },
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  changeChargeConfig = async (
+    {
+      config,
+    }: {
+      config: CircuitChargeConfig;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        change_charge_config: {
+          config,
         },
       },
       fee,

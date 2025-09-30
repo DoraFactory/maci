@@ -469,7 +469,7 @@ export class MACI {
     contractAddress: string;
     maciKeypair?: Keypair;
     oracleCertificate?: {
-      amount: string;
+      amount?: string;
       signature: string;
     };
     gasStation?: boolean;
@@ -489,22 +489,28 @@ export class MACI {
         signer,
       });
 
-      if (oracleCertificate) {
+      // If oracleCertificate has data and amount has data, use signupOracle
+      if (oracleCertificate && oracleCertificate.amount) {
         return await this.signupOracle({
           client,
           address,
           pubKey: maciKeypair.pubKey,
           contractAddress,
-          oracleCertificate,
+          oracleCertificate: {
+            amount: oracleCertificate.amount,
+            signature: oracleCertificate.signature,
+          },
           gasStation,
           fee,
         });
       } else {
+        // If oracleCertificate has data but amount is missing, or oracleCertificate is missing, use signupSimple
         return await this.signupSimple({
           client,
           address,
           pubKey: maciKeypair.pubKey,
           contractAddress,
+          certificate: oracleCertificate?.signature,
           gasStation,
           fee,
         });
@@ -529,7 +535,7 @@ export class MACI {
     contractAddress: string;
     pubKey: PubKey;
     oracleCertificate?: {
-      amount: string;
+      amount?: string;
       signature: string;
     };
     gasStation?: boolean;
@@ -545,23 +551,29 @@ export class MACI {
         signer,
       });
 
-      if (oracleCertificate) {
+      // If oracleCertificate has data and amount has data, use signupOracle
+      if (oracleCertificate && oracleCertificate.amount) {
         return await this.signupOracle({
           client,
           address,
           pubKey,
           contractAddress,
-          oracleCertificate,
+          oracleCertificate: {
+            amount: oracleCertificate.amount,
+            signature: oracleCertificate.signature,
+          },
           gasStation,
           granter,
           fee,
         });
       } else {
+        // If oracleCertificate has data but amount is missing, or oracleCertificate is missing, use signupSimple
         return await this.signupSimple({
           client,
           address,
           pubKey,
           contractAddress,
+          certificate: oracleCertificate?.signature,
           gasStation,
           granter,
           fee,
@@ -910,6 +922,7 @@ export class MACI {
     address,
     pubKey,
     contractAddress,
+    certificate,
     gasStation,
     granter,
     fee = 1.8,
@@ -918,12 +931,14 @@ export class MACI {
     address: string;
     pubKey: PubKey;
     contractAddress: string;
+    certificate?: string;
     gasStation?: boolean;
     granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
     const msg = {
       sign_up: {
+        certificate,
         pubkey: {
           x: pubKey[0].toString(),
           y: pubKey[1].toString(),

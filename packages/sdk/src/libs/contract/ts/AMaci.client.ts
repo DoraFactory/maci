@@ -32,6 +32,8 @@ import {
   DelayRecord,
   PeriodStatus,
   Period,
+  TallyDelayInfo,
+  NullableString,
   Uint128,
   ArrayOfString,
   Whitelist,
@@ -67,6 +69,22 @@ export interface AMaciReadOnlyInterface {
   queryCertSystem: () => Promise<Uint256>;
   queryPreDeactivateRoot: () => Promise<Uint256>;
   getDelayRecords: () => Promise<DelayRecords>;
+  getTallyDelay: () => Promise<TallyDelayInfo>;
+  queryOracleWhitelistConfig: () => Promise<NullableString>;
+  canSignUpWithOracle: ({
+    certificate,
+    pubkey,
+  }: {
+    certificate: string;
+    pubkey: PubKey;
+  }) => Promise<Boolean>;
+  whiteBalanceOf: ({
+    certificate,
+    pubkey,
+  }: {
+    certificate: string;
+    pubkey: PubKey;
+  }) => Promise<Uint256>;
 }
 export class AMaciQueryClient implements AMaciReadOnlyInterface {
   client: CosmWasmClient;
@@ -102,6 +120,11 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.queryCertSystem = this.queryCertSystem.bind(this);
     this.queryPreDeactivateRoot = this.queryPreDeactivateRoot.bind(this);
     this.getDelayRecords = this.getDelayRecords.bind(this);
+    this.getTallyDelay = this.getTallyDelay.bind(this);
+    this.queryOracleWhitelistConfig =
+      this.queryOracleWhitelistConfig.bind(this);
+    this.canSignUpWithOracle = this.canSignUpWithOracle.bind(this);
+    this.whiteBalanceOf = this.whiteBalanceOf.bind(this);
   }
   admin = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -261,6 +284,44 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
       get_delay_records: {},
     });
   };
+  getTallyDelay = async (): Promise<TallyDelayInfo> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_tally_delay: {},
+    });
+  };
+  queryOracleWhitelistConfig = async (): Promise<NullableString> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      query_oracle_whitelist_config: {},
+    });
+  };
+  canSignUpWithOracle = async ({
+    certificate,
+    pubkey,
+  }: {
+    certificate: string;
+    pubkey: PubKey;
+  }): Promise<Boolean> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      can_sign_up_with_oracle: {
+        certificate,
+        pubkey,
+      },
+    });
+  };
+  whiteBalanceOf = async ({
+    certificate,
+    pubkey,
+  }: {
+    certificate: string;
+    pubkey: PubKey;
+  }): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      white_balance_of: {
+        certificate,
+        pubkey,
+      },
+    });
+  };
 }
 export interface AMaciInterface extends AMaciReadOnlyInterface {
   contractAddress: string;
@@ -297,8 +358,10 @@ export interface AMaciInterface extends AMaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   signUp: (
     {
+      certificate,
       pubkey,
     }: {
+      certificate?: string;
       pubkey: PubKey;
     },
     fee?: number | StdFee | 'auto',
@@ -529,8 +592,10 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
   };
   signUp = async (
     {
+      certificate,
       pubkey,
     }: {
+      certificate?: string;
       pubkey: PubKey;
     },
     fee: number | StdFee | 'auto' = 'auto',
@@ -542,6 +607,7 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
       this.contractAddress,
       {
         sign_up: {
+          certificate,
           pubkey,
         },
       },
