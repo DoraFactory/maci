@@ -788,41 +788,6 @@ export class MACI {
         );
       }
 
-      let voiceCreditBalance;
-      if (round.data.round.maciType === 'aMACI') {
-        const isWhiteListed = await this.isWhitelisted({
-          signer,
-          address,
-          contractAddress,
-        });
-
-        if (isWhiteListed) {
-          const round = await this.indexer.getRoundWithFields(contractAddress, [
-            'voiceCreditAmount',
-          ]);
-
-          if (!isErrorResponse(round)) {
-            if (round.data.round.voiceCreditAmount) {
-              voiceCreditBalance = round.data.round.voiceCreditAmount;
-            } else {
-              voiceCreditBalance = '0';
-            }
-          } else {
-            throw new Error(
-              `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
-            );
-          }
-        } else {
-          voiceCreditBalance = '0';
-        }
-      } else {
-        voiceCreditBalance = await this.getVoiceCreditBalance({
-          signer,
-          stateIdx,
-          contractAddress,
-        });
-      }
-
       if (!address) {
         address = (await signer.getAccounts())[0].address;
       }
