@@ -302,4 +302,24 @@ export class VoterClient {
 
 		return input;
 	}
+
+	async buildDeactivatePayload({
+		stateIdx,
+		operatorPubkey,
+		plan,
+		derivePathParams,
+	}: {
+		stateIdx: number;
+		operatorPubkey: bigint;
+		plan: [number, number][];
+		derivePathParams?: DerivePathParams;
+	}) {
+		const payload = this.batchGenMessage(
+			stateIdx,
+			operatorPubkey,
+			plan,
+			derivePathParams
+		);
+		return payload;
+	}
 }

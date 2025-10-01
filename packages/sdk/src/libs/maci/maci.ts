@@ -1137,6 +1137,108 @@ export class MACI {
     }
   }
 
+  async rawDeactivate({
+    signer,
+    address,
+    contractAddress,
+    payload,
+    gasStation,
+    fee = 1.8,
+  }: {
+    signer: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PubKey;
+    };
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    try {
+      address = address || (await signer.getAccounts())[0].address;
+
+      const client = await this.contract.contractClient({
+        signer,
+      });
+
+      // const payload = batchGenMessage(
+      //   Number(stateIdx),
+      //   maciKeypair,
+      //   [
+      //     BigInt(operatorCoordPubKey.coordinatorPubkeyX),
+      //     BigInt(operatorCoordPubKey.coordinatorPubkeyY),
+      //   ],
+      //   [[0, 0]]
+      // );
+
+      const { msg, encPubkeys } = payload;
+
+      const deactivateMsg = stringizing({
+        publish_deactivate_message: {
+          enc_pub_key: {
+            x: encPubkeys[0],
+            y: encPubkeys[1],
+          },
+          message: {
+            data: msg,
+          },
+        },
+      });
+
+      if (gasStation === true && typeof fee !== 'object') {
+        // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+        const gasEstimation = await client.simulate(
+          address,
+          [
+            {
+              typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+              value: {
+                sender: address,
+                contract: contractAddress,
+                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg)),
+              },
+            },
+          ],
+          ''
+        );
+        const multiplier = typeof fee === 'number' ? fee : 1.8;
+        const gasPrice = GasPrice.fromString('10000000000peaka');
+        const calculatedFee = calculateFee(
+          Math.round(gasEstimation * multiplier),
+          gasPrice
+        );
+        const grantFee: StdFee = {
+          amount: calculatedFee.amount,
+          gas: calculatedFee.gas,
+          granter: contractAddress,
+        };
+        return client.execute(
+          address,
+          contractAddress,
+          deactivateMsg,
+          grantFee
+        );
+      } else if (gasStation === true && typeof fee === 'object') {
+        // When gasStation is true and fee is StdFee, add granter
+        const grantFee: StdFee = {
+          ...fee,
+          granter: contractAddress,
+        };
+        return client.execute(
+          address,
+          contractAddress,
+          deactivateMsg,
+          grantFee
+        );
+      }
+
+      return client.execute(address, contractAddress, deactivateMsg, fee);
+    } catch (error) {
+      throw Error(`Submit deactivate failed! ${error}`);
+    }
+  }
+
   async fetchAllDeactivateLogs({
     contractAddress,
   }: {

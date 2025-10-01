@@ -771,4 +771,32 @@ export class MaciClient {
   async fetchAllDeactivateLogs(contractAddress: string) {
     return await this.indexer.fetchAllDeactivateLogs(contractAddress);
   }
+
+  async rawDeactivate({
+    signer,
+    address,
+    contractAddress,
+    payload,
+    gasStation = false,
+    fee,
+  }: {
+    signer?: OfflineSigner;
+    address?: string;
+    contractAddress: string;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PubKey;
+    };
+    gasStation?: boolean;
+    fee?: StdFee;
+  }) {
+    return await this.maci.rawDeactivate({
+      signer: this.getSigner(signer),
+      address,
+      contractAddress,
+      payload,
+      gasStation,
+      fee,
+    });
+  }
 }
