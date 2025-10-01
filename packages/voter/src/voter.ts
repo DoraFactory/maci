@@ -1,14 +1,27 @@
 import CryptoJS from 'crypto-js';
+import { solidityPackedSha256 } from 'ethers';
+
 import { MaciAccount } from './account';
 import {
 	packPubKey,
 	unpackPubKey,
 	genEcdhSharedKey,
 	genKeypair,
+	genRandomSalt,
+	rerandomize,
+	Tree,
+	stringizing,
+	SNARK_FIELD_SIZE,
 } from './crypto';
 import { poseidon } from './crypto/hashing';
 import { poseidonEncrypt } from '@zk-kit/poseidon-cipher';
-import { ClientParams, DerivePathParams, PubKey, PrivKey } from './types';
+import {
+	ClientParams,
+	DerivePathParams,
+	PubKey,
+	PrivKey,
+	DeactivateMessage,
+} from './types';
 
 /**
  * @class Maci Voter Client
@@ -184,5 +197,109 @@ export class VoterClient {
 		};
 	}
 
-	// async buildAddNewKeyPayload() {}
+	async buildAddNewKeyPayload({
+		stateTreeDepth,
+		operatorPubkey,
+		deactivates,
+		derivePathParams,
+	}: {
+		stateTreeDepth: number;
+		operatorPubkey: bigint;
+		deactivates: DeactivateMessage[];
+		derivePathParams?: DerivePathParams;
+	}) {
+		const [coordPubkeyX, coordPubkeyY] =
+			this.unpackMaciPubkey(operatorPubkey);
+		// const stateTreeDepth = Number(circuitPower.split('-')[0]);
+		const inputObj = this.genAddKeyInput(stateTreeDepth + 2, {
+			coordPubKey: [coordPubkeyX, coordPubkeyY],
+			deactivates: deactivates.map((d: any) => d.map(BigInt)),
+			derivePathParams,
+		});
+		return inputObj;
+
+		// 1. generate proof
+
+		// 2. compress proof to vote proof
+
+		// 3. send addNewKey tx
+	}
+
+	async genAddKeyInput(
+		depth: number,
+		{
+			coordPubKey,
+			deactivates,
+			derivePathParams,
+		}: {
+			coordPubKey: PubKey;
+			deactivates: bigint[][];
+			derivePathParams?: DerivePathParams;
+		}
+	) {
+		const signer = this.getSigner(derivePathParams);
+
+		const sharedKeyHash = poseidon(signer.genEcdhSharedKey(coordPubKey));
+
+		const randomVal = genRandomSalt();
+		const deactivateIdx = deactivates.findIndex(
+			d => d[4] === sharedKeyHash
+		);
+		if (deactivateIdx < 0) {
+			return null;
+		}
+
+		const deactivateLeaf = deactivates[deactivateIdx];
+
+		const c1 = [deactivateLeaf[0], deactivateLeaf[1]];
+		const c2 = [deactivateLeaf[2], deactivateLeaf[3]];
+
+		const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
+
+		const nullifier = poseidon([
+			signer.getFormatedPrivKey(),
+			1444992409218394441042n,
+		]);
+
+		const tree = new Tree(5, depth, 0n);
+		const leaves = deactivates.map(d => poseidon(d));
+		tree.initLeaves(leaves);
+
+		const deactivateRoot = tree.root;
+		const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
+
+		const inputHash =
+			BigInt(
+				solidityPackedSha256(
+					new Array(7).fill('uint256'),
+					stringizing([
+						deactivateRoot,
+						poseidon(coordPubKey),
+						nullifier,
+						d1[0],
+						d1[1],
+						d2[0],
+						d2[1],
+					]) as string[]
+				)
+			) % SNARK_FIELD_SIZE;
+
+		const input = {
+			inputHash,
+			coordPubKey,
+			deactivateRoot,
+			deactivateIndex: deactivateIdx,
+			deactivateLeaf: poseidon(deactivateLeaf),
+			c1,
+			c2,
+			randomVal,
+			d1,
+			d2,
+			deactivateLeafPathElements,
+			nullifier,
+			oldPrivateKey: signer.getFormatedPrivKey(),
+		};
+
+		return input;
+	}
 }

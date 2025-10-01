@@ -763,4 +763,12 @@ export class MaciClient {
       fee,
     });
   }
+
+  async getSignUpEventByPubKey(contractAddress: string, pubKey: bigint[]) {
+    return await this.indexer.getSignUpEventByPubKey(contractAddress, pubKey);
+  }
+
+  async fetchAllDeactivateLogs(contractAddress: string) {
+    return await this.indexer.fetchAllDeactivateLogs(contractAddress);
+  }
 }

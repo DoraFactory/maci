@@ -51,17 +51,21 @@ import { EdDSAPoseidonPublicKey } from './publickey';
 import {
 	bigInt2Buffer,
 	buffer2Bigint,
+	EcdhSharedKey,
 	formatPrivKeyForBabyJub,
 	genKeypair,
 	genPubKey,
 	hash5,
 	packPubKey,
+	Point,
+	PubKey,
 	SNARK_FIELD_SIZE,
 } from '../../crypto';
 
 // Type definitions and utility functions
 import { BigNumberish } from '@zk-kit/utils';
 import { addressToUint256, toBase64 } from 'src/utils';
+import { mulPointEscalar } from '@zk-kit/baby-jubjub';
 
 // Default BIP-32 derivation path for EdDSA-Poseidon keypairs
 // Uses Cosmos SDK coin type (118) for compatibility with blockchain ecosystems
@@ -76,6 +80,7 @@ export interface EdDSAPoseidonKeypairData {
 	publicKey: bigint;
 	/** The secret key component as a bigint */
 	secretKey: bigint;
+	formatedPrivKey: bigint;
 }
 
 /**
@@ -112,7 +117,9 @@ export class EdDSAPoseidonKeypair extends Keypair {
 			// Pack the public key into a more compact format for storage and transmission
 			const publicKey = packPubKey(unPackedPublicKey);
 
-			this.keypair = { publicKey, secretKey };
+			const formatedPrivKey = formatPrivKeyForBabyJub(secretKey);
+
+			this.keypair = { publicKey, secretKey, formatedPrivKey };
 		}
 	}
 
@@ -187,7 +194,12 @@ export class EdDSAPoseidonKeypair extends Keypair {
 			}
 		}
 
-		return new EdDSAPoseidonKeypair({ publicKey, secretKey });
+		const formatedPrivKey = formatPrivKeyForBabyJub(secretKey);
+		return new EdDSAPoseidonKeypair({
+			publicKey,
+			secretKey,
+			formatedPrivKey,
+		});
 	}
 
 	/**
@@ -209,6 +221,10 @@ export class EdDSAPoseidonKeypair extends Keypair {
 	 */
 	getSecretKey(): string {
 		return bytesToHex(bigInt2Buffer(this.keypair.secretKey));
+	}
+
+	getFormatedPrivKey(): bigint {
+		return this.keypair.formatedPrivKey;
 	}
 
 	/**
@@ -283,6 +299,7 @@ export class EdDSAPoseidonKeypair extends Keypair {
 		return new EdDSAPoseidonKeypair({
 			publicKey: pubKey,
 			secretKey: secretKey,
+			formatedPrivKey: formatPrivKeyForBabyJub(secretKey),
 		});
 	}
 
@@ -362,5 +379,18 @@ export class EdDSAPoseidonKeypair extends Keypair {
 		// Sign the Poseidon hash and return as base64-encoded packed signature
 		const signature = this.sign(messageHash);
 		return toBase64(new Uint8Array(packSignature(signature)));
+	}
+
+	/**
+	 * Generates an Elliptic-Curve Diffie–Hellman (ECDH) shared key given a private
+	 * key and a public key.
+	 * @param pubKey A public key generated using genPubKey()
+	 * @returns The ECDH shared key.
+	 */
+	genEcdhSharedKey(pubKey: PubKey): EcdhSharedKey {
+		return mulPointEscalar(
+			pubKey as Point<bigint>,
+			this.keypair.formatedPrivKey
+		);
 	}
 }
