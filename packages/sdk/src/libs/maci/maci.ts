@@ -1319,6 +1319,42 @@ export class MACI {
     );
   }
 
+  async rawAddNewKey({
+    signer,
+    contractAddress,
+    d,
+    proof,
+    nullifier,
+    newPubkey,
+    fee = 'auto',
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    d: string[];
+    proof: Groth16ProofType;
+    nullifier: bigint;
+    newPubkey: PubKey;
+    fee?: number | StdFee | 'auto';
+  }) {
+    const client = await this.contract.amaciClient({
+      signer,
+      contractAddress,
+    });
+
+    return await client.addNewKey(
+      {
+        d,
+        groth16Proof: proof,
+        nullifier: nullifier.toString(),
+        pubkey: {
+          x: newPubkey[0].toString(),
+          y: newPubkey[1].toString(),
+        },
+      },
+      fee
+    );
+  }
+
   async claimAMaciRound({
     signer,
     contractAddress,

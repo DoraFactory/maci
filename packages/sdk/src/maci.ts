@@ -799,4 +799,32 @@ export class MaciClient {
       fee,
     });
   }
+
+  async rawAddNewKey({
+    signer,
+    contractAddress,
+    d,
+    proof,
+    nullifier,
+    newPubkey,
+    fee,
+  }: {
+    signer?: OfflineSigner;
+    contractAddress: string;
+    d: string[];
+    proof: Groth16ProofType;
+    nullifier: bigint;
+    newPubkey: PubKey;
+    fee?: number | StdFee | 'auto';
+  }) {
+    return await this.maci.rawAddNewKey({
+      signer: this.getSigner(signer),
+      contractAddress,
+      d,
+      proof,
+      nullifier,
+      newPubkey,
+      fee,
+    });
+  }
 }
