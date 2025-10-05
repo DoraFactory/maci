@@ -1142,7 +1142,8 @@ export class MACI {
     address,
     contractAddress,
     payload,
-    gasStation,
+    gasStation = false,
+    granter,
     fee = 1.8,
   }: {
     signer: OfflineSigner;
@@ -1153,6 +1154,7 @@ export class MACI {
       encPubkeys: PubKey;
     };
     gasStation?: boolean;
+    granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
     try {
@@ -1211,7 +1213,7 @@ export class MACI {
         const grantFee: StdFee = {
           amount: calculatedFee.amount,
           gas: calculatedFee.gas,
-          granter: contractAddress,
+          granter: granter || contractAddress,
         };
         return client.execute(
           address,
@@ -1223,7 +1225,7 @@ export class MACI {
         // When gasStation is true and fee is StdFee, add granter
         const grantFee: StdFee = {
           ...fee,
-          granter: contractAddress,
+          granter: granter || contractAddress,
         };
         return client.execute(
           address,
@@ -1326,6 +1328,8 @@ export class MACI {
     proof,
     nullifier,
     newPubkey,
+    gasStation = false,
+    granter,
     fee = 'auto',
   }: {
     signer: OfflineSigner;
@@ -1334,12 +1338,90 @@ export class MACI {
     proof: Groth16ProofType;
     nullifier: bigint;
     newPubkey: PubKey;
+    gasStation?: boolean;
+    granter?: string;
     fee?: number | StdFee | 'auto';
   }) {
     const client = await this.contract.amaciClient({
       signer,
       contractAddress,
     });
+
+    if (gasStation === true && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contract.contractClient({ signer });
+
+      const msg = {
+        add_new_key: {
+          d,
+          groth16_proof: proof,
+          nullifier: nullifier.toString(),
+          pubkey: {
+            x: newPubkey[0].toString(),
+            y: newPubkey[1].toString(),
+          },
+        },
+      };
+
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: contractAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: granter || contractAddress,
+      };
+
+      return await client.addNewKey(
+        {
+          d,
+          groth16Proof: proof,
+          nullifier: nullifier.toString(),
+          pubkey: {
+            x: newPubkey[0].toString(),
+            y: newPubkey[1].toString(),
+          },
+        },
+        grantFee
+      );
+    } else if (gasStation === true && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: granter || contractAddress,
+      };
+
+      return await client.addNewKey(
+        {
+          d,
+          groth16Proof: proof,
+          nullifier: nullifier.toString(),
+          pubkey: {
+            x: newPubkey[0].toString(),
+            y: newPubkey[1].toString(),
+          },
+        },
+        grantFee
+      );
+    }
 
     return await client.addNewKey(
       {

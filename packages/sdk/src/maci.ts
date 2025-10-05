@@ -778,6 +778,7 @@ export class MaciClient {
     contractAddress,
     payload,
     gasStation = false,
+    granter,
     fee,
   }: {
     signer?: OfflineSigner;
@@ -788,7 +789,8 @@ export class MaciClient {
       encPubkeys: PubKey;
     };
     gasStation?: boolean;
-    fee?: StdFee;
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
   }) {
     return await this.maci.rawDeactivate({
       signer: this.getSigner(signer),
@@ -796,6 +798,7 @@ export class MaciClient {
       contractAddress,
       payload,
       gasStation,
+      granter,
       fee,
     });
   }
@@ -807,6 +810,8 @@ export class MaciClient {
     proof,
     nullifier,
     newPubkey,
+    gasStation = false,
+    granter,
     fee,
   }: {
     signer?: OfflineSigner;
@@ -815,7 +820,9 @@ export class MaciClient {
     proof: Groth16ProofType;
     nullifier: bigint;
     newPubkey: PubKey;
-    fee?: number | StdFee | 'auto';
+    gasStation?: boolean;
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
   }) {
     return await this.maci.rawAddNewKey({
       signer: this.getSigner(signer),
@@ -824,6 +831,8 @@ export class MaciClient {
       proof,
       nullifier,
       newPubkey,
+      gasStation,
+      granter,
       fee,
     });
   }
