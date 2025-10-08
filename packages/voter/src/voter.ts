@@ -1,5 +1,6 @@
 import CryptoJS from 'crypto-js';
 import { solidityPackedSha256 } from 'ethers';
+import snarkjs from 'snarkjs';
 
 import { MaciAccount } from './account';
 import {
@@ -12,6 +13,7 @@ import {
 	Tree,
 	stringizing,
 	SNARK_FIELD_SIZE,
+	adaptToUncompressed,
 } from './crypto';
 import { poseidon } from './crypto/hashing';
 import { poseidonEncrypt } from '@zk-kit/poseidon-cipher';
@@ -102,7 +104,7 @@ export class VoterClient {
 			derivePathParams
 		);
 
-		return payload;
+		return stringizing(payload);
 	}
 
 	batchGenMessage(
@@ -201,28 +203,59 @@ export class VoterClient {
 		stateTreeDepth,
 		operatorPubkey,
 		deactivates,
+		wasmFile,
+		zkeyFile,
 		derivePathParams,
 	}: {
 		stateTreeDepth: number;
 		operatorPubkey: bigint;
 		deactivates: DeactivateMessage[];
+		wasmFile: string;
+		zkeyFile: string;
 		derivePathParams?: DerivePathParams;
-	}) {
+	}): Promise<{
+		proof: {
+			a: string;
+			b: string;
+			c: string;
+		};
+		d: string[];
+		nullifier: string;
+	}> {
 		const [coordPubkeyX, coordPubkeyY] =
 			this.unpackMaciPubkey(operatorPubkey);
 		// const stateTreeDepth = Number(circuitPower.split('-')[0]);
-		const inputObj = this.genAddKeyInput(stateTreeDepth + 2, {
+		const addKeyInput = await this.genAddKeyInput(stateTreeDepth + 2, {
 			coordPubKey: [coordPubkeyX, coordPubkeyY],
 			deactivates: deactivates.map((d: any) => d.map(BigInt)),
 			derivePathParams,
 		});
-		return inputObj;
+
+		if (addKeyInput === null) {
+			throw Error('genAddKeyInput failed');
+		}
 
 		// 1. generate proof
+		const { proof } = await snarkjs.groth16.fullProve(
+			addKeyInput,
+			wasmFile,
+			zkeyFile
+		);
 
 		// 2. compress proof to vote proof
+		const proofHex = await adaptToUncompressed(proof);
 
 		// 3. send addNewKey tx
+		return {
+			proof: proofHex,
+			d: [
+				addKeyInput.d1[0].toString(),
+				addKeyInput.d1[1].toString(),
+				addKeyInput.d2[0].toString(),
+				addKeyInput.d2[1].toString(),
+			],
+			nullifier: addKeyInput.nullifier.toString(),
+		};
 	}
 
 	async genAddKeyInput(
@@ -318,6 +351,6 @@ export class VoterClient {
 			[[0, 0]],
 			derivePathParams
 		);
-		return payload;
+		return stringizing(payload[0]);
 	}
 }
