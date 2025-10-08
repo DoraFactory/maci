@@ -1,6 +1,6 @@
 import CryptoJS from 'crypto-js';
 import { solidityPackedSha256 } from 'ethers';
-import snarkjs from 'snarkjs';
+import { groth16 } from 'snarkjs';
 
 import { MaciAccount } from './account';
 import {
@@ -236,7 +236,7 @@ export class VoterClient {
 		}
 
 		// 1. generate proof
-		const { proof } = await snarkjs.groth16.fullProve(
+		const { proof } = await groth16.fullProve(
 			addKeyInput,
 			wasmFile,
 			zkeyFile
