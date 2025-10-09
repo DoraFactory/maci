@@ -734,7 +734,6 @@ export class MaciClient {
     signer,
     address,
     contractAddress,
-    pubKey,
     payload,
     gasStation = false,
     granter,
@@ -743,7 +742,6 @@ export class MaciClient {
     signer?: OfflineSigner;
     address?: string;
     contractAddress: string;
-    pubKey: PubKey;
     payload: {
       msg: bigint[];
       encPubkeys: PubKey;
@@ -756,7 +754,6 @@ export class MaciClient {
       signer: this.getSigner(signer),
       address,
       contractAddress,
-      pubKey,
       payload,
       gasStation,
       granter,
@@ -825,6 +822,40 @@ export class MaciClient {
     fee?: StdFee | 'auto' | number;
   }) {
     return await this.maci.rawAddNewKey({
+      signer: this.getSigner(signer),
+      contractAddress,
+      d,
+      proof,
+      nullifier,
+      newPubkey,
+      gasStation,
+      granter,
+      fee,
+    });
+  }
+
+  async rawPreAddNewKey({
+    signer,
+    contractAddress,
+    d,
+    proof,
+    nullifier,
+    newPubkey,
+    gasStation = false,
+    granter,
+    fee,
+  }: {
+    signer?: OfflineSigner;
+    contractAddress: string;
+    d: string[];
+    proof: Groth16ProofType;
+    nullifier: bigint;
+    newPubkey: PubKey;
+    gasStation?: boolean;
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    return await this.maci.rawPreAddNewKey({
       signer: this.getSigner(signer),
       contractAddress,
       d,

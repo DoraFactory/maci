@@ -747,7 +747,6 @@ export class MACI {
     signer,
     address,
     contractAddress,
-    pubKey,
     payload,
     gasStation = false,
     granter,
@@ -756,7 +755,6 @@ export class MACI {
     signer: OfflineSigner;
     address?: string;
     contractAddress: string;
-    pubKey: PubKey;
     payload: {
       msg: bigint[];
       encPubkeys: PubKey;
@@ -765,29 +763,7 @@ export class MACI {
     granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
-    const stateIdx = await this.getStateIdxByPubKey({
-      contractAddress,
-      pubKey,
-    });
-
-    if (stateIdx === -1) {
-      throw new Error(
-        'State index is not set, Please signup or addNewKey first'
-      );
-    }
-
     try {
-      const round = await this.indexer.getRoundWithFields(contractAddress, [
-        'maciType',
-        'voiceCreditAmount',
-      ]);
-
-      if (isErrorResponse(round)) {
-        throw new Error(
-          `Failed to get round info: ${round.error.type} ${round.error.message}`
-        );
-      }
-
       if (!address) {
         address = (await signer.getAccounts())[0].address;
       }
@@ -1424,6 +1400,122 @@ export class MACI {
     }
 
     return await client.addNewKey(
+      {
+        d,
+        groth16Proof: proof,
+        nullifier: nullifier.toString(),
+        pubkey: {
+          x: newPubkey[0].toString(),
+          y: newPubkey[1].toString(),
+        },
+      },
+      fee
+    );
+  }
+
+  async rawPreAddNewKey({
+    signer,
+    contractAddress,
+    d,
+    proof,
+    nullifier,
+    newPubkey,
+    gasStation = false,
+    granter,
+    fee = 'auto',
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    d: string[];
+    proof: Groth16ProofType;
+    nullifier: bigint;
+    newPubkey: PubKey;
+    gasStation?: boolean;
+    granter?: string;
+    fee?: number | StdFee | 'auto';
+  }) {
+    const client = await this.contract.amaciClient({
+      signer,
+      contractAddress,
+    });
+
+    if (gasStation === true && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contract.contractClient({ signer });
+
+      const msg = {
+        pre_add_new_key: {
+          d,
+          groth16_proof: proof,
+          nullifier: nullifier.toString(),
+          pubkey: {
+            x: newPubkey[0].toString(),
+            y: newPubkey[1].toString(),
+          },
+        },
+      };
+
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: contractAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg)),
+            },
+          },
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(
+        Math.round(gasEstimation * multiplier),
+        gasPrice
+      );
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: granter || contractAddress,
+      };
+
+      return await client.preAddNewKey(
+        {
+          d,
+          groth16Proof: proof,
+          nullifier: nullifier.toString(),
+          pubkey: {
+            x: newPubkey[0].toString(),
+            y: newPubkey[1].toString(),
+          },
+        },
+        grantFee
+      );
+    } else if (gasStation === true && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: granter || contractAddress,
+      };
+
+      return await client.preAddNewKey(
+        {
+          d,
+          groth16Proof: proof,
+          nullifier: nullifier.toString(),
+          pubkey: {
+            x: newPubkey[0].toString(),
+            y: newPubkey[1].toString(),
+          },
+        },
+        grantFee
+      );
+    }
+
+    return await client.preAddNewKey(
       {
         d,
         groth16Proof: proof,
