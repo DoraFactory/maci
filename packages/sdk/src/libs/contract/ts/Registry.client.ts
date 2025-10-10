@@ -166,6 +166,7 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
       maxVoter,
       operator,
       oracleWhitelistPubkey,
+      preDeactivateCoordinator,
       preDeactivateRoot,
       roundInfo,
       voiceCreditAmount,
@@ -178,6 +179,7 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
       maxVoter: Uint256;
       operator: Addr;
       oracleWhitelistPubkey?: string;
+      preDeactivateCoordinator?: PubKey;
       preDeactivateRoot: Uint256;
       roundInfo: RoundInfo;
       voiceCreditAmount: Uint256;
@@ -342,6 +344,7 @@ export class RegistryClient
       maxVoter,
       operator,
       oracleWhitelistPubkey,
+      preDeactivateCoordinator,
       preDeactivateRoot,
       roundInfo,
       voiceCreditAmount,
@@ -354,6 +357,7 @@ export class RegistryClient
       maxVoter: Uint256;
       operator: Addr;
       oracleWhitelistPubkey?: string;
+      preDeactivateCoordinator?: PubKey;
       preDeactivateRoot: Uint256;
       roundInfo: RoundInfo;
       voiceCreditAmount: Uint256;
@@ -375,6 +379,7 @@ export class RegistryClient
           max_voter: maxVoter,
           operator,
           oracle_whitelist_pubkey: oracleWhitelistPubkey,
+          pre_deactivate_coordinator: preDeactivateCoordinator,
           pre_deactivate_root: preDeactivateRoot,
           round_info: roundInfo,
           voice_credit_amount: voiceCreditAmount,

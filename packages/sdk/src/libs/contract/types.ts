@@ -8,6 +8,7 @@ import {
   MaciCertSystemType,
   CertificateEcosystem,
 } from '../../types';
+import { PubKey } from '../crypto';
 
 export type CreateRoundParams = {
   signer?: OfflineSigner;
@@ -27,6 +28,7 @@ export type CreateAMaciRoundParams = {
   whitelist?: RegistryWhitelist;
   voiceCreditAmount: string;
   preDeactivateRoot?: string;
+  preDeactivateCoordinator?: PubKey | bigint;
   oracleWhitelistPubkey?: string;
 } & CreateRoundParams;
 
@@ -67,6 +69,7 @@ export type CreateApiSaasAmaciRoundParams = {
   whitelist?: RegistryWhitelist;
   voiceCreditAmount: string;
   preDeactivateRoot?: string;
+  preDeactivateCoordinator?: PubKey | bigint;
   oracleWhitelistPubkey?: string;
   gasStation?: boolean;
   fee?: StdFee | 'auto' | number;

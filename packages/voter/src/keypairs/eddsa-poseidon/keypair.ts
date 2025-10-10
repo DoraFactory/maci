@@ -52,14 +52,19 @@ import {
 	bigInt2Buffer,
 	buffer2Bigint,
 	EcdhSharedKey,
+	encryptOdevity,
 	formatPrivKeyForBabyJub,
 	genKeypair,
 	genPubKey,
+	genRandomBabyJubValue,
 	hash5,
 	packPubKey,
+	unpackPubKey,
 	Point,
+	poseidon,
 	PubKey,
 	SNARK_FIELD_SIZE,
+	Tree,
 } from '../../crypto';
 
 // Type definitions and utility functions
@@ -392,5 +397,56 @@ export class EdDSAPoseidonKeypair extends Keypair {
 			pubKey as Point<bigint>,
 			this.keypair.formatedPrivKey
 		);
+	}
+
+	genDeactivateRoot(
+		accounts: PubKey[] | bigint[],
+		stateTreeDepth: number
+	): {
+		deactivates: bigint[][];
+		root: bigint;
+		leaves: bigint[];
+		tree: Tree;
+	} {
+		// If accounts are passed as bigint[], unpack them to PubKey[]
+		const unpackedAccounts: PubKey[] =
+			accounts.length > 0 && typeof accounts[0] === 'bigint'
+				? (accounts as bigint[]).map(account => unpackPubKey(account))
+				: (accounts as PubKey[]);
+
+		// STEP 1: Generate deactivate state tree leaf for each account
+		const deactivates = unpackedAccounts.map(account => {
+			// const sharedKey = genEcdhSharedKey(coordinator.privKey, account.pubKey);
+			const sharedKey = this.genEcdhSharedKey(account);
+
+			const deactivate = encryptOdevity(
+				false, // isOdd: According to circuit rules, odd values indicate active accounts and even values indicate inactive accounts. Set to false here to ensure valid signup
+				this.getPublicKey().toPoints(),
+				genRandomBabyJubValue()
+			);
+
+			return [
+				deactivate.c1.x,
+				deactivate.c1.y,
+				deactivate.c2.x,
+				deactivate.c2.y,
+				poseidon(sharedKey),
+			];
+		});
+
+		// STEP 2: Generate tree root
+		const degree = 5;
+		const depth = stateTreeDepth + 2;
+		const zero = 0n;
+		const tree = new Tree(degree, depth, zero);
+		const leaves = deactivates.map(deactivate => poseidon(deactivate));
+		tree.initLeaves(leaves);
+
+		return {
+			deactivates,
+			root: tree.root,
+			leaves,
+			tree, // Return tree instance for later retrieval of path elements
+		};
 	}
 }

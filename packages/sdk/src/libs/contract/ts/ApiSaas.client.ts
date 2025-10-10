@@ -189,6 +189,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       maxVoter,
       operator,
       oracleWhitelistPubkey,
+      preDeactivateCoordinator,
       preDeactivateRoot,
       roundInfo,
       voiceCreditAmount,
@@ -201,6 +202,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       maxVoter: Uint256;
       operator: Addr;
       oracleWhitelistPubkey?: string;
+      preDeactivateCoordinator?: PubKey;
       preDeactivateRoot: Uint256;
       roundInfo: RoundInfo;
       voiceCreditAmount: Uint256;
@@ -480,6 +482,7 @@ export class ApiSaasClient
       maxVoter,
       operator,
       oracleWhitelistPubkey,
+      preDeactivateCoordinator,
       preDeactivateRoot,
       roundInfo,
       voiceCreditAmount,
@@ -492,6 +495,7 @@ export class ApiSaasClient
       maxVoter: Uint256;
       operator: Addr;
       oracleWhitelistPubkey?: string;
+      preDeactivateCoordinator?: PubKey;
       preDeactivateRoot: Uint256;
       roundInfo: RoundInfo;
       voiceCreditAmount: Uint256;
@@ -513,6 +517,7 @@ export class ApiSaasClient
           max_voter: maxVoter,
           operator,
           oracle_whitelist_pubkey: oracleWhitelistPubkey,
+          pre_deactivate_coordinator: preDeactivateCoordinator,
           pre_deactivate_root: preDeactivateRoot,
           round_info: roundInfo,
           voice_credit_amount: voiceCreditAmount,

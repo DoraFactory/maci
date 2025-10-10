@@ -34,6 +34,7 @@ import {
   Period,
   TallyDelayInfo,
   NullableString,
+  NullableUint256,
   Uint128,
   ArrayOfString,
   Whitelist,
@@ -68,6 +69,7 @@ export interface AMaciReadOnlyInterface {
   queryCircuitType: () => Promise<Uint256>;
   queryCertSystem: () => Promise<Uint256>;
   queryPreDeactivateRoot: () => Promise<Uint256>;
+  queryPreDeactivateCoordinatorHash: () => Promise<NullableUint256>;
   getDelayRecords: () => Promise<DelayRecords>;
   getTallyDelay: () => Promise<TallyDelayInfo>;
   queryOracleWhitelistConfig: () => Promise<NullableString>;
@@ -119,6 +121,8 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.queryCircuitType = this.queryCircuitType.bind(this);
     this.queryCertSystem = this.queryCertSystem.bind(this);
     this.queryPreDeactivateRoot = this.queryPreDeactivateRoot.bind(this);
+    this.queryPreDeactivateCoordinatorHash =
+      this.queryPreDeactivateCoordinatorHash.bind(this);
     this.getDelayRecords = this.getDelayRecords.bind(this);
     this.getTallyDelay = this.getTallyDelay.bind(this);
     this.queryOracleWhitelistConfig =
@@ -277,6 +281,11 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
   queryPreDeactivateRoot = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       query_pre_deactivate_root: {},
+    });
+  };
+  queryPreDeactivateCoordinatorHash = async (): Promise<NullableUint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      query_pre_deactivate_coordinator_hash: {},
     });
   };
   getDelayRecords = async (): Promise<DelayRecords> => {

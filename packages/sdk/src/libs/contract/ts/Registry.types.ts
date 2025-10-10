@@ -33,6 +33,7 @@ export type ExecuteMsg =
         max_voter: Uint256;
         operator: Addr;
         oracle_whitelist_pubkey?: string | null;
+        pre_deactivate_coordinator?: PubKey | null;
         pre_deactivate_root: Uint256;
         round_info: RoundInfo;
         voice_credit_amount: Uint256;

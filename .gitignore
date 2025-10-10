@@ -44,3 +44,6 @@ pnpm-lock.yaml
 # claude only
 .claude
 CLAUDE.md
+
+# zkey files
+add-new-key_v3/

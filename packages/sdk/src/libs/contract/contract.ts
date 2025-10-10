@@ -72,6 +72,7 @@ export class Contract {
     voiceCreditAmount,
     circuitType,
     preDeactivateRoot,
+    preDeactivateCoordinator,
     oracleWhitelistPubkey,
     fee = 'auto',
   }: CreateAMaciRoundParams & { signer: OfflineSigner }) {
@@ -90,10 +91,33 @@ export class Contract {
     );
 
     preDeactivateRoot = preDeactivateRoot || '0';
+
+    // Convert preDeactivateCoordinator to {x, y} format if provided
+    let preDeactivateCoordinatorPubKey: { x: string; y: string } | undefined =
+      undefined;
+    if (preDeactivateCoordinator !== undefined) {
+      let coordinatorX: bigint;
+      let coordinatorY: bigint;
+
+      if (typeof preDeactivateCoordinator === 'bigint') {
+        // If it's a packed bigint, unpack it
+        [coordinatorX, coordinatorY] = unpackPubKey(preDeactivateCoordinator);
+      } else {
+        // If it's already a PubKey array [x, y]
+        [coordinatorX, coordinatorY] = preDeactivateCoordinator;
+      }
+
+      preDeactivateCoordinatorPubKey = {
+        x: coordinatorX.toString(),
+        y: coordinatorY.toString(),
+      };
+    }
+
     const res = await client.createRound(
       {
         operator,
         preDeactivateRoot,
+        preDeactivateCoordinator: preDeactivateCoordinatorPubKey,
         voiceCreditAmount,
         whitelist,
         roundInfo: {
@@ -1513,6 +1537,7 @@ export class Contract {
     whitelist,
     voiceCreditAmount,
     preDeactivateRoot,
+    preDeactivateCoordinator,
     oracleWhitelistPubkey,
     circuitType,
     gasStation = false,
@@ -1527,6 +1552,27 @@ export class Contract {
       contractAddress: this.apiSaasAddress,
     });
 
+    // Convert preDeactivateCoordinator to {x, y} format if provided
+    let preDeactivateCoordinatorPubKey: { x: string; y: string } | undefined =
+      undefined;
+    if (preDeactivateCoordinator !== undefined) {
+      let coordinatorX: bigint;
+      let coordinatorY: bigint;
+
+      if (typeof preDeactivateCoordinator === 'bigint') {
+        // If it's a packed bigint, unpack it
+        [coordinatorX, coordinatorY] = unpackPubKey(preDeactivateCoordinator);
+      } else {
+        // If it's already a PubKey array [x, y]
+        [coordinatorX, coordinatorY] = preDeactivateCoordinator;
+      }
+
+      preDeactivateCoordinatorPubKey = {
+        x: coordinatorX.toString(),
+        y: coordinatorY.toString(),
+      };
+    }
+
     const roundParams = {
       certificationSystem: '0',
       circuitType: circuitType.toString(),
@@ -1534,6 +1580,7 @@ export class Contract {
       operator,
       oracleWhitelistPubkey,
       preDeactivateRoot: preDeactivateRoot || '0',
+      preDeactivateCoordinator: preDeactivateCoordinatorPubKey,
       roundInfo: {
         title,
         description: description || '',
@@ -1562,6 +1609,7 @@ export class Contract {
           operator,
           oracle_whitelist_pubkey: oracleWhitelistPubkey,
           pre_deactivate_root: preDeactivateRoot || '0',
+          pre_deactivate_coordinator: preDeactivateCoordinatorPubKey,
           round_info: roundParams.roundInfo,
           voice_credit_amount: voiceCreditAmount,
           vote_option_map: voteOptionMap,

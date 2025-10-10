@@ -36,7 +36,7 @@ export class VoterClient {
 	 * @constructor
 	 * @param {ClientParams} params - The parameters for the Maci Voter Client instance.
 	 */
-	constructor({ mnemonic, secretKey }: ClientParams) {
+	constructor({ mnemonic, secretKey }: ClientParams = {}) {
 		this.accountManager = new MaciAccount({ mnemonic, secretKey });
 	}
 
@@ -258,6 +258,65 @@ export class VoterClient {
 		};
 	}
 
+	async buildPreAddNewKeyPayload({
+		stateTreeDepth,
+		operatorPubkey,
+		deactivates,
+		wasmFile,
+		zkeyFile,
+		derivePathParams,
+	}: {
+		stateTreeDepth: number;
+		operatorPubkey: bigint;
+		deactivates: bigint[][];
+		wasmFile: string;
+		zkeyFile: string;
+		derivePathParams?: DerivePathParams;
+	}): Promise<{
+		proof: {
+			a: string;
+			b: string;
+			c: string;
+		};
+		d: string[];
+		nullifier: string;
+	}> {
+		const [coordPubkeyX, coordPubkeyY] =
+			this.unpackMaciPubkey(operatorPubkey);
+		// const stateTreeDepth = Number(circuitPower.split('-')[0]);
+		const addKeyInput = await this.genPreAddKeyInput(stateTreeDepth + 2, {
+			coordPubKey: [coordPubkeyX, coordPubkeyY],
+			deactivates: deactivates.map((d: any) => d.map(BigInt)),
+			derivePathParams,
+		});
+
+		if (addKeyInput === null) {
+			throw Error('genPreAddKeyInput failed, cannot find deactivate idx');
+		}
+
+		// 1. generate proof
+		const { proof } = await groth16.fullProve(
+			addKeyInput,
+			wasmFile,
+			zkeyFile
+		);
+
+		// 2. compress proof to vote proof
+		const proofHex = await adaptToUncompressed(proof);
+
+		// 3. send addNewKey tx
+		return {
+			proof: proofHex,
+			d: [
+				addKeyInput.d1[0].toString(),
+				addKeyInput.d1[1].toString(),
+				addKeyInput.d2[0].toString(),
+				addKeyInput.d2[1].toString(),
+			],
+			nullifier: addKeyInput.nullifier.toString(),
+		};
+	}
+
 	async genAddKeyInput(
 		depth: number,
 		{
@@ -286,6 +345,84 @@ export class VoterClient {
 
 		const c1 = [deactivateLeaf[0], deactivateLeaf[1]];
 		const c2 = [deactivateLeaf[2], deactivateLeaf[3]];
+
+		const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
+
+		const nullifier = poseidon([
+			signer.getFormatedPrivKey(),
+			1444992409218394441042n,
+		]);
+
+		const tree = new Tree(5, depth, 0n);
+		const leaves = deactivates.map(d => poseidon(d));
+		tree.initLeaves(leaves);
+
+		const deactivateRoot = tree.root;
+		const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
+
+		const inputHash =
+			BigInt(
+				solidityPackedSha256(
+					new Array(7).fill('uint256'),
+					stringizing([
+						deactivateRoot,
+						poseidon(coordPubKey),
+						nullifier,
+						d1[0],
+						d1[1],
+						d2[0],
+						d2[1],
+					]) as string[]
+				)
+			) % SNARK_FIELD_SIZE;
+
+		const input = {
+			inputHash,
+			coordPubKey,
+			deactivateRoot,
+			deactivateIndex: deactivateIdx,
+			deactivateLeaf: poseidon(deactivateLeaf),
+			c1,
+			c2,
+			randomVal,
+			d1,
+			d2,
+			deactivateLeafPathElements,
+			nullifier,
+			oldPrivateKey: signer.getFormatedPrivKey(),
+		};
+
+		return input;
+	}
+
+	async genPreAddKeyInput(
+		depth: number,
+		{
+			coordPubKey,
+			deactivates,
+			derivePathParams,
+		}: {
+			coordPubKey: PubKey;
+			deactivates: bigint[][];
+			derivePathParams?: DerivePathParams;
+		}
+	) {
+		const signer = this.getSigner(derivePathParams);
+
+		const sharedKeyHash = poseidon(signer.genEcdhSharedKey(coordPubKey));
+
+		const randomVal = genRandomSalt();
+		const deactivateIdx = deactivates.findIndex(
+			d => d[4] === sharedKeyHash
+		);
+		if (deactivateIdx < 0) {
+			return null;
+		}
+
+		const deactivateLeaf = deactivates[deactivateIdx];
+
+		const c1: [bigint, bigint] = [deactivateLeaf[0], deactivateLeaf[1]];
+		const c2: [bigint, bigint] = [deactivateLeaf[2], deactivateLeaf[3]];
 
 		const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
