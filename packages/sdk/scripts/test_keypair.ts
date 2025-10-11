@@ -1,9 +1,6 @@
 import { MaciClient, MaciCircuitType } from '../src';
 import { Secp256k1HdWallet } from '@cosmjs/amino';
-import {
-  DirectSecp256k1HdWallet,
-  DirectSecp256k1Wallet,
-} from '@cosmjs/proto-signing';
+import { DirectSecp256k1HdWallet, DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -21,13 +18,10 @@ async function main() {
   if (key.startsWith('0x')) {
     key = key.slice(2);
   }
-  const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(key, 'hex'),
-    'dora'
-  );
+  const wallet = await DirectSecp256k1Wallet.fromKey(Buffer.from(key, 'hex'), 'dora');
   const client = new MaciClient({
     network: 'testnet',
-    signer: wallet,
+    signer: wallet
   });
 
   const address = (await wallet.getAccounts())[0].address;

@@ -474,3 +474,19 @@ export type DeactivateMessage = {
   maciContractAddress: string;
   maciOperator: string;
 };
+
+export type AccountMangerParams = {
+  mnemonic?: string;
+  secretKey?: string | bigint;
+};
+
+export type DerivePathParams = {
+  accountIndex?: number;
+  isExternal?: boolean;
+  addressIndex?: number;
+};
+
+export type VoterClientParams = {
+  mnemonic?: string;
+  secretKey?: string | bigint;
+};

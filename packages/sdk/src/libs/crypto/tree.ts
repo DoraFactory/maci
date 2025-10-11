@@ -169,9 +169,7 @@ export class Tree {
     while (idx > 0) {
       const parentIdx = Math.floor((idx - 1) / this.DEGREE);
       const childrenIdx0 = parentIdx * this.DEGREE + 1;
-      this.nodes[parentIdx] = poseidon(
-        this.nodes.slice(childrenIdx0, childrenIdx0 + 5)
-      );
+      this.nodes[parentIdx] = poseidon(this.nodes.slice(childrenIdx0, childrenIdx0 + 5));
 
       idx = parentIdx;
     }

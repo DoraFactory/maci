@@ -8,20 +8,13 @@ dotenv.config();
 const defaultSigningClientOptions: SigningStargateClientOptions = {
   broadcastPollIntervalMs: 8_000,
   broadcastTimeoutMs: 16_000,
-  gasPrice: GasPrice.fromString('10000000000peaka'),
+  gasPrice: GasPrice.fromString('10000000000peaka')
 };
 
-async function createContractClientByWallet(
-  rpcEndpoint: string,
-  wallet: OfflineSigner
-) {
-  const client = await SigningCosmWasmClient.connectWithSigner(
-    rpcEndpoint,
-    wallet,
-    {
-      ...defaultSigningClientOptions,
-    }
-  );
+async function createContractClientByWallet(rpcEndpoint: string, wallet: OfflineSigner) {
+  const client = await SigningCosmWasmClient.connectWithSigner(rpcEndpoint, wallet, {
+    ...defaultSigningClientOptions
+  });
   return client;
 }
 
@@ -34,15 +27,9 @@ async function main() {
   if (key.startsWith('0x')) {
     key = key.slice(2);
   }
-  const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(key, 'hex'),
-    'dora'
-  );
+  const wallet = await DirectSecp256k1Wallet.fromKey(Buffer.from(key, 'hex'), 'dora');
 
-  const client = await createContractClientByWallet(
-    'https://vota-rpc.dorafactory.org',
-    wallet
-  );
+  const client = await createContractClientByWallet('https://vota-rpc.dorafactory.org', wallet);
 
   const [{ address }] = await wallet.getAccounts();
 
@@ -50,8 +37,8 @@ async function main() {
     'dora14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcp4lsrrghu944740q633553',
     {
       get_pub_key: {
-        address,
-      },
+        address
+      }
     }
   );
 

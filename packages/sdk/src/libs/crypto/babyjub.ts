@@ -42,7 +42,7 @@ export class G1Point {
   asContractParam(): { x: string; y: string } {
     return {
       x: this.x.toString(),
-      y: this.y.toString(),
+      y: this.y.toString()
     };
   }
 }
@@ -91,7 +91,7 @@ export class G2Point {
   asContractParam(): { x: string[]; y: string[] } {
     return {
       x: this.x.map((n) => n.toString()),
-      y: this.y.map((n) => n.toString()),
+      y: this.y.map((n) => n.toString())
     };
   }
 
@@ -144,14 +144,11 @@ export const genRandomBabyJubValue = () => {
   // Prevent modulo bias
   //const lim = BigInt('0x10000000000000000000000000000000000000000000000000000000000000000')
   //const min = (lim - SNARK_FIELD_SIZE) % SNARK_FIELD_SIZE
-  const min =
-    6350874878119819312338956282401532410528162663560392320966563075034087161851n;
+  const min = 6350874878119819312338956282401532410528162663560392320966563075034087161851n;
 
   let rand;
   while (true) {
-    rand = BigInt(
-      `0x${CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex)}`
-    );
+    rand = BigInt(`0x${CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex)}`);
 
     if (rand >= min) {
       break;

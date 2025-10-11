@@ -6,4 +6,7 @@ export * from './sign';
 export * from './types';
 export * from './tree';
 export * from './babyjub';
+export * from './curve';
+export * from './adapter';
+export * from './rerandomize';
 export type { Keypair, PubKey, PrivKey } from './types';

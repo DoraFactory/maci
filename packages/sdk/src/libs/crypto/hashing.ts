@@ -83,15 +83,14 @@ export const poseidonT6 = (inputs: bigint[]): bigint => {
  * @param right The right-hand element to hash
  * @returns The hash of the two elements
  */
-export const hashLeftRight = (left: bigint, right: bigint): bigint =>
-  poseidonT3([left, right]);
+export const hashLeftRight = (left: bigint, right: bigint): bigint => poseidonT3([left, right]);
 
 // hash functions
 const funcs: PoseidonFuncs = {
   2: poseidonT3,
   3: poseidonT4,
   4: poseidonT5,
-  5: poseidonT6,
+  5: poseidonT6
 };
 
 /**
@@ -154,7 +153,7 @@ export const hash12 = (elements: Plaintext): bigint => {
     poseidonT6(elementsPadded.slice(0, 5)),
     poseidonT6(elementsPadded.slice(5, 10)),
     elementsPadded[10],
-    elementsPadded[11],
+    elementsPadded[11]
   ]);
 };
 
@@ -163,5 +162,4 @@ export const hash12 = (elements: Plaintext): bigint => {
  * @param preImage The element to hash
  * @returns The hash of the element
  */
-export const hashOne = (preImage: bigint): bigint =>
-  poseidonT3([preImage, BigInt(0)]);
+export const hashOne = (preImage: bigint): bigint => poseidonT3([preImage, BigInt(0)]);

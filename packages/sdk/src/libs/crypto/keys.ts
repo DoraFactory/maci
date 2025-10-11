@@ -3,11 +3,7 @@ import { bigInt2Buffer, stringizing } from './bigintUtils';
 import { poseidonEncrypt } from '@zk-kit/poseidon-cipher';
 import * as BabyJub from '@zk-kit/baby-jubjub';
 import { Point } from '@zk-kit/baby-jubjub';
-import {
-  derivePublicKey,
-  signMessage,
-  deriveSecretScalar,
-} from '@zk-kit/eddsa-poseidon';
+import { derivePublicKey, signMessage, deriveSecretScalar } from '@zk-kit/eddsa-poseidon';
 
 import { solidityPackedSha256 } from 'ethers';
 
@@ -50,8 +46,7 @@ export const formatPrivKeyForBabyJub = (privKey: PrivKey): bigint =>
  * @param pubKey The public key to pack
  * @returns A packed public key
  */
-export const packPubKey = (pubKey: PubKey): bigint =>
-  BigInt(packPublicKey(pubKey));
+export const packPubKey = (pubKey: PubKey): bigint => BigInt(packPublicKey(pubKey));
 
 /**
  * Restores the original PubKey from its packed representation
@@ -93,19 +88,11 @@ export const genKeypair = (pkey?: PrivKey): Keypair => {
  * @param pubKey A public key generated using genPubKey()
  * @returns The ECDH shared key.
  */
-export const genEcdhSharedKey = (
-  privKey: PrivKey,
-  pubKey: PubKey
-): EcdhSharedKey =>
+export const genEcdhSharedKey = (privKey: PrivKey, pubKey: PubKey): EcdhSharedKey =>
   mulPointEscalar(pubKey as Point<bigint>, formatPrivKeyForBabyJub(privKey));
 
 export const genMessageFactory =
-  (
-    stateIdx: number,
-    signPriKey: PrivKey,
-    signPubKey: PubKey,
-    coordPubKey: PubKey
-  ) =>
+  (stateIdx: number, signPriKey: PrivKey, signPubKey: PubKey, coordPubKey: PubKey) =>
   (
     encPriKey: PrivKey,
     nonce: number,
@@ -116,9 +103,7 @@ export const genMessageFactory =
   ): bigint[] => {
     if (!salt) {
       // uint56
-      salt = BigInt(
-        `0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`
-      );
+      salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
     }
 
     const packaged =
@@ -138,11 +123,7 @@ export const genMessageFactory =
 
     const command = [packaged, ...newPubKey, ...signature.R8, signature.S];
 
-    const message = poseidonEncrypt(
-      command,
-      genEcdhSharedKey(encPriKey, coordPubKey),
-      0n
-    );
+    const message = poseidonEncrypt(command, genEcdhSharedKey(encPriKey, coordPubKey), 0n);
 
     return message;
   };
@@ -171,17 +152,11 @@ export const batchGenMessage = (
   for (let i = plan.length - 1; i >= 0; i--) {
     const p = plan[i];
     const encAccount = genKeypair();
-    const msg = genMessage(
-      BigInt(encAccount.privKey),
-      i + 1,
-      p[0],
-      p[1],
-      i === plan.length - 1
-    );
+    const msg = genMessage(BigInt(encAccount.privKey), i + 1, p[0], p[1], i === plan.length - 1);
 
     payload.push({
       msg,
-      encPubkeys: encAccount.pubKey,
+      encPubkeys: encAccount.pubKey
     });
   }
 
@@ -204,7 +179,7 @@ export const privateKeyFromTxt = (txt: string) => {
   return genKeypair(priKey % SNARK_FIELD_SIZE);
 };
 
-const rerandomize = (
+export const rerandomize = (
   pubKey: bigint[],
   ciphertext: { c1: bigint[]; c2: bigint[] },
   randomVal = genRandomSalt()
@@ -221,7 +196,7 @@ const rerandomize = (
 
   return {
     d1,
-    d2,
+    d2
   } as { d1: bigint[]; d2: bigint[] };
 };
 
@@ -230,7 +205,7 @@ export const genAddKeyInput = (
   {
     coordPubKey,
     oldKey,
-    deactivates,
+    deactivates
   }: {
     coordPubKey: PubKey;
     oldKey: Keypair;
@@ -252,10 +227,7 @@ export const genAddKeyInput = (
 
   const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
-  const nullifier = poseidon([
-    BigInt(oldKey.formatedPrivKey),
-    1444992409218394441042n,
-  ]);
+  const nullifier = poseidon([BigInt(oldKey.formatedPrivKey), 1444992409218394441042n]);
 
   const tree = new Tree(5, depth, 0n);
   const leaves = deactivates.map((d) => poseidon(d));
@@ -275,7 +247,7 @@ export const genAddKeyInput = (
           d1[0],
           d1[1],
           d2[0],
-          d2[1],
+          d2[1]
         ]) as string[]
       )
     ) % SNARK_FIELD_SIZE;
@@ -293,7 +265,7 @@ export const genAddKeyInput = (
     d2,
     deactivateLeafPathElements,
     nullifier,
-    oldPrivateKey: oldKey.formatedPrivKey,
+    oldPrivateKey: oldKey.formatedPrivKey
   };
 
   return input;
@@ -313,11 +285,6 @@ function randomUint256() {
 }
 
 export const genRandomKey = () => {
-  const key = [
-    randomUint256(),
-    randomUint256(),
-    randomUint256(),
-    randomUint256(),
-  ].join('');
+  const key = [randomUint256(), randomUint256(), randomUint256(), randomUint256()].join('');
   return ['-----BEGIN MACI KEY-----', key, '-----END MACI KEY-----'].join('\n');
 };

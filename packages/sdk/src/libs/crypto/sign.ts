@@ -1,8 +1,4 @@
-import {
-  OfflineSigner,
-  OfflineDirectSigner,
-  isOfflineDirectSigner,
-} from '@cosmjs/proto-signing';
+import { OfflineSigner, OfflineDirectSigner, isOfflineDirectSigner } from '@cosmjs/proto-signing';
 import { StdSignDoc } from '@cosmjs/amino';
 import { SignDoc } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { getDefaultParams } from '../const';
@@ -29,14 +25,14 @@ export async function signMessage(
       bodyBytes: new TextEncoder().encode(message),
       authInfoBytes: new Uint8Array(),
       chainId,
-      accountNumber: BigInt(0),
+      accountNumber: BigInt(0)
     };
 
     const { signature } = await signer.signDirect(address, signDoc);
 
     return {
       signature: signature.signature,
-      pubkey: account.pubkey,
+      pubkey: account.pubkey
     };
   } else {
     // Amino
@@ -46,17 +42,17 @@ export async function signMessage(
       sequence: '0',
       fee: {
         gas: '0',
-        amount: [],
+        amount: []
       },
       msgs: [],
-      memo: message,
+      memo: message
     };
 
     const { signature } = await signer.signAmino(address, signDoc);
 
     return {
       signature: signature.signature,
-      pubkey: account.pubkey,
+      pubkey: account.pubkey
     };
   }
 }
@@ -70,7 +66,7 @@ export async function genKeypairFromSignature(signature: string) {
 export async function genKeypairFromSign({
   signer,
   address,
-  network,
+  network
 }: {
   signer: OfflineSigner;
   address?: string;
@@ -80,12 +76,7 @@ export async function genKeypairFromSign({
     [{ address }] = await signer.getAccounts();
   }
 
-  const sig = await signMessage(
-    signer,
-    address,
-    'Generate_MACI_Private_Key',
-    network
-  );
+  const sig = await signMessage(signer, address, 'Generate_MACI_Private_Key', network);
 
   return genKeypairFromSignature(sig.signature);
 }

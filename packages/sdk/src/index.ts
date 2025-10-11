@@ -1,16 +1,10 @@
 // Core
 export { MaciClient } from './maci';
+export { VoterClient } from './voter';
 export { Http } from './libs/http';
 
 // Query Types
-export {
-  Round,
-  UserAccount,
-  Circuit,
-  Operator,
-  Proof,
-  Transaction,
-} from './libs/query';
+export { Round, UserAccount, Circuit, Operator, Proof, Transaction } from './libs/query';
 
 // Crypto
 export * from './libs/crypto';
@@ -23,10 +17,10 @@ export type * from './types';
 export { circuits, getDefaultParams, type NetworkConfig } from './libs/const';
 
 // Utils
-export {
-  stringizing,
-  destringizing,
-  bigInt2Buffer,
-} from './libs/crypto/bigintUtils';
+export { stringizing, destringizing, bigInt2Buffer } from './libs/crypto/bigintUtils';
 export { isValidAddress } from './utils';
 export { getAMaciRoundCircuitFee } from './libs/contract/utils';
+
+export { EdDSAPoseidonKeypair, EdDSAPoseidonPublicKey } from './libs/keypairs/eddsa-poseidon';
+
+export * from './utils';
