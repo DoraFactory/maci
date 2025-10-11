@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import * as path from 'path';
+import * as fs from 'fs';
 
 async function main() {
 	const secretKey = process.env.ADMIN_PRIVATE_KEY;
@@ -33,19 +34,29 @@ async function main() {
 	});
 
 	const circuitPower = '2-1-1-5';
+
+	const wasmPath = path.join(
+		process.cwd(),
+		`add-new-key_v3/${circuitPower}/addKey.wasm`
+	);
+	const zkeyPath = path.join(
+		process.cwd(),
+		`add-new-key_v3/${circuitPower}/addKey.zkey`
+	);
+
+	const wasmUint8Array = new Uint8Array(fs.readFileSync(wasmPath));
+	const zkeyUint8Array = new Uint8Array(fs.readFileSync(zkeyPath));
+
+	console.log('WASM Length:', wasmUint8Array.length);
+	console.log('ZKEY Length:', zkeyUint8Array.length);
+
 	const genProof = await voterClient.buildPreAddNewKeyPayload({
 		stateTreeDepth: 2,
 		operatorPubkey:
 			15985671812509037697999452079047723323214510694838922960102081803756551067669n,
 		deactivates,
-		wasmFile: path.join(
-			process.cwd(),
-			`add-new-key_v3/${circuitPower}/addKey.wasm`
-		),
-		zkeyFile: path.join(
-			process.cwd(),
-			`add-new-key_v3/${circuitPower}/addKey.zkey`
-		),
+		wasmFile: wasmUint8Array,
+		zkeyFile: zkeyUint8Array,
 	});
 
 	console.log(genProof);

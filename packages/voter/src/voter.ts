@@ -1,6 +1,6 @@
 import CryptoJS from 'crypto-js';
 import { solidityPackedSha256 } from 'ethers';
-import { groth16 } from 'snarkjs';
+import { groth16, ZKArtifact } from 'snarkjs';
 
 import { MaciAccount } from './account';
 import {
@@ -210,8 +210,8 @@ export class VoterClient {
 		stateTreeDepth: number;
 		operatorPubkey: bigint;
 		deactivates: DeactivateMessage[];
-		wasmFile: string;
-		zkeyFile: string;
+		wasmFile: ZKArtifact;
+		zkeyFile: ZKArtifact;
 		derivePathParams?: DerivePathParams;
 	}): Promise<{
 		proof: {
@@ -269,8 +269,8 @@ export class VoterClient {
 		stateTreeDepth: number;
 		operatorPubkey: bigint;
 		deactivates: bigint[][];
-		wasmFile: string;
-		zkeyFile: string;
+		wasmFile: ZKArtifact;
+		zkeyFile: ZKArtifact;
 		derivePathParams?: DerivePathParams;
 	}): Promise<{
 		proof: {
