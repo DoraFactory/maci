@@ -5,3 +5,4 @@ export * from './contract';
 export * from './oracle-certificate';
 export * from './maci';
 export * from './crypto';
+export * from './api';

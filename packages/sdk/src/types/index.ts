@@ -6,18 +6,18 @@ export type * from '../libs/crypto/types';
 
 export enum MaciCircuitType {
   IP1V = '0',
-  QV = '1',
+  QV = '1'
 }
 
 export enum MaciCertSystemType {
   GROTH16 = 'groth16',
-  PLONK = 'plonk',
+  PLONK = 'plonk'
 }
 
 export enum MaciRoundType {
   MACI = '0',
   AMACI = '1',
-  ORACLE_MACI = '2',
+  ORACLE_MACI = '2'
 }
 
 export type CertificateEcosystem = 'cosmoshub' | 'doravota';
@@ -27,7 +27,9 @@ export type ClientParams = {
   network: 'mainnet' | 'testnet';
   rpcEndpoint?: string;
   restEndpoint?: string;
-  apiEndpoint?: string;
+  apiEndpoint?: string; // Indexer GraphQL API endpoint
+  saasApiEndpoint?: string; // MACI SaaS API endpoint
+  saasApiKey?: string; // MACI SaaS API key
   certificateApiEndpoint?: string;
   registryAddress?: string;
   saasAddress?: string;
@@ -487,6 +489,14 @@ export type DerivePathParams = {
 };
 
 export type VoterClientParams = {
+  network: 'mainnet' | 'testnet';
   mnemonic?: string;
   secretKey?: string | bigint;
+  registryAddress?: string;
+  apiEndpoint?: string; // Indexer GraphQL API endpoint
+  restEndpoint?: string; // DoraVota REST API endpoint
+  saasApiEndpoint?: string; // MACI SaaS API endpoint
+  saasApiKey?: string; // MACI SaaS API key
+  customFetch?: typeof fetch;
+  defaultOptions?: FetchOptions;
 };

@@ -1,12 +1,13 @@
 import { ClientParams, CertificateEcosystem } from './types';
-import { Http, Indexer, Contract, OracleCertificate, MACI } from './libs';
+import { Http, Indexer, Contract, OracleCertificate, MACI, MaciApiClient } from './libs';
+import type { operations } from './libs/api/types';
 import { getDefaultParams } from './libs/const';
 import {
   CreateAMaciRoundParams,
   CreateApiSaasAmaciRoundParams,
   CreateMaciRoundParams,
   CreateOracleMaciRoundParams,
-  CreateSaasOracleMaciRoundParams,
+  CreateSaasOracleMaciRoundParams
 } from './libs/contract/types';
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import {
@@ -15,7 +16,7 @@ import {
   Keypair,
   packPubKey,
   PubKey,
-  unpackPubKey,
+  unpackPubKey
 } from './libs/crypto';
 import { OracleWhitelistConfig } from './libs/contract/ts/OracleMaci.types';
 import { SignatureResponse } from './libs/oracle-certificate/types';
@@ -31,7 +32,8 @@ export class MaciClient {
   public network: 'mainnet' | 'testnet';
   public rpcEndpoint: string;
   public restEndpoint: string;
-  public apiEndpoint: string;
+  public apiEndpoint: string; // Indexer GraphQL API endpoint
+  public saasApiEndpoint?: string; // MACI SaaS API endpoint
   public certificateApiEndpoint: string;
 
   public registryAddress: string;
@@ -48,6 +50,7 @@ export class MaciClient {
   public oracleCertificate: OracleCertificate;
   public maci: MACI;
   public maciKeypair: Keypair;
+  public saasApiClient?: MaciApiClient;
 
   public signer?: OfflineSigner;
 
@@ -61,6 +64,8 @@ export class MaciClient {
     rpcEndpoint,
     restEndpoint,
     apiEndpoint,
+    saasApiEndpoint,
+    saasApiKey,
     registryAddress,
     saasAddress,
     apiSaasAddress,
@@ -71,7 +76,7 @@ export class MaciClient {
     feegrantOperator,
     whitelistBackendPubkey,
     certificateApiEndpoint,
-    maciKeypair,
+    maciKeypair
   }: ClientParams) {
     this.signer = signer;
     this.network = network;
@@ -79,31 +84,25 @@ export class MaciClient {
 
     this.rpcEndpoint = rpcEndpoint || defaultParams.rpcEndpoint;
     this.restEndpoint = restEndpoint || defaultParams.restEndpoint;
-    this.apiEndpoint = apiEndpoint || defaultParams.apiEndpoint;
-    this.certificateApiEndpoint =
-      certificateApiEndpoint || defaultParams.certificateApiEndpoint;
+    this.apiEndpoint = apiEndpoint || defaultParams.apiEndpoint; // Indexer GraphQL API
+    this.saasApiEndpoint = saasApiEndpoint; // MACI SaaS API
+    this.certificateApiEndpoint = certificateApiEndpoint || defaultParams.certificateApiEndpoint;
     this.registryAddress = registryAddress || defaultParams.registryAddress;
     this.saasAddress = saasAddress || defaultParams.saasAddress;
     this.apiSaasAddress = apiSaasAddress || defaultParams.apiSaasAddress;
     this.maciCodeId = maciCodeId || defaultParams.maciCodeId;
     this.oracleCodeId = oracleCodeId || defaultParams.oracleCodeId;
-    this.feegrantOperator =
-      feegrantOperator || defaultParams.oracleFeegrantOperator;
+    this.feegrantOperator = feegrantOperator || defaultParams.oracleFeegrantOperator;
     this.whitelistBackendPubkey =
       whitelistBackendPubkey || defaultParams.oracleWhitelistBackendPubkey;
     this.maciKeypair = maciKeypair ?? genKeypair();
 
-    this.http = new Http(
-      this.apiEndpoint,
-      this.restEndpoint,
-      customFetch,
-      defaultOptions
-    );
+    this.http = new Http(this.apiEndpoint, this.restEndpoint, customFetch, defaultOptions);
     this.indexer = new Indexer({
       restEndpoint: this.restEndpoint,
-      apiEndpoint: this.apiEndpoint,
+      apiEndpoint: this.apiEndpoint, // Indexer GraphQL API
       registryAddress: this.registryAddress,
-      http: this.http,
+      http: this.http
     });
     this.contract = new Contract({
       network: this.network,
@@ -114,18 +113,27 @@ export class MaciClient {
       maciCodeId: this.maciCodeId,
       oracleCodeId: this.oracleCodeId,
       feegrantOperator: this.feegrantOperator,
-      whitelistBackendPubkey: this.whitelistBackendPubkey,
+      whitelistBackendPubkey: this.whitelistBackendPubkey
     });
     this.oracleCertificate = new OracleCertificate({
       certificateApiEndpoint: this.certificateApiEndpoint,
-      http: this.http,
+      http: this.http
     });
     this.maci = new MACI({
       contract: this.contract,
       indexer: this.indexer,
       oracleCertificate: this.oracleCertificate,
-      maciKeypair: this.maciKeypair,
+      maciKeypair: this.maciKeypair
     });
+
+    // Initialize MACI SaaS API client if saasApiEndpoint exists
+    if (this.saasApiEndpoint) {
+      this.saasApiClient = new MaciApiClient({
+        baseUrl: this.saasApiEndpoint,
+        apiKey: saasApiKey,
+        customFetch
+      });
+    }
   }
 
   getSigner(signer?: OfflineSigner) {
@@ -136,6 +144,30 @@ export class MaciClient {
       return this.signer;
     }
     throw new Error('No signer provided, please provide a signer');
+  }
+
+  /**
+   * Set SaaS API key for MaciApiClient
+   */
+  setSaasApiKey(apiKey: string) {
+    if (!this.saasApiClient) {
+      throw new Error(
+        'SaaS API client not initialized. Please provide saasApiEndpoint in constructor.'
+      );
+    }
+    this.saasApiClient.setApiKey(apiKey);
+  }
+
+  /**
+   * Get SaaS API client instance
+   */
+  getSaasApiClient(): MaciApiClient {
+    if (!this.saasApiClient) {
+      throw new Error(
+        'SaaS API client not initialized. Please provide saasApiEndpoint in constructor.'
+      );
+    }
+    return this.saasApiClient;
   }
 
   getMaciKeypair() {
@@ -161,7 +193,7 @@ export class MaciClient {
 
   async oracleMaciClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -169,13 +201,13 @@ export class MaciClient {
     signer = this.getSigner(signer);
     return await this.contract.oracleMaciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
   }
 
   async registryClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -186,7 +218,7 @@ export class MaciClient {
 
   async maciClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -197,7 +229,7 @@ export class MaciClient {
 
   async amaciClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -209,47 +241,47 @@ export class MaciClient {
   async createAMaciRound(params: CreateAMaciRoundParams) {
     return await this.contract.createAMaciRound({
       signer: this.getSigner(params.signer),
-      ...params,
+      ...params
     });
   }
 
   async createMaciRound(params: CreateMaciRoundParams) {
     return await this.contract.createMaciRound({
       signer: this.getSigner(params.signer),
-      ...params,
+      ...params
     });
   }
 
   async createOracleMaciRound(params: CreateOracleMaciRoundParams) {
     return await this.contract.createOracleMaciRound({
       signer: this.getSigner(params.signer),
-      ...params,
+      ...params
     });
   }
 
   async createSaasOracleMaciRound(params: CreateSaasOracleMaciRoundParams) {
     return await this.contract.createSaasOracleMaciRound({
       signer: this.getSigner(params.signer),
-      ...params,
+      ...params
     });
   }
   async createApiSaasMaciRound(params: CreateSaasOracleMaciRoundParams) {
     return await this.contract.createApiSaasMaciRound({
       signer: this.getSigner(params.signer),
-      ...params,
+      ...params
     });
   }
 
   async createApiSaasAmaciRound(params: CreateApiSaasAmaciRoundParams) {
     return await this.contract.createApiSaasAmaciRound({
       signer: this.getSigner(params.signer),
-      ...params,
+      ...params
     });
   }
 
   async genKeypairFromSign({
     signer,
-    address,
+    address
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -257,14 +289,14 @@ export class MaciClient {
     return await genKeypairFromSign({
       signer: this.getSigner(signer),
       address,
-      network: this.network,
+      network: this.network
     });
   }
 
   async getStateIdxInc({
     signer,
     address,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -273,7 +305,7 @@ export class MaciClient {
     return await this.maci.getStateIdxInc({
       signer: this.getSigner(signer),
       address,
-      contractAddress,
+      contractAddress
     });
   }
 
@@ -281,7 +313,7 @@ export class MaciClient {
     signer,
     stateIdx,
     maciKeypair,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     stateIdx?: number;
@@ -295,34 +327,34 @@ export class MaciClient {
     if (stateIdx === undefined) {
       stateIdx = await this.getStateIdxByPubKey({
         contractAddress,
-        pubKey: maciKeypair.pubKey,
+        pubKey: maciKeypair.pubKey
       });
     }
 
     return await this.maci.getVoiceCreditBalance({
       signer: this.getSigner(signer),
       stateIdx,
-      contractAddress,
+      contractAddress
     });
   }
 
   async getStateIdxByPubKey({
     contractAddress,
-    pubKey,
+    pubKey
   }: {
     contractAddress: string;
     pubKey?: bigint[];
   }) {
     return await this.maci.getStateIdxByPubKey({
       contractAddress,
-      pubKey: pubKey || this.maciKeypair.pubKey,
+      pubKey: pubKey || this.maciKeypair.pubKey
     });
   }
 
   async feegrantAllowance({
     signer,
     address,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -331,14 +363,14 @@ export class MaciClient {
     address = await this.getAddress(signer);
     return await this.maci.feegrantAllowance({
       address,
-      contractAddress,
+      contractAddress
     });
   }
 
   async hasFeegrant({
     signer,
     address,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -349,7 +381,7 @@ export class MaciClient {
     }
     return await this.maci.hasFeegrant({
       address,
-      contractAddress,
+      contractAddress
     });
   }
 
@@ -357,7 +389,7 @@ export class MaciClient {
     signer,
     address,
     contractAddress,
-    certificate,
+    certificate
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -375,14 +407,14 @@ export class MaciClient {
       signer,
       address,
       contractAddress,
-      certificate,
+      certificate
     });
   }
 
   async isWhitelisted({
     signer,
     address,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -395,20 +427,20 @@ export class MaciClient {
     return await this.maci.isWhitelisted({
       signer,
       address,
-      contractAddress,
+      contractAddress
     });
   }
 
   async getOracleWhitelistConfig({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
   }): Promise<OracleWhitelistConfig> {
     return await this.maci.getOracleWhitelistConfig({
       signer: this.getSigner(signer),
-      contractAddress,
+      contractAddress
     });
   }
 
@@ -416,9 +448,7 @@ export class MaciClient {
     const rounds = await this.indexer.getRounds(after || '', limit || 10);
 
     if (isErrorResponse(rounds)) {
-      throw new Error(
-        `Failed to get rounds: ${rounds.code} ${rounds.error.message}`
-      );
+      throw new Error(`Failed to get rounds: ${rounds.code} ${rounds.error.message}`);
     }
 
     return rounds;
@@ -436,27 +466,17 @@ export class MaciClient {
     return await this.maci.queryRoundIsQv({ contractAddress });
   }
 
-  async queryRoundClaimable({
-    contractAddress,
-  }: {
-    contractAddress: string;
-  }): Promise<{
+  async queryRoundClaimable({ contractAddress }: { contractAddress: string }): Promise<{
     claimable: boolean | null;
     balance: string | null;
   }> {
     return await this.maci.queryRoundClaimable({ contractAddress });
   }
 
-  async queryAMaciChargeFee({
-    maxVoter,
-    maxOption,
-  }: {
-    maxVoter: number;
-    maxOption: number;
-  }) {
+  async queryAMaciChargeFee({ maxVoter, maxOption }: { maxVoter: number; maxOption: number }) {
     return await this.maci.queryAMaciChargeFee({
       maxVoter,
-      maxOption,
+      maxOption
     });
   }
 
@@ -470,12 +490,7 @@ export class MaciClient {
     status: string,
     currentTime: Date
   ): string {
-    return this.maci.parseRoundStatus(
-      votingStart,
-      votingEnd,
-      status,
-      currentTime
-    );
+    return this.maci.parseRoundStatus(votingStart, votingEnd, status, currentTime);
   }
 
   async queryRoundBalance({ contractAddress }: { contractAddress: string }) {
@@ -486,7 +501,7 @@ export class MaciClient {
     signer,
     ecosystem,
     address,
-    contractAddress,
+    contractAddress
   }: {
     signer?: OfflineSigner;
     ecosystem: CertificateEcosystem;
@@ -497,7 +512,7 @@ export class MaciClient {
       signer: this.getSigner(signer),
       ecosystem,
       address,
-      contractAddress,
+      contractAddress
     });
   }
 
@@ -508,7 +523,7 @@ export class MaciClient {
     maciKeypair,
     oracleCertificate,
     gasStation = false,
-    fee,
+    fee
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -528,7 +543,7 @@ export class MaciClient {
       maciKeypair,
       oracleCertificate,
       gasStation,
-      fee,
+      fee
     });
   }
 
@@ -539,7 +554,7 @@ export class MaciClient {
     selectedOptions,
     operatorCoordPubKey,
     maciKeypair,
-    gasStation = false,
+    gasStation = false
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -559,7 +574,7 @@ export class MaciClient {
       selectedOptions,
       operatorCoordPubKey,
       maciKeypair,
-      gasStation,
+      gasStation
     });
   }
 
@@ -569,7 +584,7 @@ export class MaciClient {
     contractAddress,
     gasStation = false,
     maciKeypair,
-    fee,
+    fee
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -584,20 +599,20 @@ export class MaciClient {
       maciKeypair,
       contractAddress,
       gasStation,
-      fee,
+      fee
     });
   }
 
   async genAddKeyInput({
     contractAddress,
-    maciKeypair,
+    maciKeypair
   }: {
     contractAddress: string;
     maciKeypair?: Keypair;
   }) {
     return await this.maci.genAddKeyInput({
       maciKeypair: maciKeypair || this.maciKeypair,
-      contractAddress,
+      contractAddress
     });
   }
 
@@ -608,7 +623,7 @@ export class MaciClient {
     proof,
     nullifier,
     newMaciKeypair,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -625,14 +640,14 @@ export class MaciClient {
       proof,
       nullifier,
       newMaciKeypair,
-      fee,
+      fee
     });
   }
 
   async claimAMaciRound({
     signer,
     contractAddress,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -641,7 +656,7 @@ export class MaciClient {
     return await this.maci.claimAMaciRound({
       signer: this.getSigner(signer),
       contractAddress,
-      fee,
+      fee
     });
   }
 
@@ -654,7 +669,7 @@ export class MaciClient {
     contractAddress,
     address,
     amount,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -670,7 +685,7 @@ export class MaciClient {
       contractAddress,
       address,
       amount,
-      fee,
+      fee
     });
   }
 
@@ -678,7 +693,7 @@ export class MaciClient {
     signer,
     contractAddress,
     address,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -692,7 +707,7 @@ export class MaciClient {
       signer: this.getSigner(signer),
       contractAddress,
       address,
-      fee,
+      fee
     });
   }
 
@@ -704,7 +719,7 @@ export class MaciClient {
     oracleCertificate,
     gasStation = false,
     granter,
-    fee,
+    fee
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -726,7 +741,7 @@ export class MaciClient {
       oracleCertificate,
       gasStation,
       granter,
-      fee,
+      fee
     });
   }
 
@@ -737,7 +752,7 @@ export class MaciClient {
     payload,
     gasStation = false,
     granter,
-    fee,
+    fee
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -757,7 +772,7 @@ export class MaciClient {
       payload,
       gasStation,
       granter,
-      fee,
+      fee
     });
   }
 
@@ -776,7 +791,7 @@ export class MaciClient {
     payload,
     gasStation = false,
     granter,
-    fee,
+    fee
   }: {
     signer?: OfflineSigner;
     address?: string;
@@ -796,7 +811,7 @@ export class MaciClient {
       payload,
       gasStation,
       granter,
-      fee,
+      fee
     });
   }
 
@@ -809,7 +824,7 @@ export class MaciClient {
     newPubkey,
     gasStation = false,
     granter,
-    fee,
+    fee
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -830,7 +845,7 @@ export class MaciClient {
       newPubkey,
       gasStation,
       granter,
-      fee,
+      fee
     });
   }
 
@@ -843,7 +858,7 @@ export class MaciClient {
     newPubkey,
     gasStation = false,
     granter,
-    fee,
+    fee
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
@@ -864,7 +879,48 @@ export class MaciClient {
       newPubkey,
       gasStation,
       granter,
-      fee,
+      fee
     });
+  }
+
+  // ==================== SaaS API Client Methods ====================
+
+  /**
+   * Create AMaci round via SaaS API
+   * @param params - Round creation parameters
+   */
+  async saasCreateAmaciRound(
+    params: operations['createAmaciRound']['requestBody']['content']['application/json']
+  ) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.createAmaciRound(params);
+  }
+
+  /**
+   * Set round info via SaaS API
+   * @param params - Round info parameters
+   */
+  async saasSetRoundInfo(
+    params: operations['setRoundInfo']['requestBody']['content']['application/json']
+  ) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.setRoundInfo(params);
+  }
+
+  /**
+   * Set vote options via SaaS API
+   * @param params - Vote options parameters
+   */
+  async saasSetVoteOptions(
+    params: operations['setVoteOptions']['requestBody']['content']['application/json']
+  ) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.setVoteOptions(params);
   }
 }

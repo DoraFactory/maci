@@ -13,6 +13,7 @@ async function main() {
   }
 
   const coordinator = new VoterClient({
+    network: 'testnet',
     secretKey
   });
   console.log('coordinator', coordinator.getPubkey().toPackedData());
@@ -28,6 +29,7 @@ async function main() {
   console.log(root);
 
   const voterClient = new VoterClient({
+    network: 'testnet',
     mnemonic: process.env.VOTER_MNEMONIC
   });
 
@@ -44,7 +46,8 @@ async function main() {
 
   const genProof = await voterClient.buildPreAddNewKeyPayload({
     stateTreeDepth: 2,
-    operatorPubkey: 15985671812509037697999452079047723323214510694838922960102081803756551067669n,
+    coordinatorPubkey:
+      15985671812509037697999452079047723323214510694838922960102081803756551067669n,
     deactivates,
     wasmFile: wasmUint8Array,
     zkeyFile: zkeyUint8Array

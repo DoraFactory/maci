@@ -14,5 +14,4 @@
 export { fromB64, fromBase64, toB64, toBase64 } from './base64';
 export { fromHex, fromHEX, toHex, toHEX } from './hex';
 export { addressToUint256, bigintToHex } from './decode-address';
-export { genAccounts } from './account';
-export { isValidAddress } from './validate-address';
+export * from './validate-address';

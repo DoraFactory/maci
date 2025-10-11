@@ -3,6 +3,10 @@ export { MaciClient } from './maci';
 export { VoterClient } from './voter';
 export { Http } from './libs/http';
 
+// API Client
+export { MaciApiClient } from './libs/api';
+export type { MaciApiClientConfig } from './libs/api';
+
 // Query Types
 export { Round, UserAccount, Circuit, Operator, Proof, Transaction } from './libs/query';
 
