@@ -1,3 +1,7 @@
+import { bn254 } from '@noble/curves/bn254';
+import { bls12_381 } from '@noble/curves/bls12-381';
+import { numberToBytesBE } from '@noble/curves/abstract/utils';
+
 // BN254 (bn128) curve order and field prime
 const bls12381r = BigInt('0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001');
 const bn128r = BigInt(
@@ -20,36 +24,54 @@ function createBn254Curve() {
     G1: {
       fromObject: (obj: any) => obj,
       toUncompressed: (point: any) => {
-        // Convert point to uncompressed format
-        const bytes = new Uint8Array(64);
+        // Convert point to uncompressed format using @noble/curves
         const x = BigInt(point[0]);
         const y = BigInt(point[1]);
-        // Convert to big-endian bytes
-        for (let i = 0; i < 32; i++) {
-          bytes[31 - i] = Number((x >> BigInt(i * 8)) & 0xffn);
-          bytes[63 - i] = Number((y >> BigInt(i * 8)) & 0xffn);
-        }
+
+        // Create a point to validate coordinates are on the curve
+        const p = new bn254.G1.ProjectivePoint(x, y, 1n);
+        p.assertValidity(); // Validates the point is on the curve
+
+        const affine = p.toAffine();
+
+        // Serialize using @noble/curves utilities (big-endian)
+        const xBytes = numberToBytesBE(affine.x, 32);
+        const yBytes = numberToBytesBE(affine.y, 32);
+
+        const bytes = new Uint8Array(64);
+        bytes.set(xBytes, 0);
+        bytes.set(yBytes, 32);
+
         return bytes;
       }
     },
     G2: {
       fromObject: (obj: any) => obj,
       toUncompressed: (point: any) => {
-        // G2 points are larger (128 bytes for BN254)
-        const bytes = new Uint8Array(128);
-        // Convert each coordinate (2 field elements)
-        // Note: Order is [x1, x0, y1, y0] to match ffjavascript behavior
-        const x0 = BigInt(point[0][0]);
-        const x1 = BigInt(point[0][1]);
-        const y0 = BigInt(point[1][0]);
-        const y1 = BigInt(point[1][1]);
+        // G2 points use Fp2 coordinates
+        const Fp2 = bn254.fields.Fp2;
 
-        for (let i = 0; i < 32; i++) {
-          bytes[31 - i] = Number((x1 >> BigInt(i * 8)) & 0xffn); // x1 first
-          bytes[63 - i] = Number((x0 >> BigInt(i * 8)) & 0xffn); // then x0
-          bytes[95 - i] = Number((y1 >> BigInt(i * 8)) & 0xffn); // y1 third
-          bytes[127 - i] = Number((y0 >> BigInt(i * 8)) & 0xffn); // y0 last
-        }
+        const x = Fp2.create({ c0: BigInt(point[0][0]), c1: BigInt(point[0][1]) });
+        const y = Fp2.create({ c0: BigInt(point[1][0]), c1: BigInt(point[1][1]) });
+
+        // Create and validate the point
+        const p = new bn254.G2.ProjectivePoint(x, y, Fp2.ONE);
+        p.assertValidity(); // Validates the point is on the curve
+
+        const affine = p.toAffine();
+
+        // Serialize in order [x1, x0, y1, y0] to match ffjavascript behavior
+        const x0Bytes = numberToBytesBE((affine.x as any).c0, 32);
+        const x1Bytes = numberToBytesBE((affine.x as any).c1, 32);
+        const y0Bytes = numberToBytesBE((affine.y as any).c0, 32);
+        const y1Bytes = numberToBytesBE((affine.y as any).c1, 32);
+
+        const bytes = new Uint8Array(128);
+        bytes.set(x1Bytes, 0); // x1 first
+        bytes.set(x0Bytes, 32); // then x0
+        bytes.set(y1Bytes, 64); // y1 third
+        bytes.set(y0Bytes, 96); // y0 last
+
         return bytes;
       }
     }
@@ -64,32 +86,54 @@ function createBls12381Curve() {
     G1: {
       fromObject: (obj: any) => obj,
       toUncompressed: (point: any) => {
-        const bytes = new Uint8Array(96); // BLS12-381 G1 is 96 bytes
+        // Convert point to uncompressed format using @noble/curves
         const x = BigInt(point[0]);
         const y = BigInt(point[1]);
-        for (let i = 0; i < 48; i++) {
-          bytes[47 - i] = Number((x >> BigInt(i * 8)) & 0xffn);
-          bytes[95 - i] = Number((y >> BigInt(i * 8)) & 0xffn);
-        }
+
+        // Create a point to validate coordinates are on the curve
+        const p = new bls12_381.G1.ProjectivePoint(x, y, 1n);
+        p.assertValidity(); // Validates the point is on the curve
+
+        const affine = p.toAffine();
+
+        // Serialize using @noble/curves utilities (big-endian)
+        const xBytes = numberToBytesBE(affine.x, 48);
+        const yBytes = numberToBytesBE(affine.y, 48);
+
+        const bytes = new Uint8Array(96); // BLS12-381 G1 is 96 bytes
+        bytes.set(xBytes, 0);
+        bytes.set(yBytes, 48);
+
         return bytes;
       }
     },
     G2: {
       fromObject: (obj: any) => obj,
       toUncompressed: (point: any) => {
-        const bytes = new Uint8Array(192); // BLS12-381 G2 is 192 bytes
-        // Note: Order is [x1, x0, y1, y0] to match ffjavascript behavior
-        const x0 = BigInt(point[0][0]);
-        const x1 = BigInt(point[0][1]);
-        const y0 = BigInt(point[1][0]);
-        const y1 = BigInt(point[1][1]);
+        // G2 points use Fp2 coordinates
+        const Fp2 = bls12_381.fields.Fp2;
 
-        for (let i = 0; i < 48; i++) {
-          bytes[47 - i] = Number((x1 >> BigInt(i * 8)) & 0xffn); // x1 first
-          bytes[95 - i] = Number((x0 >> BigInt(i * 8)) & 0xffn); // then x0
-          bytes[143 - i] = Number((y1 >> BigInt(i * 8)) & 0xffn); // y1 third
-          bytes[191 - i] = Number((y0 >> BigInt(i * 8)) & 0xffn); // y0 last
-        }
+        const x = Fp2.create({ c0: BigInt(point[0][0]), c1: BigInt(point[0][1]) });
+        const y = Fp2.create({ c0: BigInt(point[1][0]), c1: BigInt(point[1][1]) });
+
+        // Create and validate the point
+        const p = new bls12_381.G2.ProjectivePoint(x, y, Fp2.ONE);
+        p.assertValidity(); // Validates the point is on the curve
+
+        const affine = p.toAffine();
+
+        // Serialize in order [x1, x0, y1, y0] to match ffjavascript behavior
+        const x0Bytes = numberToBytesBE((affine.x as any).c0, 48);
+        const x1Bytes = numberToBytesBE((affine.x as any).c1, 48);
+        const y0Bytes = numberToBytesBE((affine.y as any).c0, 48);
+        const y1Bytes = numberToBytesBE((affine.y as any).c1, 48);
+
+        const bytes = new Uint8Array(192); // BLS12-381 G2 is 192 bytes
+        bytes.set(x1Bytes, 0); // x1 first
+        bytes.set(x0Bytes, 48); // then x0
+        bytes.set(y1Bytes, 96); // y1 third
+        bytes.set(y0Bytes, 144); // y0 last
+
         return bytes;
       }
     }
