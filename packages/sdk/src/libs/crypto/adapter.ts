@@ -1,42 +1,8 @@
 import { Groth16Proof } from 'snarkjs';
+import { utils } from 'ffjavascript';
+const { unstringifyBigInts } = utils;
 
 import * as curves from './curve';
-
-// Helper function to convert string/hex values to BigInt recursively
-const unstringifyBigInts = (obj: any): any => {
-  if (typeof obj === 'string') {
-    // Handle hex strings
-    if (obj.startsWith('0x')) {
-      try {
-        return BigInt(obj);
-      } catch {
-        return obj;
-      }
-    }
-    // Handle decimal strings - check if it's a valid number string
-    if (/^-?\d+$/.test(obj)) {
-      return BigInt(obj);
-    }
-    // Not a number string, return as-is
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(unstringifyBigInts);
-  }
-
-  if (typeof obj === 'object' && obj !== null) {
-    const result: any = {};
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        result[key] = unstringifyBigInts(obj[key]);
-      }
-    }
-    return result;
-  }
-
-  return obj;
-};
 
 const Bytes2Str = (arr: number[]) => {
   let str = '';
