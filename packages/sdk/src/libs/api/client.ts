@@ -169,11 +169,15 @@ export class MaciApiClient {
    * Create API key (Admin)
    */
   async createApiKey(
-    data: RequestBody<paths['/admin/keys']['post']>
+    data: RequestBody<paths['/admin/keys']['post']>,
+    adminSecret: string
   ): Promise<ResponseBody<paths['/admin/keys']['post'], 200>> {
     return this.fetch('/admin/keys', {
       method: 'POST',
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      headers: {
+        'X-Admin-Secret': adminSecret
+      }
     });
   }
 

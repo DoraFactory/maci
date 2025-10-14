@@ -4,1490 +4,1490 @@
  */
 
 export interface paths {
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health check
-         * @description Returns liveness of the API service.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
+  '/health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Health check
+     * @description Returns liveness of the API service.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Service liveness flag */
+              ok: boolean;
+              /**
+               * Format: date-time
+               * @description Server ISO timestamp
+               */
+              time: string;
+              /** @description Optional app version/commit */
+              version?: string | null;
             };
-            requestBody?: never;
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @description Service liveness flag */
-                            ok: boolean;
-                            /**
-                             * Format: date-time
-                             * @description Server ISO timestamp
-                             */
-                            time: string;
-                            /** @description Optional app version/commit */
-                            version?: string | null;
-                        };
-                    };
-                };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/keys': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Create API key
+     * @description Creates an API key bound to an existing tenant. Requires X-Admin-Secret header.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            /** @description Tenant ULID */
+            tenantId: string;
+            /** @description Optional key label */
+            label?: string;
+            /**
+             * @description Plan id: free|pro|enterprise
+             * @default free
+             * @enum {string}
+             */
+            plan?: 'free' | 'pro' | 'enterprise';
+          };
+        };
+      };
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Secret, shown only once */
+              apiKey: string;
+              /** @description Public key prefix */
+              prefix: string;
             };
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+      };
     };
-    "/admin/keys": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/usage': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Usage for current API key
+     * @description Returns paginated usage events attributed to the calling API key.
+     */
+    get: {
+      parameters: {
+        query?: {
+          /** @description Page number (1-based) */
+          page?: number;
+          /** @description Items per page */
+          pageSize?: number;
+          /** @description Filter: created_at >= from */
+          from?: string;
+          /** @description Filter: created_at < to */
+          to?: string;
+          /** @description Filter by endpoint (e.g., signup|vote|create_round) */
+          endpoint?: string;
         };
-        get?: never;
-        put?: never;
-        /**
-         * Create API key
-         * @description Creates an API key bound to an existing tenant.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              items: {
+                /** @description Usage event ULID */
+                id: string;
+                endpoint: string;
+                statusCode: number;
+                costUnits: number;
+                meta?: {
+                  [key: string]: string | number | boolean | null;
+                } | null;
+                /** Format: date-time */
+                createdAt: string;
+              }[];
+              page: number;
+              pageSize: number;
+              totalItems: number;
+              totalPages: number;
             };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** @description Tenant ULID */
-                        tenantId: string;
-                        /** @description Optional key label */
-                        label?: string;
-                        /**
-                         * @description Plan id: free|pro|enterprise
-                         * @default free
-                         * @enum {string}
-                         */
-                        plan?: "free" | "pro" | "enterprise";
-                    };
-                };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: string;
+              details?: {
+                [key: string]: string | number | boolean | null;
+              };
             };
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @description Secret, shown only once */
-                            apiKey: string;
-                            /** @description Public key prefix */
-                            prefix: string;
-                        };
-                    };
-                };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: string;
+              details?: {
+                [key: string]: string | number | boolean | null;
+              };
             };
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+      };
     };
-    "/v1/usage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/signup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Signup */
+    post: operations['signup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/vote': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Vote */
+    post: operations['vote'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/create-round': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create Round */
+    post: operations['createRound'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/create-amaci-round': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create AMaci Round */
+    post: operations['createAmaciRound'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/set-round-info': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Set Round Info */
+    post: operations['setRoundInfo'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/set-vote-options': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Set Vote Options */
+    post: operations['setVoteOptions'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/deactivate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Deactivate */
+    post: operations['deactivate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/add-new-key': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Add New Key */
+    post: operations['addNewKey'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pre-add-new-key': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pre Add New Key */
+    post: operations['preAddNewKey'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/tenants': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Create tenant
+     * @description Creates a new tenant that will own API keys. Public endpoint - anyone can create a tenant.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            /** @description Tenant display name */
+            name: string;
+          };
         };
-        /**
-         * Usage for current API key
-         * @description Returns paginated usage events attributed to the calling API key.
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Page number (1-based) */
-                    page?: number;
-                    /** @description Items per page */
-                    pageSize?: number;
-                    /** @description Filter: created_at >= from */
-                    from?: string;
-                    /** @description Filter: created_at < to */
-                    to?: string;
-                    /** @description Filter by endpoint (e.g., signup|vote|create_round) */
-                    endpoint?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
+      };
+      responses: {
+        /** @description Default Response */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description ULID */
+              id: string;
+              name: string;
+              /** Format: date-time */
+              createdAt: string;
             };
-            requestBody?: never;
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            items: {
-                                /** @description Usage event ULID */
-                                id: string;
-                                endpoint: string;
-                                statusCode: number;
-                                costUnits: number;
-                                meta?: {
-                                    [key: string]: unknown;
-                                } | null;
-                                /** Format: date-time */
-                                createdAt: string;
-                            }[];
-                            page: number;
-                            pageSize: number;
-                            totalItems: number;
-                            totalPages: number;
-                        };
-                    };
-                };
-                /** @description Default Response */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                            details?: {
-                                [key: string]: unknown;
-                            };
-                        };
-                    };
-                };
-                /** @description Default Response */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                            details?: {
-                                [key: string]: unknown;
-                            };
-                        };
-                    };
-                };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: string;
+              details?: {
+                [key: string]: string | number | boolean | null;
+              };
             };
+          };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+      };
     };
-    "/v1/signup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Signup */
-        post: operations["signup"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/allowlists/': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/vote": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Vote */
-        post: operations["vote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get Allowlist List */
+    get: operations['getAllowlists'];
+    put?: never;
+    /** Create Allowlist */
+    post: operations['createAllowlist'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/allowlists/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/create-round": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Round */
-        post: operations["createRound"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get Allowlist Details */
+    get: operations['getAllowlistDetail'];
+    /** Update Allowlist */
+    put: operations['updateAllowlist'];
+    post?: never;
+    /** Delete Allowlist */
+    delete: operations['deleteAllowlist'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/allowlists/snapshots/{contractAddress}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/create-amaci-round": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create AMaci Round */
-        post: operations["createAmaciRound"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get Round Allowlist Snapshot */
+    get: operations['getRoundAllowlistSnapshot'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/certificates/request': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/set-round-info": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            /** @description User's MACI public key (hexadecimal string) */
+            pubkey: string;
+            /** @description Contract address */
+            contractAddress: string;
+            /** @description User's signature on {pubkey, contract_address} using eddsa_poseidon */
+            signature: string;
+          };
         };
-        get?: never;
-        put?: never;
-        /** Set Round Info */
-        post: operations["setRoundInfo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/set-vote-options": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Set Vote Options */
-        post: operations["setVoteOptions"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/deactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Deactivate */
-        post: operations["deactivate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/add-new-key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add New Key */
-        post: operations["addNewKey"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/pre-add-new-key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Pre Add New Key */
-        post: operations["preAddNewKey"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/tenants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create tenant
-         * @description Creates a new tenant that will own API keys.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
+      };
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description User public key */
+              pubkey: string;
+              /** @description Contract address */
+              contractAddress: string;
+              /** @description Certificate signature issued by backend */
+              certificate: string;
             };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** @description Tenant display name */
-                        name: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Default Response */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @description ULID */
-                            id: string;
-                            name: string;
-                            /** Format: date-time */
-                            createdAt: string;
-                        };
-                    };
-                };
-                /** @description Default Response */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: string;
-                            details?: {
-                                [key: string]: unknown;
-                            };
-                        };
-                    };
-                };
-            };
+          };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Error message */
+              error: string;
+            };
+          };
+        };
+        /** @description Default Response */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Error message */
+              error: string;
+            };
+          };
+        };
+      };
     };
-    "/v1/allowlists/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Allowlist List */
-        get: operations["getAllowlists"];
-        put?: never;
-        /** Create Allowlist */
-        post: operations["createAllowlist"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pre-deactivate/{contractAddress}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/v1/allowlists/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    /** @description Get pre-deactivate data by contract address */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          contractAddress: string;
         };
-        /** Get Allowlist Details */
-        get: operations["getAllowlistDetail"];
-        /** Update Allowlist */
-        put: operations["updateAllowlist"];
-        post?: never;
-        /** Delete Allowlist */
-        delete: operations["deleteAllowlist"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Snapshot ID */
+              id: string;
+              /** @description Contract address */
+              contractAddress: string;
+              /** @description Deactivate root */
+              root: string;
+              /** @description Coordinator public key */
+              coordinator: string;
+              /** @description Array of leaves (pubkeys) */
+              leaves: string[];
+              /** @description Array of deactivate arrays */
+              deactivates: string[][];
+              /** @description Creation timestamp */
+              createdAt: string;
+            };
+          };
+        };
+      };
     };
-    "/v1/allowlists/snapshots/{contractAddress}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Round Allowlist Snapshot */
-        get: operations["getRoundAllowlistSnapshot"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/certificates/request": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** @description User's MACI public key (hexadecimal string) */
-                        pubkey: string;
-                        /** @description Contract address */
-                        contractAddress: string;
-                        /** @description User's signature on {pubkey, contract_address} using eddsa_poseidon */
-                        signature: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @description User public key */
-                            pubkey: string;
-                            /** @description Contract address */
-                            contractAddress: string;
-                            /** @description Certificate signature issued by backend */
-                            certificate: string;
-                        };
-                    };
-                };
-                /** @description Default Response */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @description Error message */
-                            error: string;
-                        };
-                    };
-                };
-                /** @description Default Response */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @description Error message */
-                            error: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/pre-deactivate/{contractAddress}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description Get pre-deactivate data by contract address */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    contractAddress: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Default Response */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @description Snapshot ID */
-                            id: string;
-                            /** @description Contract address */
-                            contractAddress: string;
-                            /** @description Deactivate root */
-                            root: string;
-                            /** @description Coordinator public key */
-                            coordinator: string;
-                            /** @description Array of leaves (pubkeys) */
-                            leaves: string[];
-                            /** @description Array of deactivate objects */
-                            deactivates: unknown[];
-                            /** @description Creation timestamp */
-                            createdAt: string;
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+  schemas: never;
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    signup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description AMACI public key of the voter */
-                    pubkey: string;
-                    /** @description Round ID (contract address) */
-                    contractAddress: string;
-                    /** @description Oracle certificate information */
-                    certificate: string;
-                    /** @description Voice credit amount (optional, defaults to "1") */
-                    amount?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+  signup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    vote: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description AMACI public key of the voter */
+          pubkey: string;
+          /** @description Round ID (contract address) */
+          contractAddress: string;
+          /** @description Oracle certificate information */
+          certificate: string;
+          /** @description Voice credit amount (optional, defaults to "1") */
+          amount?: string;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description Round ID (contract address) */
-                    contractAddress: string;
-                    /** @description Array of vote messages */
-                    payload: {
-                        /** @description Serialized MACI vote message (7 elements) */
-                        msg: string[];
-                        /** @description Encrypted public keys (2 elements) */
-                        encPubkeys: string[];
-                    }[];
-                };
-            };
-        };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+      };
     };
-    createRound: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description Human-readable round title */
-                    title: string;
-                    /** @description Round description */
-                    description?: string;
-                    /** @description Related link */
-                    link?: string;
-                    /** @description Voting start time (ISO 8601) */
-                    startVoting: string;
-                    /** @description Voting end time (ISO 8601) */
-                    endVoting: string;
-                    /** @description Operator public key */
-                    operatorPubkey: string;
-                    /** @description Maximum number of voters */
-                    maxVoter: number;
-                    /** @description Array of voting options */
-                    voteOptionMap: string[];
-                    /** @description MACI circuit type */
-                    circuitType?: string;
-                    /** @description Whitelist backend public key */
-                    whitelistBackendPubkey?: string;
-                    /** @description Fee grant operator */
-                    feegrantOperator?: string;
-                    /** @description Allowlist ID for whitelist */
-                    allowlistId: string;
-                };
-            };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
         };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+      };
     };
-    createAmaciRound: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description Human-readable round title */
-                    title: string;
-                    /** @description Round description */
-                    description?: string;
-                    /** @description Related link */
-                    link?: string;
-                    /** @description Voting start time (ISO 8601) */
-                    startVoting: string;
-                    /** @description Voting end time (ISO 8601) */
-                    endVoting: string;
-                    /** @description Operator address */
-                    operator: string;
-                    /** @description Maximum number of voters */
-                    maxVoter: number;
-                    /** @description Array of voting options */
-                    voteOptionMap: string[];
-                    /** @description MACI circuit type */
-                    circuitType?: string;
-                    /** @description Voice credit amount */
-                    voiceCreditAmount: number;
-                    /** @description Allowlist ID for whitelist. If not provided, pre-deactivate mode will be used automatically */
-                    allowlistId?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+  };
+  vote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    setRoundInfo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description Round ID (contract address) */
+          contractAddress: string;
+          /** @description Array of vote messages */
+          payload: {
+            /** @description Serialized MACI vote message (7 elements) */
+            msg: string[];
+            /** @description Encrypted public keys (2 elements) */
+            encPubkeys: string[];
+          }[];
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description MACI contract address */
-                    contractAddress: string;
-                    /** @description Round title */
-                    title: string;
-                    /** @description Round description */
-                    description: string;
-                    /** @description Related link */
-                    link: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+      };
     };
-    setVoteOptions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description MACI contract address */
-                    contractAddress: string;
-                    /** @description Array of voting options */
-                    voteOptionMap: string[];
-                };
-            };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
         };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+      };
     };
-    deactivate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description MACI contract address */
-                    contractAddress: string;
-                    /** @description Deactivate payload */
-                    payload: {
-                        /** @description Deactivate message array */
-                        msg: string[];
-                        /** @description Encrypted public keys (2 elements) */
-                        encPubkeys: string[];
-                    };
-                };
-            };
-        };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+  };
+  createRound: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    addNewKey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description Human-readable round title */
+          title: string;
+          /** @description Round description */
+          description?: string;
+          /** @description Related link */
+          link?: string;
+          /** @description Voting start time (ISO 8601) */
+          startVoting: string;
+          /** @description Voting end time (ISO 8601) */
+          endVoting: string;
+          /** @description Operator public key */
+          operatorPubkey: string;
+          /** @description Maximum number of voters */
+          maxVoter: number;
+          /** @description Array of voting options */
+          voteOptionMap: string[];
+          /** @description MACI circuit type */
+          circuitType?: string;
+          /** @description Whitelist backend public key */
+          whitelistBackendPubkey?: string;
+          /** @description Fee grant operator */
+          feegrantOperator?: string;
+          /** @description Allowlist ID for whitelist */
+          allowlistId: string;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description MACI contract address */
-                    contractAddress: string;
-                    /** @description Groth16 proof */
-                    proof: {
-                        /** @description Groth16 proof component a */
-                        a: string;
-                        /** @description Groth16 proof component b */
-                        b: string;
-                        /** @description Groth16 proof component c */
-                        c: string;
-                    };
-                    /** @description Array d from addKeyInput (4 elements) */
-                    d: string[];
-                    /** @description Nullifier from addKeyInput */
-                    nullifier: string;
-                    /** @description New public key (2 elements) */
-                    newPubkey: string[];
-                };
-            };
-        };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+      };
     };
-    preAddNewKey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description MACI contract address */
-                    contractAddress: string;
-                    /** @description Groth16 proof */
-                    proof: {
-                        /** @description Groth16 proof component a */
-                        a: string;
-                        /** @description Groth16 proof component b */
-                        b: string;
-                        /** @description Groth16 proof component c */
-                        c: string;
-                    };
-                    /** @description Array d from preAddKeyInput (4 elements) */
-                    d: string[];
-                    /** @description Nullifier from preAddKeyInput */
-                    nullifier: string;
-                    /** @description New public key (2 elements) */
-                    newPubkey: string[];
-                };
-            };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
         };
-        responses: {
-            /** @description Default Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Internal request id (ULID/UUID) */
-                        id: string;
-                        /** @description Transaction hash */
-                        txHash: string;
-                        /** @description Block height (0 if pending/not known) */
-                        height: number;
-                        /**
-                         * @description Chain submission status
-                         * @enum {string}
-                         */
-                        status: "pending" | "confirmed" | "failed" | "unknown";
-                        /** @description Contract address (for successful transactions) */
-                        contractAddress?: string;
-                        /** @description Error message (for failed transactions) */
-                        error?: string;
-                        /** @description Pre-generated accounts (for pre-deactivate mode only) */
-                        accounts?: {
-                            /** @description Account public key */
-                            pubkey: string;
-                            /** @description Account secret key */
-                            secretKey: string;
-                        }[];
-                    };
-                };
-            };
-        };
+      };
     };
-    getAllowlists: {
-        parameters: {
-            query?: {
-                /** @description Page number (1-based) */
-                page?: number;
-                /** @description Items per page */
-                limit?: number;
-                /** @description Filter only active allowlists */
-                activeOnly?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Default Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        allowlists: {
-                            /** @description ULID */
-                            id: string;
-                            /** @description Allowlist name */
-                            name: string;
-                            /** @description Allowlist description */
-                            description: string | null;
-                            /** @description Whether allowlist is active */
-                            isActive: boolean;
-                            /** @description Number of items in allowlist */
-                            itemCount: number;
-                            /** Format: date-time */
-                            createdAt: string;
-                            /** Format: date-time */
-                            updatedAt: string;
-                        }[];
-                        total: number;
-                    };
-                };
-            };
-            /** @description Default Response */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: string;
-                    };
-                };
-            };
-        };
+  };
+  createAmaciRound: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    createAllowlist: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description Human-readable round title */
+          title: string;
+          /** @description Round description */
+          description?: string;
+          /** @description Related link */
+          link?: string;
+          /** @description Voting start time (ISO 8601) */
+          startVoting: string;
+          /** @description Voting end time (ISO 8601) */
+          endVoting: string;
+          /** @description Operator address */
+          operator: string;
+          /** @description Maximum number of voters */
+          maxVoter: number;
+          /** @description Array of voting options */
+          voteOptionMap: string[];
+          /** @description MACI circuit type */
+          circuitType?: string;
+          /** @description Voice credit amount */
+          voiceCreditAmount: number;
+          /** @description Allowlist ID for whitelist. If not provided, pre-deactivate mode will be used automatically */
+          allowlistId?: string;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description Allowlist name */
-                    name: string;
-                    /** @description Allowlist description */
-                    description?: string;
-                    /** @description Array of public keys to add to allowlist */
-                    pubkeys: string[];
-                };
-            };
-        };
-        responses: {
-            /** @description Default Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description ULID */
-                        id: string;
-                        /** @description Allowlist name */
-                        name: string;
-                        /** @description Allowlist description */
-                        description: string | null;
-                        /** @description Whether allowlist is active */
-                        isActive: boolean;
-                        /** @description Number of items in allowlist */
-                        itemCount: number;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
-                };
-            };
-            /** @description Default Response */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: string;
-                    };
-                };
-            };
-        };
+      };
     };
-    getAllowlistDetail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Allowlist ID */
-                id: string;
-            };
-            cookie?: never;
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Default Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description ULID */
-                        id: string;
-                        /** @description Allowlist name */
-                        name: string;
-                        /** @description Allowlist description */
-                        description: string | null;
-                        /** @description Whether allowlist is active */
-                        isActive: boolean;
-                        /** @description Allowlist items */
-                        items: {
-                            /** @description ULID */
-                            id: string;
-                            /** @description Public key */
-                            pubkey: string;
-                            /** Format: date-time */
-                            createdAt: string;
-                        }[];
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
-                };
-            };
-            /** @description Default Response */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: string;
-                    };
-                };
-            };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
         };
+      };
     };
-    updateAllowlist: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Allowlist ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    /** @description Allowlist name */
-                    name?: string;
-                    /** @description Allowlist description */
-                    description?: string;
-                    /** @description Public keys to add */
-                    pubkeysToAdd?: string[];
-                    /** @description Public keys to remove */
-                    pubkeysToRemove?: string[];
-                    /** @description Whether allowlist is active */
-                    isActive?: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description Default Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description ULID */
-                        id: string;
-                        /** @description Allowlist name */
-                        name: string;
-                        /** @description Allowlist description */
-                        description: string | null;
-                        /** @description Whether allowlist is active */
-                        isActive: boolean;
-                        /** @description Number of items in allowlist */
-                        itemCount: number;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                    };
-                };
-            };
-            /** @description Default Response */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: string;
-                    };
-                };
-            };
-        };
+  };
+  setRoundInfo: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    deleteAllowlist: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Allowlist ID */
-                id: string;
-            };
-            cookie?: never;
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description MACI contract address */
+          contractAddress: string;
+          /** @description Round title */
+          title: string;
+          /** @description Round description */
+          description: string;
+          /** @description Related link */
+          link: string;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Default Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": null;
-                };
-            };
-            /** @description Default Response */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: string;
-                    };
-                };
-            };
-        };
+      };
     };
-    getRoundAllowlistSnapshot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Round contract address */
-                contractAddress: string;
-            };
-            cookie?: never;
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Default Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description ULID */
-                        id: string;
-                        /** @description Allowlist ID */
-                        allowlistId: string;
-                        /** @description Round ID (contract address) */
-                        roundId: string;
-                        /** @description Number of pubkeys in snapshot */
-                        pubkeyCount: number;
-                        /** @description Snapshot data */
-                        snapshotData: {
-                            name: string;
-                            description: string | null;
-                            pubkeys: string[];
-                        };
-                        /** Format: date-time */
-                        createdAt: string;
-                    };
-                };
-            };
-            /** @description Default Response */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: string;
-                    };
-                };
-            };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
         };
+      };
     };
+  };
+  setVoteOptions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description MACI contract address */
+          contractAddress: string;
+          /** @description Array of voting options */
+          voteOptionMap: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
+        };
+      };
+    };
+  };
+  deactivate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description MACI contract address */
+          contractAddress: string;
+          /** @description Deactivate payload */
+          payload: {
+            /** @description Deactivate message array */
+            msg: string[];
+            /** @description Encrypted public keys (2 elements) */
+            encPubkeys: string[];
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
+        };
+      };
+    };
+  };
+  addNewKey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description MACI contract address */
+          contractAddress: string;
+          /** @description Groth16 proof */
+          proof: {
+            /** @description Groth16 proof component a */
+            a: string;
+            /** @description Groth16 proof component b */
+            b: string;
+            /** @description Groth16 proof component c */
+            c: string;
+          };
+          /** @description Array d from addKeyInput (4 elements) */
+          d: string[];
+          /** @description Nullifier from addKeyInput */
+          nullifier: string;
+          /** @description New public key (2 elements) */
+          newPubkey: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
+        };
+      };
+    };
+  };
+  preAddNewKey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description MACI contract address */
+          contractAddress: string;
+          /** @description Groth16 proof */
+          proof: {
+            /** @description Groth16 proof component a */
+            a: string;
+            /** @description Groth16 proof component b */
+            b: string;
+            /** @description Groth16 proof component c */
+            c: string;
+          };
+          /** @description Array d from preAddKeyInput (4 elements) */
+          d: string[];
+          /** @description Nullifier from preAddKeyInput */
+          nullifier: string;
+          /** @description New public key (2 elements) */
+          newPubkey: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+            }[];
+          };
+        };
+      };
+    };
+  };
+  getAllowlists: {
+    parameters: {
+      query?: {
+        /** @description Page number (1-based) */
+        page?: number;
+        /** @description Items per page */
+        limit?: number;
+        /** @description Filter only active allowlists */
+        activeOnly?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Default Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            allowlists: {
+              /** @description ULID */
+              id: string;
+              /** @description Allowlist name */
+              name: string;
+              /** @description Allowlist description */
+              description: string | null;
+              /** @description Whether allowlist is active */
+              isActive: boolean;
+              /** @description Number of items in allowlist */
+              itemCount: number;
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
+            total: number;
+          };
+        };
+      };
+      /** @description Default Response */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  createAllowlist: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description Allowlist name */
+          name: string;
+          /** @description Allowlist description */
+          description?: string;
+          /** @description Array of public keys to add to allowlist */
+          pubkeys: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Default Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description ULID */
+            id: string;
+            /** @description Allowlist name */
+            name: string;
+            /** @description Allowlist description */
+            description: string | null;
+            /** @description Whether allowlist is active */
+            isActive: boolean;
+            /** @description Number of items in allowlist */
+            itemCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getAllowlistDetail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Allowlist ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Default Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description ULID */
+            id: string;
+            /** @description Allowlist name */
+            name: string;
+            /** @description Allowlist description */
+            description: string | null;
+            /** @description Whether allowlist is active */
+            isActive: boolean;
+            /** @description Allowlist items */
+            items: {
+              /** @description ULID */
+              id: string;
+              /** @description Public key */
+              pubkey: string;
+              /** Format: date-time */
+              createdAt: string;
+            }[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateAllowlist: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Allowlist ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        'application/json': {
+          /** @description Allowlist name */
+          name?: string;
+          /** @description Allowlist description */
+          description?: string;
+          /** @description Public keys to add */
+          pubkeysToAdd?: string[];
+          /** @description Public keys to remove */
+          pubkeysToRemove?: string[];
+          /** @description Whether allowlist is active */
+          isActive?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Default Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description ULID */
+            id: string;
+            /** @description Allowlist name */
+            name: string;
+            /** @description Allowlist description */
+            description: string | null;
+            /** @description Whether allowlist is active */
+            isActive: boolean;
+            /** @description Number of items in allowlist */
+            itemCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  deleteAllowlist: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Allowlist ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Default Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': null;
+        };
+      };
+      /** @description Default Response */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getRoundAllowlistSnapshot: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Round contract address */
+        contractAddress: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Default Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description ULID */
+            id: string;
+            /** @description Allowlist ID */
+            allowlistId: string;
+            /** @description Round ID (contract address) */
+            roundId: string;
+            /** @description Number of pubkeys in snapshot */
+            pubkeyCount: number;
+            /** @description Snapshot data */
+            snapshotData: {
+              name: string;
+              description: string | null;
+              pubkeys: string[];
+            };
+            /** Format: date-time */
+            createdAt: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+          };
+        };
+      };
+    };
+  };
 }

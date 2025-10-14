@@ -317,7 +317,7 @@ export class VoterClient {
   }: {
     stateTreeDepth: number;
     coordinatorPubkey: bigint;
-    deactivates: bigint[][];
+    deactivates: bigint[][] | string[][];
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -573,7 +573,7 @@ export class VoterClient {
     contractAddress: string;
     stateTreeDepth: number;
     coordinatorPubkey: bigint;
-    deactivates: bigint[][];
+    deactivates: bigint[][] | string[][];
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;

@@ -13,6 +13,8 @@ import { MaciClient } from '../src/maci';
 import { VoterClient } from '../src/voter';
 import { MaciCircuitType } from '../src/types';
 import * as path from 'path';
+import dotenv from 'dotenv';
+dotenv.config();
 
 function generateRandomString(length: number) {
   return Math.random()
@@ -46,11 +48,19 @@ async function main() {
   });
   console.log('✓ Tenant created successfully:', tenantData.id);
 
-  const apiKeyData = await adminMaciClient.getSaasApiClient().createApiKey({
-    tenantId: tenantData.id,
-    label: 'Test API Key',
-    plan: 'pro'
-  });
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (!adminSecret) {
+    throw new Error('ADMIN_SECRET environment variable is not set');
+  }
+
+  const apiKeyData = await adminMaciClient.getSaasApiClient().createApiKey(
+    {
+      tenantId: tenantData.id,
+      label: 'Test API Key',
+      plan: 'pro'
+    },
+    adminSecret
+  );
   const apiKey = apiKeyData.apiKey;
   console.log('✓ API Key created successfully:', apiKey);
 
@@ -163,7 +173,7 @@ async function main() {
       contractAddress: contractAddress,
       stateTreeDepth: 2,
       coordinatorPubkey: coordinatorPubkey,
-      deactivates: deactivateData.deactivates as any,
+      deactivates: deactivateData.deactivates,
       wasmFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.wasm`),
       zkeyFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.zkey`)
       //   derivePathParams
