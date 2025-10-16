@@ -121,7 +121,12 @@ export class VoterClient {
     return packPubKey(pubkey || this.accountManager.currentPubkey.toPoints());
   }
 
-  unpackMaciPubkey(pubkey: bigint | string) {
+  unpackMaciPubkey(pubkey: bigint | string | PubKey): PubKey {
+    // If it's already a PubKey (array of two bigints), return it directly
+    if (Array.isArray(pubkey) && pubkey.length === 2) {
+      return pubkey as PubKey;
+    }
+    // Otherwise, unpack from bigint or string
     return unpackPubKey(BigInt(pubkey));
   }
 
@@ -136,7 +141,7 @@ export class VoterClient {
     derivePathParams
   }: {
     stateIdx: number;
-    operatorPubkey: bigint;
+    operatorPubkey: bigint | string | PubKey;
     selectedOptions: {
       idx: number;
       vc: number;
@@ -169,7 +174,7 @@ export class VoterClient {
 
   batchGenMessage(
     stateIdx: number,
-    operatorPubkey: bigint,
+    operatorPubkey: bigint | string | PubKey,
     plan: [number, number][],
     derivePathParams?: DerivePathParams
   ) {
@@ -192,7 +197,7 @@ export class VoterClient {
 
   genMessageFactory(
     stateIdx: number,
-    operatorPubkey: bigint,
+    operatorPubkey: bigint | string | PubKey,
     // signPriKey: PrivKey,
     // signPubKey: PubKey,
     // coordPubKey: PubKey,
@@ -245,17 +250,9 @@ export class VoterClient {
     contractAddress: string;
     pubkey?: PubKey | string | bigint;
   }) {
-    let processedPubkey: PubKey;
+    pubkey = this.unpackMaciPubkey(pubkey || this.accountManager.currentPubkey.toPoints());
 
-    if (!pubkey) {
-      processedPubkey = this.accountManager.currentPubkey.toPoints();
-    } else if (typeof pubkey === 'string' || typeof pubkey === 'bigint') {
-      processedPubkey = this.unpackMaciPubkey(pubkey);
-    } else {
-      processedPubkey = pubkey;
-    }
-
-    const response = await this.indexer.getSignUpEventByPubKey(contractAddress, processedPubkey);
+    const response = await this.indexer.getSignUpEventByPubKey(contractAddress, pubkey);
 
     if (isErrorResponse(response)) {
       return -1;
@@ -272,7 +269,7 @@ export class VoterClient {
     derivePathParams
   }: {
     stateTreeDepth: number;
-    operatorPubkey: bigint;
+    operatorPubkey: bigint | string | PubKey;
     deactivates: DeactivateMessage[];
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
@@ -326,7 +323,7 @@ export class VoterClient {
     derivePathParams
   }: {
     stateTreeDepth: number;
-    coordinatorPubkey: bigint;
+    coordinatorPubkey: bigint | string | PubKey;
     deactivates: bigint[][] | string[][];
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
@@ -523,7 +520,7 @@ export class VoterClient {
     derivePathParams
   }: {
     stateIdx: number;
-    operatorPubkey: bigint;
+    operatorPubkey: bigint | string | PubKey;
     derivePathParams?: DerivePathParams;
   }) {
     const payload = this.batchGenMessage(stateIdx, operatorPubkey, [[0, 0]], derivePathParams);
@@ -582,7 +579,7 @@ export class VoterClient {
   }: {
     contractAddress: string;
     stateTreeDepth: number;
-    coordinatorPubkey: bigint;
+    coordinatorPubkey: bigint | string | PubKey;
     deactivates: bigint[][] | string[][];
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
@@ -629,7 +626,7 @@ export class VoterClient {
     derivePathParams
   }: {
     contractAddress: string;
-    operatorPubkey: bigint;
+    operatorPubkey: bigint | string | PubKey;
     selectedOptions: {
       idx: number;
       vc: number;

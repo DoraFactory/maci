@@ -182,7 +182,12 @@ export class MaciClient {
     return packPubKey(pubkey || this.maciKeypair.pubKey);
   }
 
-  unpackMaciPubkey(pubkey: bigint | string) {
+  unpackMaciPubkey(pubkey: bigint | string | PubKey): PubKey {
+    // If it's already a PubKey (array of two bigints), return it directly
+    if (Array.isArray(pubkey) && pubkey.length === 2) {
+      return pubkey as PubKey;
+    }
+    // Otherwise, unpack from bigint or string
     return unpackPubKey(BigInt(pubkey));
   }
 
