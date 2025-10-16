@@ -185,11 +185,15 @@ export class MaciApiClient {
    * Create tenant (Admin)
    */
   async createTenant(
-    data: RequestBody<paths['/admin/tenants']['post']>
+    data: RequestBody<paths['/admin/tenants']['post']>,
+    adminSecret: string
   ): Promise<ResponseBody<paths['/admin/tenants']['post'], 201>> {
     return this.fetch('/admin/tenants', {
       method: 'POST',
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      headers: {
+        'X-Admin-Secret': adminSecret
+      }
     });
   }
 

@@ -42,16 +42,19 @@ async function main() {
   const tenantName = `Test Tenant ${generateRandomString(10)}`;
   console.log(`\n[1/5] Creating Tenant: ${tenantName}`);
 
-  // Create Tenant through underlying API client
-  const tenantData = await adminMaciClient.getSaasApiClient().createTenant({
-    name: tenantName
-  });
-  console.log('✓ Tenant created successfully:', tenantData.id);
-
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret) {
     throw new Error('ADMIN_SECRET environment variable is not set');
   }
+
+  // Create Tenant through underlying API client
+  const tenantData = await adminMaciClient.getSaasApiClient().createTenant(
+    {
+      name: tenantName
+    },
+    adminSecret
+  );
+  console.log('✓ Tenant created successfully:', tenantData.id);
 
   const apiKeyData = await adminMaciClient.getSaasApiClient().createApiKey(
     {
