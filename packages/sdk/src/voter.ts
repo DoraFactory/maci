@@ -238,14 +238,24 @@ export class VoterClient {
     };
   }
 
-  async getStateIdxByPubKey({
+  async getStateIdx({
     contractAddress,
-    pubKey
+    pubkey
   }: {
     contractAddress: string;
-    pubKey: bigint[];
+    pubkey?: PubKey | string | bigint;
   }) {
-    const response = await this.indexer.getSignUpEventByPubKey(contractAddress, pubKey);
+    let processedPubkey: PubKey;
+
+    if (!pubkey) {
+      processedPubkey = this.accountManager.currentPubkey.toPoints();
+    } else if (typeof pubkey === 'string' || typeof pubkey === 'bigint') {
+      processedPubkey = this.unpackMaciPubkey(pubkey);
+    } else {
+      processedPubkey = pubkey;
+    }
+
+    const response = await this.indexer.getSignUpEventByPubKey(contractAddress, processedPubkey);
 
     if (isErrorResponse(response)) {
       return -1;
@@ -614,13 +624,11 @@ export class VoterClient {
 
   async saasVote({
     contractAddress,
-    // stateIdx,
     operatorPubkey,
     selectedOptions,
     derivePathParams
   }: {
     contractAddress: string;
-    // stateIdx: number;
     operatorPubkey: bigint;
     selectedOptions: {
       idx: number;
@@ -628,9 +636,8 @@ export class VoterClient {
     }[];
     derivePathParams?: DerivePathParams;
   }) {
-    const stateIdx = await this.getStateIdxByPubKey({
-      contractAddress,
-      pubKey: this.getPubkey(derivePathParams).toPoints()
+    const stateIdx = await this.getStateIdx({
+      contractAddress
     });
 
     if (stateIdx === -1) {
