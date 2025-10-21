@@ -1,9 +1,6 @@
 import { MaciClient, MaciCircuitType, genKeypair } from '../src';
 import { Secp256k1HdWallet } from '@cosmjs/amino';
-import {
-  DirectSecp256k1HdWallet,
-  DirectSecp256k1Wallet,
-} from '@cosmjs/proto-signing';
+import { DirectSecp256k1HdWallet, DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -21,15 +18,12 @@ async function main() {
   if (key.startsWith('0x')) {
     key = key.slice(2);
   }
-  const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(key, 'hex'),
-    'dora'
-  );
+  const wallet = await DirectSecp256k1Wallet.fromKey(Buffer.from(key, 'hex'), 'dora');
 
   const client = new MaciClient({
     // network: 'mainnet',
     network: 'testnet',
-    signer: wallet,
+    signer: wallet
   });
 
   const newRound = await client.createOracleMaciRound({
@@ -48,8 +42,8 @@ async function main() {
     whitelistVotingPowerArgs: {
       mode: 'slope',
       slope: '1000000',
-      threshold: '1000000',
-    },
+      threshold: '1000000'
+    }
   });
   console.log('newRound:', newRound);
 
@@ -61,18 +55,18 @@ async function main() {
   const address = await client.getAddress();
   const RoundAddress = newRound.contractAddress;
   const oracleMaciClient = await client.oracleMaciClient({
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
 
   await oracleMaciClient.bond(undefined, undefined, [
     {
       denom: 'peaka',
-      amount: '10000000000000000000',
-    },
+      amount: '10000000000000000000'
+    }
   ]);
 
   const roundInfo = await client.getRoundInfo({
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
   console.log('roundInfo', roundInfo);
 
@@ -84,13 +78,13 @@ async function main() {
   );
   console.log('status', status);
   const oracleClient = await client.oracleMaciClient({
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
   const oracleConfig = await oracleClient.queryOracleWhitelistConfig();
   console.log('oracleConfig', oracleConfig);
 
   const roundBalance = await client.queryRoundBalance({
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
   console.log(`roundBalance: ${Number(roundBalance) / 10 ** 18} DORA`);
 
@@ -105,7 +99,7 @@ async function main() {
   const certificate = await client.requestOracleCertificate({
     ecosystem: 'doravota',
     address,
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
   console.log('certificate', certificate);
 
@@ -113,7 +107,7 @@ async function main() {
   console.log('gasStationEnable', gasStationEnable);
   let hasFeegrant = await client.hasFeegrant({
     address,
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
   console.log('hasFeegrant', hasFeegrant);
 
@@ -121,7 +115,7 @@ async function main() {
     await delay(1000);
     hasFeegrant = await client.hasFeegrant({
       address,
-      contractAddress: RoundAddress,
+      contractAddress: RoundAddress
     });
     console.log('checking hasFeegrant:', hasFeegrant);
   }
@@ -135,9 +129,9 @@ async function main() {
     maciKeypair,
     oracleCertificate: {
       amount: certificate.amount,
-      signature: certificate.signature,
+      signature: certificate.signature
     },
-    gasStation: true,
+    gasStation: true
   });
 
   console.log('signup tx:', signupResponse.transactionHash);
@@ -147,18 +141,18 @@ async function main() {
   // get user state idx
   const stateIdx = await client.getStateIdxByPubKey({
     contractAddress: RoundAddress,
-    pubKey: maciKeypair.pubKey,
+    pubKey: maciKeypair.pubKey
   });
   console.log('stateIdx', stateIdx);
   const balance = await client.queryWhitelistBalanceOf({
     address,
     contractAddress: RoundAddress,
-    certificate: certificate,
+    certificate: certificate
   });
   console.log('balance', balance);
 
   const voiceBalance = await oracleClient.getVoiceCreditBalance({
-    index: stateIdx.toString(),
+    index: stateIdx.toString()
   });
   console.log('voiceBalance', voiceBalance);
   // vote
@@ -167,14 +161,14 @@ async function main() {
     contractAddress: RoundAddress,
     selectedOptions: [
       { idx: 0, vc: 1 },
-      { idx: 1, vc: 1 },
+      { idx: 1, vc: 1 }
     ],
     operatorCoordPubKey: [
       BigInt(roundInfo.coordinatorPubkeyX),
-      BigInt(roundInfo.coordinatorPubkeyY),
+      BigInt(roundInfo.coordinatorPubkeyY)
     ],
     maciKeypair,
-    gasStation: true,
+    gasStation: true
   });
 
   console.log('vote tx:', voteResponse.transactionHash);

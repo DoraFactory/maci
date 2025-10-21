@@ -1,9 +1,6 @@
 import { MaciClient, MaciCircuitType, genKeypair, PubKey } from '../src';
 import { Secp256k1HdWallet } from '@cosmjs/amino';
-import {
-  DirectSecp256k1HdWallet,
-  DirectSecp256k1Wallet,
-} from '@cosmjs/proto-signing';
+import { DirectSecp256k1HdWallet, DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -21,14 +18,11 @@ async function main() {
   if (key.startsWith('0x')) {
     key = key.slice(2);
   }
-  const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(key, 'hex'),
-    'dora'
-  );
+  const wallet = await DirectSecp256k1Wallet.fromKey(Buffer.from(key, 'hex'), 'dora');
 
   const client = new MaciClient({
     network: 'testnet',
-    signer: wallet,
+    signer: wallet
   });
 
   const address = await client.getAddress();
@@ -40,21 +34,21 @@ async function main() {
       'Autonomous Vehicle Systems',
       'Carbon Capture Technology',
       'Edge Computing Network',
-      'Biotech Data Analytics',
+      'Biotech Data Analytics'
     ],
     operator: 'dora18mph6ekhf70pxqxpq0lfj3z7j3k4mqn8m2cna5',
     whitelist: {
       users: [
         {
-          addr: address,
-        },
-      ],
+          addr: address
+        }
+      ]
     },
     voiceCreditAmount: '10000000000000000000',
     startVoting: new Date(new Date().getTime()),
     endVoting: new Date(new Date().getTime() + 11 * 60 * 1000),
     title: 'new amaci round',
-    circuitType: MaciCircuitType.IP1V,
+    circuitType: MaciCircuitType.IP1V
   });
   console.log('newRound:', newRound);
 
@@ -64,7 +58,7 @@ async function main() {
 
   await delay(10000);
   const roundInfo = await client.getRoundInfo({
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
   console.log('roundInfo', roundInfo);
 
@@ -76,7 +70,7 @@ async function main() {
   );
   console.log('status', status);
   const roundBalance = await client.queryRoundBalance({
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
   console.log(`roundBalance: ${Number(roundBalance) / 10 ** 18} DORA`);
 
@@ -88,7 +82,7 @@ async function main() {
   // console.log('maciKeypair', maciKeypair);
   const pubKey: PubKey = [
     5863731289590225008386799445332825332650022926879250618460419250139482260266n,
-    13135943474599383186329499231577492262315383521227828385358525250312561036975n,
+    13135943474599383186329499231577492262315383521227828385358525250312561036975n
   ];
 
   await delay(6000);
@@ -97,7 +91,7 @@ async function main() {
   const signupResponse = await client.rawSignup({
     address,
     contractAddress: RoundAddress,
-    pubKey,
+    pubKey
   });
 
   console.log('signup tx:', signupResponse.transactionHash);
@@ -107,12 +101,12 @@ async function main() {
   // get user state idx
   const stateIdx = await client.getStateIdxByPubKey({
     contractAddress: RoundAddress,
-    pubKey,
+    pubKey
   });
   console.log('stateIdx', stateIdx);
   const balance = await client.queryWhitelistBalanceOf({
     address,
-    contractAddress: RoundAddress,
+    contractAddress: RoundAddress
   });
   console.log('balance', balance);
 
@@ -122,20 +116,19 @@ async function main() {
     contractAddress: RoundAddress,
     selectedOptions: [
       { idx: 0, vc: 1 },
-      { idx: 1, vc: 1 },
+      { idx: 1, vc: 1 }
     ],
     operatorCoordPubKey: [
       BigInt(roundInfo.coordinatorPubkeyX),
-      BigInt(roundInfo.coordinatorPubkeyY),
+      BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    pubKey,
+    pubKey
   });
 
   // vote
   const voteResponse = await client.rawVote({
     address,
     contractAddress: RoundAddress,
-    pubKey,
     payload: [
       {
         msg: [
@@ -145,12 +138,12 @@ async function main() {
           5383233461828404059657667798432854432594543587270897578346769972404860704496n,
           10173963496413773065807647565971953796397979108442127972959920858843128234481n,
           5733760719560019650700376826880747284161434869009239775001402868294783661465n,
-          17596032058491310268326930196676558592814727047627428810102968225968026269782n,
+          17596032058491310268326930196676558592814727047627428810102968225968026269782n
         ],
         encPubkeys: [
           12418669058990177153979786010520607563390785128539285188760572071649324116218n,
-          5133879086249290479758995045310866617925128736256494107974424810003975873116n,
-        ],
+          5133879086249290479758995045310866617925128736256494107974424810003975873116n
+        ]
       },
       {
         msg: [
@@ -160,14 +153,14 @@ async function main() {
           11211492019478358026375582426687607958348570875245339926114835829978153838215n,
           144272965147634915625819509631484129667749769208342009082983383385711585259n,
           18110672086282937093077976137559588989990534023528028535735897439400844697838n,
-          5027708479355932968490854148558624990375508335622843464943338810276042241659n,
+          5027708479355932968490854148558624990375508335622843464943338810276042241659n
         ],
         encPubkeys: [
           18995000747855521534746937827717723803513622190443871925509350428068636527433n,
-          15164086222064742793637707688162468617553103244789990420202420030152500823678n,
-        ],
-      },
-    ],
+          15164086222064742793637707688162468617553103244789990420202420030152500823678n
+        ]
+      }
+    ]
   });
 
   console.log('vote tx:', voteResponse.transactionHash);
