@@ -166,7 +166,6 @@ export class MaciApiClient {
         console.error('  Unknown Error:', error);
       }
 
-      // 如果有额外的错误属性，也打印出来
       if (error && typeof error === 'object') {
         const extraProps = Object.keys(error).filter(
           (key) => !['name', 'message', 'stack', 'code', 'type'].includes(key)
