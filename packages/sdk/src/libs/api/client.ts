@@ -146,6 +146,44 @@ export class MaciApiClient {
       return await response.json();
     } catch (error) {
       clearTimeout(timeoutId);
+
+      console.error('❌ API Request Failed:');
+      console.error('  Path:', path);
+      console.error('  Method:', options?.method || 'GET');
+
+      if (error instanceof HttpError) {
+        console.error('  Error Type: HttpError');
+        console.error('  Status Code:', error.code);
+        console.error('  Error Message:', error.message);
+      } else if (error instanceof Error) {
+        console.error('  Error Type:', error.name);
+        console.error('  Error Message:', error.message);
+        if (error.stack) {
+          console.error('  Stack Trace:');
+          console.error(error.stack);
+        }
+      } else {
+        console.error('  Unknown Error:', error);
+      }
+
+      // 如果有额外的错误属性，也打印出来
+      if (error && typeof error === 'object') {
+        const extraProps = Object.keys(error).filter(
+          (key) => !['name', 'message', 'stack', 'code', 'type'].includes(key)
+        );
+        if (extraProps.length > 0) {
+          console.error(
+            '  Additional Info:',
+            JSON.stringify(
+              Object.fromEntries(extraProps.map((key) => [key, (error as any)[key]])),
+              null,
+              2
+            )
+          );
+        }
+      }
+      console.error('---');
+
       if (error instanceof HttpError) {
         throw error;
       }

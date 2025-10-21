@@ -30,7 +30,7 @@ async function main() {
   console.log('='.repeat(80));
 
   // API base configuration
-  const API_BASE_URL = 'http://localhost:8080';
+  const API_BASE_URL = 'https://maci-xl-testnet-api.dorafactory.org';
 
   // Create temporary MaciClient (for admin operations, no API key required)
   const adminMaciClient = new MaciClient({
