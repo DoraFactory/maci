@@ -174,4 +174,71 @@ export class Tree {
       idx = parentIdx;
     }
   }
+
+  /**
+   * Compute zero hashes for a tree with given parameters
+   * This is a static utility that can be used without creating a Tree instance
+   *
+   * @param degree - The branching factor of the tree
+   * @param maxDepth - Maximum depth to compute zero hashes for
+   * @param zero - The zero value at leaf level
+   * @returns Array of zero hashes where zeroHashes[i] is the hash of a completely empty subtree of depth i
+   */
+  static computeZeroHashes(degree: number, maxDepth: number, zero: bigint): bigint[] {
+    const zeroHashes = new Array(maxDepth + 1);
+    zeroHashes[0] = zero;
+    for (let i = 1; i <= maxDepth; i++) {
+      const children = new Array(degree).fill(zeroHashes[i - 1]);
+      zeroHashes[i] = poseidon(children);
+    }
+    return zeroHashes;
+  }
+
+  /**
+   * Extend a tree root from a smaller depth to a larger depth
+   * This is much more efficient than rebuilding the entire larger tree
+   * when you know that all additional leaves are zero.
+   *
+   * Example: If you have a tree of depth 3 with 5^3=125 real leaves,
+   * and you want to extend it to depth 5 (5^5=3125 capacity), where
+   * the additional 3000 leaves are all zeros, this function computes
+   * the new root in O(k) time instead of O(5^5).
+   *
+   * @param smallRoot - Root hash of the smaller tree (depth=fromDepth)
+   * @param fromDepth - Original tree depth
+   * @param toDepth - Target tree depth (must be > fromDepth)
+   * @param zeroHashes - Precomputed zero hashes (from computeZeroHashes or Tree.zeros)
+   * @param degree - Tree branching factor (default: 5)
+   * @returns Root hash of the extended tree
+   */
+  static extendTreeRoot(
+    smallRoot: bigint,
+    fromDepth: number,
+    toDepth: number,
+    zeroHashes: bigint[],
+    degree: number = 5
+  ): bigint {
+    if (toDepth <= fromDepth) {
+      throw new Error('toDepth must be greater than fromDepth');
+    }
+    if (zeroHashes.length <= toDepth) {
+      throw new Error('zeroHashes array is too short for target depth');
+    }
+
+    let currentRoot = smallRoot;
+
+    // For each level we need to add
+    for (let level = fromDepth; level < toDepth; level++) {
+      // At this level, the current root represents a full subtree
+      // All sibling subtrees are empty (zero)
+      // Create array: [currentRoot, zero, zero, zero, ...]
+      const siblings = [currentRoot];
+      for (let i = 1; i < degree; i++) {
+        siblings.push(zeroHashes[level]);
+      }
+      currentRoot = poseidon(siblings);
+    }
+
+    return currentRoot;
+  }
 }

@@ -80,7 +80,7 @@ async function main() {
 
   const startVoting = new Date();
   const endVoting = new Date(startVoting.getTime() + 1000 * 60 * 11); // 11 minutes later
-  const maxVoter = 25;
+  const maxVoter = 15625;
 
   const createRoundData = await maciClient.saasCreateAmaciRound({
     title: 'Pre-Add-New-Key Test Round',
@@ -163,7 +163,7 @@ async function main() {
     saasApiEndpoint: API_BASE_URL
   });
 
-  const circuitPower = '2-1-1-5';
+  const circuitPower = '4-2-2-25';
   console.log('Executing Pre-Add-New-Key (with auto payload generation)...');
 
   // Get coordinator pubkey from deactivateData
