@@ -80,7 +80,7 @@ async function main() {
 
   const startVoting = new Date();
   const endVoting = new Date(startVoting.getTime() + 1000 * 60 * 11); // 11 minutes later
-  const maxVoter = 15625;
+  const maxVoter = 25;
 
   const createRoundData = await maciClient.saasCreateAmaciRound({
     title: 'Pre-Add-New-Key Test Round',
@@ -163,7 +163,7 @@ async function main() {
     saasApiEndpoint: API_BASE_URL
   });
 
-  const circuitPower = '4-2-2-25';
+  const circuitPower = '2-1-1-5';
   console.log('Executing Pre-Add-New-Key (with auto payload generation)...');
 
   // Get coordinator pubkey from deactivateData
@@ -172,6 +172,10 @@ async function main() {
   try {
     // Use saasPreCreateNewAccount: builds payload + submits pre-add-new-key
     // const derivePathParams = { accountIndex: 2 };
+    console.log('stateTreeDepth', Number(circuitPower.split('-')[0]));
+    console.log('deactivates.length', deactivateData.deactivates.length);
+    console.log('addKey file name', `add-new-key_v3/${circuitPower}/addKey.wasm`);
+    console.log('addKey file name', `add-new-key_v3/${circuitPower}/addKey.zkey`);
     const { account, result } = await voterClient.saasPreCreateNewAccount({
       contractAddress: contractAddress,
       stateTreeDepth: Number(circuitPower.split('-')[0]),

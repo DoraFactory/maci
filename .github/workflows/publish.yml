@@ -47,27 +47,13 @@ jobs:
       - name: Update SDK package version
         working-directory: packages/sdk
         run: pnpm version ${{ env.VERSION }} --no-git-tag-version
-        
-      - name: Update Voter package version
-        working-directory: packages/voter
-        run: pnpm version ${{ env.VERSION }} --no-git-tag-version
 
       - name: Build SDK package
         working-directory: packages/sdk
         run: pnpm build
-        
-      - name: Build Voter package
-        working-directory: packages/voter
-        run: pnpm build
 
       - name: Publish SDK package
         working-directory: packages/sdk
-        run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          
-      - name: Publish Voter package
-        working-directory: packages/voter
         run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -92,7 +78,6 @@ jobs:
         run: |
           # Get current package version info
           SDK_VERSION=$(cd packages/sdk && node -p "require('./package.json').version")
-          VOTER_VERSION=$(cd packages/voter && node -p "require('./package.json').version")
           
           # Try to generate changelog from changeset
           if command -v jq >/dev/null 2>&1; then
@@ -104,10 +89,9 @@ jobs:
           
           # If no changeset info or jq unavailable, use default release notes
           if [ -z "$CHANGELOG" ] || [ "$CHANGELOG" = "null" ] || [ "$CHANGELOG" = "" ]; then
-            CHANGELOG="### 📦 Published Packages
+            CHANGELOG="### 📦 Published Package
           
           - **@dorafactory/maci-sdk**: \`$SDK_VERSION\`
-          - **@dorafactory/maci-voter**: \`$VOTER_VERSION\`
           
           ### ✨ What's Changed
           
@@ -118,11 +102,7 @@ jobs:
           ### 📋 Installation
           
           \`\`\`bash
-          # Install SDK
           npm install @dorafactory/maci-sdk@$SDK_VERSION
-          
-          # Install Voter
-          npm install @dorafactory/maci-voter@$VOTER_VERSION
           \`\`\`
           
           ---
