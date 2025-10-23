@@ -30,7 +30,7 @@ async function main() {
   console.log('='.repeat(80));
 
   // API base configuration
-  const API_BASE_URL = 'https://maci-xl-testnet-api.dorafactory.org';
+  const API_BASE_URL = 'http://localhost:8080';
 
   // Create temporary MaciClient (for admin operations, no API key required)
   const adminMaciClient = new MaciClient({
@@ -80,7 +80,7 @@ async function main() {
 
   const startVoting = new Date();
   const endVoting = new Date(startVoting.getTime() + 1000 * 60 * 11); // 11 minutes later
-  const maxVoter = 10;
+  const maxVoter = 15625;
 
   const createRoundData = await maciClient.saasCreateAmaciRound({
     title: 'Pre-Add-New-Key Test Round',
@@ -163,7 +163,7 @@ async function main() {
     saasApiEndpoint: API_BASE_URL
   });
 
-  const circuitPower = '2-1-1-5';
+  const circuitPower = '4-2-2-25';
   console.log('Executing Pre-Add-New-Key (with auto payload generation)...');
 
   // Get coordinator pubkey from deactivateData
@@ -174,7 +174,7 @@ async function main() {
     // const derivePathParams = { accountIndex: 2 };
     const { account, result } = await voterClient.saasPreCreateNewAccount({
       contractAddress: contractAddress,
-      stateTreeDepth: 2,
+      stateTreeDepth: Number(circuitPower.split('-')[0]),
       coordinatorPubkey: coordinatorPubkey,
       deactivates: deactivateData.deactivates,
       wasmFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.wasm`),

@@ -68,7 +68,7 @@ export class Tree {
     for (let d = this.DEPTH - 1; d >= 0; d--) {
       const size = DEGREE ** d;
       const idx0 = (DEGREE ** d - 1) / (DEGREE - 1);
-      for (let i = 0; i < size / DEGREE; i++) {
+      for (let i = 0; i < size; i++) {
         const start = (idx0 + i) * DEGREE + 1;
         const children = this.nodes.slice(start, start + DEGREE);
         this.nodes[idx0 + i] = poseidon(children);

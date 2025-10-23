@@ -80,7 +80,7 @@ export class MaciApiClient {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.apiKey = config.apiKey;
     this.customFetch = config.customFetch || fetch;
-    this.timeout = config.timeout || 120000;
+    this.timeout = config.timeout || 120000; // default 120 seconds
     this.apiKeyHeader = config.apiKeyHeader || 'x-api-key';
   }
 
