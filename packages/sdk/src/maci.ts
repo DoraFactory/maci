@@ -85,7 +85,7 @@ export class MaciClient {
     this.rpcEndpoint = rpcEndpoint || defaultParams.rpcEndpoint;
     this.restEndpoint = restEndpoint || defaultParams.restEndpoint;
     this.apiEndpoint = apiEndpoint || defaultParams.apiEndpoint; // Indexer GraphQL API
-    this.saasApiEndpoint = saasApiEndpoint; // MACI SaaS API
+    this.saasApiEndpoint = saasApiEndpoint || defaultParams.saasApiEndpoint; // MACI SaaS API
     this.certificateApiEndpoint = certificateApiEndpoint || defaultParams.certificateApiEndpoint;
     this.registryAddress = registryAddress || defaultParams.registryAddress;
     this.saasAddress = saasAddress || defaultParams.saasAddress;
