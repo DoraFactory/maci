@@ -633,16 +633,16 @@ export class VoterClient {
     }[];
     derivePathParams?: DerivePathParams;
   }) {
-    // const stateIdx = await this.getStateIdx({
-    //   contractAddress
-    // });
+    const stateIdx = await this.getStateIdx({
+      contractAddress
+    });
 
-    // if (stateIdx === -1) {
-    //   throw new Error('State index is not set, Please signup or addNewKey first');
-    // }
+    if (stateIdx === -1) {
+      throw new Error('State index is not set, Please signup or addNewKey first');
+    }
 
     const payload = this.buildVotePayload({
-      stateIdx: 0,
+      stateIdx,
       operatorPubkey,
       selectedOptions,
       derivePathParams
