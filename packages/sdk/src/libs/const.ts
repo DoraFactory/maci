@@ -164,7 +164,7 @@ export function getDefaultParams(network: 'mainnet' | 'testnet' = 'mainnet'): Ne
         certificateApiEndpoint: 'https://vota-certificate-api.dorafactory.org/api/v1',
         registryAddress: 'dora1smg5qp5trjdkcekdjssqpjehdjf6n4cjss0clyvqcud3t3u3948s8rmgg4',
         saasAddress: 'dora1ksxvvve2nsw5uyvg7y6lnnxcqxadjepc78z0qa8enm5zhayxaqgqpsewf8',
-        apiSaasAddress: 'dora1ksxvvve2nsw5uyvg7y6lnnxcqxadjepc78z0qa8enm5zhayxaqgqpsewf8',
+        apiSaasAddress: 'dora18cp32d885mwadm6gg49qrrqqe8y3vcyn0khlan55ajmhaknt5cyqgqwjzh',
         maciCodeId: 106,
         // oracleCodeId: 116,// 9-4-3-625
         oracleCodeId: 119, // 6-3-3-125
