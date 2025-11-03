@@ -1,10 +1,10 @@
 pragma circom 2.0.0;
 
-include "./hasherSha256.circom";
-include "./hasherPoseidon.circom";
-include "./ecdh.circom";
-include "./privToPubKey.circom";
-include "./trees/incrementalQuinTree.circom";
+include "../../utils/hasherSha256.circom";
+include "../../utils/hasherPoseidon.circom";
+include "../../utils/ecdh.circom";
+include "../../utils/privToPubKey.circom";
+include "../../utils/trees/incrementalQuinTree.circom";
 include "./lib/rerandomize.circom";
 include "../../../node_modules/circomlib/circuits/mux1.circom";
 

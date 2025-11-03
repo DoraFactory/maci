@@ -1,6 +1,6 @@
 pragma circom 2.0.0;
 
-include "./verifySignature.circom";
+include "../../utils/verifySignature.circom";
 include "../../../node_modules/circomlib/circuits/comparators.circom";
 include "../../../node_modules/circomlib/circuits/mux1.circom";
 

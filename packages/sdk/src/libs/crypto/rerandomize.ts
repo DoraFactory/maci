@@ -75,3 +75,27 @@ export const encryptOdevity = (
     xIncrement: message.xIncrement
   };
 };
+
+/*
+ * Decrypts a ciphertext using a private key.
+ * @param privKey The private key
+ * @param ciphertext The ciphertext to decrypt
+ */
+export const decrypt = (
+  formatedPrivKey: bigint,
+  ciphertext: { c1: { x: bigint; y: bigint }; c2: { x: bigint; y: bigint }; xIncrement: bigint }
+) => {
+  const c1x = BabyJub.mulPointEscalar([ciphertext.c1.x, ciphertext.c1.y], formatedPrivKey);
+
+  const c1xInverse = [F.e(c1x[0] * BigInt(-1)), BigInt(c1x[1])] as BabyJub.Point<bigint>;
+
+  const decrypted = BabyJub.addPoint(c1xInverse, [ciphertext.c2.x, ciphertext.c2.y]);
+
+  return decodeMessage({
+    point: {
+      x: decrypted[0],
+      y: decrypted[1]
+    },
+    xIncrement: ciphertext.xIncrement
+  });
+};

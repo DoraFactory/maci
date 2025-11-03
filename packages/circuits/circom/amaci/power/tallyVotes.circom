@@ -1,13 +1,13 @@
 pragma circom 2.0.0;
 
 include "../../../node_modules/circomlib/circuits/comparators.circom";
-include "./trees/incrementalQuinTree.circom";
-include "./trees/calculateTotal.circom";
-include "./trees/checkRoot.circom";
-include "./trees/zeroRoot.circom";
-include "./hasherSha256.circom";
-include "./hasherPoseidon.circom";
-include "./unpackElement.circom";
+include "../../utils/trees/incrementalQuinTree.circom";
+include "../../utils/trees/calculateTotal.circom";
+include "../../utils/trees/checkRoot.circom";
+include "../../utils/trees/zeroRoot.circom";
+include "../../utils/hasherSha256.circom";
+include "../../utils/hasherPoseidon.circom";
+include "../../utils/unpackElement.circom";
 
 /*
  * Tally votes in the ballots, batch by batch.

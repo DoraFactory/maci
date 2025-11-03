@@ -23,7 +23,7 @@ function generateRandomString(length: number) {
 }
 
 async function main() {
-  const network = 'testnet';
+  const network = 'mainnet';
 
   console.log('='.repeat(80));
   console.log('Pre-Add-New-Key and Pre-Deactivate API Complete Test (MaciClient & VoterClient)');
@@ -80,7 +80,7 @@ async function main() {
   console.log('Note: Without allowlistId, API will auto-generate accounts in response');
 
   const startVoting = new Date();
-  const endVoting = new Date(startVoting.getTime() + 1000 * 60 * 11); // 11 minutes later
+  const endVoting = new Date(startVoting.getTime() + 1000 * 60 * 100); // 11 minutes later
   const maxVoter = 25;
 
   const createRoundData = await maciClient.saasCreateAmaciRound({
@@ -89,7 +89,7 @@ async function main() {
     link: 'https://test.com',
     startVoting: startVoting.toISOString(),
     endVoting: endVoting.toISOString(),
-    operator: 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm',
+    operator: 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4',
     maxVoter: maxVoter,
     voteOptionMap: ['Option A', 'Option B', 'Option C', 'Option D', 'Option E'],
     circuitType: MaciCircuitType.IP1V,
@@ -186,6 +186,8 @@ async function main() {
       zkeyFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.zkey`)
       //   derivePathParams
     });
+    console.log('accountinfo:', account.getSigner().getPrivateKey());
+    console.log('accountinfo:', account.getPubkey().toPackedData());
 
     console.log('✓ Pre-Add-New-Key succeeded!', result);
     console.log('✓ Pre-Add-New-Key account:', account.getPubkey().toPackedData());
@@ -193,23 +195,33 @@ async function main() {
     // Wait for transaction confirmation
     console.log('\nWaiting 6 seconds to ensure Pre-Add-New-Key transaction confirmation...');
     await new Promise((resolve) => setTimeout(resolve, 6000));
+    let userIdx = await account.getStateIdx({
+      contractAddress
+    });
+    console.log('userIdx', userIdx);
+    while (userIdx === -1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      userIdx = await account.getStateIdx({
+        contractAddress
+      });
+      console.log('userIdx', userIdx);
+    }
 
     // ==================== 5. Test Voting ====================
-    console.log('\n[5/5] Testing Voting (with auto payload generation)');
+    // console.log('\n[5/5] Testing Voting (with auto payload generation)');
 
-    // Use saasVote: builds payload + submits vote
-    const voteResult = await account.saasVote({
-      contractAddress,
-      operatorPubkey:
-        10721319678265866063861912417916780787229942812531198850410477756757845824096n,
-      selectedOptions: [
-        { idx: 0, vc: 1 },
-        { idx: 2, vc: 1 },
-        { idx: 3, vc: 1 }
-      ]
-    });
+    // // Use saasVote: builds payload + submits vote
+    // const voteResult = await account.saasVote({
+    //   contractAddress,
+    //   operatorPubkey: 1543204810362218394850028913632376147290317641442164443830849121941234286792n,
+    //   selectedOptions: [
+    //     { idx: 0, vc: 1 },
+    //     { idx: 2, vc: 1 },
+    //     { idx: 3, vc: 1 }
+    //   ]
+    // });
 
-    console.log('✓ Voting succeeded!', voteResult);
+    // console.log('✓ Voting succeeded!', voteResult);
   } catch (error) {
     console.log('⚠ Failed:', error);
     if (error instanceof Error) {

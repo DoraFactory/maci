@@ -12,7 +12,7 @@ import fc from 'fast-check';
 
 import { getSignal, circomkitInstance } from './utils/utils';
 
-const CIRCOM_PATH = './amaci/power/hasherPoseidon';
+const CIRCOM_PATH = './utils/hasherPoseidon';
 
 // Helper function for hash10: hash(hash5(first 5), hash5(last 5))
 const hash10 = (elements: bigint[]): bigint => {

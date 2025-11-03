@@ -11,7 +11,7 @@ describe('ECDH circuit', function test() {
 
   before(async () => {
     circuit = await circomkitInstance.WitnessTester('Ecdh', {
-      file: 'amaci/power/ecdh',
+      file: 'utils/ecdh',
       template: 'Ecdh'
     });
   });

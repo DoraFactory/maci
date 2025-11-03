@@ -47,35 +47,35 @@ describe('Incremental Quinary Tree (IQT)', function test() {
 
   before(async () => {
     circuitLeafExists = await circomkitInstance.WitnessTester('QuinaryLeafExists', {
-      file: './utils/trees/QuinaryLeafExists',
-      template: 'QuinaryLeafExists',
+      file: './utils/trees/incrementalQuinTree',
+      template: 'QuinLeafExists',
       params: [3]
     });
 
     circuitGeneratePathIndices = await circomkitInstance.WitnessTester(
       'QuinaryGeneratePathIndices',
       {
-        file: './utils/trees/QuinaryGeneratePathIndices',
-        template: 'QuinaryGeneratePathIndices',
+        file: './utils/trees/incrementalQuinTree',
+        template: 'QuinGeneratePathIndices',
         params: [4]
       }
     );
 
     circuitQuinarySelector = await circomkitInstance.WitnessTester('QuinarySelector', {
-      file: './utils/trees/QuinarySelector',
-      template: 'QuinarySelector',
+      file: './utils/trees/incrementalQuinTree',
+      template: 'QuinSelector',
       params: [5]
     });
 
     splicerCircuit = await circomkitInstance.WitnessTester('Splicer', {
-      file: './utils/trees/Splicer',
+      file: './utils/trees/incrementalQuinTree',
       template: 'Splicer',
       params: [4]
     });
 
     quinaryCheckRoot = await circomkitInstance.WitnessTester('QuinaryCheckRoot', {
-      file: './utils/trees/QuinaryCheckRoot',
-      template: 'QuinaryCheckRoot',
+      file: './utils/trees/checkRoot',
+      template: 'QuinCheckRoot',
       params: [3]
     });
   });
@@ -162,8 +162,8 @@ describe('Incremental Quinary Tree (IQT)', function test() {
             fc.pre(index >= elements.length);
 
             const circuit = await circomkitInstance.WitnessTester('QuinarySelector', {
-              file: './utils/trees/QuinarySelector',
-              template: 'QuinarySelector',
+              file: './utils/trees/incrementalQuinTree',
+              template: 'QuinSelector',
               params: [elements.length]
             });
 
@@ -295,8 +295,8 @@ describe('Incremental Quinary Tree (IQT)', function test() {
             fc.pre(BigInt(leavesPerNode) ** levels < input);
 
             const witness = await circomkitInstance.WitnessTester('QuinaryGeneratePathIndices', {
-              file: './utils/trees/QuinaryGeneratePathIndices',
-              template: 'QuinaryGeneratePathIndices',
+              file: './utils/trees/incrementalQuinTree',
+              template: 'QuinGeneratePathIndices',
               params: [levels]
             });
 
@@ -322,8 +322,8 @@ describe('Incremental Quinary Tree (IQT)', function test() {
             const tree = new IncrementalQuinTree(Number(levels), 0n, 5, hash5);
 
             const circuit = await circomkitInstance.WitnessTester('QuinaryGeneratePathIndices', {
-              file: './utils/trees/QuinaryGeneratePathIndices',
-              template: 'QuinaryGeneratePathIndices',
+              file: './utils/trees/incrementalQuinTree',
+              template: 'QuinGeneratePathIndices',
               params: [levels]
             });
 
@@ -406,8 +406,8 @@ describe('Incremental Quinary Tree (IQT)', function test() {
           }),
           async (levels: number, index: number, leaves: bigint[]) => {
             const circuit = await circomkitInstance.WitnessTester('QuinaryLeafExists', {
-              file: './utils/trees/QuinaryLeafExists',
-              template: 'QuinaryLeafExists',
+              file: './utils/trees/incrementalQuinTree',
+              template: 'QuinLeafExists',
               params: [levels]
             });
 
@@ -480,8 +480,8 @@ describe('Incremental Quinary Tree (IQT)', function test() {
       const quinCheckRootTest = async (leaves: bigint[]): Promise<boolean> => {
         const levels = Math.floor(Math.log(leaves.length) / Math.log(leavesPerNode));
         const circuit = await circomkitInstance.WitnessTester('QuinaryCheckRoot', {
-          file: './utils/trees/QuinaryCheckRoot',
-          template: 'QuinaryCheckRoot',
+          file: './utils/trees/checkRoot',
+          template: 'QuinCheckRoot',
           params: [levels]
         });
 

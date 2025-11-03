@@ -72,7 +72,7 @@ export const genPubKey = (privKey: PrivKey): PubKey => {
  * @returns a keypair
  */
 export const genKeypair = (pkey?: PrivKey): Keypair => {
-  const privKey = pkey ? pkey % SNARK_FIELD_SIZE : genPrivKey();
+  const privKey = pkey ? pkey % SNARK_FIELD_SIZE : genPrivKey() % SNARK_FIELD_SIZE;
   const pubKey = genPubKey(privKey);
   const formatedPrivKey = formatPrivKeyForBabyJub(privKey);
 

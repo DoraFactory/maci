@@ -18,7 +18,7 @@
   "scripts": {
     "build-test-circuits-c": "ts-node ./ts/compile.ts --cWitness",
     "build-test-circuits-wasm": "ts-node ./ts/compile.ts",
-    "generate-zkeys": "ts-node ./ts/generateZkeys.ts",
+    "generate-zkeys": "rm -rf build/ && ts-node ./ts/generateZkeys.ts",
     "circuit-info": "NODE_OPTIONS=--max-old-space-size=4096 ts-node ./ts/info.ts --zkeys build",
     "watch": "tsc --watch",
     "build": "tsc -p tsconfig.build.json",
@@ -42,7 +42,14 @@
   "dependencies": {
     "circomkit": "^0.3.4",
     "circomlib": "2.0.0",
-    "@dorafactory/maci-sdk": "workspace:*"
+    "@dorafactory/maci-sdk": "workspace:*",
+    "blake-hash": "^2.0.0",
+    "circom": "git://github.com/weijiekoh/circomlib.git#24ed08eee0bb613b8c0135d66c1013bd9f78d50a",
+    "csv": "^6.0.5",
+    "ethers": "^5.5.2",
+    "ffjavascript": "^0.2.46",
+    "snarkjs": "^0.7.4",
+    "web3": "^1.6.1"
   },
   "devDependencies": {
     "@types/chai": "^4.3.11",
