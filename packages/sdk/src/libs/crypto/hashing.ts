@@ -127,6 +127,35 @@ export const hash5 = (elements: Plaintext): bigint => hashN(5, elements);
 
 /**
  * A convenience function to use Poseidon to hash a Plaintext with
+ * exactly 10 elements. Uses the structure: hash2(hash5(first 5), hash5(last 5))
+ * @param elements The elements to hash (must be exactly 10 elements)
+ * @returns The hash of the elements
+ */
+export const hash10 = (elements: Plaintext): bigint => {
+  const max = 10;
+  const elementLength = elements.length;
+
+  if (elementLength > max) {
+    throw new TypeError(
+      `the length of the elements array should be at most ${max}; got ${elements.length}`
+    );
+  }
+
+  const elementsPadded = elements.slice();
+
+  if (elementLength < max) {
+    for (let i = elementLength; i < max; i += 1) {
+      elementsPadded.push(BigInt(0));
+    }
+  }
+
+  const hash1 = poseidonT6(elementsPadded.slice(0, 5));
+  const hash2Result = poseidonT6(elementsPadded.slice(5, 10));
+  return poseidonT3([hash1, hash2Result]);
+};
+
+/**
+ * A convenience function to use Poseidon to hash a Plaintext with
  * no more than 13 elements
  * @param elements The elements to hash
  * @returns The hash of the elements

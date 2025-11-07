@@ -1,6 +1,7 @@
 // Core
 export { MaciClient } from './maci';
 export { VoterClient } from './voter';
+export { OperatorClient } from './operator';
 export { Http } from './libs/http';
 
 // API Client
@@ -12,6 +13,9 @@ export { Round, UserAccount, Circuit, Operator, Proof, Transaction } from './lib
 
 // Crypto
 export * from './libs/crypto';
+
+// Poseidon Cipher
+export { poseidonEncrypt, poseidonDecrypt } from '@zk-kit/poseidon-cipher';
 
 // Types
 export * from './types';

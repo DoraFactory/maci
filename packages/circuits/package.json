@@ -34,10 +34,14 @@
     "test:incrementalQuinaryTree": "pnpm run mocha-test ts/__tests__/IncrementalQuinaryTree.test.ts",
     "test:addNewKey": "pnpm run mocha-test ts/__tests__/AddNewKey.test.ts",
     "test:ecdh": "pnpm run mocha-test ts/__tests__/Ecdh.test.ts",
+    "test:verifySignature": "pnpm run mocha-test ts/__tests__/VerifySignature.test.ts",
     "test:elgamalEncryption": "pnpm run mocha-test ts/__tests__/ElGamalEncryption.test.ts",
     "test:stateLeafTransformerAmaci": "pnpm run mocha-test ts/__tests__/StateLeafTransformerAmaci.test.ts",
     "test:messageValidatorAmaci": "pnpm run mocha-test ts/__tests__/MessageValidatorAmaci.test.ts",
-    "test:processDeactivate": "pnpm run mocha-test ts/__tests__/ProcessDeactivate.test.ts"
+    "test:processDeactivate": "pnpm run mocha-test ts/__tests__/ProcessDeactivate.test.ts",
+    "test:amaciIntegration": "pnpm run mocha-test ts/__tests__/AmaciIntegration.test.ts",
+    "test:unpackElement": "pnpm run mocha-test ts/__tests__/UnpackElement.test.ts",
+    "test:messageToCommand": "pnpm run mocha-test ts/__tests__/MessageToCommand.test.ts"
   },
   "dependencies": {
     "circomkit": "^0.3.4",
