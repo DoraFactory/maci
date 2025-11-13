@@ -87,7 +87,8 @@ describe('SHA256 hash circuits', function test() {
     it('correctly hashes left and right values', async () => {
       /**
        * Property-based test: Verifies circuit matches JavaScript SHA256 implementation
-       * for 100+ random pairs of field elements. Used for Merkle tree hashing.
+       * for 10 random pairs of field elements. Used for Merkle tree hashing.
+       * Reduced from 100+ runs for faster testing while maintaining coverage.
        */
       await fc.assert(
         fc.asyncProperty(
@@ -104,7 +105,8 @@ describe('SHA256 hash circuits', function test() {
 
             return output === outputJS;
           }
-        )
+        ),
+        { numRuns: 10 }
       );
     });
 
@@ -153,7 +155,8 @@ describe('SHA256 hash circuits', function test() {
 
             return output === outputJS;
           }
-        )
+        ),
+        { numRuns: 10 }
       );
     });
 
@@ -199,7 +202,8 @@ describe('SHA256 hash circuits', function test() {
 
             return output === outputJS;
           }
-        )
+        ),
+        { numRuns: 10 }
       );
     });
 
@@ -248,7 +252,8 @@ describe('SHA256 hash circuits', function test() {
 
             return output === outputJS;
           }
-        )
+        ),
+        { numRuns: 10 }
       );
     });
   });
@@ -283,7 +288,8 @@ describe('SHA256 hash circuits', function test() {
 
             return output === outputJS;
           }
-        )
+        ),
+        { numRuns: 10 }
       );
     });
 

@@ -1,0 +1,39 @@
+[workspace]
+members = [
+    "contracts/amaci",
+    "contracts/registry",
+    "contracts/api-maci",
+    "contracts/api-saas",
+]
+resolver = "2"
+
+# [workspace.dependencies]
+# cosmwasm-schema = "1.2"
+# cosmwasm-std = "1.2"
+# cosmwasm-storage = "1.2"
+# cw-storage-plus = "1.0"
+# cw-utils = "1.0"
+# schemars = "0.8"
+# serde = { version = "1.0", default-features = false, features = ["derive"] }
+# thiserror = { version = "1.0" }
+
+# anyhow = "1.0"
+# cw-multi-test = "0.16"
+
+
+[profile.release.package.cw-amaci]
+codegen-units = 1
+incremental = false
+
+[profile.release.package.register]
+codegen-units = 1
+incremental = false
+
+[profile.release]
+rpath = false
+lto = true
+overflow-checks = true
+opt-level = 3
+debug = false
+debug-assertions = false
+panic = 'abort'
