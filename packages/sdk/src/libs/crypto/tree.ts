@@ -77,7 +77,7 @@ export class Tree {
   }
 
   leaf(leafIdx: number) {
-    if (leafIdx > this.LEAVES_COUNT || leafIdx < 0) {
+    if (leafIdx >= this.LEAVES_COUNT || leafIdx < 0) {
       throw new Error('wrong leaf index');
     }
     const nodeIdx = this.LEAVES_IDX_0 + leafIdx;
@@ -89,7 +89,7 @@ export class Tree {
   }
 
   updateLeaf(leafIdx: number, leaf: bigint) {
-    if (leafIdx > this.LEAVES_COUNT || leafIdx < 0) {
+    if (leafIdx >= this.LEAVES_COUNT || leafIdx < 0) {
       throw new Error('wrong leaf index');
     }
     const nodeIdx = this.LEAVES_IDX_0 + leafIdx;
@@ -99,7 +99,7 @@ export class Tree {
   }
 
   pathIdxOf(leafIdx: number) {
-    if (leafIdx > this.LEAVES_COUNT || leafIdx < 0) {
+    if (leafIdx >= this.LEAVES_COUNT || leafIdx < 0) {
       throw new Error('wrong leaf index');
     }
     let idx = this.LEAVES_IDX_0 + leafIdx;
@@ -118,7 +118,7 @@ export class Tree {
   }
 
   pathElementOf(leafIdx: number) {
-    if (leafIdx > this.LEAVES_COUNT || leafIdx < 0) {
+    if (leafIdx >= this.LEAVES_COUNT || leafIdx < 0) {
       throw new Error('wrong leaf index');
     }
     let idx = this.LEAVES_IDX_0 + leafIdx;
@@ -169,7 +169,7 @@ export class Tree {
     while (idx > 0) {
       const parentIdx = Math.floor((idx - 1) / this.DEGREE);
       const childrenIdx0 = parentIdx * this.DEGREE + 1;
-      this.nodes[parentIdx] = poseidon(this.nodes.slice(childrenIdx0, childrenIdx0 + 5));
+      this.nodes[parentIdx] = poseidon(this.nodes.slice(childrenIdx0, childrenIdx0 + this.DEGREE));
 
       idx = parentIdx;
     }

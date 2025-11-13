@@ -1,6 +1,7 @@
 import { type WitnessTester } from 'circomkit';
 import { describe, it, before } from 'mocha';
 import { expect } from 'chai';
+import { packElement, unpackElement } from '@dorafactory/maci-sdk';
 
 import { getSignal, circomkitInstance } from './utils/utils';
 
@@ -518,6 +519,355 @@ describe('UnpackElement circuit', function test() {
 
       expect(out0).to.equal(0x55555555n); // Each chunk gets same pattern
       expect(out1).to.equal(0x55555555n);
+    });
+  });
+
+  /**
+   * ========================================================================
+   * TEST SUITE: SDK Integration (pack.ts compatibility)
+   * ========================================================================
+   *
+   * This test suite verifies that the SDK's packElement/unpackElement functions
+   * work correctly with the circuit's UnpackElement template.
+   *
+   * Data Flow:
+   *   1. SDK packElement() → creates packed bigint
+   *   2. Circuit UnpackElement(6) → unpacks into 6 chunks
+   *   3. SDK unpackElement() → verifies round-trip consistency
+   *
+   * Pack Format (from pack.ts):
+   *   packed = nonce + (stateIdx << 32) + (voIdx << 64) + (newVotes << 96) + (salt << 192)
+   *
+   * Unpack Format (circuit extracts):
+   *   out[5] = nonce         (bits 0-31)
+   *   out[4] = stateIdx      (bits 32-63)
+   *   out[3] = voIdx         (bits 64-95)
+   *   out[2] = newVotes[0]   (bits 96-127)
+   *   out[1] = newVotes[1]   (bits 128-159)
+   *   out[0] = newVotes[2]   (bits 160-191)
+   *
+   * Note: The circuit reverses the order (high bits first), while SDK stores
+   * in logical order (low bits first).
+   */
+  describe('SDK Integration: pack/unpack compatibility', () => {
+    let circuit: WitnessTester<['in'], ['out']>;
+
+    before(async () => {
+      circuit = await circomkitInstance.WitnessTester('unpackElement6_sdk', {
+        file: CIRCOM_PATH,
+        template: 'UnpackElement',
+        params: [6]
+      });
+    });
+
+    it('should correctly unpack SDK-packed data (simple values)', async () => {
+      /**
+       * Test Case: Basic SDK pack/unpack compatibility
+       *
+       * Input parameters:
+       *   nonce:     1
+       *   stateIdx:  5
+       *   voIdx:     2
+       *   newVotes:  100
+       *
+       * Pack layout:
+       *   bits [0-31]:    nonce = 1
+       *   bits [32-63]:   stateIdx = 5
+       *   bits [64-95]:   voIdx = 2
+       *   bits [96-191]:  newVotes = 100 (96 bits for Uint96)
+       *   bits [192-247]: salt (56 bits, auto-generated)
+       *
+       * Circuit output (reversed order):
+       *   out[5] = nonce
+       *   out[4] = stateIdx
+       *   out[3] = voIdx
+       *   out[2], out[1], out[0] = newVotes components
+       */
+      const nonce = 1;
+      const stateIdx = 5;
+      const voIdx = 2;
+      const newVotes = 100;
+      const salt = 0n; // Use zero salt for deterministic testing
+
+      // Pack using SDK
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+
+      // Unpack using circuit
+      const witness = await circuit.calculateWitness({ in: packed });
+      await circuit.expectConstraintPass(witness);
+
+      const out5 = await getSignal(circuit, witness, 'out[5]'); // nonce
+      const out4 = await getSignal(circuit, witness, 'out[4]'); // stateIdx
+      const out3 = await getSignal(circuit, witness, 'out[3]'); // voIdx
+      const out2 = await getSignal(circuit, witness, 'out[2]'); // newVotes low
+      const out1 = await getSignal(circuit, witness, 'out[1]'); // newVotes mid
+      const out0 = await getSignal(circuit, witness, 'out[0]'); // newVotes high
+
+      // Verify individual fields
+      expect(out5).to.equal(BigInt(nonce));
+      expect(out4).to.equal(BigInt(stateIdx));
+      expect(out3).to.equal(BigInt(voIdx));
+
+      // Verify newVotes (96-bit value split across 3 chunks)
+      const unpackedVotes = out2 | (out1 << 32n) | (out0 << 64n);
+      expect(unpackedVotes).to.equal(BigInt(newVotes));
+
+      // Verify SDK unpack matches original values
+      const unpacked = unpackElement(packed);
+      expect(unpacked.nonce).to.equal(BigInt(nonce));
+      expect(unpacked.stateIdx).to.equal(BigInt(stateIdx));
+      expect(unpacked.voIdx).to.equal(BigInt(voIdx));
+      expect(unpacked.newVotes).to.equal(BigInt(newVotes));
+    });
+
+    it('should correctly unpack SDK-packed data (maximum 32-bit values)', async () => {
+      /**
+       * Test Case: Maximum 32-bit values for each field
+       *
+       * This tests the boundary conditions where each field
+       * is at its maximum value (0xFFFFFFFF = 4,294,967,295)
+       */
+      const nonce = 0xffffffff; // Max 32-bit: 4,294,967,295
+      const stateIdx = 0xffffffff;
+      const voIdx = 0xffffffff;
+      const newVotes = 0xffffffff;
+      const salt = 0n;
+
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+
+      const witness = await circuit.calculateWitness({ in: packed });
+      await circuit.expectConstraintPass(witness);
+
+      const out5 = await getSignal(circuit, witness, 'out[5]');
+      const out4 = await getSignal(circuit, witness, 'out[4]');
+      const out3 = await getSignal(circuit, witness, 'out[3]');
+      const out2 = await getSignal(circuit, witness, 'out[2]');
+
+      expect(out5).to.equal(0xffffffffn);
+      expect(out4).to.equal(0xffffffffn);
+      expect(out3).to.equal(0xffffffffn);
+      expect(out2).to.equal(0xffffffffn);
+
+      // Verify SDK unpack
+      const unpacked = unpackElement(packed);
+      expect(unpacked.nonce).to.equal(0xffffffffn);
+      expect(unpacked.stateIdx).to.equal(0xffffffffn);
+      expect(unpacked.voIdx).to.equal(0xffffffffn);
+      expect(unpacked.newVotes).to.equal(0xffffffffn);
+    });
+
+    it('should correctly unpack SDK-packed data (large newVotes)', async () => {
+      /**
+       * Test Case: Large newVotes value (96-bit)
+       *
+       * newVotes can be up to 96 bits (Uint96), which spans 3 chunks:
+       *   - bits [96-127]:  out[2]
+       *   - bits [128-159]: out[1]
+       *   - bits [160-191]: out[0]
+       *
+       * Example: 1,000,000,000,000 votes (1 trillion)
+       * Hex: 0xE8D4A51000 (40 bits)
+       */
+      const nonce = 10;
+      const stateIdx = 20;
+      const voIdx = 30;
+      const newVotes = 1_000_000_000_000; // 1 trillion
+      const salt = 0n;
+
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+
+      const witness = await circuit.calculateWitness({ in: packed });
+      await circuit.expectConstraintPass(witness);
+
+      const out5 = await getSignal(circuit, witness, 'out[5]');
+      const out4 = await getSignal(circuit, witness, 'out[4]');
+      const out3 = await getSignal(circuit, witness, 'out[3]');
+      const out2 = await getSignal(circuit, witness, 'out[2]');
+      const out1 = await getSignal(circuit, witness, 'out[1]');
+      const out0 = await getSignal(circuit, witness, 'out[0]');
+
+      expect(out5).to.equal(BigInt(nonce));
+      expect(out4).to.equal(BigInt(stateIdx));
+      expect(out3).to.equal(BigInt(voIdx));
+
+      // Reconstruct the 96-bit newVotes
+      const unpackedVotes = out2 | (out1 << 32n) | (out0 << 64n);
+      expect(unpackedVotes).to.equal(BigInt(newVotes));
+
+      // Verify SDK unpack
+      const unpacked = unpackElement(packed);
+      expect(unpacked.newVotes).to.equal(BigInt(newVotes));
+    });
+
+    it('should correctly unpack SDK-packed data (maximum 96-bit newVotes)', async () => {
+      /**
+       * Test Case: Maximum 96-bit newVotes value
+       *
+       * Max Uint96 = 2^96 - 1 = 79,228,162,514,264,337,593,543,950,335
+       * Hex: 0xFFFFFFFF_FFFFFFFF_FFFFFFFF (12 bytes)
+       *
+       * This should split into:
+       *   out[2] = 0xFFFFFFFF (bits 96-127)
+       *   out[1] = 0xFFFFFFFF (bits 128-159)
+       *   out[0] = 0xFFFFFFFF (bits 160-191)
+       */
+      const nonce = 1;
+      const stateIdx = 2;
+      const voIdx = 3;
+      const newVotes = (1n << 96n) - 1n; // Max Uint96
+      const salt = 0n;
+
+      const packed = packElement({
+        nonce,
+        stateIdx,
+        voIdx,
+        newVotes, // Now packElement supports bigint directly
+        salt
+      });
+
+      const witness = await circuit.calculateWitness({ in: packed });
+      await circuit.expectConstraintPass(witness);
+
+      const out2 = await getSignal(circuit, witness, 'out[2]');
+      const out1 = await getSignal(circuit, witness, 'out[1]');
+      const out0 = await getSignal(circuit, witness, 'out[0]');
+
+      // All three newVotes chunks should be max 32-bit values
+      expect(out2).to.equal(0xffffffffn);
+      expect(out1).to.equal(0xffffffffn);
+      expect(out0).to.equal(0xffffffffn);
+
+      // Reconstruct and verify
+      const unpackedVotes = out2 | (out1 << 32n) | (out0 << 64n);
+      expect(unpackedVotes).to.equal(newVotes);
+    });
+
+    it('should correctly handle SDK-packed data with non-zero salt', async () => {
+      /**
+       * Test Case: Verify salt doesn't interfere with unpacking
+       *
+       * Salt is stored in bits [192-247] (56 bits), which doesn't
+       * affect the first 6 outputs of UnpackElement(6).
+       *
+       * The circuit only extracts the first 192 bits, so salt
+       * is ignored in the output but present in the packed value.
+       */
+      const nonce = 42;
+      const stateIdx = 123;
+      const voIdx = 456;
+      const newVotes = 789;
+      const salt = 0x12345678abcdn; // Random 56-bit salt
+
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+
+      const witness = await circuit.calculateWitness({ in: packed });
+      await circuit.expectConstraintPass(witness);
+
+      const out5 = await getSignal(circuit, witness, 'out[5]');
+      const out4 = await getSignal(circuit, witness, 'out[4]');
+      const out3 = await getSignal(circuit, witness, 'out[3]');
+
+      // Values should be correct regardless of salt
+      expect(out5).to.equal(BigInt(nonce));
+      expect(out4).to.equal(BigInt(stateIdx));
+      expect(out3).to.equal(BigInt(voIdx));
+
+      // SDK unpack should ignore salt (it's not returned)
+      const unpacked = unpackElement(packed);
+      expect(unpacked.nonce).to.equal(BigInt(nonce));
+      expect(unpacked.stateIdx).to.equal(BigInt(stateIdx));
+      expect(unpacked.voIdx).to.equal(BigInt(voIdx));
+      expect(unpacked.newVotes).to.equal(BigInt(newVotes));
+    });
+
+    it('should verify round-trip consistency (SDK pack → circuit unpack → SDK unpack)', async () => {
+      /**
+       * Test Case: Complete round-trip verification
+       *
+       * This test verifies that:
+       * 1. SDK packs data correctly
+       * 2. Circuit unpacks it correctly
+       * 3. SDK unpacks it back to original values
+       * 4. Circuit output matches SDK unpack output
+       */
+      const testCases = [
+        { nonce: 0, stateIdx: 0, voIdx: 0, newVotes: 0 },
+        { nonce: 1, stateIdx: 1, voIdx: 1, newVotes: 1 },
+        { nonce: 255, stateIdx: 255, voIdx: 255, newVotes: 255 },
+        { nonce: 1000, stateIdx: 2000, voIdx: 3000, newVotes: 4000 },
+        { nonce: 65535, stateIdx: 65535, voIdx: 65535, newVotes: 65535 }
+      ];
+
+      for (const testCase of testCases) {
+        const { nonce, stateIdx, voIdx, newVotes } = testCase;
+        const salt = 0n;
+
+        // Pack with SDK
+        const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+
+        // Unpack with circuit
+        const witness = await circuit.calculateWitness({ in: packed });
+        await circuit.expectConstraintPass(witness);
+
+        const circuitNonce = await getSignal(circuit, witness, 'out[5]');
+        const circuitStateIdx = await getSignal(circuit, witness, 'out[4]');
+        const circuitVoIdx = await getSignal(circuit, witness, 'out[3]');
+        const circuitVotes2 = await getSignal(circuit, witness, 'out[2]');
+        const circuitVotes1 = await getSignal(circuit, witness, 'out[1]');
+        const circuitVotes0 = await getSignal(circuit, witness, 'out[0]');
+
+        const circuitNewVotes = circuitVotes2 | (circuitVotes1 << 32n) | (circuitVotes0 << 64n);
+
+        // Unpack with SDK
+        const sdkUnpacked = unpackElement(packed);
+
+        // Verify circuit matches SDK
+        expect(circuitNonce).to.equal(sdkUnpacked.nonce);
+        expect(circuitStateIdx).to.equal(sdkUnpacked.stateIdx);
+        expect(circuitVoIdx).to.equal(sdkUnpacked.voIdx);
+        expect(circuitNewVotes).to.equal(sdkUnpacked.newVotes);
+
+        // Verify SDK matches original
+        expect(sdkUnpacked.nonce).to.equal(BigInt(nonce));
+        expect(sdkUnpacked.stateIdx).to.equal(BigInt(stateIdx));
+        expect(sdkUnpacked.voIdx).to.equal(BigInt(voIdx));
+        expect(sdkUnpacked.newVotes).to.equal(BigInt(newVotes));
+      }
+    });
+
+    it('should correctly handle zero values in all fields', async () => {
+      /**
+       * Test Case: All fields are zero (edge case)
+       *
+       * This ensures that zero values are handled correctly
+       * and don't cause any issues in packing/unpacking.
+       */
+      const nonce = 0;
+      const stateIdx = 0;
+      const voIdx = 0;
+      const newVotes = 0;
+      const salt = 0n;
+
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+
+      // Packed value should be 0
+      expect(packed).to.equal(0n);
+
+      const witness = await circuit.calculateWitness({ in: packed });
+      await circuit.expectConstraintPass(witness);
+
+      // All outputs should be 0
+      for (let i = 0; i < 6; i++) {
+        const output = await getSignal(circuit, witness, `out[${i}]`);
+        expect(output).to.equal(0n);
+      }
+
+      // SDK unpack should return all zeros
+      const unpacked = unpackElement(packed);
+      expect(unpacked.nonce).to.equal(0n);
+      expect(unpacked.stateIdx).to.equal(0n);
+      expect(unpacked.voIdx).to.equal(0n);
+      expect(unpacked.newVotes).to.equal(0n);
     });
   });
 });

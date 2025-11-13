@@ -13,7 +13,9 @@ import {
   Tree,
   stringizing,
   SNARK_FIELD_SIZE,
-  adaptToUncompressed
+  adaptToUncompressed,
+  unpackElement,
+  packElement
 } from './libs/crypto';
 import { encryptOdevity, decrypt } from './libs/crypto/rerandomize';
 import { poseidon } from './libs/crypto/hashing';
@@ -371,17 +373,18 @@ export class OperatorClient {
       isLastCmd: boolean,
       salt?: bigint
     ): bigint[] => {
-      if (!salt) {
-        // uint56
-        salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
-      }
+      // if (!salt) {
+      //   // uint56
+      //   salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
+      // }
 
-      const packaged =
-        BigInt(nonce) +
-        (BigInt(stateIdx) << 32n) +
-        (BigInt(voIdx) << 64n) +
-        (BigInt(newVotes) << 96n) +
-        (BigInt(salt) << 192n);
+      // const packaged =
+      //   BigInt(nonce) +
+      //   (BigInt(stateIdx) << 32n) +
+      //   (BigInt(voIdx) << 64n) +
+      //   (BigInt(newVotes) << 96n) +
+      //   (BigInt(salt) << 192n);
+      const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
 
       const signer = this.getSigner(derivePathParams);
 
@@ -797,10 +800,11 @@ export class OperatorClient {
       const plaintext = poseidonDecrypt(ciphertext, sharedKey, 0n, 6);
       const packaged = plaintext[0];
 
-      const nonce = packaged % UINT32;
-      const stateIdx = (packaged >> 32n) % UINT32;
-      const voIdx = (packaged >> 64n) % UINT32;
-      const newVotes = (packaged >> 96n) % UINT96;
+      // const nonce = packaged % UINT32;
+      // const stateIdx = (packaged >> 32n) % UINT32;
+      // const voIdx = (packaged >> 64n) % UINT32;
+      // const newVotes = (packaged >> 96n) % UINT96;
+      const { nonce, stateIdx, voIdx, newVotes } = unpackElement(packaged);
 
       const cmd: Command = {
         nonce,

@@ -14,6 +14,7 @@ import { EcdhSharedKey, Keypair, PrivKey, PubKey } from './types';
 import { poseidon } from './hashing';
 import { Tree } from './tree';
 import { genRandomBabyJubValue } from './babyjub';
+import { packElement } from './pack';
 
 const SNARK_FIELD_SIZE =
   21888242871839275222246405745257275088548364400416034343698204186575808495617n;
@@ -101,17 +102,18 @@ export const genMessageFactory =
     isLastCmd: boolean,
     salt?: bigint
   ): bigint[] => {
-    if (!salt) {
-      // uint56
-      salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
-    }
+    // if (!salt) {
+    //   // uint56
+    //   salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
+    // }
 
-    const packaged =
-      BigInt(nonce) +
-      (BigInt(stateIdx) << 32n) +
-      (BigInt(voIdx) << 64n) +
-      (BigInt(newVotes) << 96n) +
-      (BigInt(salt) << 192n);
+    // const packaged =
+    //   BigInt(nonce) +
+    //   (BigInt(stateIdx) << 32n) +
+    //   (BigInt(voIdx) << 64n) +
+    //   (BigInt(newVotes) << 96n) +
+    //   (BigInt(salt) << 192n);
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
 
     let newPubKey = [...signPubKey];
     if (isLastCmd) {

@@ -15,7 +15,8 @@ import {
   Tree,
   stringizing,
   SNARK_FIELD_SIZE,
-  adaptToUncompressed
+  adaptToUncompressed,
+  packElement
 } from './libs/crypto';
 import { poseidon } from './libs/crypto/hashing';
 import { poseidonEncrypt } from '@zk-kit/poseidon-cipher';
@@ -211,17 +212,19 @@ export class VoterClient {
       isLastCmd: boolean,
       salt?: bigint
     ): bigint[] => {
-      if (!salt) {
-        // uint56
-        salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
-      }
+      // if (!salt) {
+      //   // uint56
+      //   salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
+      // }
 
-      const packaged =
-        BigInt(nonce) +
-        (BigInt(stateIdx) << 32n) +
-        (BigInt(voIdx) << 64n) +
-        (BigInt(newVotes) << 96n) +
-        (BigInt(salt) << 192n);
+      // const packaged =
+      //   BigInt(nonce) +
+      //   (BigInt(stateIdx) << 32n) +
+      //   (BigInt(voIdx) << 64n) +
+      //   (BigInt(newVotes) << 96n) +
+      //   (BigInt(salt) << 192n);
+
+      const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
 
       const signer = this.getSigner(derivePathParams);
 
