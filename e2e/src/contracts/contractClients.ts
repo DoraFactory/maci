@@ -57,13 +57,10 @@ export class AmaciContractClient extends BaseContractClient {
   /**
    * Sign up a user
    */
-  async signUp(pubkey: [string, string], certificate?: string): Promise<any> {
+  async signUp(pubkey: { x: string; y: string }, certificate?: string): Promise<any> {
     return await this.execute({
       sign_up: {
-        pubkey: {
-          x: pubkey[0],
-          y: pubkey[1]
-        },
+        pubkey,
         certificate
       }
     });
@@ -72,14 +69,14 @@ export class AmaciContractClient extends BaseContractClient {
   /**
    * Publish deactivate message
    */
-  async publishDeactivateMessage(message: string[], encPubKey: [string, string]): Promise<any> {
+  async publishDeactivateMessage(
+    message: string[],
+    encPubKey: { x: string; y: string }
+  ): Promise<any> {
     return await this.execute({
       publish_deactivate_message: {
         message: { data: message },
-        enc_pub_key: {
-          x: encPubKey[0],
-          y: encPubKey[1]
-        }
+        enc_pub_key: encPubKey
       }
     });
   }
@@ -107,17 +104,14 @@ export class AmaciContractClient extends BaseContractClient {
    * Add new key
    */
   async addNewKey(
-    pubkey: [string, string],
+    pubkey: { x: string; y: string },
     nullifier: string,
     d: [string, string, string, string],
     proof: { a: string; b: string; c: string }
   ): Promise<any> {
     return await this.execute({
       add_new_key: {
-        pubkey: {
-          x: pubkey[0],
-          y: pubkey[1]
-        },
+        pubkey,
         nullifier,
         d,
         groth16_proof: proof
@@ -128,14 +122,11 @@ export class AmaciContractClient extends BaseContractClient {
   /**
    * Publish message (vote)
    */
-  async publishMessage(message: string[], encPubKey: [string, string]): Promise<any> {
+  async publishMessage(message: string[], encPubKey: { x: string; y: string }): Promise<any> {
     return await this.execute({
       publish_message: {
         message: { data: message },
-        enc_pub_key: {
-          x: encPubKey[0],
-          y: encPubKey[1]
-        }
+        enc_pub_key: encPubKey
       }
     });
   }

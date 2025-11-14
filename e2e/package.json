@@ -5,12 +5,16 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "pretest": "ts-node scripts/checkCircuits.ts",
     "test": "pnpm run mocha-test tests/**/*.test.ts",
     "test:amaci": "pnpm run mocha-test tests/amaci.e2e.test.ts",
     "test:maci": "pnpm run mocha-test tests/maci.e2e.test.ts",
     "test:registry": "pnpm run mocha-test tests/registry.e2e.test.ts",
     "test:advanced": "pnpm run mocha-test tests/advanced.e2e.test.ts",
-    "mocha-test": "NODE_OPTIONS=--max-old-space-size=4096 ts-mocha --project tsconfig.test.json --exit --timeout 600000",
+    "mocha-test": "NODE_OPTIONS=--max-old-space-size=4096 ts-mocha --project tsconfig.test.json --exit --timeout 900000",
+    "download-zkeys": "ts-node scripts/downloadZkeys.ts",
+    "extract-vkeys": "ts-node scripts/extractVkeys.ts",
+    "setup-circuits": "pnpm download-zkeys && pnpm extract-vkeys",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "keywords": [
@@ -38,9 +42,11 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.11.19",
     "@types/secp256k1": "^4.0.6",
+    "@types/tar": "^6.1.13",
     "chai": "^4.3.10",
     "mocha": "^11.7.2",
     "secp256k1": "^5.0.0",
+    "tar": "^7.4.3",
     "ts-mocha": "^11.1.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.9.2"

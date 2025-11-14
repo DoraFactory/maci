@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { OperatorClient, VoterClient } from '@dorafactory/maci-sdk';
 import { SimulateCosmWasmClient } from '@oraichain/cw-simulate';
+import path from 'path';
 import {
   createTestEnvironment,
   ContractLoader,
@@ -15,7 +16,6 @@ import {
   getBackendPublicKey,
   log
 } from '../src';
-import { generateProcessMessagesProof, generateTallyProof } from '../src/utils/circuitIntegration';
 
 /**
  * MACI (Standard) End-to-End Test
@@ -43,12 +43,21 @@ describe('MACI (Standard) End-to-End Test', function () {
 
   // Test parameters - 1P1V mode
   const maxVoteOptions = 3;
-  const stateTreeDepth = 3; // Support up to 8 users
-  const intStateTreeDepth = 2;
-  const voteOptionTreeDepth = 2;
-  const batchSize = 2;
+  // Circuit parameters (must match zkey configuration: 2-1-1-5)
+  const stateTreeDepth = 2; // 5^2 = 25 max voters
+  const intStateTreeDepth = 1;
+  const voteOptionTreeDepth = 1; // 5^1 = 5 max options
+  const batchSize = 5; // Process 5 messages per batch
   const numSignUps = 5;
   const numVoters = 5;
+
+  // Circuit artifacts paths for SDK proof generation
+  const circuitConfig = '2-1-1-5';
+  const circuitDir = path.join(__dirname, '../circuits', circuitConfig);
+  const processMessagesWasm = path.join(circuitDir, 'processMessages.wasm');
+  const processMessagesZkey = path.join(circuitDir, 'processMessages.zkey');
+  const tallyVotesWasm = path.join(circuitDir, 'tallyVotes.wasm');
+  const tallyVotesZkey = path.join(circuitDir, 'tallyVotes.zkey');
 
   before(async () => {
     log('=== Setting up MACI test environment ===');
@@ -81,7 +90,7 @@ describe('MACI (Standard) End-to-End Test', function () {
 
     log(`Initialized ${numVoters} voters`);
 
-    // Initialize operator MACI (1P1V mode)
+    // Initialize operator MACI (1P1V mode, non-anonymous)
     operator.initMaci({
       stateTreeDepth,
       intStateTreeDepth,
@@ -89,10 +98,11 @@ describe('MACI (Standard) End-to-End Test', function () {
       batchSize,
       maxVoteOptions,
       numSignUps,
-      isQuadraticCost: false // 1P1V mode
+      isQuadraticCost: false, // 1P1V mode
+      isAmaci: false // API-MACI uses standard MACI (no anonymous keys)
     });
 
-    log('Operator MACI initialized (1P1V mode)');
+    log('Operator MACI initialized (1P1V mode, non-anonymous)');
 
     // Deploy API-MACI contract
     const contractLoader = new ContractLoader();
@@ -115,8 +125,8 @@ describe('MACI (Standard) End-to-End Test', function () {
         x: coordPubKey[0].toString(),
         y: coordPubKey[1].toString()
       },
-      max_voters: '100', // Maximum number of voters (u128 as string)
-      vote_option_map: ['Option A', 'Option B', 'Option C'],
+      max_voters: '25', // Must match 5^stateTreeDepth = 5^2 = 25
+      vote_option_map: ['Option A', 'Option B', 'Option C'], // 3 options < 5 max
       round_info: {
         title: 'MACI 1P1V Test Round',
         description: 'Test round for standard MACI e2e testing',
@@ -127,8 +137,7 @@ describe('MACI (Standard) End-to-End Test', function () {
         end_time: votingEndTime
       },
       circuit_type: '0', // 1P1V
-      certification_system: '0', // Groth16
-      // Use the backend public key for whitelist certificate verification
+      certification_system: '0', // Groth16 (vkeys auto-matched by contract for 2-1-1-5)
       whitelist_backend_pubkey: getBackendPublicKey(),
       whitelist_voting_power_args: {
         mode: 'threshold',
@@ -356,21 +365,25 @@ describe('MACI (Standard) End-to-End Test', function () {
 
     let batchCount = 0;
     while (operator.states === 1) {
-      const { input: msgInput } = await operator.processMessages();
+      // Generate proof using SDK (internally calls snarkjs.groth16.fullProve)
+      const processResult = await operator.processMessages({
+        wasmFile: processMessagesWasm,
+        zkeyFile: processMessagesZkey
+      });
 
       log(`Processing message batch ${batchCount}...`);
 
-      // Generate proof
-      const msgProof = await generateProcessMessagesProof(
-        msgInput,
-        stateTreeDepth,
-        voteOptionTreeDepth,
-        batchSize
-      );
+      if (!processResult.proof) {
+        throw new Error('SDK failed to generate proof');
+      }
 
       // Process on contract
       await assertExecuteSuccess(
-        () => maciContract.processMessage(msgInput.newStateCommitment.toString(), msgProof),
+        () =>
+          maciContract.processMessage(
+            processResult.input.newStateCommitment.toString(),
+            processResult.proof! // Non-null assertion after check
+          ),
         `Process message batch ${batchCount} failed`
       );
 
@@ -388,21 +401,25 @@ describe('MACI (Standard) End-to-End Test', function () {
 
     let tallyCount = 0;
     while (operator.states === 2) {
-      const { input: tallyInput } = await operator.processTally();
+      // Generate proof using SDK (internally calls snarkjs.groth16.fullProve)
+      const tallyResult = await operator.processTally({
+        wasmFile: tallyVotesWasm,
+        zkeyFile: tallyVotesZkey
+      });
 
       log(`Processing tally batch ${tallyCount}...`);
 
-      // Generate proof
-      const tallyProof = await generateTallyProof(
-        tallyInput,
-        stateTreeDepth,
-        intStateTreeDepth,
-        voteOptionTreeDepth
-      );
+      if (!tallyResult.proof) {
+        throw new Error('SDK failed to generate tally proof');
+      }
 
       // Process on contract
       await assertExecuteSuccess(
-        () => maciContract.processTally(tallyInput.newTallyCommitment.toString(), tallyProof),
+        () =>
+          maciContract.processTally(
+            tallyResult.input.newTallyCommitment.toString(),
+            tallyResult.proof! // Non-null assertion after check
+          ),
         `Process tally batch ${tallyCount} failed`
       );
 

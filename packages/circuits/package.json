@@ -40,6 +40,7 @@
     "test:messageValidatorAmaci": "pnpm run mocha-test ts/__tests__/MessageValidatorAmaci.test.ts",
     "test:processDeactivate": "pnpm run mocha-test ts/__tests__/ProcessDeactivate.test.ts",
     "test:amaciIntegration": "pnpm run mocha-test ts/__tests__/AmaciIntegration.test.ts",
+    "test:maciIntegration": "pnpm run mocha-test ts/__tests__/MaciIntegration.test.ts",
     "test:unpackElement": "pnpm run mocha-test ts/__tests__/UnpackElement.test.ts",
     "test:messageToCommand": "pnpm run mocha-test ts/__tests__/MessageToCommand.test.ts",
     "test:checkRoot": "pnpm run mocha-test ts/__tests__/CheckRoot.test.ts",

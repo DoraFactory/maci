@@ -156,11 +156,12 @@ interface MessageProcessInput {
   newStateSalt: bigint;
   currentVoteWeights: bigint[];
   currentVoteWeightsPathElements: bigint[][][];
-  activeStateRoot: bigint;
-  deactivateRoot: bigint;
-  deactivateCommitment: bigint;
-  activeStateLeaves: (bigint | number)[];
-  activeStateLeavesPathElements: bigint[][][];
+  // AMACI-specific fields (optional, only present when isAmaci is true)
+  activeStateRoot?: bigint;
+  deactivateRoot?: bigint;
+  deactivateCommitment?: bigint;
+  activeStateLeaves?: (bigint | number)[];
+  activeStateLeavesPathElements?: bigint[][][];
 }
 
 interface ProcessTallyResult {
@@ -211,6 +212,7 @@ export class OperatorClient {
   public voSize?: number;
   public numSignUps?: number;
   public isQuadraticCost?: boolean;
+  public isAmaci?: boolean; // Flag to distinguish AMACI vs MACI mode
 
   // Trees
   public voTreeZeroRoot?: bigint;
@@ -706,6 +708,7 @@ export class OperatorClient {
     maxVoteOptions,
     numSignUps,
     isQuadraticCost = false,
+    isAmaci = false,
     derivePathParams
   }: {
     stateTreeDepth: number;
@@ -715,6 +718,7 @@ export class OperatorClient {
     maxVoteOptions: number;
     numSignUps: number;
     isQuadraticCost?: boolean;
+    isAmaci?: boolean;
     derivePathParams?: DerivePathParams;
   }) {
     this.stateTreeDepth = stateTreeDepth;
@@ -726,6 +730,7 @@ export class OperatorClient {
     this.voSize = 5 ** voteOptionTreeDepth;
     this.numSignUps = numSignUps;
     this.isQuadraticCost = isQuadraticCost;
+    this.isAmaci = isAmaci;
 
     const signer = this.getSigner(derivePathParams);
     this.pubKeyHasher = poseidon(signer.getPublicKey().toPoints());
@@ -734,9 +739,11 @@ export class OperatorClient {
     const zeroHash10 = poseidon([zeroHash5, zeroHash5]);
 
     const emptyVOTree = new Tree(5, voteOptionTreeDepth, 0n);
-    const stateTree = new Tree(5, stateTreeDepth, zeroHash10);
+    // AMACI uses zeroHash10, MACI uses zeroHash5 for state tree
+    const stateTreeZeroValue = isAmaci ? zeroHash10 : zeroHash5;
+    const stateTree = new Tree(5, stateTreeDepth, stateTreeZeroValue);
 
-    console.log('Init MACI Coordinator:');
+    console.log(`Init ${isAmaci ? 'AMACI' : 'MACI'} Coordinator:`);
     console.log('- Vote option tree root:', emptyVOTree.root);
     console.log('- State tree root:', stateTree.root);
 
@@ -849,11 +856,20 @@ export class OperatorClient {
 
     this.stateLeaves.set(leafIdx, s);
 
-    const zeroHash5 = poseidon([0n, 0n, 0n, 0n, 0n]);
-    const hash = poseidon([
-      poseidon([...s.pubKey, s.balance, s.voted ? s.voTree.root : 0n, s.nonce]),
-      c ? poseidon([...c, 0n]) : zeroHash5
-    ]);
+    // Calculate state leaf hash based on mode
+    let hash: bigint;
+    if (this.isAmaci) {
+      // AMACI: Double-layer poseidon hash with d1, d2
+      const zeroHash5 = poseidon([0n, 0n, 0n, 0n, 0n]);
+      hash = poseidon([
+        poseidon([...s.pubKey, s.balance, s.voted ? s.voTree.root : 0n, s.nonce]),
+        c ? poseidon([...c, 0n]) : zeroHash5
+      ]);
+    } else {
+      // MACI: Single-layer poseidon hash, no d1/d2
+      hash = poseidon([...s.pubKey, s.balance, s.voted ? s.voTree.root : 0n, s.nonce]);
+    }
+
     this.stateTree.updateLeaf(leafIdx, hash);
 
     console.log(`Set State Leaf ${leafIdx}:`);
@@ -1297,15 +1313,24 @@ export class OperatorClient {
 
       const s = this.stateLeaves.get(stateIdx) || this.emptyState();
       const currVotes = s.voTree.leaf(voIdx);
-      currentStateLeaves[i] = [
-        ...s.pubKey,
-        s.balance,
-        s.voted ? s.voTree.root : 0n,
-        s.nonce,
-        ...s.d1,
-        ...s.d2,
-        0n
-      ];
+
+      // Build currentStateLeaves based on mode
+      if (this.isAmaci) {
+        // AMACI: 10 fields [pubKey[2], balance, voTreeRoot, nonce, d1[2], d2[2], 0]
+        currentStateLeaves[i] = [
+          ...s.pubKey,
+          s.balance,
+          s.voted ? s.voTree.root : 0n,
+          s.nonce,
+          ...s.d1,
+          ...s.d2,
+          0n
+        ];
+      } else {
+        // MACI: 5 fields [pubKey[2], balance, voTreeRoot, nonce]
+        currentStateLeaves[i] = [...s.pubKey, s.balance, s.voted ? s.voTree.root : 0n, s.nonce];
+      }
+
       currentStateLeavesPathElements[i] = this.stateTree.pathElementOf(stateIdx);
       currentVoteWeights[i] = currVotes;
       currentVoteWeightsPathElements[i] = s.voTree.pathElementOf(voIdx);
@@ -1327,11 +1352,19 @@ export class OperatorClient {
 
         this.stateLeaves.set(stateIdx, s);
 
-        const zeroHash5 = poseidon([0n, 0n, 0n, 0n, 0n]);
-        const hash = poseidon([
-          poseidon([...s.pubKey, s.balance, s.voTree.root, s.nonce]),
-          poseidon([...s.d1, ...s.d2, 0n])
-        ]);
+        // Calculate state leaf hash based on mode
+        let hash: bigint;
+        if (this.isAmaci) {
+          // AMACI: Double-layer poseidon hash with d1, d2
+          const zeroHash5 = poseidon([0n, 0n, 0n, 0n, 0n]);
+          hash = poseidon([
+            poseidon([...s.pubKey, s.balance, s.voTree.root, s.nonce]),
+            poseidon([...s.d1, ...s.d2, 0n])
+          ]);
+        } else {
+          // MACI: Single-layer poseidon hash
+          hash = poseidon([...s.pubKey, s.balance, s.voTree.root, s.nonce]);
+        }
         this.stateTree.updateLeaf(stateIdx, hash);
       }
 
@@ -1353,24 +1386,47 @@ export class OperatorClient {
     const deactivateRoot = this.deactivateTree.root;
     const deactivateCommitment = poseidon([activeStateRoot, deactivateRoot]);
 
-    const inputHash =
-      BigInt(
-        solidityPackedSha256(
-          new Array(7).fill('uint256'),
-          stringizing([
-            packedVals,
-            this.pubKeyHasher!,
-            batchStartHash,
-            batchEndHash,
-            this.stateCommitment,
-            newStateCommitment,
-            deactivateCommitment
-          ]) as string[]
-        )
-      ) % SNARK_FIELD_SIZE;
+    // Calculate inputHash based on mode
+    let inputHash: bigint;
+    if (this.isAmaci) {
+      // AMACI: 7 fields (includes deactivateCommitment)
+      inputHash =
+        BigInt(
+          solidityPackedSha256(
+            new Array(7).fill('uint256'),
+            stringizing([
+              packedVals,
+              this.pubKeyHasher!,
+              batchStartHash,
+              batchEndHash,
+              this.stateCommitment,
+              newStateCommitment,
+              deactivateCommitment
+            ]) as string[]
+          )
+        ) % SNARK_FIELD_SIZE;
+    } else {
+      // MACI: 6 fields (no deactivateCommitment)
+      inputHash =
+        BigInt(
+          solidityPackedSha256(
+            new Array(6).fill('uint256'),
+            stringizing([
+              packedVals,
+              this.pubKeyHasher!,
+              batchStartHash,
+              batchEndHash,
+              this.stateCommitment,
+              newStateCommitment
+            ]) as string[]
+          )
+        ) % SNARK_FIELD_SIZE;
+    }
 
     const msgs = messages.map((msg) => msg.ciphertext);
     const encPubKeys = messages.map((msg) => msg.encPubKey);
+
+    // Build input object based on mode
     const input = {
       inputHash,
       packedVals,
@@ -1389,11 +1445,16 @@ export class OperatorClient {
       newStateSalt,
       currentVoteWeights,
       currentVoteWeightsPathElements,
-      activeStateRoot,
-      deactivateRoot,
-      deactivateCommitment,
-      activeStateLeaves,
-      activeStateLeavesPathElements
+      // AMACI-specific fields (only include if isAmaci is true)
+      ...(this.isAmaci
+        ? {
+            activeStateRoot,
+            deactivateRoot,
+            deactivateCommitment,
+            activeStateLeaves,
+            activeStateLeavesPathElements
+          }
+        : {})
     };
 
     this.msgEndIdx = batchStartIdx;
@@ -1535,15 +1596,23 @@ export class OperatorClient {
       const stateIdx = batchStartIdx + i;
       const s = this.stateLeaves.get(stateIdx) || this.emptyState();
 
-      stateLeaf[i] = [
-        ...s.pubKey,
-        s.balance,
-        s.voted ? s.voTree.root : 0n,
-        s.nonce,
-        ...s.d1,
-        ...s.d2,
-        0n
-      ];
+      // Build stateLeaf based on mode
+      if (this.isAmaci) {
+        // AMACI: 10 fields [pubKey[2], balance, voTreeRoot, nonce, d1[2], d2[2], 0]
+        stateLeaf[i] = [
+          ...s.pubKey,
+          s.balance,
+          s.voted ? s.voTree.root : 0n,
+          s.nonce,
+          ...s.d1,
+          ...s.d2,
+          0n
+        ];
+      } else {
+        // MACI: 5 fields [pubKey[2], balance, voTreeRoot, nonce]
+        stateLeaf[i] = [...s.pubKey, s.balance, s.voted ? s.voTree.root : 0n, s.nonce];
+      }
+
       votes[i] = s.voTree.leaves();
 
       if (!s.voted) continue;

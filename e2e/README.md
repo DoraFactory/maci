@@ -44,6 +44,59 @@ cd e2e
 pnpm install
 ```
 
+## Circuit Setup
+
+测试需要使用零知识证明电路的 zkey 文件进行真实的证明生成和验证。
+
+### 自动设置（推荐）
+
+```bash
+# 下载 zkey 文件并提取验证密钥（一次性设置）
+pnpm setup-circuits
+```
+
+这将：
+1. 从 S3 下载约 50-100MB 的 zkey 文件（配置：2-1-1-5）
+2. 解压到 `circuits/2-1-1-5/` 目录
+3. 从 zkey 提取验证密钥并保存为 JSON
+
+### 手动设置
+
+如果自动下载失败，可以手动操作：
+
+```bash
+# 1. 下载 zkey 文件
+pnpm download-zkeys
+
+# 2. 提取验证密钥
+pnpm extract-vkeys
+```
+
+### 电路配置说明
+
+**当前使用配置：2-1-1-5**
+
+格式：`state_tree_depth-int_state_tree_depth-vote_option_tree_depth-message_batch_size`
+
+约束关系：
+- **Max voters**: 5^state_tree_depth = 5^2 = **25 voters**
+- **Max options**: 5^vote_option_tree_depth = 5^1 = **5 options**
+- **Batch size**: **5 messages** per batch
+
+文件列表：
+- `circuits/2-1-1-5/processMessages.wasm` - 消息处理电路
+- `circuits/2-1-1-5/processMessages.zkey` - 消息处理证明密钥
+- `circuits/2-1-1-5/tallyVotes.wasm` - 票数统计电路
+- `circuits/2-1-1-5/tallyVotes.zkey` - 票数统计证明密钥
+- `circuits/vkeys-2-1-1-5.json` - 验证密钥（合约使用）
+
+### 验证设置
+
+```bash
+# 测试前会自动检查，也可以手动检查
+pnpm pretest
+```
+
 ## 使用
 
 ### 运行所有测试

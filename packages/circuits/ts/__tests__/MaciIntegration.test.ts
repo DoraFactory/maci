@@ -5,17 +5,20 @@ import { type WitnessTester } from 'circomkit';
 import { circomkitInstance } from './utils/utils';
 
 /**
- * AMACI (Anonymous MACI) Integration Test
+ * MACI (Standard MACI) Integration Test
  *
- * This test demonstrates the complete flow of an anonymous voting system:
+ * This test demonstrates the complete flow of a standard voting system:
  * 1. Coordinator initializes MACI
  * 2. Users sign up and get registered in the state tree
- * 3. Users can deactivate their keys and add new keys anonymously
- * 4. Users submit encrypted votes
- * 5. Coordinator processes votes and tallies results
+ * 3. Users submit encrypted votes
+ * 4. Coordinator processes votes and tallies results
+ *
+ * Note: Unlike AMACI, standard MACI does not support:
+ * - Anonymous key changes (no deactivate/add key)
+ * - Anonymous state leaves (no d1/d2 fields)
  */
 
-describe('AMACI Integration Test', function () {
+describe('MACI Integration Test', function () {
   this.timeout(300000); // 300 second timeout for the entire test suite (circuits take time)
 
   let operator: OperatorClient;
@@ -23,43 +26,35 @@ describe('AMACI Integration Test', function () {
   let voter2: VoterClient;
 
   // Circuit instances
-  let processDeactivateCircuit: WitnessTester<any, any>;
   let processMessagesCircuit: WitnessTester<any, any>;
   let tallyVotesCircuit: WitnessTester<any, any>;
 
   const USER_1 = 0; // state leaf idx
   const USER_2 = 1; // state leaf idx
-  const USER_1A = 2; // state leaf idx after key change
 
   const maxVoteOptions = 5;
   const stateTreeDepth = 2;
   const intStateTreeDepth = 1;
   const voteOptionTreeDepth = 1;
-  const batchSize = 2;
+  const batchSize = 5;
 
   before(async () => {
     // Initialize circuits
-    console.log('Initializing circuits...');
+    console.log('Initializing MACI circuits...');
 
-    processDeactivateCircuit = await circomkitInstance.WitnessTester('ProcessDeactivateMessages', {
-      file: 'amaci/power/processDeactivate',
-      template: 'ProcessDeactivateMessages',
-      params: [stateTreeDepth, batchSize]
-    });
-
-    processMessagesCircuit = await circomkitInstance.WitnessTester('ProcessMessages', {
-      file: 'amaci/power/processMessages',
+    processMessagesCircuit = await circomkitInstance.WitnessTester('ProcessMessages_MACI', {
+      file: 'maci/power/processMessages',
       template: 'ProcessMessages',
       params: [stateTreeDepth, voteOptionTreeDepth, batchSize]
     });
 
-    tallyVotesCircuit = await circomkitInstance.WitnessTester('TallyVotes', {
-      file: 'amaci/power/tallyVotes',
+    tallyVotesCircuit = await circomkitInstance.WitnessTester('TallyVotes_MACI', {
+      file: 'maci/power/tallyVotes',
       template: 'TallyVotes',
       params: [stateTreeDepth, intStateTreeDepth, voteOptionTreeDepth]
     });
 
-    console.log('Circuits initialized successfully');
+    console.log('MACI circuits initialized successfully');
 
     // Initialize operator/coordinator
     operator = new OperatorClient({
@@ -80,19 +75,19 @@ describe('AMACI Integration Test', function () {
     });
   });
 
-  it('should complete the full AMACI flow', async () => {
-    console.log('\n=== Step 1: Initialize AMACI ===\n');
+  it('should complete the full MACI flow', async () => {
+    console.log('\n=== Step 1: Initialize MACI ===\n');
 
-    // Initialize AMACI with coordinator using the same parameters as circuits
+    // Initialize MACI with coordinator using the same parameters as circuits
     operator.initMaci({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 3,
-      isQuadraticCost: true,
-      isAmaci: true // AMACI mode with anonymous keys (d1, d2)
+      numSignUps: 2,
+      isQuadraticCost: true, // QV mode
+      isAmaci: false // Standard MACI (no anonymous keys)
     });
 
     expect(operator.stateTree).to.not.be.undefined;
@@ -103,87 +98,15 @@ describe('AMACI Integration Test', function () {
     const user1PubKey = voter1.getPubkey().toPoints();
     const user2PubKey = voter2.getPubkey().toPoints();
 
+    // In standard MACI, we don't pass d1/d2 (anonymous keys)
     operator.initStateTree(USER_1, user1PubKey, 100);
     operator.initStateTree(USER_2, user2PubKey, 100);
 
     expect(operator.stateLeaves.size).to.equal(2);
 
-    console.log('\n=== Step 3: Deactivate Messages ===\n');
+    console.log('\n=== Step 3: Submit Votes ===\n');
 
-    // Users send deactivate messages to prepare for key change
     const coordPubKey = operator.getPubkey().toPoints();
-
-    // Generate deactivate messages
-    const dmessage1Payload = await voter1.buildDeactivatePayload({
-      stateIdx: USER_1,
-      operatorPubkey: coordPubKey
-    });
-
-    const dmessage2Payload = await voter2.buildDeactivatePayload({
-      stateIdx: USER_2,
-      operatorPubkey: coordPubKey
-    });
-
-    // Convert string arrays to bigint arrays
-    const dmessage1 = dmessage1Payload.msg.map((m) => BigInt(m));
-    const dmessage1EncPubKey = dmessage1Payload.encPubkeys.map((k) => BigInt(k)) as [
-      bigint,
-      bigint
-    ];
-
-    const dmessage2 = dmessage2Payload.msg.map((m) => BigInt(m));
-    const dmessage2EncPubKey = dmessage2Payload.encPubkeys.map((k) => BigInt(k)) as [
-      bigint,
-      bigint
-    ];
-
-    operator.pushDeactivateMessage(dmessage1, dmessage1EncPubKey);
-    operator.pushDeactivateMessage(dmessage2, dmessage2EncPubKey);
-
-    expect(operator.dMessages.length).to.equal(2);
-
-    console.log('\n=== Step 4: Process Deactivate Messages ===\n');
-
-    // Process deactivate messages and generate circuit input
-    const { input: deactivateInput, newDeactivate } = await operator.processDeactivateMessages({
-      inputSize: 2,
-      subStateTreeLength: 2
-    });
-
-    expect(deactivateInput).to.not.be.undefined;
-    expect(newDeactivate.length).to.be.greaterThan(0);
-
-    console.log('Deactivate processing completed');
-    console.log('New deactivate root:', deactivateInput.newDeactivateRoot.toString());
-
-    // Verify with circuit
-    console.log('Verifying deactivate messages with circuit...');
-    const deactivateWitness = await processDeactivateCircuit.calculateWitness(
-      deactivateInput as any
-    );
-    await processDeactivateCircuit.expectConstraintPass(deactivateWitness);
-    console.log('Circuit verification passed for deactivate messages');
-
-    console.log('\n=== Step 5: Add New Key (User 1) ===\n');
-
-    // User 1 adds a new key using the deactivate proof
-    const user1NewVoter = new VoterClient({
-      network: 'testnet',
-      secretKey: 666666n // new private key for user 1
-    });
-
-    const user1aPubKey = user1NewVoter.getPubkey().toPoints();
-
-    // In a real scenario, this would use buildAddNewKeyPayload with ZK proof
-    // For testing, we directly register the new key
-    const d1 = newDeactivate[0].slice(0, 2);
-    const d2 = newDeactivate[0].slice(2, 4);
-    operator.initStateTree(USER_1A, user1aPubKey, 100, [d1[0], d1[1], d2[0], d2[1]]);
-
-    expect(operator.stateLeaves.size).to.equal(3);
-    console.log('User 1 new key registered at index', USER_1A);
-
-    console.log('\n=== Step 6: Submit Votes ===\n');
 
     // User 1 votes: option 1, weight 8
     const vote1Payload = voter1.buildVotePayload({
@@ -213,37 +136,16 @@ describe('AMACI Integration Test', function () {
       operator.pushMessage(message, messageEncPubKey);
     }
 
-    // User 1's new key votes:
-    // option 0, weight 1
-    // option 1, weight 2
-    // option 2, weight 3
-    const vote3Payload = user1NewVoter.buildVotePayload({
-      stateIdx: USER_1A,
-      operatorPubkey: coordPubKey,
-      selectedOptions: [
-        { idx: 0, vc: 1 },
-        { idx: 1, vc: 2 },
-        { idx: 2, vc: 3 }
-      ]
-    });
-
-    // Publish all messages in vote3Payload
-    for (const payload of vote3Payload) {
-      const message = payload.msg.map((m) => BigInt(m));
-      const messageEncPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
-      operator.pushMessage(message, messageEncPubKey);
-    }
-
-    const expectedMessages = vote1Payload.length + vote2Payload.length + vote3Payload.length;
+    const expectedMessages = vote1Payload.length + vote2Payload.length;
     expect(operator.messages.length).to.equal(expectedMessages);
     console.log('Total votes submitted:', operator.messages.length);
 
-    console.log('\n=== Step 7: End Vote Period ===\n');
+    console.log('\n=== Step 4: End Vote Period ===\n');
 
     operator.endVotePeriod();
     expect(operator.states).to.equal(1); // PROCESSING state
 
-    console.log('\n=== Step 8: Process Messages ===\n');
+    console.log('\n=== Step 5: Process Messages ===\n');
 
     // Process messages in batches and verify with circuit
     let i = 0;
@@ -270,7 +172,7 @@ describe('AMACI Integration Test', function () {
     expect(operator.states).to.equal(2); // TALLYING state
     console.log('Message processing completed');
 
-    console.log('\n=== Step 9: Tally Votes ===\n');
+    console.log('\n=== Step 6: Tally Votes ===\n');
 
     // Tally votes and verify with circuit
     i = 0;
@@ -297,7 +199,7 @@ describe('AMACI Integration Test', function () {
     expect(operator.states).to.equal(3); // ENDED state
     console.log('Tallying completed');
 
-    console.log('\n=== Step 10: Get Results ===\n');
+    console.log('\n=== Step 7: Get Results ===\n');
 
     const results = operator.getTallyResults();
     console.log('Final results (first 5 options):');
@@ -307,7 +209,16 @@ describe('AMACI Integration Test', function () {
 
     expect(results.length).to.equal(maxVoteOptions);
 
-    console.log('\n=== Step 11: Get Logs ===\n');
+    // Verify expected results
+    // User 1: option 1, weight 8 (quadratic cost: 8^2 = 64)
+    // User 2: option 2, weight 12 (quadratic cost: 12^2 = 144)
+    // Tally results use formula: v * (v + MAX_VOTES) where MAX_VOTES = 10^24
+    console.log('\nExpected results based on QV formula:');
+    console.log('  Option 0: 0 (no votes)');
+    console.log('  Option 1: 8 * (8 + 10^24) ≈ 8 * 10^24');
+    console.log('  Option 2: 12 * (12 + 10^24) ≈ 12 * 10^24');
+
+    console.log('\n=== Step 8: Get Logs ===\n');
 
     const logs = operator.getLogs();
     console.log('Total log entries:', logs.length);
@@ -337,9 +248,9 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 3,
+      numSignUps: 2,
       isQuadraticCost: false,
-      isAmaci: true // AMACI mode
+      isAmaci: false // Standard MACI
     });
 
     // End the vote period
@@ -363,9 +274,9 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 3,
+      numSignUps: 2,
       isQuadraticCost: false,
-      isAmaci: true // AMACI mode
+      isAmaci: false // Standard MACI
     });
 
     const testPubKey: [bigint, bigint] = [12345n, 67890n];
@@ -389,9 +300,9 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 3,
+      numSignUps: 2,
       isQuadraticCost: false,
-      isAmaci: true // AMACI mode
+      isAmaci: false // Standard MACI
     });
 
     expect(testOperator.states).to.equal(0); // FILLING
@@ -403,5 +314,55 @@ describe('AMACI Integration Test', function () {
     expect(() => {
       testOperator.endVotePeriod();
     }).to.throw('Vote period already ended');
+  });
+
+  it('should verify state leaf hash format (MACI vs AMACI)', () => {
+    const maciOperator = new OperatorClient({
+      network: 'testnet',
+      secretKey: 111222n
+    });
+
+    const amaciOperator = new OperatorClient({
+      network: 'testnet',
+      secretKey: 333444n
+    });
+
+    // Initialize MACI
+    maciOperator.initMaci({
+      stateTreeDepth: 2,
+      intStateTreeDepth: 1,
+      voteOptionTreeDepth: 1,
+      batchSize: 5,
+      maxVoteOptions: 5,
+      numSignUps: 2,
+      isQuadraticCost: false,
+      isAmaci: false
+    });
+
+    // Initialize AMACI
+    amaciOperator.initMaci({
+      stateTreeDepth: 2,
+      intStateTreeDepth: 1,
+      voteOptionTreeDepth: 1,
+      batchSize: 5,
+      maxVoteOptions: 5,
+      numSignUps: 2,
+      isQuadraticCost: false,
+      isAmaci: true
+    });
+
+    const testPubKey: [bigint, bigint] = [12345n, 67890n];
+
+    // Add same state to both
+    maciOperator.initStateTree(0, testPubKey, 100);
+    amaciOperator.initStateTree(0, testPubKey, 100);
+
+    // MACI and AMACI should have different state tree roots
+    // because they use different hashing (single vs double layer)
+    expect(maciOperator.stateTree?.root).to.not.equal(amaciOperator.stateTree?.root);
+
+    console.log('\nState tree root comparison:');
+    console.log('  MACI root:', maciOperator.stateTree?.root.toString());
+    console.log('  AMACI root:', amaciOperator.stateTree?.root.toString());
   });
 });

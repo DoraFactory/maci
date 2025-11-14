@@ -81,7 +81,8 @@ describe('Advanced E2E Tests', function () {
         batchSize,
         maxVoteOptions,
         numSignUps: numVoters,
-        isQuadraticCost: true
+        isQuadraticCost: true,
+        isAmaci: true // AMACI scenario
       });
 
       const contractLoader = new ContractLoader();
@@ -301,7 +302,8 @@ describe('Advanced E2E Tests', function () {
         batchSize: 2,
         maxVoteOptions: 3,
         numSignUps: 2,
-        isQuadraticCost: false
+        isQuadraticCost: false,
+        isAmaci: true // AMACI scenario
       });
 
       const contractLoader = new ContractLoader();

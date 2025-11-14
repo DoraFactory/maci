@@ -1,17 +1,23 @@
-# Dependencies
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Node modules
 node_modules/
 
-# Build output
-dist/
-build/
+# Circuit files (large, should be downloaded)
+circuits/*.tar.gz
+circuits/2-1-1-5/
+circuits/4-2-2-25/
+circuits/*.zkey
+circuits/*.wasm
 
-# TypeScript
-*.tsbuildinfo
-tsconfig.tsbuildinfo
+# Keep vkeys JSON (generated from zkeys)
+!circuits/vkeys-*.json
 
-# Test artifacts
-.nyc_output/
+# Test outputs
 coverage/
+*.log
 
 # IDE
 .vscode/
@@ -19,19 +25,3 @@ coverage/
 *.swp
 *.swo
 *~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment
-.env
-.env.local
-.env.*.local
-
