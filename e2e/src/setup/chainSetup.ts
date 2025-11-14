@@ -84,14 +84,24 @@ export class ChainSetup {
       throw new Error('Client not initialized');
     }
 
+    const app: any = this.client.app;
+
     // CosmWasm uses nanoseconds for timestamps
     const nanoseconds = BigInt(seconds) * BigInt(1_000_000_000);
 
-    // cw-simulate uses Unix timestamps, so add to current real time
-    const currentRealTime = BigInt(Date.now()) * BigInt(1_000_000);
-    const newTime = currentRealTime + nanoseconds;
+    // Get current time from store or use Date.now() as fallback
+    let currentTime: number;
+    if (app.store && typeof app.store.get === 'function') {
+      const currentState = app.store.get();
+      currentTime = currentState.lastBlockTime || Date.now() * 1_000_000;
+    } else {
+      currentTime = app.lastBlockTime || Date.now() * 1_000_000;
+    }
 
-    this.setBlockTime(Number(newTime));
+    // Calculate new time by adding nanoseconds to current time
+    const newTime = currentTime + Number(nanoseconds);
+
+    this.setBlockTime(newTime);
   }
 
   /**
@@ -104,12 +114,29 @@ export class ChainSetup {
 
     const app: any = this.client.app;
 
-    // Update lastBlockTime which cw-simulate uses for env.block.time
-    app.lastBlockTime = nanoseconds;
+    // Update block time and height
+    // Try to get current state from store first
+    if (app.store && typeof app.store.get === 'function') {
+      const currentState = app.store.get();
+      const currentHeight = currentState.height || 0;
 
-    // Also increment height
-    if (app.height !== undefined) {
-      app.height = (app.height || 0) + 1;
+      // Update via store if it has an update method
+      if (typeof app.store.update === 'function') {
+        app.store.update((state: any) => ({
+          ...state,
+          height: currentHeight + 1,
+          lastBlockTime: nanoseconds
+        }));
+      } else {
+        // Fallback: directly modify app properties
+        if (app.height !== undefined) app.height = currentHeight + 1;
+        if (app.lastBlockTime !== undefined) app.lastBlockTime = nanoseconds;
+      }
+    } else {
+      // Fallback: directly modify app properties
+      const currentHeight = app.height || 0;
+      if (app.height !== undefined) app.height = currentHeight + 1;
+      if (app.lastBlockTime !== undefined) app.lastBlockTime = nanoseconds;
     }
   }
 

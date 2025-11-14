@@ -156,6 +156,15 @@ export class AmaciContractClient extends BaseContractClient {
   }
 
   /**
+   * Stop processing period
+   */
+  async stopProcessingPeriod(): Promise<any> {
+    return await this.execute({
+      stop_processing_period: {}
+    });
+  }
+
+  /**
    * Process tally
    */
   async processTally(

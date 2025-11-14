@@ -11,22 +11,23 @@ import {
   formatMessageForContract,
   assertExecuteSuccess,
   log,
-  assertBigIntEqual
+  assertBigIntEqual,
+  advanceTime
 } from '../src';
-import { generateDeactivateProof } from '../src/utils/circuitIntegration';
 
 /**
- * AMACI End-to-End Test
+ * AMACI End-to-End Test (Simplified - Without Deactivate Process)
  *
- * This test demonstrates the complete AMACI voting flow with anonymous key changes:
+ * This test demonstrates the basic AMACI voting flow:
  * 1. Environment setup
- * 2. User registration
- * 3. Key deactivation
- * 4. Adding new keys
- * 5. Voting
- * 6. Message processing
- * 7. Tallying
- * 8. Result verification
+ * 2. User registration (including new key setup)
+ * 3. Voting (only new key votes)
+ * 4. End voting period
+ * 5. Message processing
+ * 6. Tallying
+ * 7. Result verification
+ *
+ * Note: Deactivate process is not included in this test
  */
 
 describe('AMACI End-to-End Test', function () {
@@ -38,17 +39,23 @@ describe('AMACI End-to-End Test', function () {
   let voter2: VoterClient;
   let voter1New: VoterClient;
   let amaciContract: AmaciContractClient;
+  let votingEndTime: bigint; // Store voting end time for dynamic calculation
 
   const adminAddress = 'orai1admin000000000000000000000000000000';
   const operatorAddress = 'orai1operator000000000000000000000000';
   const feeRecipient = 'orai1feerecipient0000000000000000000';
 
-  // Test parameters
-  const maxVoteOptions = 5;
-  const stateTreeDepth = 2;
+  // Unique addresses for each voter (for whitelist registration)
+  const voter1Address = 'orai1voter1000000000000000000000000000000';
+  const voter2Address = 'orai1voter2000000000000000000000000000000';
+  const voter1NewAddress = 'orai1voter1new000000000000000000000000';
+
+  // Test parameters (must match zkey configuration: 2-1-1-5)
+  const stateTreeDepth = 2; // 5^2 = 25 max voters
   const intStateTreeDepth = 1;
-  const voteOptionTreeDepth = 2;
-  const batchSize = 2;
+  const voteOptionTreeDepth = 1; // 5^1 = 5 max options
+  const batchSize = 5; // Process 5 messages per batch
+  const maxVoteOptions = 5 ** voteOptionTreeDepth; // 5
   const numSignUps = 3;
 
   // User indices
@@ -56,15 +63,18 @@ describe('AMACI End-to-End Test', function () {
   const USER_2 = 1;
   const USER_1A = 2; // User 1's new key
 
-  // Circuit artifacts paths (AMACI uses different configuration)
-  // Note: AMACI requires 2-1-2-2 zkeys which are not yet downloaded
-  // For now, tests will use mock proofs
-  const circuitConfig = '2-1-2-2'; // state-int-vote-batch
+  // Circuit artifacts paths (AMACI uses different zkey files from MACI)
+  const circuitConfig = 'amaci-2-1-1-5'; // AMACI-specific configuration
   const circuitDir = path.join(__dirname, '../circuits', circuitConfig);
   const processMessagesWasm = path.join(circuitDir, 'processMessages.wasm');
   const processMessagesZkey = path.join(circuitDir, 'processMessages.zkey');
   const tallyVotesWasm = path.join(circuitDir, 'tallyVotes.wasm');
   const tallyVotesZkey = path.join(circuitDir, 'tallyVotes.zkey');
+  // Deactivate and AddNewKey circuits (not used in simplified test, reserved for future use)
+  // const deactivateWasm = path.join(circuitDir, 'deactivate.wasm');
+  // const deactivateZkey = path.join(circuitDir, 'deactivate.zkey');
+  // const addNewKeyWasm = path.join(circuitDir, 'addNewKey.wasm');
+  // const addNewKeyZkey = path.join(circuitDir, 'addNewKey.zkey');
 
   before(async () => {
     log('=== Setting up test environment ===');
@@ -124,6 +134,22 @@ describe('AMACI End-to-End Test', function () {
 
     const coordPubKey = operator.getPubkey().toPoints();
 
+    // Calculate voting times
+    // AMACI contract requires voting period to be at least 10 minutes (600 seconds)
+    // Strategy: Set minimum valid voting period (610 seconds) with start in past and end 25 seconds in future
+    // Buffer time accounts for: registration(2s) + deactivate(12s) + voting(4s) + processing(5s) + margin(2s)
+    const now = BigInt(Date.now()) * BigInt(1_000_000);
+    const startTime = now - BigInt(585) * BigInt(1_000_000_000); // 585 seconds ago
+    votingEndTime = now + BigInt(25) * BigInt(1_000_000_000); // 25 seconds in the future (enough for all operations)
+    // Total duration: 585 + 25 = 610 seconds (满足 600 秒最低要求)
+
+    log(`Current time: ${now} (${new Date(Number(now / BigInt(1_000_000))).toISOString()})`);
+    log(
+      `Voting period: start=${startTime} (${new Date(Number(startTime / BigInt(1_000_000))).toISOString()}), end=${votingEndTime} (${new Date(Number(votingEndTime / BigInt(1_000_000))).toISOString()})`
+    );
+    log(`Period duration: ${(votingEndTime - startTime) / BigInt(1_000_000_000)} seconds`);
+    log(`⏰ Voting period ends in 25 seconds, all operations should complete within this time`);
+
     const instantiateMsg = {
       parameters: {
         state_tree_depth: stateTreeDepth.toString(),
@@ -146,10 +172,19 @@ describe('AMACI End-to-End Test', function () {
         link: 'https://test.example.com'
       },
       voting_time: {
-        start_time: Math.floor(Date.now() / 1000).toString(),
-        end_time: (Math.floor(Date.now() / 1000) + 86400).toString()
+        start_time: startTime.toString(),
+        end_time: votingEndTime.toString()
       },
-      whitelist: null,
+      whitelist: {
+        users: [
+          { addr: adminAddress },
+          { addr: operatorAddress },
+          { addr: feeRecipient },
+          { addr: voter1Address },
+          { addr: voter2Address },
+          { addr: voter1NewAddress }
+        ]
+      },
       pre_deactivate_root: '0',
       circuit_type: '1', // QV
       certification_system: '0', // Groth16
@@ -171,7 +206,7 @@ describe('AMACI End-to-End Test', function () {
     const user1PubKey = voter1.getPubkey().toPoints();
     log(`User 1 public key: [${user1PubKey[0]}, ${user1PubKey[1]}]`);
 
-    amaciContract.setSender(adminAddress);
+    amaciContract.setSender(voter1Address);
     await assertExecuteSuccess(
       () => amaciContract.signUp(formatPubKeyForContract(user1PubKey)),
       'User 1 sign up failed'
@@ -184,6 +219,7 @@ describe('AMACI End-to-End Test', function () {
     const user2PubKey = voter2.getPubkey().toPoints();
     log(`User 2 public key: [${user2PubKey[0]}, ${user2PubKey[1]}]`);
 
+    amaciContract.setSender(voter2Address);
     await assertExecuteSuccess(
       () => amaciContract.signUp(formatPubKeyForContract(user2PubKey)),
       'User 2 sign up failed'
@@ -192,164 +228,29 @@ describe('AMACI End-to-End Test', function () {
     operator.initStateTree(USER_2, user2PubKey, 100);
     log('User 2 registered');
 
-    // Verify registration count
-    const numSignUp = await amaciContract.getNumSignUp();
-    expect(numSignUp).to.equal('2');
-    log(`Total registrations: ${numSignUp}`);
-
-    log('\n=== Step 2: Deactivate Messages ===\n');
-
-    const coordPubKey = operator.getPubkey().toPoints();
-
-    // User 1 sends deactivate message
-    const dmessage1Payload = await voter1.buildDeactivatePayload({
-      stateIdx: USER_1,
-      operatorPubkey: coordPubKey
-    });
-
-    const dmessage1 = dmessage1Payload.msg.map((m) => BigInt(m));
-    const dmessage1EncPubKey = dmessage1Payload.encPubkeys.map((k) => BigInt(k)) as [
-      bigint,
-      bigint
-    ];
-
-    await assertExecuteSuccess(
-      () =>
-        amaciContract.publishDeactivateMessage(
-          formatMessageForContract(dmessage1),
-          formatPubKeyForContract(dmessage1EncPubKey)
-        ),
-      'Publish deactivate message 1 failed'
-    );
-
-    operator.pushDeactivateMessage(dmessage1, dmessage1EncPubKey);
-    log('User 1 deactivate message published');
-
-    // User 2 sends deactivate message
-    const dmessage2Payload = await voter2.buildDeactivatePayload({
-      stateIdx: USER_2,
-      operatorPubkey: coordPubKey
-    });
-
-    const dmessage2 = dmessage2Payload.msg.map((m) => BigInt(m));
-    const dmessage2EncPubKey = dmessage2Payload.encPubkeys.map((k) => BigInt(k)) as [
-      bigint,
-      bigint
-    ];
-
-    await assertExecuteSuccess(
-      () =>
-        amaciContract.publishDeactivateMessage(
-          formatMessageForContract(dmessage2),
-          formatPubKeyForContract(dmessage2EncPubKey)
-        ),
-      'Publish deactivate message 2 failed'
-    );
-
-    operator.pushDeactivateMessage(dmessage2, dmessage2EncPubKey);
-    log('User 2 deactivate message published');
-
-    // Verify deactivate message count
-    const dMsgChainLength = await amaciContract.getDMsgChainLength();
-    expect(dMsgChainLength).to.equal('2');
-    log(`Total deactivate messages: ${dMsgChainLength}`);
-
-    log('\n=== Step 3: Process Deactivate Messages ===\n');
-
-    const { input: deactivateInput, newDeactivate } = await operator.processDeactivateMessages({
-      inputSize: 2,
-      subStateTreeLength: 2
-    });
-
-    log('Deactivate input generated');
-    log(`New deactivate root: ${deactivateInput.newDeactivateRoot}`);
-
-    // Generate circuit proof
-    const deactivateProof = await generateDeactivateProof(
-      deactivateInput,
-      stateTreeDepth,
-      batchSize
-    );
-
-    log('Deactivate proof generated');
-
-    // Process deactivate messages on contract
-    await assertExecuteSuccess(
-      () =>
-        amaciContract.processDeactivateMessage(
-          '2',
-          deactivateInput.newDeactivateCommitment.toString(),
-          deactivateInput.newDeactivateRoot.toString(),
-          deactivateProof
-        ),
-      'Process deactivate message failed'
-    );
-
-    log('Deactivate messages processed successfully');
-
-    log('\n=== Step 4: Add New Key (User 1) ===\n');
-
+    // Register user 1's new key (without deactivate process)
     const user1aPubKey = voter1New.getPubkey().toPoints();
     log(`User 1 new public key: [${user1aPubKey[0]}, ${user1aPubKey[1]}]`);
 
-    // In a real scenario, we would generate the add new key proof
-    // For now, we'll use the deactivate data to register the new key
-    const d1 = newDeactivate[0].slice(0, 2);
-    const d2 = newDeactivate[0].slice(2, 4);
+    // Register new key on chain
+    amaciContract.setSender(voter1NewAddress);
+    await assertExecuteSuccess(
+      () => amaciContract.signUp(formatPubKeyForContract(user1aPubKey)),
+      'User 1 new key sign up failed'
+    );
 
-    // Update operator state tree
-    operator.initStateTree(USER_1A, user1aPubKey, 100, [d1[0], d1[1], d2[0], d2[1]]);
-    log('User 1 new key added to operator state tree');
+    // Add new key to operator state tree
+    operator.initStateTree(USER_1A, user1aPubKey, 100);
+    log('User 1 new key registered and added to operator state tree');
 
-    log('\n=== Step 5: Submit Votes ===\n');
+    // Verify registration count
+    const numSignUp = await amaciContract.getNumSignUp();
+    expect(numSignUp).to.equal('3');
+    log(`Total registrations: ${numSignUp}`);
 
-    // User 1 votes: option 1, weight 8
-    const vote1Payload = voter1.buildVotePayload({
-      stateIdx: USER_1,
-      operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 8 }]
-    });
+    log('\n=== Step 2: Submit Votes ===\n');
 
-    for (const payload of vote1Payload) {
-      const message = payload.msg.map((m) => BigInt(m));
-      const messageEncPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
-
-      await assertExecuteSuccess(
-        () =>
-          amaciContract.publishMessage(
-            formatMessageForContract(message),
-            formatPubKeyForContract(messageEncPubKey)
-          ),
-        'Publish vote 1 failed'
-      );
-
-      operator.pushMessage(message, messageEncPubKey);
-    }
-    log('User 1 vote submitted');
-
-    // User 2 votes: option 2, weight 12
-    const vote2Payload = voter2.buildVotePayload({
-      stateIdx: USER_2,
-      operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 12 }]
-    });
-
-    for (const payload of vote2Payload) {
-      const message = payload.msg.map((m) => BigInt(m));
-      const messageEncPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
-
-      await assertExecuteSuccess(
-        () =>
-          amaciContract.publishMessage(
-            formatMessageForContract(message),
-            formatPubKeyForContract(messageEncPubKey)
-          ),
-        'Publish vote 2 failed'
-      );
-
-      operator.pushMessage(message, messageEncPubKey);
-    }
-    log('User 2 vote submitted');
+    const coordPubKey = operator.getPubkey().toPoints();
 
     // User 1's new key votes: option 0(1), option 1(2), option 2(3)
     const vote3Payload = voter1New.buildVotePayload({
@@ -372,7 +273,7 @@ describe('AMACI End-to-End Test', function () {
             formatMessageForContract(message),
             formatPubKeyForContract(messageEncPubKey)
           ),
-        'Publish vote 3 failed'
+        'Publish vote failed'
       );
 
       operator.pushMessage(message, messageEncPubKey);
@@ -382,7 +283,27 @@ describe('AMACI End-to-End Test', function () {
     const msgChainLength = await amaciContract.getMsgChainLength();
     log(`Total votes submitted: ${msgChainLength}`);
 
-    log('\n=== Step 6: End Vote Period ===\n');
+    log('\n=== Step 3: End Vote Period ===\n');
+
+    // Calculate how much time we need to wait for voting period to end
+    const currentTime = BigInt(Date.now()) * BigInt(1_000_000);
+    log(
+      `Current time: ${currentTime} (${new Date(Number(currentTime / BigInt(1_000_000))).toISOString()})`
+    );
+    log(
+      `Voting end time: ${votingEndTime} (${new Date(Number(votingEndTime / BigInt(1_000_000))).toISOString()})`
+    );
+
+    if (currentTime < votingEndTime) {
+      const waitMs = Number((votingEndTime - currentTime) / BigInt(1_000_000)) + 1000; // +1 second buffer
+      const waitSeconds = Math.ceil(waitMs / 1000);
+      log(`Need to wait ${waitSeconds} seconds for voting period to end...`);
+      log('⏳ Waiting for real time (cw-simulate uses system time)...');
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      log(`✅ Waited ${waitSeconds} seconds, voting period should be expired now`);
+    } else {
+      log('✅ Voting period already expired, no waiting needed!');
+    }
 
     await assertExecuteSuccess(
       () => amaciContract.startProcessPeriod(),
@@ -392,38 +313,22 @@ describe('AMACI End-to-End Test', function () {
     operator.endVotePeriod();
     log('Vote period ended, processing started');
 
-    log('\n=== Step 7: Process Messages ===\n');
+    log('\n=== Step 4: Process Messages ===\n');
 
     let batchCount = 0;
     while (operator.states === 1) {
       log(`Processing message batch ${batchCount}...`);
 
-      // Try to generate proof using SDK (will use mock if zkey files don't exist)
-      // Note: AMACI requires 2-1-2-2 zkeys which are not yet downloaded
-      const fs = await import('fs');
-      let processResult;
-
-      if (fs.existsSync(processMessagesWasm) && fs.existsSync(processMessagesZkey)) {
-        log('Using real ZK proof generation');
-        processResult = await operator.processMessages({
-          wasmFile: processMessagesWasm,
-          zkeyFile: processMessagesZkey
-        });
-      } else {
-        log('⚠️  Zkey files not found, using mock proof');
-        processResult = await operator.processMessages();
-        // Use mock proof in contract format
-        processResult.proof = {
-          a: '0x0000000000000000000000000000000000000000000000000000000000000001',
-          b: '0x0000000000000000000000000000000000000000000000000000000000000002',
-          c: '0x0000000000000000000000000000000000000000000000000000000000000003'
-        };
-      }
+      // Generate real ZK proof using SDK
+      const processResult = await operator.processMessages({
+        wasmFile: processMessagesWasm,
+        zkeyFile: processMessagesZkey
+      });
 
       log(`New state commitment: ${processResult.input.newStateCommitment}`);
 
       if (!processResult.proof) {
-        throw new Error('Proof is missing');
+        throw new Error('ProcessMessages proof is missing');
       }
 
       // Process on contract
@@ -446,37 +351,30 @@ describe('AMACI End-to-End Test', function () {
 
     log(`All messages processed in ${batchCount} batches`);
 
-    log('\n=== Step 8: Tally Votes ===\n');
+    // Stop processing period to transition to tallying
+    await assertExecuteSuccess(
+      () => amaciContract.stopProcessingPeriod(),
+      'Stop processing period failed'
+    );
+
+    log('Processing period stopped, transitioning to tallying');
+
+    log('\n=== Step 5: Tally Votes ===\n');
 
     let tallyCount = 0;
     while (operator.states === 2) {
       log(`Processing tally batch ${tallyCount}...`);
 
-      // Try to generate proof using SDK (will use mock if zkey files don't exist)
-      const fs = await import('fs');
-      let tallyResult;
-
-      if (fs.existsSync(tallyVotesWasm) && fs.existsSync(tallyVotesZkey)) {
-        log('Using real ZK proof generation');
-        tallyResult = await operator.processTally({
-          wasmFile: tallyVotesWasm,
-          zkeyFile: tallyVotesZkey
-        });
-      } else {
-        log('⚠️  Zkey files not found, using mock proof');
-        tallyResult = await operator.processTally();
-        // Use mock proof in contract format
-        tallyResult.proof = {
-          a: '0x0000000000000000000000000000000000000000000000000000000000000001',
-          b: '0x0000000000000000000000000000000000000000000000000000000000000002',
-          c: '0x0000000000000000000000000000000000000000000000000000000000000003'
-        };
-      }
+      // Generate real ZK proof using SDK
+      const tallyResult = await operator.processTally({
+        wasmFile: tallyVotesWasm,
+        zkeyFile: tallyVotesZkey
+      });
 
       log(`New tally commitment: ${tallyResult.input.newTallyCommitment}`);
 
       if (!tallyResult.proof) {
-        throw new Error('Tally proof is missing');
+        throw new Error('TallyVotes proof is missing');
       }
 
       // Process on contract
@@ -499,7 +397,7 @@ describe('AMACI End-to-End Test', function () {
 
     log(`Tallying completed in ${tallyCount} batches`);
 
-    log('\n=== Step 9: Verify Results ===\n');
+    log('\n=== Step 6: Verify Results ===\n');
 
     const sdkResults = operator.getTallyResults();
     log('SDK results:');

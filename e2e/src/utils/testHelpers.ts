@@ -122,30 +122,62 @@ export async function advanceTime(client: SimulateCosmWasmClient, seconds: numbe
   // Access app's internal state
   const app: any = client.app;
 
-  // Try to get current state from store
+  // Get current state - check multiple possible locations
+  let currentHeight = 0;
+  let currentTime = 0;
+
+  // Priority 1: Check store
   if (app.store && typeof app.store.get === 'function') {
     const currentState = app.store.get();
-    const currentHeight = currentState.height || 0;
-    const currentTime = currentState.lastBlockTime || 0;
+    currentHeight = currentState.height || 0;
+    currentTime = currentState.lastBlockTime || 0;
+    console.log('[advanceTime] From store - height:', currentHeight, 'time:', currentTime);
+  }
 
-    // Update via store if it has an update method
-    if (typeof app.store.update === 'function') {
-      app.store.update((state: any) => ({
-        ...state,
-        height: currentHeight + 1,
-        lastBlockTime: currentTime + Number(nanoseconds)
-      }));
-    } else {
-      // Fallback: directly modify app properties
-      if (app.height !== undefined) app.height = currentHeight + 1;
-      if (app.lastBlockTime !== undefined) app.lastBlockTime = currentTime + Number(nanoseconds);
+  // Priority 2: Check app properties (more reliable)
+  if (app.lastBlockTime !== undefined && app.lastBlockTime !== null) {
+    currentTime = app.lastBlockTime;
+    console.log('[advanceTime] From app.lastBlockTime:', currentTime);
+  }
+  if (app.height !== undefined && app.height !== null) {
+    currentHeight = app.height;
+  }
+
+  // Fallback: use current real time if no time is set
+  if (currentTime === 0) {
+    currentTime = Date.now() * 1_000_000;
+    console.log('[advanceTime] Using current Date.now():', currentTime);
+  }
+
+  // Calculate new values
+  const newHeight = currentHeight + 1;
+  const newTime = currentTime + Number(nanoseconds);
+
+  console.log(
+    '[advanceTime] Advancing from',
+    currentTime,
+    'to',
+    newTime,
+    '(+',
+    seconds,
+    'seconds)'
+  );
+
+  // Update app properties directly (primary method)
+  app.height = newHeight;
+  app.lastBlockTime = newTime;
+
+  // Also try to update store if available
+  if (app.store && typeof app.store.get === 'function') {
+    try {
+      const storeState: any = app.store.get();
+      if (storeState && typeof storeState === 'object') {
+        storeState.height = newHeight;
+        storeState.lastBlockTime = newTime;
+      }
+    } catch (e) {
+      console.warn('[advanceTime] Store update failed:', e);
     }
-  } else {
-    // Fallback: directly modify app properties
-    const currentHeight = app.height || 0;
-    const currentTime = app.lastBlockTime || 0;
-    app.height = currentHeight + 1;
-    app.lastBlockTime = currentTime + Number(nanoseconds);
   }
 }
 

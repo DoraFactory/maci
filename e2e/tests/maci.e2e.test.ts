@@ -10,11 +10,10 @@ import {
   formatPubKeyForContract,
   formatMessageForContract,
   assertExecuteSuccess,
-  getBlockInfo,
-  advanceTime,
   generateCertificateFromBigInt,
   getBackendPublicKey,
-  log
+  log,
+  advanceTime
 } from '../src';
 
 /**
@@ -51,8 +50,8 @@ describe('MACI (Standard) End-to-End Test', function () {
   const numSignUps = 5;
   const numVoters = 5;
 
-  // Circuit artifacts paths for SDK proof generation
-  const circuitConfig = '2-1-1-5';
+  // Circuit artifacts paths for SDK proof generation (MACI-specific)
+  const circuitConfig = 'maci-2-1-1-5'; // MACI 1P1V configuration
   const circuitDir = path.join(__dirname, '../circuits', circuitConfig);
   const processMessagesWasm = path.join(circuitDir, 'processMessages.wasm');
   const processMessagesZkey = path.join(circuitDir, 'processMessages.zkey');
@@ -346,10 +345,11 @@ describe('MACI (Standard) End-to-End Test', function () {
     log('All votes submitted');
 
     log('\n=== Waiting for voting period to end ===\n');
-    // Wait 11 seconds to ensure we're past the 10-second voting window
-    log('Waiting 11 seconds for voting period to expire...');
-    await new Promise((resolve) => setTimeout(resolve, 11000));
-    log('Voting period has ended');
+    // Advance block time by 11 seconds to ensure we're past the 10-second voting window
+    log('Advancing block time by 11 seconds to end voting period...');
+    log('⚡ Using simulated time - instant completion, no waiting!');
+    await advanceTime(client, 11);
+    log('Voting period has ended (simulated)');
 
     log('\n=== Step 3: Start Processing ===\n');
 

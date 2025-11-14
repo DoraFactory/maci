@@ -7,13 +7,16 @@ node_modules/
 
 # Circuit files (large, should be downloaded)
 circuits/*.tar.gz
-circuits/2-1-1-5/
-circuits/4-2-2-25/
+circuits/maci-*/
+circuits/amaci-*/
 circuits/*.zkey
 circuits/*.wasm
+*.zkey
+*.wasm
+*._zkeys
 
-# Keep vkeys JSON (generated from zkeys)
-!circuits/vkeys-*.json
+# # Keep vkeys JSON (generated from zkeys)
+# circuits/vkeys-*.json
 
 # Test outputs
 coverage/

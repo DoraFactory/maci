@@ -44,22 +44,23 @@ function getCircuitPaths(circuitName: 'processMessages' | 'tallyVotes'): Circuit
 /**
  * Convert snarkjs proof to contract Groth16ProofType format
  * Encodes proof points as hex strings for contract verification
+ * Note: CosmWasm hex::decode expects NO 0x prefix
  */
 export function convertProofToContractFormat(proof: any): ContractProofType {
-  // Helper to encode G1 point (2 coordinates) to hex
+  // Helper to encode G1 point (2 coordinates) to hex (without 0x prefix)
   const encodeG1 = (point: string[]): string => {
     const x = BigInt(point[0]).toString(16).padStart(64, '0');
     const y = BigInt(point[1]).toString(16).padStart(64, '0');
-    return '0x' + x + y;
+    return x + y;
   };
 
-  // Helper to encode G2 point (4 coordinates in 2x2 array) to hex
+  // Helper to encode G2 point (4 coordinates in 2x2 array) to hex (without 0x prefix)
   const encodeG2 = (point: string[][]): string => {
     const x1 = BigInt(point[0][0]).toString(16).padStart(64, '0');
     const x2 = BigInt(point[0][1]).toString(16).padStart(64, '0');
     const y1 = BigInt(point[1][0]).toString(16).padStart(64, '0');
     const y2 = BigInt(point[1][1]).toString(16).padStart(64, '0');
-    return '0x' + x1 + x2 + y1 + y2;
+    return x1 + x2 + y1 + y2;
   };
 
   return {
@@ -178,53 +179,73 @@ export async function generateTallyProof(
 
 /**
  * Generate proof for ProcessDeactivateMessages circuit (AMACI only)
- * Note: Currently using ProcessMessages zkey as fallback
+ * Uses real ZK proof generation with deactivate.wasm and deactivate.zkey
  */
 export async function generateDeactivateProof(
   input: any,
   stateTreeDepth: number,
   batchSize: number
 ): Promise<ContractProofType> {
-  console.log('⚠️  Deactivate proof generation not yet implemented');
-  console.log('   Using mock proof for testing');
+  try {
+    console.log('🔐 Generating Deactivate proof...');
 
-  // Mock proof for now
-  const mockProof = {
-    pi_a: ['1', '2', '1'],
-    pi_b: [
-      ['1', '2'],
-      ['3', '4'],
-      ['1', '0']
-    ],
-    pi_c: ['1', '2', '1']
-  };
+    const circuitConfig = 'amaci-2-1-1-5';
+    const circuitPath = path.join(__dirname, '../../circuits', circuitConfig);
+    const wasm = path.join(circuitPath, 'deactivate.wasm');
+    const zkey = path.join(circuitPath, 'deactivate.zkey');
 
-  return convertProofToContractFormat(mockProof);
+    if (!fs.existsSync(wasm) || !fs.existsSync(zkey)) {
+      throw new Error(
+        `Deactivate circuit files not found in ${circuitPath}\n` +
+          'Please run "pnpm setup-circuits" first.'
+      );
+    }
+
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasm, zkey);
+
+    console.log('✅ Deactivate proof generated');
+    console.log(`   Public signals: ${publicSignals.length}`);
+
+    return convertProofToContractFormat(proof);
+  } catch (error: any) {
+    console.error('❌ Failed to generate Deactivate proof:', error.message);
+    throw error;
+  }
 }
 
 /**
  * Generate proof for AddNewKey circuit (AMACI only)
- * Note: Using separate zkey if available
+ * Uses real ZK proof generation with addNewKey.wasm and addNewKey.zkey
  */
 export async function generateAddNewKeyProof(
   input: any,
   stateTreeDepth: number
 ): Promise<ContractProofType> {
-  console.log('⚠️  AddNewKey proof generation not yet implemented');
-  console.log('   Using mock proof for testing');
+  try {
+    console.log('🔐 Generating AddNewKey proof...');
 
-  // Mock proof for now
-  const mockProof = {
-    pi_a: ['1', '2', '1'],
-    pi_b: [
-      ['1', '2'],
-      ['3', '4'],
-      ['1', '0']
-    ],
-    pi_c: ['1', '2', '1']
-  };
+    const circuitConfig = 'amaci-2-1-1-5';
+    const circuitPath = path.join(__dirname, '../../circuits', circuitConfig);
+    const wasm = path.join(circuitPath, 'addNewKey.wasm');
+    const zkey = path.join(circuitPath, 'addNewKey.zkey');
 
-  return convertProofToContractFormat(mockProof);
+    if (!fs.existsSync(wasm) || !fs.existsSync(zkey)) {
+      throw new Error(
+        `AddNewKey circuit files not found in ${circuitPath}\n` +
+          'Please run "pnpm setup-circuits" first.'
+      );
+    }
+
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasm, zkey);
+
+    console.log('✅ AddNewKey proof generated');
+    console.log(`   Public signals: ${publicSignals.length}`);
+
+    return convertProofToContractFormat(proof);
+  } catch (error: any) {
+    console.error('❌ Failed to generate AddNewKey proof:', error.message);
+    throw error;
+  }
 }
 
 /**

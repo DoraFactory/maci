@@ -4,19 +4,56 @@ import path from 'path';
 import * as snarkjs from 'snarkjs';
 
 const CIRCUITS_DIR = path.join(__dirname, '../circuits');
-const CIRCUIT_CONFIG = '2-1-1-5';
-const CIRCUIT_PATH = path.join(CIRCUITS_DIR, CIRCUIT_CONFIG);
-const OUTPUT_FILE = path.join(CIRCUITS_DIR, `vkeys-${CIRCUIT_CONFIG}.json`);
 
-interface G1Point {
-  x: string;
-  y: string;
+interface CircuitConfig {
+  name: string;
+  configName: string;
+  circuitPath: string;
+  outputFile: string;
+  description: {
+    state_tree_depth: number;
+    int_state_tree_depth: number;
+    vote_option_tree_depth: number;
+    message_batch_size: number;
+    max_voters: number;
+    max_options: number;
+  };
+  hasDeactivate?: boolean; // AMACI only
+  hasAddNewKey?: boolean; // AMACI only
 }
 
-interface G2Point {
-  x: [string, string];
-  y: [string, string];
-}
+const CIRCUIT_CONFIGS: CircuitConfig[] = [
+  {
+    name: 'MACI 1P1V',
+    configName: 'maci-2-1-1-5',
+    circuitPath: path.join(CIRCUITS_DIR, 'maci-2-1-1-5'),
+    outputFile: path.join(CIRCUITS_DIR, 'vkeys-maci-2-1-1-5.json'),
+    description: {
+      state_tree_depth: 2,
+      int_state_tree_depth: 1,
+      vote_option_tree_depth: 1,
+      message_batch_size: 5,
+      max_voters: 25,
+      max_options: 5
+    }
+  },
+  {
+    name: 'AMACI',
+    configName: 'amaci-2-1-1-5',
+    circuitPath: path.join(CIRCUITS_DIR, 'amaci-2-1-1-5'),
+    outputFile: path.join(CIRCUITS_DIR, 'vkeys-amaci-2-1-1-5.json'),
+    description: {
+      state_tree_depth: 2,
+      int_state_tree_depth: 1,
+      vote_option_tree_depth: 1,
+      message_batch_size: 5,
+      max_voters: 25,
+      max_options: 5
+    },
+    hasDeactivate: true,
+    hasAddNewKey: true
+  }
+];
 
 interface SnarkjsVKey {
   protocol: string;
@@ -40,106 +77,167 @@ interface Groth16VKeyType {
 }
 
 /**
- * Extract verification keys from zkey files
- * Converts snarkjs vkey format to contract Groth16VKeyType format
+ * Convert snarkjs vkey format to contract Groth16VKeyType format
  */
-async function extractVkeys(): Promise<void> {
-  console.log('🔑 Extracting verification keys from zkey files...');
+function convertVkeyToContractFormat(vkey: SnarkjsVKey): Groth16VKeyType {
+  // Convert G1 point (2 elements) to hex string
+  const vk_alpha1 = `0x${BigInt(vkey.vk_alpha_1[0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_alpha_1[1]).toString(16).padStart(64, '0')}`;
+
+  // Convert G2 point (4 elements: 2 pairs) to hex string
+  const vk_beta_2 = `0x${BigInt(vkey.vk_beta_2[0][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_beta_2[0][1]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_beta_2[1][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_beta_2[1][1]).toString(16).padStart(64, '0')}`;
+  const vk_gamma_2 = `0x${BigInt(vkey.vk_gamma_2[0][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_gamma_2[0][1]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_gamma_2[1][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_gamma_2[1][1]).toString(16).padStart(64, '0')}`;
+  const vk_delta_2 = `0x${BigInt(vkey.vk_delta_2[0][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_delta_2[0][1]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_delta_2[1][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_delta_2[1][1]).toString(16).padStart(64, '0')}`;
+
+  // Convert IC points
+  const vk_ic0 = `0x${BigInt(vkey.IC[0][0]).toString(16).padStart(64, '0')}${BigInt(vkey.IC[0][1]).toString(16).padStart(64, '0')}`;
+  const vk_ic1 = `0x${BigInt(vkey.IC[1][0]).toString(16).padStart(64, '0')}${BigInt(vkey.IC[1][1]).toString(16).padStart(64, '0')}`;
+
+  return {
+    vk_alpha1,
+    vk_beta_2,
+    vk_gamma_2,
+    vk_delta_2,
+    vk_ic0,
+    vk_ic1
+  };
+}
+
+/**
+ * Extract verification keys for a specific circuit configuration
+ */
+async function extractConfigVkeys(config: CircuitConfig): Promise<void> {
+  console.log(`\n📦 Processing ${config.name}`);
+
+  const processZkeyPath = path.join(config.circuitPath, 'processMessages.zkey');
+  const tallyZkeyPath = path.join(config.circuitPath, 'tallyVotes.zkey');
 
   // Check if zkey files exist
-  const processZkeyPath = path.join(CIRCUIT_PATH, 'processMessages.zkey');
-  const tallyZkeyPath = path.join(CIRCUIT_PATH, 'tallyVotes.zkey');
-
   if (!fs.existsSync(processZkeyPath)) {
-    throw new Error(
-      `ProcessMessages zkey not found: ${processZkeyPath}\nRun "pnpm download-zkeys" first.`
-    );
+    console.log(`   ⚠️  processMessages.zkey not found, skipping`);
+    return;
   }
 
   if (!fs.existsSync(tallyZkeyPath)) {
-    throw new Error(
-      `TallyVotes zkey not found: ${tallyZkeyPath}\nRun "pnpm download-zkeys" first.`
-    );
+    console.log(`   ⚠️  tallyVotes.zkey not found, skipping`);
+    return;
   }
 
-  console.log('\n📄 Reading processMessages.zkey...');
+  console.log(`   📄 Reading processMessages.zkey...`);
   const processVkey = (await snarkjs.zKey.exportVerificationKey(processZkeyPath)) as SnarkjsVKey;
 
-  console.log('📄 Reading tallyVotes.zkey...');
+  console.log(`   📄 Reading tallyVotes.zkey...`);
   const tallyVkey = (await snarkjs.zKey.exportVerificationKey(tallyZkeyPath)) as SnarkjsVKey;
 
-  console.log('\n🔄 Converting to contract format...');
-
+  console.log(`   🔄 Converting to contract format...`);
   const processVkeyContract = convertVkeyToContractFormat(processVkey);
   const tallyVkeyContract = convertVkeyToContractFormat(tallyVkey);
 
-  const output = {
-    circuit_config: CIRCUIT_CONFIG,
-    description: {
-      state_tree_depth: 2,
-      int_state_tree_depth: 1,
-      vote_option_tree_depth: 1,
-      message_batch_size: 5,
-      max_voters: 25,
-      max_options: 5
-    },
+  const outputData: any = {
+    circuit_type: config.name,
+    circuit_config: config.configName,
+    description: config.description,
     process_vkey: processVkeyContract,
     tally_vkey: tallyVkeyContract
   };
 
-  // Write to file
-  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(output, null, 2));
+  // Extract AMACI-specific vkeys if configured
+  if (config.hasDeactivate) {
+    const deactivateZkeyPath = path.join(config.circuitPath, 'deactivate.zkey');
+    if (fs.existsSync(deactivateZkeyPath)) {
+      console.log(`   📄 Reading deactivate.zkey...`);
+      const deactivateVkey = (await snarkjs.zKey.exportVerificationKey(
+        deactivateZkeyPath
+      )) as SnarkjsVKey;
+      const deactivateVkeyContract = convertVkeyToContractFormat(deactivateVkey);
+      outputData.deactivate_vkey = deactivateVkeyContract;
 
-  console.log(`\n✅ Verification keys extracted successfully!`);
-  console.log(`   Output: ${OUTPUT_FILE}`);
-  console.log('\n📊 Verification Key Info:');
-  console.log(`   Process VKey: ${processVkey.nPublic} public inputs`);
-  console.log(`   Tally VKey: ${tallyVkey.nPublic} public inputs`);
-  console.log(`   Protocol: ${processVkey.protocol}`);
-  console.log(`   Curve: ${processVkey.curve}`);
+      console.log(`   📋 Deactivate vkey info:`);
+      console.log(`      - Protocol: ${deactivateVkey.protocol}`);
+      console.log(`      - Curve: ${deactivateVkey.curve}`);
+      console.log(`      - Public inputs: ${deactivateVkey.nPublic}`);
+      console.log(`      - IC points: ${deactivateVkey.IC.length}`);
+    } else {
+      console.log(`   ⚠️  deactivate.zkey not found, skipping`);
+    }
+  }
+
+  if (config.hasAddNewKey) {
+    const addNewKeyZkeyPath = path.join(config.circuitPath, 'addNewKey.zkey');
+    if (fs.existsSync(addNewKeyZkeyPath)) {
+      console.log(`   📄 Reading addNewKey.zkey...`);
+      const addNewKeyVkey = (await snarkjs.zKey.exportVerificationKey(
+        addNewKeyZkeyPath
+      )) as SnarkjsVKey;
+      const addNewKeyVkeyContract = convertVkeyToContractFormat(addNewKeyVkey);
+      outputData.add_new_key_vkey = addNewKeyVkeyContract;
+
+      console.log(`   📋 AddNewKey vkey info:`);
+      console.log(`      - Protocol: ${addNewKeyVkey.protocol}`);
+      console.log(`      - Curve: ${addNewKeyVkey.curve}`);
+      console.log(`      - Public inputs: ${addNewKeyVkey.nPublic}`);
+      console.log(`      - IC points: ${addNewKeyVkey.IC.length}`);
+    } else {
+      console.log(`   ⚠️  addNewKey.zkey not found, skipping`);
+    }
+  }
+
+  fs.writeFileSync(config.outputFile, JSON.stringify(outputData, null, 2));
+  console.log(`   ✅ Verification keys extracted successfully!`);
+  console.log(`   📝 Output: ${path.basename(config.outputFile)}`);
+
+  // Log key info for debugging
+  console.log(`   📋 ProcessMessages vkey info:`);
+  console.log(`      - Protocol: ${processVkey.protocol}`);
+  console.log(`      - Curve: ${processVkey.curve}`);
+  console.log(`      - Public inputs: ${processVkey.nPublic}`);
+  console.log(`      - IC points: ${processVkey.IC.length}`);
+  console.log(`      - vk_ic0 (first 20 chars): ${processVkeyContract.vk_ic0.substring(0, 20)}...`);
+
+  console.log(`   📋 TallyVotes vkey info:`);
+  console.log(`      - Protocol: ${tallyVkey.protocol}`);
+  console.log(`      - Curve: ${tallyVkey.curve}`);
+  console.log(`      - Public inputs: ${tallyVkey.nPublic}`);
+  console.log(`      - IC points: ${tallyVkey.IC.length}`);
 }
 
 /**
- * Convert snarkjs verification key to contract Groth16VKeyType format
+ * Main function to extract vkeys from all circuit configurations
  */
-function convertVkeyToContractFormat(vkey: SnarkjsVKey): Groth16VKeyType {
-  // Convert G1 point to hex string (concatenate x and y)
-  const encodeG1 = (point: string[]): string => {
-    // point is [x, y, z] in affine coordinates
-    // We need to convert to hex and concatenate
-    const x = BigInt(point[0]).toString(16).padStart(64, '0');
-    const y = BigInt(point[1]).toString(16).padStart(64, '0');
-    return '0x' + x + y;
-  };
+async function extractAllVkeys(): Promise<void> {
+  console.log('🔑 Extracting Verification Keys');
+  console.log('━'.repeat(60));
 
-  // Convert G2 point to hex string (concatenate all coordinates)
-  const encodeG2 = (point: string[][]): string => {
-    // point is [[x1, x2], [y1, y2], [z1, z2]] in affine coordinates
-    // We need to convert to hex and concatenate
-    const x1 = BigInt(point[0][0]).toString(16).padStart(64, '0');
-    const x2 = BigInt(point[0][1]).toString(16).padStart(64, '0');
-    const y1 = BigInt(point[1][0]).toString(16).padStart(64, '0');
-    const y2 = BigInt(point[1][1]).toString(16).padStart(64, '0');
-    return '0x' + x1 + x2 + y1 + y2;
-  };
+  let successCount = 0;
+  let skipCount = 0;
 
-  return {
-    vk_alpha1: encodeG1(vkey.vk_alpha_1),
-    vk_beta_2: encodeG2(vkey.vk_beta_2),
-    vk_gamma_2: encodeG2(vkey.vk_gamma_2),
-    vk_delta_2: encodeG2(vkey.vk_delta_2),
-    vk_ic0: encodeG1(vkey.IC[0]),
-    vk_ic1: encodeG1(vkey.IC[1])
-  };
+  for (const config of CIRCUIT_CONFIGS) {
+    try {
+      await extractConfigVkeys(config);
+      if (fs.existsSync(config.outputFile)) {
+        successCount++;
+      } else {
+        skipCount++;
+      }
+    } catch (error: any) {
+      console.error(`\n   ❌ Error processing ${config.name}:`, error.message);
+      skipCount++;
+    }
+  }
+
+  console.log('\n' + '━'.repeat(60));
+  console.log(`✨ Extraction complete!`);
+  console.log(`   ✓ Successful: ${successCount}`);
+  if (skipCount > 0) {
+    console.log(`   ⚠️  Skipped: ${skipCount}`);
+  }
 }
 
 // Run the extraction
-extractVkeys()
+extractAllVkeys()
   .then(() => {
-    console.log('\n✨ Setup complete! You can now run tests with "pnpm test"');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('\n❌ Error extracting vkeys:', error.message);
+    console.error('\n❌ Extraction failed:', error.message);
     process.exit(1);
   });
