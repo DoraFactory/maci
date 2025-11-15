@@ -166,6 +166,12 @@ pub enum QueryMsg {
     GetProcessedUserCount {},
 
     #[returns(Uint256)]
+    GetStateTreeRoot {},
+
+    #[returns(Uint256)]
+    GetNode { index: Uint256 },
+
+    #[returns(Uint256)]
     GetResult { index: Uint256 },
 
     #[returns(Uint256)]

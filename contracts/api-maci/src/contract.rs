@@ -1672,6 +1672,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let current_state_commitment = CURRENT_STATE_COMMITMENT.may_load(deps.storage)?;
             to_json_binary(&current_state_commitment)
         }
+        QueryMsg::GetStateTreeRoot {} => to_json_binary::<Uint256>(&state_root(deps)),
+        QueryMsg::GetNode { index } => {
+            let node = NODES
+                .may_load(deps.storage, index.to_be_bytes().to_vec())?
+                .unwrap_or_default();
+            to_json_binary::<Uint256>(&node)
+        }
     }
 }
 

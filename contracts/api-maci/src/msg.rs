@@ -212,6 +212,12 @@ pub enum QueryMsg {
 
     #[returns(Uint256)]
     QueryCurrentStateCommitment {},
+
+    #[returns(Uint256)]
+    GetStateTreeRoot {},
+
+    #[returns(Uint256)]
+    GetNode { index: Uint256 },
 }
 
 #[cw_serde]
