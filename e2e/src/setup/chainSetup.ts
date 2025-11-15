@@ -76,6 +76,7 @@ export class ChainSetup {
 
   /**
    * Advance block time by specified seconds
+   * Uses app.time property which is the correct way for cw-simulate
    *
    * @param seconds Number of seconds to advance
    */
@@ -87,25 +88,20 @@ export class ChainSetup {
     const app: any = this.client.app;
 
     // CosmWasm uses nanoseconds for timestamps
-    const nanoseconds = BigInt(seconds) * BigInt(1_000_000_000);
+    const nanoseconds = seconds * 1e9;
 
-    // Get current time from store or use Date.now() as fallback
-    let currentTime: number;
-    if (app.store && typeof app.store.get === 'function') {
-      const currentState = app.store.get();
-      currentTime = currentState.lastBlockTime || Date.now() * 1_000_000;
-    } else {
-      currentTime = app.lastBlockTime || Date.now() * 1_000_000;
+    // Initialize app.time if not set
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6; // Convert milliseconds to nanoseconds
     }
 
-    // Calculate new time by adding nanoseconds to current time
-    const newTime = currentTime + Number(nanoseconds);
-
-    this.setBlockTime(newTime);
+    // Calculate and set new time
+    app.time = app.time + nanoseconds;
   }
 
   /**
    * Set absolute block time (Unix nanoseconds)
+   * Uses app.time property which is the correct way for cw-simulate
    */
   setBlockTime(nanoseconds: number): void {
     if (!this.client) {
@@ -114,34 +110,13 @@ export class ChainSetup {
 
     const app: any = this.client.app;
 
-    // Update block time and height
-    // Try to get current state from store first
-    if (app.store && typeof app.store.get === 'function') {
-      const currentState = app.store.get();
-      const currentHeight = currentState.height || 0;
-
-      // Update via store if it has an update method
-      if (typeof app.store.update === 'function') {
-        app.store.update((state: any) => ({
-          ...state,
-          height: currentHeight + 1,
-          lastBlockTime: nanoseconds
-        }));
-      } else {
-        // Fallback: directly modify app properties
-        if (app.height !== undefined) app.height = currentHeight + 1;
-        if (app.lastBlockTime !== undefined) app.lastBlockTime = nanoseconds;
-      }
-    } else {
-      // Fallback: directly modify app properties
-      const currentHeight = app.height || 0;
-      if (app.height !== undefined) app.height = currentHeight + 1;
-      if (app.lastBlockTime !== undefined) app.lastBlockTime = nanoseconds;
-    }
+    // Set the time using app.time
+    app.time = nanoseconds;
   }
 
   /**
    * Advance block time by specified nanoseconds (for precise control)
+   * Uses app.time property which is the correct way for cw-simulate
    *
    * @param nanoseconds Number of nanoseconds to advance
    */
@@ -150,32 +125,35 @@ export class ChainSetup {
       throw new Error('Client not initialized');
     }
 
-    const store: any = this.client.app.store;
-    const currentState = store.get();
-    const currentBlock = currentState.height || 0;
-    const currentTime = currentState.lastBlockTime || 0;
+    const app: any = this.client.app;
 
-    store.set({
-      ...currentState,
-      height: currentBlock + 1,
-      lastBlockTime: currentTime + Number(nanoseconds)
-    });
+    // Initialize app.time if not set
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6;
+    }
+
+    app.time = app.time + Number(nanoseconds);
   }
 
   /**
    * Get current block info
+   * Uses app.time property which is the correct way for cw-simulate
    */
   getBlockInfo(): { height: number; time: bigint } {
     if (!this.client) {
       throw new Error('Client not initialized');
     }
 
-    const store: any = this.client.app.store;
-    const currentState = store.get();
+    const app: any = this.client.app;
+
+    // Initialize app.time if not set
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6;
+    }
 
     return {
-      height: currentState.height || 0,
-      time: BigInt(currentState.lastBlockTime || 0)
+      height: app.height || 0,
+      time: BigInt(app.time)
     };
   }
 

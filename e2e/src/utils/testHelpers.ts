@@ -113,45 +113,23 @@ export function generateTestAccounts(count: number, prefix: string = 'orai'): Te
  */
 /**
  * Advance blockchain time by specified seconds
+ * Uses app.time property which is the correct way for cw-simulate
  * CosmWasm uses nanoseconds internally
  */
 export async function advanceTime(client: SimulateCosmWasmClient, seconds: number): Promise<void> {
-  // CosmWasm uses nanoseconds for timestamps
-  const nanoseconds = BigInt(seconds) * BigInt(1_000_000_000);
-
-  // Access app's internal state
   const app: any = client.app;
 
-  // Get current state - check multiple possible locations
-  let currentHeight = 0;
-  let currentTime = 0;
+  // CosmWasm uses nanoseconds for timestamps
+  const nanoseconds = seconds * 1e9;
 
-  // Priority 1: Check store
-  if (app.store && typeof app.store.get === 'function') {
-    const currentState = app.store.get();
-    currentHeight = currentState.height || 0;
-    currentTime = currentState.lastBlockTime || 0;
-    console.log('[advanceTime] From store - height:', currentHeight, 'time:', currentTime);
+  // Get current time from app.time (if not set, use Date.now())
+  if (!app.time || app.time === 0) {
+    app.time = Date.now() * 1e6; // Convert milliseconds to nanoseconds
+    console.log('[advanceTime] Initialized app.time to current time:', app.time);
   }
 
-  // Priority 2: Check app properties (more reliable)
-  if (app.lastBlockTime !== undefined && app.lastBlockTime !== null) {
-    currentTime = app.lastBlockTime;
-    console.log('[advanceTime] From app.lastBlockTime:', currentTime);
-  }
-  if (app.height !== undefined && app.height !== null) {
-    currentHeight = app.height;
-  }
-
-  // Fallback: use current real time if no time is set
-  if (currentTime === 0) {
-    currentTime = Date.now() * 1_000_000;
-    console.log('[advanceTime] Using current Date.now():', currentTime);
-  }
-
-  // Calculate new values
-  const newHeight = currentHeight + 1;
-  const newTime = currentTime + Number(nanoseconds);
+  const currentTime = app.time;
+  const newTime = currentTime + nanoseconds;
 
   console.log(
     '[advanceTime] Advancing from',
@@ -163,22 +141,8 @@ export async function advanceTime(client: SimulateCosmWasmClient, seconds: numbe
     'seconds)'
   );
 
-  // Update app properties directly (primary method)
-  app.height = newHeight;
-  app.lastBlockTime = newTime;
-
-  // Also try to update store if available
-  if (app.store && typeof app.store.get === 'function') {
-    try {
-      const storeState: any = app.store.get();
-      if (storeState && typeof storeState === 'object') {
-        storeState.height = newHeight;
-        storeState.lastBlockTime = newTime;
-      }
-    } catch (e) {
-      console.warn('[advanceTime] Store update failed:', e);
-    }
-  }
+  // Set the new time using app.time
+  app.time = newTime;
 }
 
 /**
@@ -188,16 +152,14 @@ export async function advanceTimeByNanos(
   client: SimulateCosmWasmClient,
   nanoseconds: bigint
 ): Promise<void> {
-  const store: any = client.app.store;
-  const currentState = store.get();
-  const currentBlock = currentState.height || 0;
-  const currentTime = currentState.lastBlockTime || 0;
+  const app: any = client.app;
 
-  store.set({
-    ...currentState,
-    height: currentBlock + 1,
-    lastBlockTime: currentTime + Number(nanoseconds)
-  });
+  // Initialize app.time if not set
+  if (!app.time || app.time === 0) {
+    app.time = Date.now() * 1e6;
+  }
+
+  app.time = app.time + Number(nanoseconds);
 }
 
 /**
@@ -218,12 +180,16 @@ export async function advanceBlocks(
  * Returns time in nanoseconds (CosmWasm format)
  */
 export function getBlockInfo(client: SimulateCosmWasmClient): { height: number; time: bigint } {
-  const store: any = client.app.store;
-  const currentState = store.get();
+  const app: any = client.app;
+
+  // Initialize app.time if not set
+  if (!app.time || app.time === 0) {
+    app.time = Date.now() * 1e6;
+  }
 
   return {
-    height: currentState.height || 0,
-    time: BigInt(currentState.lastBlockTime || 0)
+    height: app.height || 0,
+    time: BigInt(app.time)
   };
 }
 

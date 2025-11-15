@@ -318,6 +318,15 @@ export class ApiMaciContractClient extends BaseContractClient {
   }
 
   /**
+   * Stop processing period and transition to tallying
+   */
+  async stopProcessingPeriod(): Promise<any> {
+    return await this.execute({
+      stop_processing_period: {}
+    });
+  }
+
+  /**
    * Process tally
    */
   async processTally(
@@ -328,6 +337,18 @@ export class ApiMaciContractClient extends BaseContractClient {
       process_tally: {
         new_tally_commitment: newTallyCommitment,
         groth16_proof: proof
+      }
+    });
+  }
+
+  /**
+   * Stop tallying period and finalize results
+   */
+  async stopTallyingPeriod(results: string[], salt: string): Promise<any> {
+    return await this.execute({
+      stop_tallying_period: {
+        results,
+        salt
       }
     });
   }

@@ -134,11 +134,18 @@ describe('AMACI End-to-End Test', function () {
 
     const coordPubKey = operator.getPubkey().toPoints();
 
+    // Initialize app.time for cw-simulate
+    const app: any = client.app;
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6; // Convert milliseconds to nanoseconds
+      log(`Initialized app.time: ${app.time} ns`);
+    }
+
     // Calculate voting times
     // AMACI contract requires voting period to be at least 10 minutes (600 seconds)
     // Strategy: Set minimum valid voting period (610 seconds) with start in past and end 25 seconds in future
     // Buffer time accounts for: registration(2s) + deactivate(12s) + voting(4s) + processing(5s) + margin(2s)
-    const now = BigInt(Date.now()) * BigInt(1_000_000);
+    const now = BigInt(app.time); // Convert to BigInt for calculation
     const startTime = now - BigInt(585) * BigInt(1_000_000_000); // 585 seconds ago
     votingEndTime = now + BigInt(25) * BigInt(1_000_000_000); // 25 seconds in the future (enough for all operations)
     // Total duration: 585 + 25 = 610 seconds (满足 600 秒最低要求)
@@ -148,7 +155,7 @@ describe('AMACI End-to-End Test', function () {
       `Voting period: start=${startTime} (${new Date(Number(startTime / BigInt(1_000_000))).toISOString()}), end=${votingEndTime} (${new Date(Number(votingEndTime / BigInt(1_000_000))).toISOString()})`
     );
     log(`Period duration: ${(votingEndTime - startTime) / BigInt(1_000_000_000)} seconds`);
-    log(`⏰ Voting period ends in 25 seconds, all operations should complete within this time`);
+    log(`⏰ Using simulated time control - no real waiting needed`);
 
     const instantiateMsg = {
       parameters: {
@@ -285,8 +292,9 @@ describe('AMACI End-to-End Test', function () {
 
     log('\n=== Step 3: End Vote Period ===\n');
 
-    // Calculate how much time we need to wait for voting period to end
-    const currentTime = BigInt(Date.now()) * BigInt(1_000_000);
+    // Calculate how much time we need to advance for voting period to end
+    const app: any = client.app;
+    const currentTime = BigInt(app.time);
     log(
       `Current time: ${currentTime} (${new Date(Number(currentTime / BigInt(1_000_000))).toISOString()})`
     );
@@ -295,14 +303,13 @@ describe('AMACI End-to-End Test', function () {
     );
 
     if (currentTime < votingEndTime) {
-      const waitMs = Number((votingEndTime - currentTime) / BigInt(1_000_000)) + 1000; // +1 second buffer
-      const waitSeconds = Math.ceil(waitMs / 1000);
-      log(`Need to wait ${waitSeconds} seconds for voting period to end...`);
-      log('⏳ Waiting for real time (cw-simulate uses system time)...');
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-      log(`✅ Waited ${waitSeconds} seconds, voting period should be expired now`);
+      const advanceSeconds = Number((votingEndTime - currentTime) / BigInt(1_000_000_000)) + 1; // +1 second buffer
+      log(`Advancing time by ${advanceSeconds} seconds to end voting period...`);
+      log('⚡ Using simulated time - instant completion, no waiting!');
+      await advanceTime(client, advanceSeconds);
+      log(`✅ Time advanced by ${advanceSeconds} seconds, voting period has ended (simulated)`);
     } else {
-      log('✅ Voting period already expired, no waiting needed!');
+      log('✅ Voting period already expired, no time advance needed!');
     }
 
     await assertExecuteSuccess(

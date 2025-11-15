@@ -111,13 +111,20 @@ describe('MACI (Standard) End-to-End Test', function () {
 
     const coordPubKey = operator.getPubkey().toPoints();
 
-    // Set voting period: short window for testing (10 seconds)
-    // cw-simulate uses real-time Unix timestamps
-    const currentUnixNanos = BigInt(Date.now()) * BigInt(1_000_000); // Convert ms to ns
-    const votingStartTime = '0'; // Start from epoch to ensure we're always in voting period
-    const votingEndTime = (currentUnixNanos + BigInt(10) * BigInt(1_000_000_000)).toString(); // Current time + 10 seconds
+    // Initialize app.time for cw-simulate
+    const app: any = client.app;
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6; // Convert milliseconds to nanoseconds
+      log(`Initialized app.time: ${app.time} ns`);
+    }
 
-    log(`Voting window: start=0, end=${votingEndTime} (current + 10s)`);
+    // Set voting period: short window for testing (10 seconds)
+    // Use app.time as the reference point
+    const currentTime = app.time;
+    const votingStartTime = currentTime.toString(); // Start from current time
+    const votingEndTime = (currentTime + 10 * 1e9).toString(); // Current time + 10 seconds
+
+    log(`Voting window: start=${votingStartTime}, end=${votingEndTime} (current + 10s)`);
 
     const instantiateMsg = {
       coordinator: {
@@ -396,6 +403,13 @@ describe('MACI (Standard) End-to-End Test', function () {
     }
 
     log(`All messages processed in ${batchCount} batches`);
+
+    // Stop processing period and transition to tallying
+    await assertExecuteSuccess(
+      () => maciContract.stopProcessingPeriod(),
+      'Stop processing period failed'
+    );
+    log('Processing period stopped, tallying period started');
 
     log('\n=== Step 5: Tally Votes ===\n');
 

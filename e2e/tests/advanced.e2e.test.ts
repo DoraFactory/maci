@@ -90,6 +90,12 @@ describe('Advanced E2E Tests', function () {
 
       const coordPubKey = operator.getPubkey().toPoints();
 
+      // Initialize app.time for cw-simulate
+      const app: any = client.app;
+      if (!app.time || app.time === 0) {
+        app.time = Date.now() * 1e6; // Convert milliseconds to nanoseconds
+      }
+
       const instantiateMsg = {
         parameters: {
           state_tree_depth: stateTreeDepth.toString(),
@@ -112,8 +118,8 @@ describe('Advanced E2E Tests', function () {
           link: 'https://test.example.com'
         },
         voting_time: {
-          start_time: Math.floor(Date.now() / 1000).toString(),
-          end_time: (Math.floor(Date.now() / 1000) + 86400).toString()
+          start_time: app.time.toString(),
+          end_time: (app.time + 86400 * 1e9).toString() // +24 hours in nanoseconds
         },
         whitelist: null,
         pre_deactivate_root: '0',
@@ -311,6 +317,12 @@ describe('Advanced E2E Tests', function () {
 
       const coordPubKey = operator.getPubkey().toPoints();
 
+      // Initialize app.time for cw-simulate
+      const app: any = client.app;
+      if (!app.time || app.time === 0) {
+        app.time = Date.now() * 1e6; // Convert milliseconds to nanoseconds
+      }
+
       const instantiateMsg = {
         parameters: {
           state_tree_depth: '2',
@@ -333,8 +345,8 @@ describe('Advanced E2E Tests', function () {
           link: 'https://test.example.com'
         },
         voting_time: {
-          start_time: Math.floor(Date.now() / 1000).toString(),
-          end_time: (Math.floor(Date.now() / 1000) + 3600).toString()
+          start_time: app.time.toString(),
+          end_time: (app.time + 3600 * 1e9).toString() // +1 hour in nanoseconds
         },
         whitelist: null,
         pre_deactivate_root: '0',
@@ -457,7 +469,13 @@ describe('Advanced E2E Tests', function () {
 
       const coordPubKey = operator.getPubkey().toPoints();
 
-      const futureStart = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+      // Initialize app.time for cw-simulate
+      const app: any = client.app;
+      if (!app.time || app.time === 0) {
+        app.time = Date.now() * 1e6; // Convert milliseconds to nanoseconds
+      }
+
+      const futureStart = app.time + 3600 * 1e9; // 1 hour from now in nanoseconds
 
       const instantiateMsg = {
         parameters: {
@@ -482,7 +500,7 @@ describe('Advanced E2E Tests', function () {
         },
         voting_time: {
           start_time: futureStart.toString(),
-          end_time: (futureStart + 3600).toString()
+          end_time: (futureStart + 3600 * 1e9).toString() // +1 hour in nanoseconds
         },
         whitelist: null,
         pre_deactivate_root: '0',

@@ -23,15 +23,27 @@ const CIRCUITS_DIR = path.join(__dirname, '../circuits');
 
 const CIRCUIT_CONFIGS: CircuitConfig[] = [
   {
-    name: 'MACI 1P1V',
-    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/qv1p1v_2-1-1-5_zkeys.tar.gz',
+    name: 'MACI 1P1V (2-1-1-5)',
+    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/maci_2-1-1-5_v3_zkeys.tar.gz',
     targetDir: path.join(CIRCUITS_DIR, 'maci-2-1-1-5'),
     description: 'MACI 1P1V (state:2, int:1, vote:1, batch:5)',
     fileMapping: {
-      processMessagesWasm: ['zkeys', 'r1cs', 'msg_js', 'msg.wasm'],
-      processMessagesZkey: ['zkeys', 'zkey', 'msg_1.zkey'],
-      tallyVotesWasm: ['zkeys', 'r1cs', 'tally_js', 'tally.wasm'],
-      tallyVotesZkey: ['zkeys', 'zkey', 'tally_1.zkey']
+      processMessagesWasm: ['zkey', '2-1-1-5_v3', 'msg.wasm'],
+      processMessagesZkey: ['zkey', '2-1-1-5_v3', 'msg.zkey'],
+      tallyVotesWasm: ['zkey', '2-1-1-5_v3', 'tally.wasm'],
+      tallyVotesZkey: ['zkey', '2-1-1-5_v3', 'tally.zkey']
+    }
+  },
+  {
+    name: 'MACI 1P1V (4-2-2-25)',
+    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/maci_4-2-2-25_v3_zkeys.tar.gz',
+    targetDir: path.join(CIRCUITS_DIR, 'maci-4-2-2-25'),
+    description: 'MACI 1P1V (state:4, int:2, vote:2, batch:25)',
+    fileMapping: {
+      processMessagesWasm: ['zkey', '4-2-2-25_v3', 'msg.wasm'],
+      processMessagesZkey: ['zkey', '4-2-2-25_v3', 'msg.zkey'],
+      tallyVotesWasm: ['zkey', '4-2-2-25_v3', 'tally.wasm'],
+      tallyVotesZkey: ['zkey', '4-2-2-25_v3', 'tally.zkey']
     }
   },
   {
