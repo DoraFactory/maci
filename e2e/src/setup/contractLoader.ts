@@ -9,11 +9,14 @@ import { WasmBytecodeCache } from '../types';
 export class ContractLoader {
   private artifactsDir: string;
   private cache: WasmBytecodeCache;
+  private architecture: string;
 
   constructor(artifactsDir?: string) {
     // Default to ../artifacts from e2e directory
     this.artifactsDir = artifactsDir || path.resolve(__dirname, '..', '..', '..', 'artifacts');
     this.cache = {};
+    // Detect architecture: aarch64 for ARM64 (macOS M1/M2), x86_64 for Intel/AMD
+    this.architecture = process.arch === 'arm64' ? 'aarch64' : 'x86_64';
   }
 
   /**
@@ -24,7 +27,7 @@ export class ContractLoader {
       return this.cache.amaci;
     }
 
-    const wasmPath = path.join(this.artifactsDir, 'cw_amaci-aarch64.wasm');
+    const wasmPath = path.join(this.artifactsDir, `cw_amaci-${this.architecture}.wasm`);
     this.cache.amaci = await this.loadWasmFile(wasmPath);
     return this.cache.amaci;
   }
@@ -37,7 +40,7 @@ export class ContractLoader {
       return this.cache.apiMaci;
     }
 
-    const wasmPath = path.join(this.artifactsDir, 'cw_api_maci-aarch64.wasm');
+    const wasmPath = path.join(this.artifactsDir, `cw_api_maci-${this.architecture}.wasm`);
     this.cache.apiMaci = await this.loadWasmFile(wasmPath);
     return this.cache.apiMaci;
   }
@@ -50,7 +53,7 @@ export class ContractLoader {
       return this.cache.registry;
     }
 
-    const wasmPath = path.join(this.artifactsDir, 'cw_amaci_registry-aarch64.wasm');
+    const wasmPath = path.join(this.artifactsDir, `cw_amaci_registry-${this.architecture}.wasm`);
     this.cache.registry = await this.loadWasmFile(wasmPath);
     return this.cache.registry;
   }
@@ -63,7 +66,7 @@ export class ContractLoader {
       return this.cache.apiSaas;
     }
 
-    const wasmPath = path.join(this.artifactsDir, 'cw_api_saas-aarch64.wasm');
+    const wasmPath = path.join(this.artifactsDir, `cw_api_saas-${this.architecture}.wasm`);
     this.cache.apiSaas = await this.loadWasmFile(wasmPath);
     return this.cache.apiSaas;
   }

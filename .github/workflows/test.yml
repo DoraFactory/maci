@@ -52,7 +52,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: macos-14  # macOS with Apple Silicon (M1/M2)
     timeout-minutes: 60
     steps:
       - name: Checkout code
@@ -157,6 +157,14 @@ jobs:
         if: steps.cache-circuits.outputs.cache-hit == 'true'
         working-directory: ./e2e
         run: pnpm extract-vkeys
+
+      - name: Build Rust test vector generator
+        working-directory: ./crates/maci-utils
+        run: cargo build --bin generate_test_vectors --release
+
+      - name: Generate Poseidon test vectors
+        working-directory: ./e2e
+        run: pnpm run generate:vectors
 
       - name: Run e2e tests
         working-directory: ./e2e
