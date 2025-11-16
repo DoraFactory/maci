@@ -460,11 +460,26 @@ describe('State Tree Update E2E Test', function () {
       const app: any = client.app;
       if (!app.time || app.time === 0) {
         app.time = Date.now() * 1e6;
+        log(`Initialized app.time: ${app.time} ns`);
       }
 
-      const currentTime = app.time;
-      const votingStartTime = currentTime.toString();
-      const votingEndTime = (currentTime + 11 * 60 * 1e9).toString(); // 11 minutes (AMACI requires > 10 mins)
+      // Calculate voting times
+      // AMACI contract requires voting period to be at least 10 minutes (600 seconds)
+      // Strategy: Set minimum valid voting period (610 seconds) with start in past and end 25 seconds in future
+      // Buffer time accounts for: registration(2s) + deactivate(12s) + voting(4s) + processing(5s) + margin(2s)
+      const now = BigInt(app.time); // Convert to BigInt for calculation
+      const votingStartTime = (now - BigInt(585) * BigInt(1_000_000_000)).toString(); // 585 seconds ago
+      const votingEndTime = (now + BigInt(25) * BigInt(1_000_000_000)).toString(); // 25 seconds in the future (enough for all operations)
+      // Total duration: 585 + 25 = 610 seconds (满足 600 秒最低要求)
+
+      log(`Current time: ${now} (${new Date(Number(now / BigInt(1_000_000))).toISOString()})`);
+      log(
+        `Voting period: start=${votingStartTime} (${new Date(Number(BigInt(votingStartTime) / BigInt(1_000_000))).toISOString()}), end=${votingEndTime} (${new Date(Number(BigInt(votingEndTime) / BigInt(1_000_000))).toISOString()})`
+      );
+      log(
+        `Period duration: ${(BigInt(votingEndTime) - BigInt(votingStartTime)) / BigInt(1_000_000_000)} seconds`
+      );
+      log(`⏰ Using simulated time control - no real waiting needed`);
 
       const instantiateMsg = {
         parameters: {
