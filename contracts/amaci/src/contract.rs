@@ -28,11 +28,11 @@ use cw2::set_contract_version;
 
 use pairing_ce::bn256::Bn256;
 
-use crate::utils::{hash2, hash5, hash_256_uint256_list, uint256_from_hex_string};
 use cosmwasm_std::{
     attr, coins, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Response, StdResult, Timestamp, Uint128, Uint256,
 };
+use maci_utils::{hash2, hash5, hash_256_uint256_list, uint256_from_hex_string};
 
 use sha2::{Digest, Sha256};
 
@@ -41,6 +41,13 @@ use bellman_ce_verifier::{prepare_verifying_key, verify_proof as groth16_verify}
 use ff_ce::PrimeField as Fr;
 
 use hex;
+
+/// Convert Uint256 to a field element for proof verification
+/// This helper centralizes the conversion logic
+#[inline]
+fn uint256_to_field<F: Fr>(input: &Uint256) -> F {
+    F::from_str(&input.to_string()).unwrap()
+}
 
 /// Convert a contract address to Uint256 format
 /// This function takes the address bytes and converts them to a Uint256
@@ -1108,12 +1115,7 @@ pub fn execute_process_deactivate_message(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(
-        &pvk,
-        &pof,
-        &[Fr::from_str(&input_hash.to_string()).unwrap()],
-    )
-    .unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1255,12 +1257,7 @@ pub fn execute_add_new_key(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(
-        &pvk,
-        &pof,
-        &[Fr::from_str(&input_hash.to_string()).unwrap()],
-    )
-    .unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1390,12 +1387,7 @@ pub fn execute_pre_add_new_key(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(
-        &pvk,
-        &pof,
-        &[Fr::from_str(&input_hash.to_string()).unwrap()],
-    )
-    .unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1581,12 +1573,7 @@ pub fn execute_process_message(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(
-        &pvk,
-        &pof,
-        &[Fr::from_str(&input_hash.to_string()).unwrap()],
-    )
-    .unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1722,12 +1709,7 @@ pub fn execute_process_tally(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(
-        &pvk,
-        &pof,
-        &[Fr::from_str(&input_hash.to_string()).unwrap()],
-    )
-    .unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
 
     // If the proof verification fails, return an error
     if !is_passed {

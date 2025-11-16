@@ -8,11 +8,11 @@ use anyhow::Result as AnyResult;
 use crate::state::{
     DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VotingTime,
 };
-use crate::utils::uint256_from_hex_string;
 use crate::{
     contract::{execute, instantiate, query},
     msg::*,
 };
+use maci_utils::uint256_from_hex_string;
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{Addr, Empty, StdResult, Timestamp, Uint128, Uint256};

@@ -31,7 +31,7 @@ use cosmwasm_std::{
     Response, StdResult, Uint128, Uint256,
 };
 
-use crate::utils::{hash2, hash5, hash_256_uint256_list, uint256_from_hex_string};
+use maci_utils::{hash2, hash5, hash_256_uint256_list, uint256_from_hex_string};
 
 use bellman_ce::plonk::better_cs::verifier::verify as plonk_verify;
 use bellman_ce::plonk::commitments::transcript::keccak_transcript::RollingKeccakTranscript;

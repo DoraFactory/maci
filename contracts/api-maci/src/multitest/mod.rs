@@ -10,7 +10,6 @@ use crate::state::{
     MessageData, OracleWhitelistConfig, Period, PubKey, RoundInfo, VotingPowerMode, VotingTime,
     WhitelistConfig,
 };
-use crate::utils::uint256_from_hex_string;
 use crate::{
     contract::{execute, instantiate, query, reply},
     msg::*,
@@ -18,6 +17,7 @@ use crate::{
 use base64::prelude::*;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{Addr, Coin, Empty, StdResult, Timestamp, Uint128, Uint256};
+use maci_utils::uint256_from_hex_string;
 use serde::{Deserialize, Serialize};
 // use cosmwasm_std::{Addr, Coin, StdResult, Timestamp, Uint128, Uint256};
 use cw_multi_test::{

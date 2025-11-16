@@ -1,7 +1,7 @@
-use crate::utils::hash5;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Binary, Timestamp, Uint128, Uint256};
 use cw_storage_plus::{Item, Map};
+use maci_utils::hash5;
 
 #[cw_serde]
 pub struct RoundInfo {

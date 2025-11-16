@@ -598,15 +598,14 @@ dependencies = [
  "cw2",
  "cw4",
  "derivative",
- "ff_ce 0.11.0",
  "ff_ce 0.14.3",
  "franklin-crypto",
  "getrandom 0.2.16",
  "hex",
+ "maci-utils",
  "num-bigint 0.4.6",
  "num-traits",
  "pairing_ce 0.28.6",
- "poseidon-rs",
  "prost 0.11.9",
  "prost-types",
  "schemars",
@@ -664,15 +663,14 @@ dependencies = [
  "cw2",
  "cw4",
  "derivative",
- "ff_ce 0.11.0",
  "ff_ce 0.14.3",
  "franklin-crypto",
  "getrandom 0.2.16",
  "hex",
+ "maci-utils",
  "num-bigint 0.4.6",
  "num-traits",
  "pairing_ce 0.28.6",
- "poseidon-rs",
  "prost 0.11.9",
  "prost-types",
  "schemars",
@@ -1354,6 +1352,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
+name = "maci-utils"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-std",
+ "ff_ce 0.11.0",
+ "hex",
+ "poseidon-rs",
+ "serde",
+ "serde_json",
+ "sha2 0.9.9",
+]
+
+[[package]]
 name = "mathru"
 version = "0.6.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1902,10 +1913,11 @@ checksum = "56e6fa9c48d24d85fb3de5ad847117517440f6beceb7798af16b4a87d616b8d0"
 
 [[package]]
 name = "serde"
-version = "1.0.219"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
+ "serde_core",
  "serde_derive",
 ]
 
@@ -1928,10 +1940,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_derive"
-version = "1.0.219"
+name = "serde_core"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
+checksum = "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -4,6 +4,7 @@ members = [
     "contracts/registry",
     "contracts/api-maci",
     "contracts/api-saas",
+    "crates/maci-utils",
 ]
 resolver = "2"
 
