@@ -25,7 +25,7 @@
     "circom:build": "NODE_OPTIONS=--max-old-space-size=4096 circomkit compile",
     "circom:setup": "NODE_OPTIONS=--max-old-space-size=4096 circomkit setup",
     "types": "tsc -p tsconfig.json --noEmit",
-    "mocha-test": "NODE_OPTIONS=--max-old-space-size=4096 TS_NODE_TRANSPILE_ONLY=true ts-mocha --exit -g '^(?!.*\\[fuzz\\]).*$'",
+    "mocha-test": "NODE_OPTIONS=--max-old-space-size=4096 TS_NODE_TRANSPILE_ONLY=true ts-mocha --project tsconfig.test.json --exit -g '^(?!.*\\[fuzz\\]).*$'",
     "test": "pnpm run mocha-test ts/__tests__/*.test.ts",
     "test:fuzz": "NODE_OPTIONS=--max-old-space-size=4096 ts-mocha --exit -g '\\[fuzz\\]' ./ts/__tests__/*.test.ts",
     "test:poseidonHasher": "pnpm run mocha-test ts/__tests__/PoseidonHasher.test.ts",

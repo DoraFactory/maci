@@ -1,0 +1,8 @@
+{
+  "require": ["ts-node/register"],
+  "extensions": ["ts"],
+  "timeout": 120000,
+  "exit": true,
+  "color": true,
+  "reporter": "spec"
+}

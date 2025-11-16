@@ -50,10 +50,9 @@ jobs:
       - name: Run contract tests
         run: RUSTFLAGS="-A dead_code -A unused_variables" cargo test --lib -- --nocapture
 
-  e2e-tests:
-    name: E2E Tests
+  build-wasm:
+    name: Build WASM Contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -81,14 +80,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-index-
 
-      - name: Cache cargo build
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-target-
-
       - name: Build contracts with rust-optimizer
         run: |
           docker run --rm -v "$(pwd)":/code \
@@ -96,9 +87,51 @@ jobs:
             --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
             cosmwasm/rust-optimizer:0.15.1
 
+      - name: Rename WASM files for cross-platform compatibility
+        run: |
+          # rust-optimizer generates *-x86_64.wasm on Linux
+          # Rename to *-aarch64.wasm for compatibility with macOS test runner
+          cd artifacts
+          for file in *-x86_64.wasm; do
+            if [ -f "$file" ]; then
+              newname="${file/-x86_64.wasm/-aarch64.wasm}"
+              echo "Renaming $file to $newname"
+              mv "$file" "$newname"
+            fi
+          done
+          ls -lh
+
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-contracts
+          path: artifacts/*.wasm
+          retention-days: 1
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: macos-14  # Apple Silicon M1/M2
+    needs: build-wasm
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: "1.79.0"
+          components: rustfmt, clippy
+
+      - name: Download WASM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-contracts
+          path: artifacts/
+
       - name: Verify WASM artifacts
         run: |
-          echo "Checking artifacts directory..."
+          echo "Checking downloaded artifacts..."
           ls -lh artifacts/
           
       - name: Setup Node.js
@@ -110,6 +143,10 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 9.12.3
+
+      - name: Install circom
+        run: |
+          brew install circom
 
       - name: Get pnpm store directory
         shell: bash
