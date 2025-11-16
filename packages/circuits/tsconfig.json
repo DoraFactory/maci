@@ -29,6 +29,13 @@
     "declarationMap": true,
     "stripInternal": true
   },
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs",
+      "moduleResolution": "node"
+    }
+  },
   "exclude": ["node_modules"],
   "include": ["./ts"]
 }
