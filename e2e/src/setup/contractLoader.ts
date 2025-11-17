@@ -27,8 +27,7 @@ export class ContractLoader {
       return this.cache.amaci;
     }
 
-    const wasmPath = path.join(this.artifactsDir, `cw_amaci-${this.architecture}.wasm`);
-    this.cache.amaci = await this.loadWasmFile(wasmPath);
+    this.cache.amaci = await this.loadWasmFileWithFallback('cw_amaci');
     return this.cache.amaci;
   }
 
@@ -40,8 +39,7 @@ export class ContractLoader {
       return this.cache.apiMaci;
     }
 
-    const wasmPath = path.join(this.artifactsDir, `cw_api_maci-${this.architecture}.wasm`);
-    this.cache.apiMaci = await this.loadWasmFile(wasmPath);
+    this.cache.apiMaci = await this.loadWasmFileWithFallback('cw_api_maci');
     return this.cache.apiMaci;
   }
 
@@ -53,8 +51,7 @@ export class ContractLoader {
       return this.cache.registry;
     }
 
-    const wasmPath = path.join(this.artifactsDir, `cw_amaci_registry-${this.architecture}.wasm`);
-    this.cache.registry = await this.loadWasmFile(wasmPath);
+    this.cache.registry = await this.loadWasmFileWithFallback('cw_amaci_registry');
     return this.cache.registry;
   }
 
@@ -66,8 +63,7 @@ export class ContractLoader {
       return this.cache.apiSaas;
     }
 
-    const wasmPath = path.join(this.artifactsDir, `cw_api_saas-${this.architecture}.wasm`);
-    this.cache.apiSaas = await this.loadWasmFile(wasmPath);
+    this.cache.apiSaas = await this.loadWasmFileWithFallback('cw_api_saas');
     return this.cache.apiSaas;
   }
 
@@ -83,6 +79,31 @@ export class ContractLoader {
     ]);
 
     return this.cache;
+  }
+
+  /**
+   * Helper function to load a WASM file with architecture fallback
+   * First tries with architecture suffix (e.g., cw_amaci-aarch64.wasm)
+   * Falls back to without suffix (e.g., cw_amaci.wasm) if not found
+   */
+  private async loadWasmFileWithFallback(baseName: string): Promise<Uint8Array> {
+    // Try with architecture suffix first
+    const wasmPathWithArch = path.join(this.artifactsDir, `${baseName}-${this.architecture}.wasm`);
+    if (fs.existsSync(wasmPathWithArch)) {
+      return this.loadWasmFile(wasmPathWithArch);
+    }
+
+    // Fallback to without architecture suffix
+    const wasmPathWithoutArch = path.join(this.artifactsDir, `${baseName}.wasm`);
+    if (fs.existsSync(wasmPathWithoutArch)) {
+      console.log(`[ContractLoader] Using architecture-independent WASM: ${baseName}.wasm`);
+      return this.loadWasmFile(wasmPathWithoutArch);
+    }
+
+    // Neither found, throw error
+    throw new Error(
+      `WASM file not found: tried both ${wasmPathWithArch} and ${wasmPathWithoutArch}`
+    );
   }
 
   /**

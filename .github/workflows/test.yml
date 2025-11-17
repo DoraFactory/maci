@@ -87,19 +87,18 @@ jobs:
             --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
             cosmwasm/rust-optimizer:0.15.1
 
-      - name: Rename WASM files for cross-platform compatibility
+      - name: Verify and list WASM artifacts
         run: |
-          # rust-optimizer generates *-x86_64.wasm on Linux
-          # Rename to *-aarch64.wasm for compatibility with macOS test runner
+          echo "=== Listing generated WASM files ==="
           cd artifacts
-          for file in *-x86_64.wasm; do
+          ls -lh
+          echo ""
+          echo "=== WASM file details ==="
+          for file in *.wasm; do
             if [ -f "$file" ]; then
-              newname="${file/-x86_64.wasm/-aarch64.wasm}"
-              echo "Renaming $file to $newname"
-              mv "$file" "$newname"
+              echo "Found: $file"
             fi
           done
-          ls -lh
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
