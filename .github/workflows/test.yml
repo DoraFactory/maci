@@ -144,9 +144,26 @@ jobs:
         with:
           version: 9.12.3
 
+      - name: Cache circom
+        id: cache-circom
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/circom
+          key: ${{ runner.os }}-circom-v2.1.8
+          restore-keys: |
+            ${{ runner.os }}-circom-
+
       - name: Install circom
+        if: steps.cache-circom.outputs.cache-hit != 'true'
         run: |
-          brew install circom
+          # Clone and build circom from source
+          git clone https://github.com/iden3/circom.git /tmp/circom
+          cd /tmp/circom
+          cargo build --release
+          cargo install --path circom
+
+      - name: Verify circom installation
+        run: circom --version
 
       - name: Get pnpm store directory
         shell: bash
