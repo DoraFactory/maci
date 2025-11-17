@@ -36,9 +36,9 @@ describe('MACI (Standard) End-to-End Test', function () {
   let voters: VoterClient[];
   let maciContract: ApiMaciContractClient;
 
-  const adminAddress = 'orai1admin000000000000000000000000000000';
-  const operatorAddress = 'orai1operator000000000000000000000000';
-  const feeRecipient = 'orai1feerecipient0000000000000000000';
+  const adminAddress = 'dora1admin000000000000000000000000000000';
+  const operatorAddress = 'dora1operator000000000000000000000000';
+  const feeRecipient = 'dora1feerecipient0000000000000000000';
 
   // Test parameters - 1P1V mode
   const maxVoteOptions = 3;
@@ -64,7 +64,7 @@ describe('MACI (Standard) End-to-End Test', function () {
     // Create test environment
     const env = await createTestEnvironment({
       chainId: 'maci-test',
-      bech32Prefix: 'orai'
+      bech32Prefix: 'dora'
     });
 
     client = env.client;

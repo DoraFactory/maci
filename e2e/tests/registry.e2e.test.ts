@@ -25,8 +25,8 @@
 //   let client: SimulateCosmWasmClient;
 //   let registryContract: RegistryContractClient;
 
-//   const adminAddress = 'orai1admin000000000000000000000000000000';
-//   const operatorAddress = 'orai1operator000000000000000000000000';
+//   const adminAddress = 'dora1admin000000000000000000000000000000';
+//   const operatorAddress = 'dora1operator000000000000000000000000';
 
 //   before(async () => {
 //     log('=== Setting up Registry test environment ===');
@@ -34,7 +34,7 @@
 //     // Create test environment
 //     const env = await createTestEnvironment({
 //       chainId: 'registry-test',
-//       bech32Prefix: 'orai'
+//       bech32Prefix: 'dora'
 //     });
 
 //     client = env.client;

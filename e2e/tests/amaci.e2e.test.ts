@@ -41,14 +41,14 @@ describe('AMACI End-to-End Test', function () {
   let amaciContract: AmaciContractClient;
   let votingEndTime: bigint; // Store voting end time for dynamic calculation
 
-  const adminAddress = 'orai1admin000000000000000000000000000000';
-  const operatorAddress = 'orai1operator000000000000000000000000';
-  const feeRecipient = 'orai1feerecipient0000000000000000000';
+  const adminAddress = 'dora1admin000000000000000000000000000000';
+  const operatorAddress = 'dora1operator000000000000000000000000';
+  const feeRecipient = 'dora1feerecipient0000000000000000000';
 
   // Unique addresses for each voter (for whitelist registration)
-  const voter1Address = 'orai1voter1000000000000000000000000000000';
-  const voter2Address = 'orai1voter2000000000000000000000000000000';
-  const voter1NewAddress = 'orai1voter1new000000000000000000000000';
+  const voter1Address = 'dora1voter1000000000000000000000000000000';
+  const voter2Address = 'dora1voter2000000000000000000000000000000';
+  const voter1NewAddress = 'dora1voter1new000000000000000000000000';
 
   // Test parameters (must match zkey configuration: 2-1-1-5)
   const stateTreeDepth = 2; // 5^2 = 25 max voters
@@ -82,7 +82,7 @@ describe('AMACI End-to-End Test', function () {
     // Create test environment
     const env = await createTestEnvironment({
       chainId: 'amaci-test',
-      bech32Prefix: 'orai'
+      bech32Prefix: 'dora'
     });
 
     client = env.client;

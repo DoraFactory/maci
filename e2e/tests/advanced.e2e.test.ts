@@ -38,9 +38,9 @@
 //     let voters: VoterClient[];
 //     let amaciContract: AmaciContractClient;
 
-//     const adminAddress = 'orai1admin000000000000000000000000000000';
-//     const operatorAddress = 'orai1operator000000000000000000000000';
-//     const feeRecipient = 'orai1feerecipient0000000000000000000';
+//     const adminAddress = 'dora1admin000000000000000000000000000000';
+//     const operatorAddress = 'dora1operator000000000000000000000000';
+//     const feeRecipient = 'dora1feerecipient0000000000000000000';
 
 //     const numVoters = 10;
 //     const maxVoteOptions = 5;
@@ -54,7 +54,7 @@
 
 //       const env = await createTestEnvironment({
 //         chainId: 'large-scale-test',
-//         bech32Prefix: 'orai'
+//         bech32Prefix: 'dora'
 //       });
 
 //       client = env.client;
@@ -277,16 +277,16 @@
 //     let voter: VoterClient;
 //     let amaciContract: AmaciContractClient;
 
-//     const adminAddress = 'orai1admin000000000000000000000000000000';
-//     const operatorAddress = 'orai1operator000000000000000000000000';
-//     const feeRecipient = 'orai1feerecipient0000000000000000000';
+//     const adminAddress = 'dora1admin000000000000000000000000000000';
+//     const operatorAddress = 'dora1operator000000000000000000000000';
+//     const feeRecipient = 'dora1feerecipient0000000000000000000';
 
 //     before(async () => {
 //       log('=== Setting up error handling test ===');
 
 //       const env = await createTestEnvironment({
 //         chainId: 'error-test',
-//         bech32Prefix: 'orai'
+//         bech32Prefix: 'dora'
 //       });
 
 //       client = env.client;
@@ -446,15 +446,15 @@
 //     let client: SimulateCosmWasmClient;
 //     let amaciContract: AmaciContractClient;
 
-//     const adminAddress = 'orai1admin000000000000000000000000000000';
-//     const operatorAddress = 'orai1operator000000000000000000000000';
+//     const adminAddress = 'dora1admin000000000000000000000000000000';
+//     const operatorAddress = 'dora1operator000000000000000000000000';
 
 //     before(async () => {
 //       log('=== Setting up time-based test ===');
 
 //       const env = await createTestEnvironment({
 //         chainId: 'time-test',
-//         bech32Prefix: 'orai'
+//         bech32Prefix: 'dora'
 //       });
 
 //       client = env.client;

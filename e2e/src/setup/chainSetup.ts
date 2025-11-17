@@ -11,7 +11,7 @@ export class ChainSetup {
 
   constructor(config?: TestEnvironmentConfig) {
     this.chainId = config?.chainId || 'testing';
-    this.bech32Prefix = config?.bech32Prefix || 'orai';
+    this.bech32Prefix = config?.bech32Prefix || 'dora';
     this.client = null;
   }
 
@@ -69,7 +69,7 @@ export class ChainSetup {
     // Set native balances for each account
     for (const account of accounts) {
       await this.client.app.bank.setBalance(account.address, [
-        { denom: 'orai', amount: '1000000000000' } // 1M tokens
+        { denom: 'dora', amount: '1000000000000' } // 1M tokens
       ]);
     }
   }

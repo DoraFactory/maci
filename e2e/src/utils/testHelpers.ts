@@ -85,7 +85,7 @@ export function parseContractAddress(result: any): string {
 /**
  * Generate test account with incrementing secret keys
  */
-export function generateTestAccount(index: number, prefix: string = 'orai'): TestAccount {
+export function generateTestAccount(index: number, prefix: string = 'dora'): TestAccount {
   const secretKey = BigInt(111111 + index * 111111);
   const address = `${prefix}1${index.toString().padStart(38, '0')}`;
 
@@ -98,7 +98,7 @@ export function generateTestAccount(index: number, prefix: string = 'orai'): Tes
 /**
  * Generate multiple test accounts
  */
-export function generateTestAccounts(count: number, prefix: string = 'orai'): TestAccount[] {
+export function generateTestAccounts(count: number, prefix: string = 'dora'): TestAccount[] {
   const accounts: TestAccount[] = [];
 
   for (let i = 0; i < count; i++) {

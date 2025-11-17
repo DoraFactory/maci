@@ -31,8 +31,8 @@ describe('State Tree Update E2E Test', function () {
   let client: SimulateCosmWasmClient;
   let operator: OperatorClient;
 
-  const adminAddress = 'orai1admin000000000000000000000000000000';
-  const operatorAddress = 'orai1operator000000000000000000000000';
+  const adminAddress = 'dora1admin000000000000000000000000000000';
+  const operatorAddress = 'dora1operator000000000000000000000000';
 
   // Tree parameters
   const stateTreeDepth = 2; // 5^2 = 25 max users
@@ -46,7 +46,7 @@ describe('State Tree Update E2E Test', function () {
 
     const env = await createTestEnvironment({
       chainId: 'state-tree-test',
-      bech32Prefix: 'orai'
+      bech32Prefix: 'dora'
     });
 
     client = env.client;

@@ -23,7 +23,10 @@ function generateRandomString(length: number) {
 }
 
 async function main() {
-  const network = 'mainnet';
+  const network = 'testnet';
+  const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
+  const operatorPubkey =
+    10721319678265866063861912417916780787229942812531198850410477756757845824096n;
 
   console.log('='.repeat(80));
   console.log('Pre-Add-New-Key and Pre-Deactivate API Complete Test (MaciClient & VoterClient)');
@@ -89,7 +92,7 @@ async function main() {
     link: 'https://test.com',
     startVoting: startVoting.toISOString(),
     endVoting: endVoting.toISOString(),
-    operator: 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4',
+    operator,
     maxVoter: maxVoter,
     voteOptionMap: ['Option A', 'Option B', 'Option C', 'Option D', 'Option E'],
     circuitType: MaciCircuitType.IP1V,
@@ -208,20 +211,20 @@ async function main() {
     }
 
     // ==================== 5. Test Voting ====================
-    // console.log('\n[5/5] Testing Voting (with auto payload generation)');
+    console.log('\n[5/5] Testing Voting (with auto payload generation)');
 
-    // // Use saasVote: builds payload + submits vote
-    // const voteResult = await account.saasVote({
-    //   contractAddress,
-    //   operatorPubkey: 1543204810362218394850028913632376147290317641442164443830849121941234286792n,
-    //   selectedOptions: [
-    //     { idx: 0, vc: 1 },
-    //     { idx: 2, vc: 1 },
-    //     { idx: 3, vc: 1 }
-    //   ]
-    // });
+    // Use saasVote: builds payload + submits vote
+    const voteResult = await account.saasVote({
+      contractAddress,
+      operatorPubkey,
+      selectedOptions: [
+        { idx: 0, vc: 1 },
+        { idx: 2, vc: 1 },
+        { idx: 3, vc: 1 }
+      ]
+    });
 
-    // console.log('✓ Voting succeeded!', voteResult);
+    console.log('✓ Voting succeeded!', voteResult);
   } catch (error) {
     console.log('⚠ Failed:', error);
     if (error instanceof Error) {

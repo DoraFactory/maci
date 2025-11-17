@@ -15,7 +15,7 @@ describe('Certificate Generator Tests', function () {
 
   it('should generate certificate', function () {
     const certificate = generateCertificate(
-      'orai1kpjz6jsyxg0wd5r5hhyquawgt3zva34m96qdl2', // contract address
+      'dora1kpjz6jsyxg0wd5r5hhyquawgt3zva34m96qdl2', // contract address
       '17399497775960102380565502463631688556400670056228730095262963787053279532078', // pubkey x
       '18877551448216649826981805566855898133402281419471365959781518735588655366005', // pubkey y
       '1' // amount

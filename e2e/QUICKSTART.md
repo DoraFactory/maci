@@ -91,7 +91,7 @@ describe('My Custom Test', function() {
     // 创建测试环境
     const env = await createTestEnvironment({
       chainId: 'my-test',
-      bech32Prefix: 'orai'
+      bech32Prefix: 'dora'
     });
     
     // 使用环境进行测试
