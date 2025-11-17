@@ -149,17 +149,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/circom
-          key: ${{ runner.os }}-circom-v2.1.8
+          key: ${{ runner.os }}-circom-v2.2.2
           restore-keys: |
             ${{ runner.os }}-circom-
 
       - name: Install circom
         if: steps.cache-circom.outputs.cache-hit != 'true'
         run: |
-          # Clone and build circom from source
+          # Clone circom repository and checkout v2.2.2 (matching local version)
           git clone https://github.com/iden3/circom.git /tmp/circom
           cd /tmp/circom
-          cargo build --release
+          git checkout v2.2.2
+          
+          # Build with RUSTFLAGS to allow warnings
+          RUSTFLAGS="-A warnings" cargo build --release
           cargo install --path circom
 
       - name: Verify circom installation

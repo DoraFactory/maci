@@ -14,11 +14,20 @@ Error: Process completed with exit code 1.
 **解决方案**：从源代码编译 circom，并使用 GitHub Actions 缓存加速后续构建。
 
 **修改内容**：
-1. 移除 `brew install circom`
+1. 移除 `brew install circom`（circom 不在 Homebrew 官方仓库）
 2. 添加 circom 二进制文件缓存（`~/.cargo/bin/circom`）
 3. 条件化安装步骤：只在缓存未命中时从源代码编译
-4. 从 GitHub 克隆 circom 仓库并使用 cargo 构建
-5. 添加独立的验证步骤确保 circom 可用
+4. 从 GitHub 克隆 circom 仓库并 checkout 稳定版本 v2.2.2（与本地开发环境一致）
+5. 使用 `RUSTFLAGS="-A warnings"` 避免编译时 dead_code 警告导致失败
+6. 添加独立的验证步骤确保 circom 可用
+
+**编译错误修复**：
+Master 分支可能包含开发中的代码，会触发 Rust 的 `dead_code` lint 错误：
+```
+error: field `name` is never read
+   = note: `-D dead-code` implied by `-D warnings`
+```
+通过使用稳定的 v2.2.2 标签和设置 RUSTFLAGS 来解决此问题。
 
 **性能优化**：
 - 首次运行：需要编译 circom（约 2-3 分钟）
@@ -185,7 +194,7 @@ e2e-tests:
       uses: actions/cache@v4
       with:
         path: ~/.cargo/bin/circom
-        key: ${{ runner.os }}-circom-v2.1.8
+        key: ${{ runner.os }}-circom-v2.2.2
 
     - name: Install circom
       if: steps.cache-circom.outputs.cache-hit != 'true'
@@ -193,7 +202,10 @@ e2e-tests:
         # Build circom from source (not available via Homebrew)
         git clone https://github.com/iden3/circom.git /tmp/circom
         cd /tmp/circom
-        cargo build --release
+        git checkout v2.2.2  # Match local development version
+        
+        # Build with RUSTFLAGS to allow warnings
+        RUSTFLAGS="-A warnings" cargo build --release
         cargo install --path circom
 
     - name: Verify circom installation
