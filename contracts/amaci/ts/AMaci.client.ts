@@ -20,6 +20,12 @@ export interface AMaciReadOnlyInterface {
   getProcessedDMsgCount: () => Promise<Uint256>;
   getProcessedMsgCount: () => Promise<Uint256>;
   getProcessedUserCount: () => Promise<Uint256>;
+  getStateTreeRoot: () => Promise<Uint256>;
+  getNode: ({
+    index
+  }: {
+    index: Uint256;
+  }) => Promise<Uint256>;
   getResult: ({
     index
   }: {
@@ -82,6 +88,7 @@ export interface AMaciReadOnlyInterface {
     certificate: string;
     pubkey: PubKey;
   }) => Promise<Uint256>;
+  queryCurrentStateCommitment: () => Promise<Uint256>;
 }
 export class AMaciQueryClient implements AMaciReadOnlyInterface {
   client: CosmWasmClient;
@@ -100,6 +107,8 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getProcessedDMsgCount = this.getProcessedDMsgCount.bind(this);
     this.getProcessedMsgCount = this.getProcessedMsgCount.bind(this);
     this.getProcessedUserCount = this.getProcessedUserCount.bind(this);
+    this.getStateTreeRoot = this.getStateTreeRoot.bind(this);
+    this.getNode = this.getNode.bind(this);
     this.getResult = this.getResult.bind(this);
     this.getAllResult = this.getAllResult.bind(this);
     this.getStateIdxInc = this.getStateIdxInc.bind(this);
@@ -122,6 +131,7 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.queryOracleWhitelistConfig = this.queryOracleWhitelistConfig.bind(this);
     this.canSignUpWithOracle = this.canSignUpWithOracle.bind(this);
     this.whiteBalanceOf = this.whiteBalanceOf.bind(this);
+    this.queryCurrentStateCommitment = this.queryCurrentStateCommitment.bind(this);
   }
   admin = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -176,6 +186,22 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
   getProcessedUserCount = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_processed_user_count: {}
+    });
+  };
+  getStateTreeRoot = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_state_tree_root: {}
+    });
+  };
+  getNode = async ({
+    index
+  }: {
+    index: Uint256;
+  }): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_node: {
+        index
+      }
     });
   };
   getResult = async ({
@@ -348,6 +374,11 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
       }
     });
   };
+  queryCurrentStateCommitment = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      query_current_state_commitment: {}
+    });
+  };
 }
 export interface AMaciInterface extends AMaciReadOnlyInterface {
   contractAddress: string;
@@ -422,6 +453,11 @@ export interface AMaciInterface extends AMaciReadOnlyInterface {
     encPubKey: PubKey;
     message: MessageData;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  publishMessageBatch: ({
+    messages
+  }: {
+    messages: MessageData[][];
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   processMessage: ({
     groth16Proof,
     newStateCommitment
@@ -465,6 +501,7 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
     this.addNewKey = this.addNewKey.bind(this);
     this.preAddNewKey = this.preAddNewKey.bind(this);
     this.publishMessage = this.publishMessage.bind(this);
+    this.publishMessageBatch = this.publishMessageBatch.bind(this);
     this.processMessage = this.processMessage.bind(this);
     this.stopProcessingPeriod = this.stopProcessingPeriod.bind(this);
     this.processTally = this.processTally.bind(this);
@@ -608,6 +645,17 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
       publish_message: {
         enc_pub_key: encPubKey,
         message
+      }
+    }, fee, memo, _funds);
+  };
+  publishMessageBatch = async ({
+    messages
+  }: {
+    messages: MessageData[][];
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      publish_message_batch: {
+        messages
       }
     }, fee, memo, _funds);
   };

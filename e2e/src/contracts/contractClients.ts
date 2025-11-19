@@ -132,6 +132,20 @@ export class AmaciContractClient extends BaseContractClient {
   }
 
   /**
+   * Publish message batch (multiple votes in one transaction)
+   */
+  async publishMessageBatch(
+    messages: Array<{ message: string[]; encPubKey: { x: string; y: string } }>
+  ): Promise<any> {
+    const formattedMessages = messages.map((m) => [{ data: m.message }, m.encPubKey]);
+    return await this.execute({
+      publish_message_batch: {
+        messages: formattedMessages
+      }
+    });
+  }
+
+  /**
    * Start process period
    */
   async startProcessPeriod(): Promise<any> {

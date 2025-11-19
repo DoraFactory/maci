@@ -101,6 +101,10 @@ export type ExecuteMsg = {
     message: MessageData;
   };
 } | {
+  publish_message_batch: {
+    messages: [MessageData, PubKey][];
+  };
+} | {
   process_message: {
     groth16_proof: Groth16ProofType;
     new_state_commitment: Uint256;
@@ -150,6 +154,12 @@ export type QueryMsg = {
   get_processed_msg_count: {};
 } | {
   get_processed_user_count: {};
+} | {
+  get_state_tree_root: {};
+} | {
+  get_node: {
+    index: Uint256;
+  };
 } | {
   get_result: {
     index: Uint256;
@@ -214,6 +224,8 @@ export type QueryMsg = {
     certificate: string;
     pubkey: PubKey;
   };
+} | {
+  query_current_state_commitment: {};
 };
 export type Boolean = boolean;
 export type DelayType = "deactivate_delay" | "tally_delay";
