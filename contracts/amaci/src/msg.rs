@@ -109,7 +109,8 @@ pub enum ExecuteMsg {
         enc_pub_key: PubKey,
     },
     PublishMessageBatch {
-        messages: Vec<(MessageData, PubKey)>,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
     },
     ProcessMessage {
         new_state_commitment: Uint256,

@@ -132,6 +132,12 @@ pub enum ContractError {
     #[error("Encrypted public key already used")]
     EncPubKeyAlreadyUsed {},
 
+    #[error("Messages and enc_pub_keys length mismatch: messages length is {messages_len}, enc_pub_keys length is {enc_pub_keys_len}")]
+    BatchLengthMismatch {
+        messages_len: usize,
+        enc_pub_keys_len: usize,
+    },
+
     // Oracle whitelist related errors
     #[error("Amount is zero")]
     AmountIsZero {},

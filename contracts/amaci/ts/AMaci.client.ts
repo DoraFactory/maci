@@ -454,9 +454,11 @@ export interface AMaciInterface extends AMaciReadOnlyInterface {
     message: MessageData;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   publishMessageBatch: ({
+    encPubKeys,
     messages
   }: {
-    messages: MessageData[][];
+    encPubKeys: PubKey[];
+    messages: MessageData[];
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   processMessage: ({
     groth16Proof,
@@ -649,12 +651,15 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
     }, fee, memo, _funds);
   };
   publishMessageBatch = async ({
+    encPubKeys,
     messages
   }: {
-    messages: MessageData[][];
+    encPubKeys: PubKey[];
+    messages: MessageData[];
   }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       publish_message_batch: {
+        enc_pub_keys: encPubKeys,
         messages
       }
     }, fee, memo, _funds);

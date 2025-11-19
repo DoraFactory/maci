@@ -102,7 +102,8 @@ export type ExecuteMsg = {
   };
 } | {
   publish_message_batch: {
-    messages: [MessageData, PubKey][];
+    enc_pub_keys: PubKey[];
+    messages: MessageData[];
   };
 } | {
   process_message: {

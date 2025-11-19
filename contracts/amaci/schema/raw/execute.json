@@ -276,23 +276,20 @@
         "publish_message_batch": {
           "type": "object",
           "required": [
+            "enc_pub_keys",
             "messages"
           ],
           "properties": {
+            "enc_pub_keys": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PubKey"
+              }
+            },
             "messages": {
               "type": "array",
               "items": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/definitions/MessageData"
-                  },
-                  {
-                    "$ref": "#/definitions/PubKey"
-                  }
-                ],
-                "maxItems": 2,
-                "minItems": 2
+                "$ref": "#/definitions/MessageData"
               }
             }
           },

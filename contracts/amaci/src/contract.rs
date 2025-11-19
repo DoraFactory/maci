@@ -517,9 +517,10 @@ pub fn execute(
             message,
             enc_pub_key,
         } => execute_publish_message(deps, env, info, message, enc_pub_key),
-        ExecuteMsg::PublishMessageBatch { messages } => {
-            execute_publish_message_batch(deps, env, info, messages)
-        }
+        ExecuteMsg::PublishMessageBatch {
+            messages,
+            enc_pub_keys,
+        } => execute_publish_message_batch(deps, env, info, messages, enc_pub_keys),
         ExecuteMsg::StartProcessPeriod {} => execute_start_process_period(deps, env, info),
         ExecuteMsg::ProcessMessage {
             new_state_commitment,
@@ -892,11 +893,20 @@ pub fn execute_publish_message_batch(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    messages: Vec<(MessageData, PubKey)>,
+    messages: Vec<MessageData>,
+    enc_pub_keys: Vec<PubKey>,
 ) -> Result<Response, ContractError> {
     // Check if the period status is Voting (once for the entire batch)
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env, voting_time)?;
+
+    // Validate that messages and enc_pub_keys have the same length
+    if messages.len() != enc_pub_keys.len() {
+        return Err(ContractError::BatchLengthMismatch {
+            messages_len: messages.len(),
+            enc_pub_keys_len: enc_pub_keys.len(),
+        });
+    }
 
     // Load the scalar field value (once for the entire batch)
     let snark_scalar_field =
@@ -916,7 +926,7 @@ pub fn execute_publish_message_batch(
     // Process each message in the batch
     let mut msg_chain_length = start_chain_length;
 
-    for (i, (message, enc_pub_key)) in messages.iter().enumerate() {
+    for (i, (message, enc_pub_key)) in messages.iter().zip(enc_pub_keys.iter()).enumerate() {
         // Check if the encrypted public key is valid
         if enc_pub_key.x != Uint256::from_u128(0u128)
             && enc_pub_key.y != Uint256::from_u128(1u128)
