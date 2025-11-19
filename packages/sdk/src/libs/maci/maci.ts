@@ -854,7 +854,10 @@ export class MACI {
     if (gasStation && typeof fee !== 'object') {
       // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
       const client = await this.contract.contractClient({ signer });
-      const encPubKeysBigInt = payload.map((p) => [p.encPubkeys[0], p.encPubkeys[1]]);
+      const encPubKeysBigInt = payload.map((p) => ({
+        x: p.encPubkeys[0],
+        y: p.encPubkeys[1]
+      }));
       const messagesBigInt = payload.map((p) => ({
         data: p.msg
       }));
