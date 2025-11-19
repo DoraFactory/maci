@@ -1,43 +1,43 @@
 # MACI E2E Testing Framework
 
-基于 [cosmwasm-simulate SDK](https://oraichain.github.io/cw-simulate/) 的端到端测试框架，用于测试 MACI/AMACI 合约的完整投票流程。
+An end-to-end testing framework based on [cosmwasm-simulate SDK](https://oraichain.github.io/cw-simulate/) for testing the complete voting flow of MACI/AMACI contracts.
 
-## 特性
+## Features
 
-- ✅ **本地合约执行**: 使用 cosmwasm-simulate SDK 在本地模拟合约执行，无需实际链环境
-- ✅ **完整流程测试**: 覆盖从用户注册到结果统计的完整投票流程
-- ✅ **电路集成**: 集成 circomkit 生成零知识证明
-- ✅ **SDK 协同**: 与 @dorafactory/maci-sdk 紧密集成，验证链上链下状态一致性
-- ✅ **多场景支持**: 
-  - AMACI (匿名密钥更换 + QV)
-  - MACI (标准 1P1V)
-  - Registry (多轮次管理)
-  - 高级场景 (大规模用户、错误处理等)
+- ✅ **Local Contract Execution**: Uses cosmwasm-simulate SDK to simulate contract execution locally without requiring an actual chain environment
+- ✅ **Complete Flow Testing**: Covers the complete voting flow from user registration to result tallying
+- ✅ **Circuit Integration**: Integrates circomkit to generate zero-knowledge proofs
+- ✅ **SDK Collaboration**: Tightly integrated with @dorafactory/maci-sdk to verify on-chain and off-chain state consistency
+- ✅ **Multi-Scenario Support**: 
+  - AMACI (Anonymous key replacement + QV)
+  - MACI (Standard 1P1V)
+  - Registry (Multi-round management)
+  - Advanced scenarios (Large-scale users, error handling, etc.)
 
-## 架构
+## Architecture
 
 ```
 e2e/
 ├── src/
-│   ├── setup/              # 环境设置
-│   │   ├── contractLoader.ts    # WASM 合约加载器
-│   │   └── chainSetup.ts        # 链环境配置
-│   ├── contracts/          # 合约管理
-│   │   ├── deployManager.ts     # 合约部署管理
-│   │   └── contractClients.ts   # 合约客户端封装
-│   ├── utils/              # 工具函数
-│   │   ├── testHelpers.ts       # 测试辅助函数
-│   │   └── circuitIntegration.ts # 电路证明生成
-│   └── types/              # 类型定义
+│   ├── setup/              # Environment setup
+│   │   ├── contractLoader.ts    # WASM contract loader
+│   │   └── chainSetup.ts        # Chain environment configuration
+│   ├── contracts/          # Contract management
+│   │   ├── deployManager.ts     # Contract deployment management
+│   │   └── contractClients.ts   # Contract client wrappers
+│   ├── utils/              # Utility functions
+│   │   ├── testHelpers.ts       # Test helper functions
+│   │   └── circuitIntegration.ts # Circuit proof generation
+│   └── types/              # Type definitions
 │       └── index.ts
-└── tests/                  # 测试套件
-    ├── amaci.e2e.test.ts        # AMACI 完整流程
-    ├── maci.e2e.test.ts         # MACI 标准流程
-    ├── registry.e2e.test.ts     # Registry 管理
-    └── advanced.e2e.test.ts     # 高级场景
+└── tests/                  # Test suites
+    ├── amaci.e2e.test.ts        # AMACI complete flow
+    ├── maci.e2e.test.ts         # MACI standard flow
+    ├── registry.e2e.test.ts     # Registry management
+    └── advanced.e2e.test.ts     # Advanced scenarios
 ```
 
-## 安装
+## Installation
 
 ```bash
 cd e2e
@@ -46,145 +46,145 @@ pnpm install
 
 ## Circuit Setup
 
-测试需要使用零知识证明电路的 zkey 文件进行真实的证明生成和验证。
+Tests require zkey files from zero-knowledge proof circuits for real proof generation and verification.
 
-### 自动设置（推荐）
+### Automatic Setup (Recommended)
 
 ```bash
-# 下载 zkey 文件并提取验证密钥（一次性设置）
+# Download zkey files and extract verification keys (one-time setup)
 pnpm setup-circuits
 ```
 
-这将：
-1. 从 S3 下载约 50-100MB 的 zkey 文件（配置：2-1-1-5）
-2. 解压到 `circuits/2-1-1-5/` 目录
-3. 从 zkey 提取验证密钥并保存为 JSON
+This will:
+1. Download approximately 50-100MB of zkey files from S3 (configuration: 2-1-1-5)
+2. Extract to `circuits/2-1-1-5/` directory
+3. Extract verification keys from zkey and save as JSON
 
-### 手动设置
+### Manual Setup
 
-如果自动下载失败，可以手动操作：
+If automatic download fails, you can manually operate:
 
 ```bash
-# 1. 下载 zkey 文件
+# 1. Download zkey files
 pnpm download-zkeys
 
-# 2. 提取验证密钥
+# 2. Extract verification keys
 pnpm extract-vkeys
 ```
 
-### 电路配置说明
+### Circuit Configuration
 
-**当前使用配置：2-1-1-5**
+**Current configuration: 2-1-1-5**
 
-格式：`state_tree_depth-int_state_tree_depth-vote_option_tree_depth-message_batch_size`
+Format: `state_tree_depth-int_state_tree_depth-vote_option_tree_depth-message_batch_size`
 
-约束关系：
+Constraints:
 - **Max voters**: 5^state_tree_depth = 5^2 = **25 voters**
 - **Max options**: 5^vote_option_tree_depth = 5^1 = **5 options**
 - **Batch size**: **5 messages** per batch
 
-文件列表：
-- `circuits/2-1-1-5/processMessages.wasm` - 消息处理电路
-- `circuits/2-1-1-5/processMessages.zkey` - 消息处理证明密钥
-- `circuits/2-1-1-5/tallyVotes.wasm` - 票数统计电路
-- `circuits/2-1-1-5/tallyVotes.zkey` - 票数统计证明密钥
-- `circuits/vkeys-2-1-1-5.json` - 验证密钥（合约使用）
+File list:
+- `circuits/2-1-1-5/processMessages.wasm` - Message processing circuit
+- `circuits/2-1-1-5/processMessages.zkey` - Message processing proving key
+- `circuits/2-1-1-5/tallyVotes.wasm` - Vote tallying circuit
+- `circuits/2-1-1-5/tallyVotes.zkey` - Vote tallying proving key
+- `circuits/vkeys-2-1-1-5.json` - Verification keys (for contract use)
 
-### 验证设置
+### Verify Setup
 
 ```bash
-# 测试前会自动检查，也可以手动检查
+# Automatically checked before tests, can also be checked manually
 pnpm pretest
 ```
 
-## 使用
+## Usage
 
-### 运行所有测试
+### Run All Tests
 
 ```bash
 pnpm test
 ```
 
-### 运行特定测试
+### Run Specific Tests
 
 ```bash
-# AMACI 端到端测试
+# AMACI end-to-end test
 pnpm test:amaci
 
-# MACI 标准流程测试
+# MACI standard flow test
 pnpm test:maci
 
-# Registry 测试
+# Registry test
 pnpm test:registry
 
-# 高级场景测试
+# Advanced scenario test
 pnpm test:advanced
 ```
 
-## 测试说明
+## Test Descriptions
 
-### 1. AMACI 端到端测试 (`amaci.e2e.test.ts`)
+### 1. AMACI End-to-End Test (`amaci.e2e.test.ts`)
 
-测试完整的 AMACI 投票流程，包括匿名密钥更换：
+Tests the complete AMACI voting flow, including anonymous key replacement:
 
-**流程步骤:**
-1. 环境准备 - 部署 AMACI 合约，初始化 SDK
-2. 用户注册 - 3个用户注册
-3. 密钥停用 - 用户发送停用消息
-4. 处理停用 - 协调员处理停用消息并生成证明
-5. 添加新密钥 - 用户添加新的匿名密钥
-6. 投票 - 用户使用新旧密钥投票
-7. 消息处理 - 批量处理投票消息
-8. 票数统计 - 统计最终结果
-9. 结果验证 - 验证链上链下结果一致
+**Flow Steps:**
+1. Environment Setup - Deploy AMACI contract, initialize SDK
+2. User Registration - 3 users register
+3. Key Deactivation - Users send deactivation messages
+4. Process Deactivation - Coordinator processes deactivation messages and generates proofs
+5. Add New Key - Users add new anonymous keys
+6. Voting - Users vote with old and new keys
+7. Message Processing - Batch process voting messages
+8. Vote Tallying - Tally final results
+9. Result Verification - Verify on-chain and off-chain results are consistent
 
-**关键点:**
-- 测试匿名密钥更换机制
-- 验证零知识证明生成和验证
-- 确保 SDK 状态与合约状态同步
+**Key Points:**
+- Tests anonymous key replacement mechanism
+- Verifies zero-knowledge proof generation and verification
+- Ensures SDK state synchronization with contract state
 
-### 2. MACI 标准流程测试 (`maci.e2e.test.ts`)
+### 2. MACI Standard Flow Test (`maci.e2e.test.ts`)
 
-测试标准 MACI 1P1V 模式：
+Tests standard MACI 1P1V mode:
 
-**场景:**
-- 5个用户参与投票
-- 3个投票选项
-- 测试投票修改（nonce 机制）
-- 批量处理和统计
+**Scenarios:**
+- 5 users participate in voting
+- 3 voting options
+- Tests vote modification (nonce mechanism)
+- Batch processing and tallying
 
-**验证点:**
-- 1P1V 规则正确执行
-- 投票修改正确处理
-- 最终票数准确
+**Verification Points:**
+- 1P1V rules correctly executed
+- Vote modification correctly processed
+- Final vote counts accurate
 
-### 3. Registry 端到端测试 (`registry.e2e.test.ts`)
+### 3. Registry End-to-End Test (`registry.e2e.test.ts`)
 
-测试 Registry 合约管理多个投票轮次：
+Tests Registry contract managing multiple voting rounds:
 
-**功能测试:**
-- 创建多个轮次（AMACI QV、MACI 1P1V）
-- 查询单个轮次
-- 列出所有轮次
-- 分页查询
-- 按类型筛选
+**Function Tests:**
+- Create multiple rounds (AMACI QV, MACI 1P1V)
+- Query single round
+- List all rounds
+- Paginated queries
+- Filter by type
 
-### 4. 高级场景测试 (`advanced.e2e.test.ts`)
+### 4. Advanced Scenario Test (`advanced.e2e.test.ts`)
 
-测试边界情况和复杂场景：
+Tests edge cases and complex scenarios:
 
-**场景包括:**
-- 大规模用户 (10+ 用户)
-- 重复注册错误处理
-- 投票时间窗口限制
-- 无效证明拒绝
-- 时间推进测试
+**Scenarios Include:**
+- Large-scale users (10+ users)
+- Duplicate registration error handling
+- Voting time window restrictions
+- Invalid proof rejection
+- Time advancement testing
 
-## 核心组件
+## Core Components
 
 ### ContractLoader
 
-加载编译好的 WASM 合约字节码：
+Loads compiled WASM contract bytecode:
 
 ```typescript
 const loader = new ContractLoader();
@@ -193,7 +193,7 @@ const amaciWasm = await loader.loadAmaciContract();
 
 ### DeployManager
 
-管理合约部署和实例化：
+Manages contract deployment and instantiation:
 
 ```typescript
 const deployManager = new DeployManager(client, loader);
@@ -205,7 +205,7 @@ const contractInfo = await deployManager.deployAmaciContract(
 
 ### Contract Clients
 
-类型安全的合约调用封装：
+Type-safe contract call wrappers:
 
 ```typescript
 const amaciContract = new AmaciContractClient(
@@ -220,7 +220,7 @@ await amaciContract.publishMessage(message, encPubKey);
 
 ### Circuit Integration
 
-电路证明生成和格式转换：
+Circuit proof generation and format conversion:
 
 ```typescript
 const proof = await generateDeactivateProof(
@@ -237,30 +237,30 @@ await amaciContract.processDeactivateMessage(
 );
 ```
 
-## 数据流
+## Data Flow
 
 ```
 VoterClient (SDK)
-  ↓ 生成投票消息
+  ↓ Generate voting messages
 SimulateCosmWasmClient
-  ↓ 发布到合约
+  ↓ Publish to contract
 OperatorClient (SDK)
-  ↓ 处理消息，生成电路输入
+  ↓ Process messages, generate circuit inputs
 Circomkit
-  ↓ 生成零知识证明
+  ↓ Generate zero-knowledge proofs
 SimulateCosmWasmClient
-  ↓ 提交证明到合约
+  ↓ Submit proofs to contract
 Contract
-  ↓ 验证证明，更新状态
+  ↓ Verify proofs, update state
 Test
-  ↓ 验证结果
+  ↓ Verify results
 ```
 
-## 关键技术点
+## Key Technical Points
 
-### 1. 证明格式转换
+### 1. Proof Format Conversion
 
-从 snarkjs 格式转换为合约期望格式：
+Convert from snarkjs format to contract expected format:
 
 ```typescript
 function convertProofToContractFormat(proof: Groth16Proof): ContractProofType {
@@ -272,39 +272,39 @@ function convertProofToContractFormat(proof: Groth16Proof): ContractProofType {
 }
 ```
 
-### 2. 状态同步
+### 2. State Synchronization
 
-SDK 维护链下状态树，合约存储链上承诺：
+SDK maintains off-chain state tree, contract stores on-chain commitments:
 
 ```typescript
-// SDK 更新
+// SDK update
 operator.initStateTree(index, pubKey, balance);
 
-// 合约更新
+// Contract update
 await amaciContract.signUp(pubKey);
 
-// 验证一致性
+// Verify consistency
 const sdkRoot = operator.stateTree.root;
 const contractRoot = await amaciContract.getStateRoot();
 expect(sdkRoot).to.equal(contractRoot);
 ```
 
-### 3. 时间控制
+### 3. Time Control
 
-使用 cosmwasm-simulate 的时间推进功能：
+Use cosmwasm-simulate's time advancement feature:
 
 ```typescript
 import { advanceTime } from '../src/utils/testHelpers';
 
-// 推进 1 小时
+// Advance 1 hour
 await advanceTime(client, 3600);
 ```
 
-## 配置
+## Configuration
 
-### TypeScript 配置
+### TypeScript Configuration
 
-`tsconfig.json` 配置了路径别名：
+`tsconfig.json` configures path aliases:
 
 ```json
 {
@@ -317,71 +317,71 @@ await advanceTime(client, 3600);
 }
 ```
 
-### Mocha 配置
+### Mocha Configuration
 
-`.mocharc.json` 设置了长超时时间以适应电路计算：
+`.mocharc.json` sets long timeout to accommodate circuit computation:
 
 ```json
 {
-  "timeout": 600000,  // 10 分钟
+  "timeout": 600000,  // 10 minutes
   "exit": true
 }
 ```
 
-## 依赖
+## Dependencies
 
-### 核心依赖
+### Core Dependencies
 
-- `@oraichain/cw-simulate` - CosmWasm 本地模拟器
+- `@oraichain/cw-simulate` - CosmWasm local simulator
 - `@dorafactory/maci-sdk` - MACI SDK
-- `@dorafactory/maci-circuits` - 电路定义
-- `circomkit` - 电路测试工具
-- `snarkjs` - 零知识证明库
+- `@dorafactory/maci-circuits` - Circuit definitions
+- `circomkit` - Circuit testing tool
+- `snarkjs` - Zero-knowledge proof library
 
-### 测试依赖
+### Test Dependencies
 
-- `mocha` - 测试运行器
-- `chai` - 断言库
-- `ts-mocha` - TypeScript 支持
+- `mocha` - Test runner
+- `chai` - Assertion library
+- `ts-mocha` - TypeScript support
 
-## 注意事项
+## Notes
 
-1. **合约文件**: 确保 `../artifacts/` 目录下有编译好的 WASM 文件
-2. **电路文件**: 确保 `../packages/circuits/` 有编译好的电路
-3. **内存**: 电路计算需要较大内存，已配置 `--max-old-space-size=4096`
-4. **超时**: 完整测试可能需要 10+ 分钟，已设置适当的超时时间
+1. **Contract Files**: Ensure compiled WASM files exist in `../artifacts/` directory
+2. **Circuit Files**: Ensure compiled circuits exist in `../packages/circuits/`
+3. **Memory**: Circuit computation requires large memory, configured with `--max-old-space-size=4096`
+4. **Timeout**: Complete tests may take 10+ minutes, appropriate timeout has been set
 
-## 故障排除
+## Troubleshooting
 
-### WASM 文件未找到
+### WASM Files Not Found
 
 ```bash
-# 确保合约已编译
+# Ensure contracts are compiled
 cd ../
 pnpm build
 ```
 
-### 电路文件未找到
+### Circuit Files Not Found
 
 ```bash
-# 编译电路
+# Compile circuits
 cd ../packages/circuits
 pnpm run circom:build
 ```
 
-### 内存不足
+### Insufficient Memory
 
-增加 Node.js 内存限制：
+Increase Node.js memory limit:
 
 ```bash
 NODE_OPTIONS=--max-old-space-size=8192 pnpm test
 ```
 
-## 扩展
+## Extensions
 
-### 添加新的合约客户端
+### Adding New Contract Clients
 
-在 `src/contracts/contractClients.ts` 中添加：
+Add in `src/contracts/contractClients.ts`:
 
 ```typescript
 export class MyContractClient extends BaseContractClient {
@@ -391,9 +391,9 @@ export class MyContractClient extends BaseContractClient {
 }
 ```
 
-### 添加新的测试场景
+### Adding New Test Scenarios
 
-在 `tests/` 目录下创建新文件：
+Create a new file in `tests/` directory:
 
 ```typescript
 import { expect } from 'chai';
@@ -407,13 +407,12 @@ describe('My Test', function() {
 });
 ```
 
-## 参考资料
+## References
 
-- [cosmwasm-simulate 文档](https://oraichain.github.io/cw-simulate/)
-- [MACI SDK 文档](https://github.com/dorafactory/maci)
-- [Circomkit 文档](https://github.com/erhant/circomkit)
+- [cosmwasm-simulate Documentation](https://oraichain.github.io/cw-simulate/)
+- [MACI SDK Documentation](https://github.com/dorafactory/maci)
+- [Circomkit Documentation](https://github.com/erhant/circomkit)
 
-## 许可证
+## License
 
 Apache-2.0
-
