@@ -724,12 +724,8 @@ export class MACI {
         address = (await signer.getAccounts())[0].address;
       }
 
-      const client = await this.contract.contractClient({
-        signer
-      });
-
-      return await this.publishMessage({
-        client,
+      return await this.publishMessageBatch({
+        signer,
         address,
         payload,
         contractAddress,
