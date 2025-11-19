@@ -634,30 +634,18 @@ export class MACI {
 
       let voiceCreditBalance;
       if (round.data.round.maciType === 'aMACI') {
-        const isWhiteListed = await this.isWhitelisted({
-          signer,
-          address,
-          contractAddress
-        });
+        const round = await this.indexer.getRoundWithFields(contractAddress, ['voiceCreditAmount']);
 
-        if (isWhiteListed) {
-          const round = await this.indexer.getRoundWithFields(contractAddress, [
-            'voiceCreditAmount'
-          ]);
-
-          if (!isErrorResponse(round)) {
-            if (round.data.round.voiceCreditAmount) {
-              voiceCreditBalance = round.data.round.voiceCreditAmount;
-            } else {
-              voiceCreditBalance = '0';
-            }
+        if (!isErrorResponse(round)) {
+          if (round.data.round.voiceCreditAmount) {
+            voiceCreditBalance = round.data.round.voiceCreditAmount;
           } else {
-            throw new Error(
-              `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
-            );
+            voiceCreditBalance = '0';
           }
         } else {
-          voiceCreditBalance = '0';
+          throw new Error(
+            `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
+          );
         }
       } else {
         voiceCreditBalance = await this.getVoiceCreditBalance({
