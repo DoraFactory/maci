@@ -1,0 +1,74 @@
+{
+  "ProcessMessages_maci_2-1-5": {
+    "file": "./maci/power/processMessages",
+    "template": "ProcessMessages",
+    "params": [2, 1, 5],
+    "pubs": ["inputHash"]
+  },
+  "ProcessMessages_maci_4-2-25": {
+    "file": "./maci/power/processMessages",
+    "template": "ProcessMessages",
+    "params": [4, 2, 25],
+    "pubs": ["inputHash"]
+  },
+  "TallyVotes_maci_2-1-1": {
+    "file": "./maci/power/tallyVotes",
+    "template": "TallyVotes",
+    "params": [2, 1, 1],
+    "pubs": ["inputHash"]
+  },
+  "TallyVotes_maci_4-2-2": {
+    "file": "./maci/power/tallyVotes",
+    "template": "TallyVotes",
+    "params": [4, 2, 2],
+    "pubs": ["inputHash"]
+  },
+  "AddNewKey_amaci_2": {
+    "file": "./amaci/power/addNewKey",
+    "template": "AddNewKey",
+    "params": [2],
+    "pubs": ["inputHash"]
+  },
+  "AddNewKey_amaci_4": {
+    "file": "./amaci/power/addNewKey",
+    "template": "AddNewKey",
+    "params": [4],
+    "pubs": ["inputHash"]
+  },
+  "ProcessDeactivateMessages_amaci_2-5": {
+    "file": "./amaci/power/processDeactivate",
+    "template": "ProcessDeactivateMessages",
+    "params": [2, 5],
+    "pubs": ["inputHash"]
+  },
+  "ProcessDeactivateMessages_amaci_4-25": {
+    "file": "./amaci/power/processDeactivate",
+    "template": "ProcessDeactivateMessages",
+    "params": [4, 25],
+    "pubs": ["inputHash"]
+  },
+  "ProcessMessages_amaci_2-1-5": {
+    "file": "./amaci/power/processMessages",
+    "template": "ProcessMessages",
+    "params": [2, 1, 5],
+    "pubs": ["inputHash"]
+  },
+  "ProcessMessages_amaci_4-2-25": {
+    "file": "./amaci/power/processMessages",
+    "template": "ProcessMessages",
+    "params": [4, 2, 25],
+    "pubs": ["inputHash"]
+  },
+  "TallyVotes_amaci_2-1-1": {
+    "file": "./amaci/power/tallyVotes",
+    "template": "TallyVotes",
+    "params": [2, 1, 1],
+    "pubs": ["inputHash"]
+  },
+  "TallyVotes_amaci_4-2-2": {
+    "file": "./amaci/power/tallyVotes",
+    "template": "TallyVotes",
+    "params": [4, 2, 2],
+    "pubs": ["inputHash"]
+  }
+}

@@ -112,6 +112,12 @@ export type ExecuteMsg =
       };
     }
   | {
+      publish_message_batch: {
+        enc_pub_keys: PubKey[];
+        messages: MessageData[];
+      };
+    }
+  | {
       process_message: {
         groth16_proof: Groth16ProofType;
         new_state_commitment: Uint256;
@@ -176,6 +182,14 @@ export type QueryMsg =
     }
   | {
       get_processed_user_count: {};
+    }
+  | {
+      get_state_tree_root: {};
+    }
+  | {
+      get_node: {
+        index: Uint256;
+      };
     }
   | {
       get_result: {
@@ -262,6 +276,9 @@ export type QueryMsg =
         certificate: string;
         pubkey: PubKey;
       };
+    }
+  | {
+      query_current_state_commitment: {};
     };
 export type Boolean = boolean;
 export type DelayType = 'deactivate_delay' | 'tally_delay';
@@ -275,12 +292,7 @@ export interface DelayRecord {
   delay_timestamp: Timestamp;
   delay_type: DelayType;
 }
-export type PeriodStatus =
-  | 'pending'
-  | 'voting'
-  | 'processing'
-  | 'tallying'
-  | 'ended';
+export type PeriodStatus = 'pending' | 'voting' | 'processing' | 'tallying' | 'ended';
 export interface Period {
   status: PeriodStatus;
 }

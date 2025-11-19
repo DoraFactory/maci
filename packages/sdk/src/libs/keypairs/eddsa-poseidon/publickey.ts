@@ -72,6 +72,12 @@ export class EdDSAPoseidonPublicKey extends PublicKey {
   }
 
   /**
+   * Return this public key as circuit inputs
+   * @returns an array of strings
+   */
+  asCircuitInputs = (): string[] => [this.rawPoint[0].toString(), this.rawPoint[1].toString()];
+
+  /**
    * Return the packed bigint representation of the EdDSAPoseidon public key
    */
   toPackedData(): bigint {

@@ -1,0 +1,294 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  contract-tests:
+    name: Contract Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: "1.79.0"
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-index-
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-target-
+
+      - name: Run contract tests
+        run: RUSTFLAGS="-A dead_code -A unused_variables" cargo test --lib -- --nocapture
+
+  build-wasm:
+    name: Build WASM Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: "1.79.0"
+          components: rustfmt, clippy
+          target: wasm32-unknown-unknown
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-index-
+
+      - name: Build contracts with rust-optimizer
+        run: |
+          docker run --rm -v "$(pwd)":/code \
+            --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
+            --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+            cosmwasm/rust-optimizer:0.15.1
+
+      - name: Verify and list WASM artifacts
+        run: |
+          echo "=== Listing generated WASM files ==="
+          cd artifacts
+          ls -lh
+          echo ""
+          echo "=== WASM file details ==="
+          for file in *.wasm; do
+            if [ -f "$file" ]; then
+              echo "Found: $file"
+            fi
+          done
+
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-contracts
+          path: artifacts/*.wasm
+          retention-days: 1
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: macos-14  # Apple Silicon M1/M2
+    needs: build-wasm
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: "1.79.0"
+          components: rustfmt, clippy
+
+      - name: Download WASM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-contracts
+          path: artifacts/
+
+      - name: Verify WASM artifacts
+        run: |
+          echo "Checking downloaded artifacts..."
+          ls -lh artifacts/
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Cache circom
+        id: cache-circom
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/circom
+          key: ${{ runner.os }}-circom-v2.2.2
+          restore-keys: |
+            ${{ runner.os }}-circom-
+
+      - name: Install circom
+        if: steps.cache-circom.outputs.cache-hit != 'true'
+        run: |
+          # Clone circom repository and checkout v2.2.2 (matching local version)
+          git clone https://github.com/iden3/circom.git /tmp/circom
+          cd /tmp/circom
+          git checkout v2.2.2
+          
+          # Install with RUSTFLAGS to suppress warnings (including mismatched-lifetime-syntaxes)
+          RUSTFLAGS="-A warnings" cargo install --path circom
+
+      - name: Verify circom installation
+        run: circom --version
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Cache circuit files
+        id: cache-circuits
+        uses: actions/cache@v4
+        with:
+          path: e2e/circuits
+          key: ${{ runner.os }}-circuits-v1
+          restore-keys: |
+            ${{ runner.os }}-circuits-
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install e2e dependencies
+        working-directory: ./e2e
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SDK (e2e dependency)
+        working-directory: ./packages/sdk
+        run: pnpm build
+
+      - name: Build Circuits (e2e dependency)
+        working-directory: ./packages/circuits
+        run: pnpm build
+
+      - name: Download and setup circuits
+        if: steps.cache-circuits.outputs.cache-hit != 'true'
+        working-directory: ./e2e
+        run: pnpm setup-circuits
+
+      - name: Extract verification keys
+        if: steps.cache-circuits.outputs.cache-hit == 'true'
+        working-directory: ./e2e
+        run: pnpm extract-vkeys
+
+      - name: Build Rust test vector generator
+        working-directory: ./crates/maci-utils
+        run: cargo build --bin generate_test_vectors --release
+
+      - name: Generate Poseidon test vectors
+        working-directory: ./e2e
+        run: pnpm run generate:vectors
+
+      - name: Run e2e tests
+        working-directory: ./e2e
+        run: pnpm test
+
+  circuits-tests:
+    name: Circuits Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: "1.79.0"
+
+      - name: Cache circom
+        id: cache-circom
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/circom
+          key: ${{ runner.os }}-circom-v2.2.2
+          restore-keys: |
+            ${{ runner.os }}-circom-
+
+      - name: Install circom
+        if: steps.cache-circom.outputs.cache-hit != 'true'
+        run: |
+          # Clone circom repository and checkout v2.2.2 (matching local version)
+          git clone https://github.com/iden3/circom.git /tmp/circom
+          cd /tmp/circom
+          git checkout v2.2.2
+          
+          # Install with RUSTFLAGS to suppress warnings (including mismatched-lifetime-syntaxes)
+          RUSTFLAGS="-A warnings" cargo install --path circom
+
+      - name: Verify circom installation
+        run: circom --version
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SDK (circuits dependency)
+        working-directory: ./packages/sdk
+        run: pnpm build
+
+      - name: Run circuits tests
+        working-directory: ./packages/circuits
+        run: pnpm test
+

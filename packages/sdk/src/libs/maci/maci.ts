@@ -1,18 +1,9 @@
 import { OfflineSigner } from '@cosmjs/proto-signing';
-import {
-  Keypair,
-  batchGenMessage,
-  PubKey,
-  stringizing,
-  genAddKeyInput,
-} from '../crypto';
+import { Keypair, batchGenMessage, PubKey, stringizing, genAddKeyInput } from '../crypto';
 import { Contract } from '../contract';
 import { Indexer } from '../indexer';
 import { OracleCertificate } from '../oracle-certificate';
-import {
-  MsgExecuteContractEncodeObject,
-  SigningCosmWasmClient,
-} from '@cosmjs/cosmwasm-stargate';
+import { MsgExecuteContractEncodeObject, SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { GasPrice, calculateFee, StdFee } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 import { CertificateEcosystem, ErrorResponse, RoundType } from '../../types';
@@ -41,7 +32,7 @@ export class MACI {
     contract,
     indexer,
     oracleCertificate,
-    maciKeypair,
+    maciKeypair
   }: {
     contract: Contract;
     indexer: Indexer;
@@ -58,7 +49,7 @@ export class MACI {
   async getStateIdxInc({
     signer,
     address,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -70,7 +61,7 @@ export class MACI {
 
     const client = await this.contract.maciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     const stateIdx = await client.getStateIdxInc({ address });
@@ -80,7 +71,7 @@ export class MACI {
   async getVoiceCreditBalance({
     signer,
     stateIdx,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     stateIdx: number;
@@ -88,26 +79,23 @@ export class MACI {
   }) {
     const client = await this.contract.maciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     const voiceCredit = await client.getVoiceCreditBalance({
-      index: stateIdx.toString(),
+      index: stateIdx.toString()
     });
     return voiceCredit;
   }
 
   async getStateIdxByPubKey({
     contractAddress,
-    pubKey,
+    pubKey
   }: {
     contractAddress: string;
     pubKey: bigint[];
   }) {
-    const response = await this.indexer.getSignUpEventByPubKey(
-      contractAddress,
-      pubKey
-    );
+    const response = await this.indexer.getSignUpEventByPubKey(contractAddress, pubKey);
 
     if (isErrorResponse(response)) {
       return -1;
@@ -117,38 +105,32 @@ export class MACI {
 
   async feegrantAllowance({
     address,
-    contractAddress,
+    contractAddress
   }: {
     address: string;
     contractAddress: string;
   }) {
     try {
-      const response = await this.oracleCertificate.feegrantAllowance(
-        contractAddress,
-        address
-      );
+      const response = await this.oracleCertificate.feegrantAllowance(contractAddress, address);
       return response;
     } catch (error) {
       return {
         granter: contractAddress,
         grantee: address,
-        spend_limit: [],
+        spend_limit: []
       };
     }
   }
 
   async hasFeegrant({
     address,
-    contractAddress,
+    contractAddress
   }: {
     address: string;
     contractAddress: string;
   }): Promise<boolean> {
     try {
-      const response = await this.oracleCertificate.feegrantAllowance(
-        contractAddress,
-        address
-      );
+      const response = await this.oracleCertificate.feegrantAllowance(contractAddress, address);
       return response.spend_limit.length > 0;
     } catch (error) {
       return false;
@@ -160,7 +142,7 @@ export class MACI {
     signer,
     address,
     contractAddress,
-    certificate,
+    certificate
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -176,26 +158,22 @@ export class MACI {
 
     const round = await this.indexer.getRoundWithFields(contractAddress, [
       'maciType',
-      'voiceCreditAmount',
+      'voiceCreditAmount'
     ]);
 
     if (isErrorResponse(round)) {
-      throw new Error(
-        `Failed to get round info: ${round.error.type} ${round.error.message}`
-      );
+      throw new Error(`Failed to get round info: ${round.error.type} ${round.error.message}`);
     }
 
     if (round.data.round.maciType === 'aMACI') {
       const isWhiteListed = await this.isWhitelisted({
         signer,
         address,
-        contractAddress,
+        contractAddress
       });
 
       if (isWhiteListed) {
-        const round = await this.indexer.getRoundWithFields(contractAddress, [
-          'voiceCreditAmount',
-        ]);
+        const round = await this.indexer.getRoundWithFields(contractAddress, ['voiceCreditAmount']);
 
         if (!isErrorResponse(round)) {
           if (round.data.round.voiceCreditAmount) {
@@ -216,24 +194,24 @@ export class MACI {
     if (certificate) {
       const client = await this.contract.oracleMaciClient({
         signer,
-        contractAddress,
+        contractAddress
       });
 
       const balance = await client.whiteBalanceOf({
         amount: certificate.amount,
         certificate: certificate.signature,
-        sender: address,
+        sender: address
       });
 
       return balance;
     } else {
       const client = await this.contract.maciClient({
         signer,
-        contractAddress,
+        contractAddress
       });
 
       const balance = await client.whiteBalanceOf({
-        sender: address,
+        sender: address
       });
 
       return balance;
@@ -243,7 +221,7 @@ export class MACI {
   async isWhitelisted({
     signer,
     address,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -255,11 +233,11 @@ export class MACI {
 
     const client = await this.contract.amaciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     const isWhitelisted = await client.isWhiteList({
-      sender: address,
+      sender: address
     });
 
     return isWhitelisted;
@@ -267,14 +245,14 @@ export class MACI {
 
   async getOracleWhitelistConfig({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     contractAddress: string;
   }): Promise<OracleWhitelistConfig> {
     const client = await this.contract.oracleMaciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     const snapshotHeight = await client.queryOracleWhitelistConfig();
@@ -305,11 +283,7 @@ export class MACI {
     return circuitType === '1';
   }
 
-  async queryRoundClaimable({
-    contractAddress,
-  }: {
-    contractAddress: string;
-  }): Promise<{
+  async queryRoundClaimable({ contractAddress }: { contractAddress: string }): Promise<{
     claimable: boolean | null;
     balance: string | null;
   }> {
@@ -319,7 +293,7 @@ export class MACI {
       if (roundInfo.maciType !== 'aMACI') {
         return {
           claimable: null,
-          balance: null,
+          balance: null
         };
       }
 
@@ -330,7 +304,7 @@ export class MACI {
       if (currentTime.getTime() - votingEndTime.getTime() <= threeDaysInMs) {
         return {
           claimable: null,
-          balance: null,
+          balance: null
         };
       }
 
@@ -348,30 +322,24 @@ export class MACI {
       ) {
         return {
           claimable: true,
-          balance: roundBalance.data.balance,
+          balance: roundBalance.data.balance
         };
       }
 
       return {
         claimable: false,
-        balance: roundBalance.data.balance,
+        balance: roundBalance.data.balance
       };
     } catch (error) {
       console.error('Error in queryRoundClaimable:', error);
       return {
         claimable: null,
-        balance: null,
+        balance: null
       };
     }
   }
 
-  async queryAMaciChargeFee({
-    maxVoter,
-    maxOption,
-  }: {
-    maxVoter: number;
-    maxOption: number;
-  }) {
+  async queryAMaciChargeFee({ maxVoter, maxOption }: { maxVoter: number; maxOption: number }) {
     const fee = getAMaciRoundCircuitFee(this.network, maxVoter, maxOption);
     return fee;
   }
@@ -429,7 +397,7 @@ export class MACI {
     signer,
     ecosystem,
     address,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     ecosystem: CertificateEcosystem;
@@ -438,7 +406,7 @@ export class MACI {
   }): Promise<SignatureResponse> {
     const oracleWhitelistConfig = await this.getOracleWhitelistConfig({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     if (!address) {
@@ -449,7 +417,7 @@ export class MACI {
       ecosystem,
       address,
       contractAddress,
-      height: oracleWhitelistConfig.snapshot_height,
+      height: oracleWhitelistConfig.snapshot_height
     });
 
     return signResponse;
@@ -462,7 +430,7 @@ export class MACI {
     maciKeypair,
     oracleCertificate,
     gasStation = false,
-    fee,
+    fee
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -486,7 +454,7 @@ export class MACI {
       }
 
       const client = await this.contract.contractClient({
-        signer,
+        signer
       });
 
       // If oracleCertificate has data and amount has data, use signupOracle
@@ -498,10 +466,10 @@ export class MACI {
           contractAddress,
           oracleCertificate: {
             amount: oracleCertificate.amount,
-            signature: oracleCertificate.signature,
+            signature: oracleCertificate.signature
           },
           gasStation,
-          fee,
+          fee
         });
       } else {
         // If oracleCertificate has data but amount is missing, or oracleCertificate is missing, use signupSimple
@@ -512,7 +480,7 @@ export class MACI {
           contractAddress,
           certificate: oracleCertificate?.signature,
           gasStation,
-          fee,
+          fee
         });
       }
     } catch (error) {
@@ -528,7 +496,7 @@ export class MACI {
     oracleCertificate,
     gasStation = false,
     granter,
-    fee,
+    fee
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -548,7 +516,7 @@ export class MACI {
       }
 
       const client = await this.contract.contractClient({
-        signer,
+        signer
       });
 
       // If oracleCertificate has data and amount has data, use signupOracle
@@ -560,11 +528,11 @@ export class MACI {
           contractAddress,
           oracleCertificate: {
             amount: oracleCertificate.amount,
-            signature: oracleCertificate.signature,
+            signature: oracleCertificate.signature
           },
           gasStation,
           granter,
-          fee,
+          fee
         });
       } else {
         // If oracleCertificate has data but amount is missing, or oracleCertificate is missing, use signupSimple
@@ -576,7 +544,7 @@ export class MACI {
           certificate: oracleCertificate?.signature,
           gasStation,
           granter,
-          fee,
+          fee
         });
       }
     } catch (error) {
@@ -587,7 +555,7 @@ export class MACI {
   private async processVoteOptions({
     selectedOptions,
     contractAddress,
-    voiceCreditBalance,
+    voiceCreditBalance
   }: {
     selectedOptions: {
       idx: number;
@@ -600,17 +568,13 @@ export class MACI {
     const idxSet = new Set();
     for (const option of selectedOptions) {
       if (idxSet.has(option.idx)) {
-        throw new Error(
-          `Duplicate option index (${option.idx}) is not allowed`
-        );
+        throw new Error(`Duplicate option index (${option.idx}) is not allowed`);
       }
       idxSet.add(option.idx);
     }
 
     // Filter and sort options
-    const options = selectedOptions
-      .filter((o) => !!o.vc)
-      .sort((a, b) => a.idx - b.idx);
+    const options = selectedOptions.filter((o) => !!o.vc).sort((a, b) => a.idx - b.idx);
 
     // Calculate used voice credits
     const isQv = await this.queryRoundIsQv({ contractAddress });
@@ -631,7 +595,7 @@ export class MACI {
     operatorCoordPubKey,
     maciKeypair,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -651,66 +615,50 @@ export class MACI {
 
     const stateIdx = await this.getStateIdxByPubKey({
       contractAddress,
-      pubKey: maciKeypair.pubKey,
+      pubKey: maciKeypair.pubKey
     });
 
     if (stateIdx === -1) {
-      throw new Error(
-        'State index is not set, Please signup or addNewKey first'
-      );
+      throw new Error('State index is not set, Please signup or addNewKey first');
     }
 
     try {
       const round = await this.indexer.getRoundWithFields(contractAddress, [
         'maciType',
-        'voiceCreditAmount',
+        'voiceCreditAmount'
       ]);
 
       if (isErrorResponse(round)) {
-        throw new Error(
-          `Failed to get round info: ${round.error.type} ${round.error.message}`
-        );
+        throw new Error(`Failed to get round info: ${round.error.type} ${round.error.message}`);
       }
 
       let voiceCreditBalance;
       if (round.data.round.maciType === 'aMACI') {
-        const isWhiteListed = await this.isWhitelisted({
-          signer,
-          address,
-          contractAddress,
-        });
+        const round = await this.indexer.getRoundWithFields(contractAddress, ['voiceCreditAmount']);
 
-        if (isWhiteListed) {
-          const round = await this.indexer.getRoundWithFields(contractAddress, [
-            'voiceCreditAmount',
-          ]);
-
-          if (!isErrorResponse(round)) {
-            if (round.data.round.voiceCreditAmount) {
-              voiceCreditBalance = round.data.round.voiceCreditAmount;
-            } else {
-              voiceCreditBalance = '0';
-            }
+        if (!isErrorResponse(round)) {
+          if (round.data.round.voiceCreditAmount) {
+            voiceCreditBalance = round.data.round.voiceCreditAmount;
           } else {
-            throw new Error(
-              `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
-            );
+            voiceCreditBalance = '0';
           }
         } else {
-          voiceCreditBalance = '0';
+          throw new Error(
+            `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
+          );
         }
       } else {
         voiceCreditBalance = await this.getVoiceCreditBalance({
           signer,
           stateIdx,
-          contractAddress,
+          contractAddress
         });
       }
 
       const options = await this.processVoteOptions({
         selectedOptions,
         contractAddress,
-        voiceCreditBalance,
+        voiceCreditBalance
       });
       if (!address) {
         address = (await signer.getAccounts())[0].address;
@@ -720,14 +668,22 @@ export class MACI {
         return [o.idx, o.vc] as [number, number];
       });
 
-      const payload = batchGenMessage(
-        stateIdx,
-        maciKeypair,
-        operatorCoordPubKey,
-        plan
-      );
+      const payload = batchGenMessage(stateIdx, maciKeypair, operatorCoordPubKey, plan);
+
+      // Use batch publish for amaci
+      if (round.data.round.maciType === 'aMACI') {
+        return await this.publishMessageBatch({
+          signer,
+          address,
+          payload,
+          contractAddress,
+          gasStation,
+          fee
+        });
+      }
+
       const client = await this.contract.contractClient({
-        signer,
+        signer
       });
 
       return await this.publishMessage({
@@ -736,7 +692,7 @@ export class MACI {
         payload,
         contractAddress,
         gasStation,
-        fee,
+        fee
       });
     } catch (error) {
       throw Error(`Vote failed! ${error}`);
@@ -750,7 +706,7 @@ export class MACI {
     payload,
     gasStation = false,
     granter,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -769,7 +725,7 @@ export class MACI {
       }
 
       const client = await this.contract.contractClient({
-        signer,
+        signer
       });
 
       return await this.publishMessage({
@@ -779,7 +735,7 @@ export class MACI {
         contractAddress,
         gasStation,
         granter,
-        fee,
+        fee
       });
     } catch (error) {
       throw Error(`Vote failed! ${error}`);
@@ -793,7 +749,7 @@ export class MACI {
     contractAddress,
     gasStation,
     granter,
-    fee = 1.8,
+    fee = 1.8
   }: {
     client: SigningCosmWasmClient;
     address: string;
@@ -806,8 +762,107 @@ export class MACI {
     granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
-    const msgs: MsgExecuteContractEncodeObject[] = payload.map(
-      ({ msg, encPubkeys }) => ({
+    const msgs: MsgExecuteContractEncodeObject[] = payload.map(({ msg, encPubkeys }) => ({
+      typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+      value: MsgExecuteContract.fromPartial({
+        sender: address,
+        contract: contractAddress,
+        msg: new TextEncoder().encode(
+          JSON.stringify(
+            stringizing({
+              publish_message: {
+                enc_pub_key: {
+                  x: encPubkeys[0],
+                  y: encPubkeys[1]
+                },
+                message: {
+                  data: msg
+                }
+              }
+            })
+          )
+        )
+      })
+    }));
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const gasEstimation = await client.simulate(address, msgs, '');
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: granter || contractAddress
+      };
+      return client.signAndBroadcast(address, msgs, grantFee);
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: granter || contractAddress
+      };
+      return client.signAndBroadcast(address, msgs, grantFee);
+    }
+
+    return client.signAndBroadcast(address, msgs, fee);
+  }
+
+  async publishMessageBatch({
+    signer,
+    address,
+    payload,
+    contractAddress,
+    gasStation,
+    granter,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    address?: string;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PubKey;
+    }[];
+    contractAddress: string;
+    gasStation?: boolean;
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
+
+    const amaciClient = await this.contract.amaciClient({
+      signer,
+      contractAddress
+    });
+
+    const messages = payload.map((p) => ({
+      data: p.msg.map((m) => m.toString()) as [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string
+      ]
+    }));
+
+    const encPubKeys = payload.map((p) => ({
+      x: p.encPubkeys[0].toString(),
+      y: p.encPubkeys[1].toString()
+    }));
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const client = await this.contract.contractClient({ signer });
+      const encPubKeysBigInt = payload.map((p) => [p.encPubkeys[0], p.encPubkeys[1]]);
+      const messagesBigInt = payload.map((p) => ({
+        data: p.msg
+      }));
+      const msg: MsgExecuteContractEncodeObject = {
         typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
         value: MsgExecuteContract.fromPartial({
           sender: address,
@@ -815,47 +870,35 @@ export class MACI {
           msg: new TextEncoder().encode(
             JSON.stringify(
               stringizing({
-                publish_message: {
-                  enc_pub_key: {
-                    x: encPubkeys[0],
-                    y: encPubkeys[1],
-                  },
-                  message: {
-                    data: msg,
-                  },
-                },
+                publish_message_batch: {
+                  enc_pub_keys: encPubKeysBigInt,
+                  messages: messagesBigInt
+                }
               })
             )
-          ),
-        }),
-      })
-    );
-
-    if (gasStation && typeof fee !== 'object') {
-      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
-      const gasEstimation = await client.simulate(address, msgs, '');
+          )
+        })
+      };
+      const gasEstimation = await client.simulate(address, [msg], '');
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
-      return client.signAndBroadcast(address, msgs, grantFee);
+      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
-      return client.signAndBroadcast(address, msgs, grantFee);
+      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee);
     }
 
-    return client.signAndBroadcast(address, msgs, fee);
+    return amaciClient.publishMessageBatch({ encPubKeys, messages }, fee);
   }
 
   async signupSimple({
@@ -866,7 +909,7 @@ export class MACI {
     certificate,
     gasStation,
     granter,
-    fee = 1.8,
+    fee = 1.8
   }: {
     client: SigningCosmWasmClient;
     address: string;
@@ -882,9 +925,9 @@ export class MACI {
         certificate,
         pubkey: {
           x: pubKey[0].toString(),
-          y: pubKey[1].toString(),
-        },
-      },
+          y: pubKey[1].toString()
+        }
+      }
     };
 
     if (gasStation === true && typeof fee !== 'object') {
@@ -897,29 +940,26 @@ export class MACI {
             value: {
               sender: address,
               contract: contractAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
       return client.execute(address, contractAddress, msg, grantFee);
     } else if (gasStation === true && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
       return client.execute(address, contractAddress, msg, grantFee);
     }
@@ -935,7 +975,7 @@ export class MACI {
     oracleCertificate,
     gasStation,
     granter,
-    fee = 1.8,
+    fee = 1.8
   }: {
     client: SigningCosmWasmClient;
     address: string;
@@ -953,11 +993,11 @@ export class MACI {
       sign_up: {
         pubkey: {
           x: pubKey[0].toString(),
-          y: pubKey[1].toString(),
+          y: pubKey[1].toString()
         },
         amount: oracleCertificate.amount,
-        certificate: oracleCertificate.signature,
-      },
+        certificate: oracleCertificate.signature
+      }
     };
 
     if (gasStation === true && typeof fee !== 'object') {
@@ -970,29 +1010,26 @@ export class MACI {
             value: {
               sender: address,
               contract: contractAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
       return client.execute(address, contractAddress, msg, grantFee);
     } else if (gasStation === true && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
       return client.execute(address, contractAddress, msg, grantFee);
     }
@@ -1006,7 +1043,7 @@ export class MACI {
     maciKeypair,
     contractAddress,
     gasStation,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -1023,17 +1060,17 @@ export class MACI {
       }
 
       const client = await this.contract.contractClient({
-        signer,
+        signer
       });
 
       const stateIdx = await this.getStateIdxInc({
         signer,
         address,
-        contractAddress,
+        contractAddress
       });
 
       const operatorCoordPubKey = await this.getRoundInfo({
-        contractAddress,
+        contractAddress
       });
 
       const payload = batchGenMessage(
@@ -1041,7 +1078,7 @@ export class MACI {
         maciKeypair,
         [
           BigInt(operatorCoordPubKey.coordinatorPubkeyX),
-          BigInt(operatorCoordPubKey.coordinatorPubkeyY),
+          BigInt(operatorCoordPubKey.coordinatorPubkeyY)
         ],
         [[0, 0]]
       );
@@ -1052,12 +1089,12 @@ export class MACI {
         publish_deactivate_message: {
           enc_pub_key: {
             x: encPubkeys[0],
-            y: encPubkeys[1],
+            y: encPubkeys[1]
           },
           message: {
-            data: msg,
-          },
-        },
+            data: msg
+          }
+        }
       });
 
       if (gasStation === true && typeof fee !== 'object') {
@@ -1070,41 +1107,28 @@ export class MACI {
               value: {
                 sender: address,
                 contract: contractAddress,
-                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg)),
-              },
-            },
+                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg))
+              }
+            }
           ],
           ''
         );
         const multiplier = typeof fee === 'number' ? fee : 1.8;
         const gasPrice = GasPrice.fromString('10000000000peaka');
-        const calculatedFee = calculateFee(
-          Math.round(gasEstimation * multiplier),
-          gasPrice
-        );
+        const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
         const grantFee: StdFee = {
           amount: calculatedFee.amount,
           gas: calculatedFee.gas,
-          granter: contractAddress,
+          granter: contractAddress
         };
-        return client.execute(
-          address,
-          contractAddress,
-          deactivateMsg,
-          grantFee
-        );
+        return client.execute(address, contractAddress, deactivateMsg, grantFee);
       } else if (gasStation === true && typeof fee === 'object') {
         // When gasStation is true and fee is StdFee, add granter
         const grantFee: StdFee = {
           ...fee,
-          granter: contractAddress,
+          granter: contractAddress
         };
-        return client.execute(
-          address,
-          contractAddress,
-          deactivateMsg,
-          grantFee
-        );
+        return client.execute(address, contractAddress, deactivateMsg, grantFee);
       }
 
       return client.execute(address, contractAddress, deactivateMsg, fee);
@@ -1120,7 +1144,7 @@ export class MACI {
     payload,
     gasStation = false,
     granter,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     address?: string;
@@ -1137,7 +1161,7 @@ export class MACI {
       address = address || (await signer.getAccounts())[0].address;
 
       const client = await this.contract.contractClient({
-        signer,
+        signer
       });
 
       // const payload = batchGenMessage(
@@ -1156,12 +1180,12 @@ export class MACI {
         publish_deactivate_message: {
           enc_pub_key: {
             x: encPubkeys[0],
-            y: encPubkeys[1],
+            y: encPubkeys[1]
           },
           message: {
-            data: msg,
-          },
-        },
+            data: msg
+          }
+        }
       });
 
       if (gasStation === true && typeof fee !== 'object') {
@@ -1174,41 +1198,28 @@ export class MACI {
               value: {
                 sender: address,
                 contract: contractAddress,
-                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg)),
-              },
-            },
+                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg))
+              }
+            }
           ],
           ''
         );
         const multiplier = typeof fee === 'number' ? fee : 1.8;
         const gasPrice = GasPrice.fromString('10000000000peaka');
-        const calculatedFee = calculateFee(
-          Math.round(gasEstimation * multiplier),
-          gasPrice
-        );
+        const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
         const grantFee: StdFee = {
           amount: calculatedFee.amount,
           gas: calculatedFee.gas,
-          granter: granter || contractAddress,
+          granter: granter || contractAddress
         };
-        return client.execute(
-          address,
-          contractAddress,
-          deactivateMsg,
-          grantFee
-        );
+        return client.execute(address, contractAddress, deactivateMsg, grantFee);
       } else if (gasStation === true && typeof fee === 'object') {
         // When gasStation is true and fee is StdFee, add granter
         const grantFee: StdFee = {
           ...fee,
-          granter: granter || contractAddress,
+          granter: granter || contractAddress
         };
-        return client.execute(
-          address,
-          contractAddress,
-          deactivateMsg,
-          grantFee
-        );
+        return client.execute(address, contractAddress, deactivateMsg, grantFee);
       }
 
       return client.execute(address, contractAddress, deactivateMsg, fee);
@@ -1217,40 +1228,32 @@ export class MACI {
     }
   }
 
-  async fetchAllDeactivateLogs({
-    contractAddress,
-  }: {
-    contractAddress: string;
-  }) {
-    const deactivates =
-      await this.indexer.fetchAllDeactivateLogs(contractAddress);
+  async fetchAllDeactivateLogs({ contractAddress }: { contractAddress: string }) {
+    const deactivates = await this.indexer.fetchAllDeactivateLogs(contractAddress);
     return deactivates;
   }
 
   async genAddKeyInput({
     maciKeypair,
-    contractAddress,
+    contractAddress
   }: {
     maciKeypair: Keypair;
     contractAddress: string;
   }) {
     const deactivates = await this.fetchAllDeactivateLogs({
-      contractAddress,
+      contractAddress
     });
 
     const roundInfo = await this.getRoundInfo({
-      contractAddress,
+      contractAddress
     });
 
     const circuitPower = roundInfo.circuitPower;
     const stateTreeDepth = Number(circuitPower.split('-')[0]);
     const inputObj = genAddKeyInput(stateTreeDepth + 2, {
-      coordPubKey: [
-        BigInt(roundInfo.coordinatorPubkeyX),
-        BigInt(roundInfo.coordinatorPubkeyY),
-      ],
+      coordPubKey: [BigInt(roundInfo.coordinatorPubkeyX), BigInt(roundInfo.coordinatorPubkeyY)],
       oldKey: maciKeypair,
-      deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      deactivates: deactivates.map((d: any) => d.map(BigInt))
     });
     return inputObj;
 
@@ -1268,7 +1271,7 @@ export class MACI {
     proof,
     nullifier,
     newMaciKeypair,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1280,7 +1283,7 @@ export class MACI {
   }) {
     const client = await this.contract.amaciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     return await client.addNewKey(
@@ -1290,8 +1293,8 @@ export class MACI {
         nullifier: nullifier.toString(),
         pubkey: {
           x: newMaciKeypair.pubKey[0].toString(),
-          y: newMaciKeypair.pubKey[1].toString(),
-        },
+          y: newMaciKeypair.pubKey[1].toString()
+        }
       },
       fee
     );
@@ -1306,7 +1309,7 @@ export class MACI {
     newPubkey,
     gasStation = false,
     granter,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1320,7 +1323,7 @@ export class MACI {
   }) {
     const client = await this.contract.amaciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     if (gasStation === true && typeof fee !== 'object') {
@@ -1335,9 +1338,9 @@ export class MACI {
           nullifier: nullifier.toString(),
           pubkey: {
             x: newPubkey[0].toString(),
-            y: newPubkey[1].toString(),
-          },
-        },
+            y: newPubkey[1].toString()
+          }
+        }
       };
 
       const gasEstimation = await contractClient.simulate(
@@ -1348,22 +1351,19 @@ export class MACI {
             value: {
               sender: address,
               contract: contractAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
 
       return await client.addNewKey(
@@ -1373,8 +1373,8 @@ export class MACI {
           nullifier: nullifier.toString(),
           pubkey: {
             x: newPubkey[0].toString(),
-            y: newPubkey[1].toString(),
-          },
+            y: newPubkey[1].toString()
+          }
         },
         grantFee
       );
@@ -1382,7 +1382,7 @@ export class MACI {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
 
       return await client.addNewKey(
@@ -1392,8 +1392,8 @@ export class MACI {
           nullifier: nullifier.toString(),
           pubkey: {
             x: newPubkey[0].toString(),
-            y: newPubkey[1].toString(),
-          },
+            y: newPubkey[1].toString()
+          }
         },
         grantFee
       );
@@ -1406,8 +1406,8 @@ export class MACI {
         nullifier: nullifier.toString(),
         pubkey: {
           x: newPubkey[0].toString(),
-          y: newPubkey[1].toString(),
-        },
+          y: newPubkey[1].toString()
+        }
       },
       fee
     );
@@ -1422,7 +1422,7 @@ export class MACI {
     newPubkey,
     gasStation = false,
     granter,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1436,7 +1436,7 @@ export class MACI {
   }) {
     const client = await this.contract.amaciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     if (gasStation === true && typeof fee !== 'object') {
@@ -1451,9 +1451,9 @@ export class MACI {
           nullifier: nullifier.toString(),
           pubkey: {
             x: newPubkey[0].toString(),
-            y: newPubkey[1].toString(),
-          },
-        },
+            y: newPubkey[1].toString()
+          }
+        }
       };
 
       const gasEstimation = await contractClient.simulate(
@@ -1464,22 +1464,19 @@ export class MACI {
             value: {
               sender: address,
               contract: contractAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
 
       return await client.preAddNewKey(
@@ -1489,8 +1486,8 @@ export class MACI {
           nullifier: nullifier.toString(),
           pubkey: {
             x: newPubkey[0].toString(),
-            y: newPubkey[1].toString(),
-          },
+            y: newPubkey[1].toString()
+          }
         },
         grantFee
       );
@@ -1498,7 +1495,7 @@ export class MACI {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: granter || contractAddress,
+        granter: granter || contractAddress
       };
 
       return await client.preAddNewKey(
@@ -1508,8 +1505,8 @@ export class MACI {
           nullifier: nullifier.toString(),
           pubkey: {
             x: newPubkey[0].toString(),
-            y: newPubkey[1].toString(),
-          },
+            y: newPubkey[1].toString()
+          }
         },
         grantFee
       );
@@ -1522,8 +1519,8 @@ export class MACI {
         nullifier: nullifier.toString(),
         pubkey: {
           x: newPubkey[0].toString(),
-          y: newPubkey[1].toString(),
-        },
+          y: newPubkey[1].toString()
+        }
       },
       fee
     );
@@ -1532,7 +1529,7 @@ export class MACI {
   async claimAMaciRound({
     signer,
     contractAddress,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1540,7 +1537,7 @@ export class MACI {
   }) {
     const client = await this.contract.amaciClient({
       signer,
-      contractAddress,
+      contractAddress
     });
 
     return client.claim(fee);
@@ -1564,7 +1561,7 @@ export class MACI {
     contractAddress,
     address,
     amount,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1573,7 +1570,7 @@ export class MACI {
     fee?: number | StdFee | 'auto';
   }) {
     const client = await this.contract.contractClient({
-      signer,
+      signer
     });
 
     if (!address) {
@@ -1590,12 +1587,12 @@ export class MACI {
             JSON.stringify(
               stringizing({
                 grant: {
-                  max_amount: BigInt('100000000000000000000000'),
-                },
+                  max_amount: BigInt('100000000000000000000000')
+                }
               })
             )
-          ),
-        }),
+          )
+        })
       },
       {
         typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
@@ -1605,18 +1602,18 @@ export class MACI {
           msg: new TextEncoder().encode(
             JSON.stringify(
               stringizing({
-                bond: {},
+                bond: {}
               })
             )
           ),
           funds: [
             {
               denom: 'peaka',
-              amount,
-            },
-          ],
-        }),
-      },
+              amount
+            }
+          ]
+        })
+      }
     ];
 
     try {
@@ -1638,7 +1635,7 @@ export class MACI {
     signer,
     contractAddress,
     address,
-    fee = 'auto',
+    fee = 'auto'
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1646,7 +1643,7 @@ export class MACI {
     fee?: number | StdFee | 'auto';
   }) {
     const client = await this.contract.contractClient({
-      signer,
+      signer
     });
 
     if (!address) {
@@ -1662,11 +1659,11 @@ export class MACI {
           msg: new TextEncoder().encode(
             JSON.stringify(
               stringizing({
-                withdraw: {},
+                withdraw: {}
               })
             )
-          ),
-        }),
+          )
+        })
       },
       {
         typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
@@ -1676,12 +1673,12 @@ export class MACI {
           msg: new TextEncoder().encode(
             JSON.stringify(
               stringizing({
-                revoke: {},
+                revoke: {}
               })
             )
-          ),
-        }),
-      },
+          )
+        })
+      }
     ];
 
     try {

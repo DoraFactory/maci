@@ -500,3 +500,14 @@ export type VoterClientParams = {
   customFetch?: typeof fetch;
   defaultOptions?: FetchOptions;
 };
+
+export type OperatorClientParams = {
+  network: 'mainnet' | 'testnet';
+  mnemonic?: string;
+  secretKey?: string | bigint;
+  registryAddress?: string;
+  apiEndpoint?: string; // Indexer GraphQL API endpoint
+  restEndpoint?: string; // DoraVota REST API endpoint
+  customFetch?: typeof fetch;
+  defaultOptions?: FetchOptions;
+};

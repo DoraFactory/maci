@@ -226,6 +226,21 @@ export class EdDSAPoseidonKeypair extends Keypair {
     return bytesToHex(bigInt2Buffer(this.keypair.secretKey));
   }
 
+  /**
+   * Get the secret key as a bigint.
+   *
+   * Returns the secret key component of this keypair as a bigint.
+   *
+   * @returns The secret key as a bigint
+   */
+  getPrivateKey(): bigint {
+    return this.keypair.secretKey;
+  }
+
+  asCircuitInputs(): string {
+    return this.keypair.formatedPrivKey.toString();
+  }
+
   getFormatedPrivKey(): bigint {
     return this.keypair.formatedPrivKey;
   }

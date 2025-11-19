@@ -9,4 +9,5 @@ export * from './babyjub';
 export * from './curve';
 export * from './adapter';
 export * from './rerandomize';
+export * from './pack';
 export type { Keypair, PubKey, PrivKey } from './types';

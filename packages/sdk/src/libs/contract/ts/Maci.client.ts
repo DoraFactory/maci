@@ -4,11 +4,7 @@
  * and run the @cosmwasm/ts-codegen generate command to regenerate this file.
  */
 
-import {
-  CosmWasmClient,
-  SigningCosmWasmClient,
-  ExecuteResult,
-} from '@cosmjs/cosmwasm-stargate';
+import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from '@cosmjs/cosmwasm-stargate';
 import { Coin, StdFee } from '@cosmjs/amino';
 import {
   Uint256,
@@ -34,7 +30,7 @@ import {
   PeriodStatus,
   Period,
   Boolean,
-  ArrayOfString,
+  ArrayOfString
 } from './Maci.types';
 export interface MaciReadOnlyInterface {
   contractAddress: string;
@@ -86,111 +82,107 @@ export class MaciQueryClient implements MaciReadOnlyInterface {
   }
   getRoundInfo = async (): Promise<RoundInfo> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_round_info: {},
+      get_round_info: {}
     });
   };
   getVotingTime = async (): Promise<VotingTime> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_voting_time: {},
+      get_voting_time: {}
     });
   };
   getPeriod = async (): Promise<Period> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_period: {},
+      get_period: {}
     });
   };
   getNumSignUp = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_num_sign_up: {},
+      get_num_sign_up: {}
     });
   };
   getMsgChainLength = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_msg_chain_length: {},
+      get_msg_chain_length: {}
     });
   };
   getProcessedMsgCount = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_processed_msg_count: {},
+      get_processed_msg_count: {}
     });
   };
   getProcessedUserCount = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_processed_user_count: {},
+      get_processed_user_count: {}
     });
   };
   getResult = async ({ index }: { index: Uint256 }): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_result: {
-        index,
-      },
+        index
+      }
     });
   };
   getAllResult = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_all_result: {},
+      get_all_result: {}
     });
   };
   getStateIdxInc = async ({ address }: { address: Addr }): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_state_idx_inc: {
-        address,
-      },
+        address
+      }
     });
   };
-  getVoiceCreditBalance = async ({
-    index,
-  }: {
-    index: Uint256;
-  }): Promise<Uint256> => {
+  getVoiceCreditBalance = async ({ index }: { index: Uint256 }): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_voice_credit_balance: {
-        index,
-      },
+        index
+      }
     });
   };
   whiteList = async (): Promise<Whitelist> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      white_list: {},
+      white_list: {}
     });
   };
   isWhiteList = async ({ sender }: { sender: string }): Promise<Boolean> => {
     return this.client.queryContractSmart(this.contractAddress, {
       is_white_list: {
-        sender,
-      },
+        sender
+      }
     });
   };
   whiteBalanceOf = async ({ sender }: { sender: string }): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       white_balance_of: {
-        sender,
-      },
+        sender
+      }
     });
   };
   voteOptionMap = async (): Promise<ArrayOfString> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      vote_option_map: {},
+      vote_option_map: {}
     });
   };
   maxVoteOptions = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      max_vote_options: {},
+      max_vote_options: {}
     });
   };
   queryTotalFeeGrant = async (): Promise<Uint128> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      query_total_fee_grant: {},
+      query_total_fee_grant: {}
     });
   };
   queryCircuitType = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      query_circuit_type: {},
+      query_circuit_type: {}
     });
   };
   queryCertSystem = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      query_cert_system: {},
+      query_cert_system: {}
     });
   };
 }
@@ -202,7 +194,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
       intStateTreeDepth,
       messageBatchSize,
       stateTreeDepth,
-      voteOptionTreeDepth,
+      voteOptionTreeDepth
     }: {
       intStateTreeDepth: Uint256;
       messageBatchSize: Uint256;
@@ -215,7 +207,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   setRoundInfo: (
     {
-      roundInfo,
+      roundInfo
     }: {
       roundInfo: RoundInfo;
     },
@@ -225,7 +217,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   setWhitelists: (
     {
-      whitelists,
+      whitelists
     }: {
       whitelists: Whitelist;
     },
@@ -235,7 +227,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   setVoteOptionsMap: (
     {
-      voteOptionMap,
+      voteOptionMap
     }: {
       voteOptionMap: string[];
     },
@@ -250,7 +242,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   signUp: (
     {
-      pubkey,
+      pubkey
     }: {
       pubkey: PubKey;
     },
@@ -271,7 +263,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
   publishMessage: (
     {
       encPubKey,
-      message,
+      message
     }: {
       encPubKey: PubKey;
       message: MessageData;
@@ -284,7 +276,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
     {
       groth16Proof,
       newStateCommitment,
-      plonkProof,
+      plonkProof
     }: {
       groth16Proof?: Groth16ProofType;
       newStateCommitment: Uint256;
@@ -303,7 +295,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
     {
       groth16Proof,
       newTallyCommitment,
-      plonkProof,
+      plonkProof
     }: {
       groth16Proof?: Groth16ProofType;
       newTallyCommitment: Uint256;
@@ -316,7 +308,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
   stopTallyingPeriod: (
     {
       results,
-      salt,
+      salt
     }: {
       results: Uint256[];
       salt: Uint256;
@@ -327,7 +319,7 @@ export interface MaciInterface extends MaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   grant: (
     {
-      maxAmount,
+      maxAmount
     }: {
       maxAmount: Uint128;
     },
@@ -340,14 +332,10 @@ export interface MaciInterface extends MaciReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
-  bond: (
-    fee?: number | StdFee | 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ) => Promise<ExecuteResult>;
+  bond: (fee?: number | StdFee | 'auto', memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   withdraw: (
     {
-      amount,
+      amount
     }: {
       amount?: Uint128;
     },
@@ -360,11 +348,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   client: SigningCosmWasmClient;
   sender: string;
   contractAddress: string;
-  constructor(
-    client: SigningCosmWasmClient,
-    sender: string,
-    contractAddress: string
-  ) {
+  constructor(client: SigningCosmWasmClient, sender: string, contractAddress: string) {
     super(client, contractAddress);
     this.client = client;
     this.sender = sender;
@@ -392,7 +376,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       intStateTreeDepth,
       messageBatchSize,
       stateTreeDepth,
-      voteOptionTreeDepth,
+      voteOptionTreeDepth
     }: {
       intStateTreeDepth: Uint256;
       messageBatchSize: Uint256;
@@ -411,8 +395,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
           int_state_tree_depth: intStateTreeDepth,
           message_batch_size: messageBatchSize,
           state_tree_depth: stateTreeDepth,
-          vote_option_tree_depth: voteOptionTreeDepth,
-        },
+          vote_option_tree_depth: voteOptionTreeDepth
+        }
       },
       fee,
       memo,
@@ -421,7 +405,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   };
   setRoundInfo = async (
     {
-      roundInfo,
+      roundInfo
     }: {
       roundInfo: RoundInfo;
     },
@@ -434,8 +418,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.contractAddress,
       {
         set_round_info: {
-          round_info: roundInfo,
-        },
+          round_info: roundInfo
+        }
       },
       fee,
       memo,
@@ -444,7 +428,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   };
   setWhitelists = async (
     {
-      whitelists,
+      whitelists
     }: {
       whitelists: Whitelist;
     },
@@ -457,8 +441,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.contractAddress,
       {
         set_whitelists: {
-          whitelists,
-        },
+          whitelists
+        }
       },
       fee,
       memo,
@@ -467,7 +451,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   };
   setVoteOptionsMap = async (
     {
-      voteOptionMap,
+      voteOptionMap
     }: {
       voteOptionMap: string[];
     },
@@ -480,8 +464,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.contractAddress,
       {
         set_vote_options_map: {
-          vote_option_map: voteOptionMap,
-        },
+          vote_option_map: voteOptionMap
+        }
       },
       fee,
       memo,
@@ -497,7 +481,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.sender,
       this.contractAddress,
       {
-        start_voting_period: {},
+        start_voting_period: {}
       },
       fee,
       memo,
@@ -506,7 +490,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   };
   signUp = async (
     {
-      pubkey,
+      pubkey
     }: {
       pubkey: PubKey;
     },
@@ -519,8 +503,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.contractAddress,
       {
         sign_up: {
-          pubkey,
-        },
+          pubkey
+        }
       },
       fee,
       memo,
@@ -536,7 +520,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.sender,
       this.contractAddress,
       {
-        start_process_period: {},
+        start_process_period: {}
       },
       fee,
       memo,
@@ -552,7 +536,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.sender,
       this.contractAddress,
       {
-        stop_voting_period: {},
+        stop_voting_period: {}
       },
       fee,
       memo,
@@ -562,7 +546,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   publishMessage = async (
     {
       encPubKey,
-      message,
+      message
     }: {
       encPubKey: PubKey;
       message: MessageData;
@@ -577,8 +561,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       {
         publish_message: {
           enc_pub_key: encPubKey,
-          message,
-        },
+          message
+        }
       },
       fee,
       memo,
@@ -589,7 +573,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
     {
       groth16Proof,
       newStateCommitment,
-      plonkProof,
+      plonkProof
     }: {
       groth16Proof?: Groth16ProofType;
       newStateCommitment: Uint256;
@@ -606,8 +590,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
         process_message: {
           groth16_proof: groth16Proof,
           new_state_commitment: newStateCommitment,
-          plonk_proof: plonkProof,
-        },
+          plonk_proof: plonkProof
+        }
       },
       fee,
       memo,
@@ -623,7 +607,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.sender,
       this.contractAddress,
       {
-        stop_processing_period: {},
+        stop_processing_period: {}
       },
       fee,
       memo,
@@ -634,7 +618,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
     {
       groth16Proof,
       newTallyCommitment,
-      plonkProof,
+      plonkProof
     }: {
       groth16Proof?: Groth16ProofType;
       newTallyCommitment: Uint256;
@@ -651,8 +635,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
         process_tally: {
           groth16_proof: groth16Proof,
           new_tally_commitment: newTallyCommitment,
-          plonk_proof: plonkProof,
-        },
+          plonk_proof: plonkProof
+        }
       },
       fee,
       memo,
@@ -662,7 +646,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   stopTallyingPeriod = async (
     {
       results,
-      salt,
+      salt
     }: {
       results: Uint256[];
       salt: Uint256;
@@ -677,8 +661,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       {
         stop_tallying_period: {
           results,
-          salt,
-        },
+          salt
+        }
       },
       fee,
       memo,
@@ -687,7 +671,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   };
   grant = async (
     {
-      maxAmount,
+      maxAmount
     }: {
       maxAmount: Uint128;
     },
@@ -700,8 +684,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.contractAddress,
       {
         grant: {
-          max_amount: maxAmount,
-        },
+          max_amount: maxAmount
+        }
       },
       fee,
       memo,
@@ -717,7 +701,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.sender,
       this.contractAddress,
       {
-        revoke: {},
+        revoke: {}
       },
       fee,
       memo,
@@ -733,7 +717,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.sender,
       this.contractAddress,
       {
-        bond: {},
+        bond: {}
       },
       fee,
       memo,
@@ -742,7 +726,7 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
   };
   withdraw = async (
     {
-      amount,
+      amount
     }: {
       amount?: Uint128;
     },
@@ -755,8 +739,8 @@ export class MaciClient extends MaciQueryClient implements MaciInterface {
       this.contractAddress,
       {
         withdraw: {
-          amount,
-        },
+          amount
+        }
       },
       fee,
       memo,
