@@ -275,12 +275,7 @@ export interface DelayRecord {
   delay_timestamp: Timestamp;
   delay_type: DelayType;
 }
-export type PeriodStatus =
-  | 'pending'
-  | 'voting'
-  | 'processing'
-  | 'tallying'
-  | 'ended';
+export type PeriodStatus = 'pending' | 'voting' | 'processing' | 'tallying' | 'ended';
 export interface Period {
   status: PeriodStatus;
 }
