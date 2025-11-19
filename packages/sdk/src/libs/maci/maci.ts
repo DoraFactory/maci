@@ -839,7 +839,15 @@ export class MACI {
     });
 
     const messages = payload.map((p) => ({
-      data: p.msg.map((m) => m.toString())
+      data: p.msg.map((m) => m.toString()) as [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string
+      ]
     }));
 
     const encPubKeys = payload.map((p) => ({
