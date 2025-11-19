@@ -1,117 +1,115 @@
-# CI/CD 工作流程说明
+# CI/CD Workflow Documentation
 
-本目录包含 GitHub Actions 的 CI/CD 配置文件。
+This directory contains CI/CD configuration files for GitHub Actions.
 
-## test.yml - 自动化测试工作流
+## test.yml - Automated Testing Workflow
 
-### 触发条件
-- 所有分支的 `push` 事件
-- 所有分支的 `pull_request` 事件
+### Trigger Conditions
+- `push` events on all branches (including pushes after PR merge)
 
-### 测试任务
+### Test Jobs
 
-工作流包含三个并行运行的测试任务：
+The workflow contains three test jobs that run in parallel:
 
-#### 1. Contract Tests（合约测试）
-- **运行环境**: Ubuntu Latest
-- **时长**: 约 10-20 分钟
-- **步骤**:
-  1. 设置 Rust 1.79.0 工具链
-  2. 配置 Cargo 缓存（加速后续构建）
-  3. 运行命令: `cargo test --lib -- --nocapture`
+#### 1. Contract Tests
+- **Runtime Environment**: Ubuntu Latest
+- **Duration**: Approximately 10-20 minutes
+- **Steps**:
+  1. Setup Rust 1.79.0 toolchain
+  2. Configure Cargo cache (to speed up subsequent builds)
+  3. Run command: `cargo test --lib -- --nocapture`
 
-#### 2. E2E Tests（端到端测试）
-- **运行环境**: Ubuntu Latest
-- **时长**: 约 40-60 分钟
-- **步骤**:
-  1. 设置 Rust 工具链
-  2. 使用 Docker + rust-optimizer 编译合约 WASM 文件
-  3. 设置 Node.js 18 和 pnpm 9.12.3
-  4. 下载并缓存 circuit zkey 文件（约 100MB）
-  5. 安装依赖并运行 e2e 测试
+#### 2. E2E Tests
+- **Runtime Environment**: macOS-14 (Apple Silicon M1/M2)
+- **Duration**: Approximately 40-60 minutes
+- **Steps**:
+  1. Setup Rust toolchain
+  2. Compile contract WASM files using Docker + rust-optimizer
+  3. Setup Node.js 22 and pnpm 9.12.3
+  4. Download and cache circuit zkey files (approximately 100MB)
+  5. Install dependencies and run e2e tests
 
-**注意事项**:
-- 首次运行需要编译合约（约 15-20 分钟）
-- 首次运行需要下载 zkey 文件（约 5-10 分钟）
-- 后续运行会使用缓存，速度更快
-- Circuit 文件会被缓存，避免重复下载
+**Notes**:
+- First run requires contract compilation (approximately 15-20 minutes)
+- First run requires downloading zkey files (approximately 5-10 minutes)
+- Subsequent runs use cache and are faster
+- Circuit files are cached to avoid repeated downloads
 
-#### 3. Circuits Tests（电路测试）
-- **运行环境**: Ubuntu Latest
-- **时长**: 约 10-15 分钟
-- **步骤**:
-  1. 设置 Node.js 18 和 pnpm 9.12.3
-  2. 安装依赖
-  3. 运行 circuits 测试
+#### 3. Circuits Tests
+- **Runtime Environment**: Ubuntu Latest
+- **Duration**: Approximately 10-15 minutes
+- **Steps**:
+  1. Setup Node.js 22 and pnpm 9.12.3
+  2. Install dependencies
+  3. Run circuits tests
 
-### 缓存策略
+### Caching Strategy
 
-为了加速 CI 运行，配置了以下缓存：
+The following caches are configured to speed up CI runs:
 
-1. **Cargo 缓存**:
+1. **Cargo Cache**:
    - `~/.cargo/registry` - Cargo registry
-   - `~/.cargo/git` - Cargo git 依赖
-   - `target/` - 编译产物
+   - `~/.cargo/git` - Cargo git dependencies
+   - `target/` - Build artifacts
 
-2. **pnpm 缓存**:
-   - pnpm store - Node.js 依赖
+2. **pnpm Cache**:
+   - pnpm store - Node.js dependencies
 
-3. **Circuit 文件缓存**:
-   - `e2e/circuits/` - zkey 和 wasm 文件
+3. **Circuit Files Cache**:
+   - `e2e/circuits/` - zkey and wasm files
 
-### 预计总时长
+### Estimated Total Duration
 
-- **首次运行**: 约 60 分钟（并行执行）
-- **后续运行**: 约 20-30 分钟（得益于缓存）
+- **First Run**: Approximately 60 minutes (parallel execution)
+- **Subsequent Runs**: Approximately 20-30 minutes (benefiting from cache)
 
-### 查看测试结果
+### Viewing Test Results
 
-1. 进入 GitHub 仓库
-2. 点击 "Actions" 标签
-3. 选择对应的 workflow run
-4. 查看各个任务的执行状态和日志
+1. Go to the GitHub repository
+2. Click on the "Actions" tab
+3. Select the corresponding workflow run
+4. View the execution status and logs for each job
 
-### 本地测试
+### Local Testing
 
-在提交前，可以在本地运行相同的测试：
+Before committing, you can run the same tests locally:
 
 ```bash
-# 合约测试
+# Contract tests
 cargo test --lib -- --nocapture
 
-# E2E 测试
+# E2E tests
 cd e2e
 pnpm install
-pnpm setup-circuits  # 首次运行需要
+pnpm setup-circuits  # Required for first run
 pnpm test
 
-# Circuits 测试
+# Circuits tests
 cd packages/circuits
 pnpm install
 pnpm test
 ```
 
-### 故障排查
+### Troubleshooting
 
-#### E2E 测试失败
-- 检查合约是否成功编译
-- 检查 circuit 文件是否下载成功
-- 查看具体的测试日志
+#### E2E Test Failures
+- Check if contracts compiled successfully
+- Check if circuit files downloaded successfully
+- Review specific test logs
 
-#### Circuits 测试失败
-- 检查 Node.js 内存是否足够
-- 查看具体的测试用例失败原因
+#### Circuits Test Failures
+- Check if Node.js has sufficient memory
+- Review specific test case failure reasons
 
-#### 缓存问题
-如果缓存导致问题，可以在 GitHub Actions 页面清除缓存：
+#### Cache Issues
+If cache causes issues, you can clear the cache in the GitHub Actions page:
 1. Settings -> Actions -> Caches
-2. 删除相关缓存
-3. 重新运行 workflow
+2. Delete relevant caches
+3. Re-run the workflow
 
-### 维护
+### Maintenance
 
-- 定期检查依赖更新
-- 更新 Rust 工具链版本（`rust-toolchain.toml`）
-- 更新 Node.js 版本
-- 更新 pnpm 版本
-
+- Regularly check for dependency updates
+- Update Rust toolchain version (`rust-toolchain.toml`)
+- Update Node.js version
+- Update pnpm version
