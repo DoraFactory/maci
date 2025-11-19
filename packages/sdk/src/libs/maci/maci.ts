@@ -669,6 +669,19 @@ export class MACI {
       });
 
       const payload = batchGenMessage(stateIdx, maciKeypair, operatorCoordPubKey, plan);
+
+      // Use batch publish for amaci
+      if (round.data.round.maciType === 'aMACI') {
+        return await this.publishMessageBatch({
+          signer,
+          address,
+          payload,
+          contractAddress,
+          gasStation,
+          fee
+        });
+      }
+
       const client = await this.contract.contractClient({
         signer
       });
@@ -794,6 +807,90 @@ export class MACI {
     }
 
     return client.signAndBroadcast(address, msgs, fee);
+  }
+
+  async publishMessageBatch({
+    signer,
+    address,
+    payload,
+    contractAddress,
+    gasStation,
+    granter,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    address?: string;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PubKey;
+    }[];
+    contractAddress: string;
+    gasStation?: boolean;
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
+
+    const amaciClient = await this.contract.amaciClient({
+      signer,
+      contractAddress
+    });
+
+    const messages = payload.map((p) => ({
+      data: p.msg.map((m) => m.toString())
+    }));
+
+    const encPubKeys = payload.map((p) => ({
+      x: p.encPubkeys[0].toString(),
+      y: p.encPubkeys[1].toString()
+    }));
+
+    if (gasStation && typeof fee !== 'object') {
+      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+      const client = await this.contract.contractClient({ signer });
+      const encPubKeysBigInt = payload.map((p) => [p.encPubkeys[0], p.encPubkeys[1]]);
+      const messagesBigInt = payload.map((p) => ({
+        data: p.msg
+      }));
+      const msg: MsgExecuteContractEncodeObject = {
+        typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+        value: MsgExecuteContract.fromPartial({
+          sender: address,
+          contract: contractAddress,
+          msg: new TextEncoder().encode(
+            JSON.stringify(
+              stringizing({
+                publish_message_batch: {
+                  enc_pub_keys: encPubKeysBigInt,
+                  messages: messagesBigInt
+                }
+              })
+            )
+          )
+        })
+      };
+      const gasEstimation = await client.simulate(address, [msg], '');
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: granter || contractAddress
+      };
+      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee);
+    } else if (gasStation && typeof fee === 'object') {
+      // When gasStation is true and fee is StdFee, add granter
+      const grantFee: StdFee = {
+        ...fee,
+        granter: granter || contractAddress
+      };
+      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee);
+    }
+
+    return amaciClient.publishMessageBatch({ encPubKeys, messages }, fee);
   }
 
   async signupSimple({
