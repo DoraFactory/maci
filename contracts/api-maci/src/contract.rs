@@ -375,6 +375,10 @@ pub fn execute(
             message,
             enc_pub_key,
         } => execute_publish_message(deps, env, info, message, enc_pub_key),
+        ExecuteMsg::PublishMessageBatch {
+            messages,
+            enc_pub_keys,
+        } => execute_publish_message_batch(deps, env, info, messages, enc_pub_keys),
         ExecuteMsg::StartProcessPeriod {} => execute_start_process_period(deps, env, info),
         ExecuteMsg::ProcessMessage {
             new_state_commitment,
@@ -691,6 +695,106 @@ pub fn execute_publish_message(
             .add_attribute("action", "publish_message")
             .add_attribute("event", "error user."))
     }
+}
+
+// in voting - batch version
+pub fn execute_publish_message_batch(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    messages: Vec<MessageData>,
+    enc_pub_keys: Vec<PubKey>,
+) -> Result<Response, ContractError> {
+    // Check if the period status is Voting (once for the entire batch)
+    let voting_time = VOTINGTIME.load(deps.storage)?;
+    check_voting_time(env, voting_time)?;
+
+    // Validate that messages and enc_pub_keys have the same length
+    if messages.len() != enc_pub_keys.len() {
+        return Err(ContractError::BatchLengthMismatch {
+            messages_len: messages.len(),
+            enc_pub_keys_len: enc_pub_keys.len(),
+        });
+    }
+
+    // Load the scalar field value (once for the entire batch)
+    let snark_scalar_field = get_snark_scalar_field();
+
+    // Record the starting chain length
+    let start_chain_length = MSG_CHAIN_LENGTH.load(deps.storage)?;
+    let batch_size = messages.len();
+
+    // Build attributes for the batch
+    let mut attributes = vec![
+        attr("action", "publish_message_batch"),
+        attr("batch_size", batch_size.to_string()),
+        attr("start_chain_length", start_chain_length.to_string()),
+    ];
+
+    // Process each message in the batch
+    let mut msg_chain_length = start_chain_length;
+
+    for (i, (message, enc_pub_key)) in messages.iter().zip(enc_pub_keys.iter()).enumerate() {
+        // Check if the encrypted public key is valid
+        if enc_pub_key.x != Uint256::from_u128(0u128)
+            && enc_pub_key.y != Uint256::from_u128(1u128)
+            && enc_pub_key.x < snark_scalar_field
+            && enc_pub_key.y < snark_scalar_field
+        {
+            // Check if enc_pub_key has already been used
+            let pubkey_storage_key = generate_pubkey_storage_key(&enc_pub_key);
+            if USED_ENC_PUB_KEYS.has(deps.storage, pubkey_storage_key.clone()) {
+                return Err(ContractError::EncPubKeyAlreadyUsed {});
+            }
+
+            // Mark this enc_pub_key as used
+            USED_ENC_PUB_KEYS.save(deps.storage, pubkey_storage_key, &true)?;
+
+            let old_msg_hashes =
+                MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
+
+            // Compute the new message hash using the provided message, encrypted public key, and previous hash
+            let new_hash =
+                hash_message_and_enc_pub_key(message.clone(), enc_pub_key.clone(), old_msg_hashes);
+            MSG_HASHES.save(
+                deps.storage,
+                (msg_chain_length + Uint256::from_u128(1u128))
+                    .to_be_bytes()
+                    .to_vec(),
+                &new_hash,
+            )?;
+
+            // Add individual message attributes
+            attributes.push(attr(
+                format!("msg_{}_chain_length", i),
+                msg_chain_length.to_string(),
+            ));
+            attributes.push(attr(
+                format!("msg_{}_data", i),
+                format!("{:?}", message.data),
+            ));
+            attributes.push(attr(
+                format!("msg_{}_enc_pub_key", i),
+                format!(
+                    "{:?},{:?}",
+                    enc_pub_key.x.to_string(),
+                    enc_pub_key.y.to_string()
+                ),
+            ));
+
+            // Update the message chain length
+            msg_chain_length += Uint256::from_u128(1u128);
+        }
+    }
+
+    // Save the final chain length (once for the entire batch)
+    MSG_CHAIN_LENGTH.save(deps.storage, &msg_chain_length)?;
+
+    // Add the ending chain length to attributes
+    attributes.push(attr("end_chain_length", msg_chain_length.to_string()));
+
+    // Return a success response with all attributes
+    Ok(Response::new().add_attributes(attributes))
 }
 
 pub fn execute_start_process_period(

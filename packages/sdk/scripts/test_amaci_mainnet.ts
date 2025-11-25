@@ -11,7 +11,7 @@
 
 import { MaciClient } from '../src/maci';
 import { VoterClient } from '../src/voter';
-import { MaciCircuitType } from '../src/types';
+import { MaciCircuitType, PubKey } from '../src/types';
 import * as path from 'path';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -23,10 +23,12 @@ function generateRandomString(length: number) {
 }
 
 async function main() {
-  const network = 'testnet';
-  const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
-  const operatorPubkey =
-    10721319678265866063861912417916780787229942812531198850410477756757845824096n;
+  const network = 'mainnet';
+  const operator = 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4';
+  const operatorPubkey = [
+    1815360346961449660304628500630863783773328239515529681920310230078929610635n,
+    1543204810362218394850028913632376147290317641442164443830849121941234286792n
+  ] as PubKey;
 
   console.log('='.repeat(80));
   console.log('Pre-Add-New-Key and Pre-Deactivate API Complete Test (MaciClient & VoterClient)');
@@ -239,24 +241,25 @@ async function main() {
     // ==================== 5. Test Voting ====================
     console.log('\n[5/5] Testing Voting (with auto payload generation)');
 
+    // Use saasVote: builds payload + submits vote
+    // Odd indices vote 1, even indices vote 2
+    const selectedOptions: Array<{ idx: number; vc: number }> = [];
+    for (let i = 0; i < 25; i++) {
+      if (i % 2 === 0) {
+        // Even indices vote 2
+        selectedOptions.push({ idx: i, vc: 2 });
+      } else {
+        // Odd indices vote 1
+        selectedOptions.push({ idx: i, vc: 1 });
+      }
+    }
     const voteResult = await account.saasVote({
       contractAddress,
       operatorPubkey,
-      selectedOptions: [
-        { idx: 0, vc: 1 },
-        { idx: 2, vc: 1 },
-        { idx: 3, vc: 1 }
-      ]
+      selectedOptions
     });
 
     console.log('✓ Voting succeeded!', voteResult);
-    const voteResult2 = await account.saasVote({
-      contractAddress,
-      operatorPubkey,
-      selectedOptions: [{ idx: 3, vc: 2 }]
-    });
-
-    console.log('✓ Voting succeeded!', voteResult2);
   } catch (error) {
     console.log('⚠ Failed:', error);
     if (error instanceof Error) {

@@ -135,6 +135,40 @@ export class VoterClient {
     return this.accountManager.getKeyPair(derivePathParams).getPublicKey();
   }
 
+  /**
+   * Normalize and validate vote options.
+   * This method performs duplicate checking, filtering, sorting, and format conversion.
+   *
+   * @param selectedOptions - Array of vote options with idx and vc
+   * @returns Normalized plan format: [voteOptionIndex, voteWeight][]
+   * @throws Error if duplicate option indices are found
+   */
+  normalizeVoteOptions(
+    selectedOptions: {
+      idx: number;
+      vc: number;
+    }[]
+  ): [number, number][] {
+    // Check for duplicate options
+    const idxSet = new Set<number>();
+    for (const option of selectedOptions) {
+      if (idxSet.has(option.idx)) {
+        throw new Error(`Duplicate option index (${option.idx}) is not allowed`);
+      }
+      idxSet.add(option.idx);
+    }
+
+    // Filter and sort options
+    const options = selectedOptions.filter((o) => !!o.vc).sort((a, b) => a.idx - b.idx);
+
+    // Convert to plan format
+    const plan = options.map((o) => {
+      return [o.idx, o.vc] as [number, number];
+    });
+
+    return plan;
+  }
+
   buildVotePayload({
     stateIdx,
     operatorPubkey,
@@ -149,21 +183,7 @@ export class VoterClient {
     }[];
     derivePathParams?: DerivePathParams;
   }) {
-    // Check for duplicate options
-    const idxSet = new Set();
-    for (const option of selectedOptions) {
-      if (idxSet.has(option.idx)) {
-        throw new Error(`Duplicate option index (${option.idx}) is not allowed`);
-      }
-      idxSet.add(option.idx);
-    }
-
-    // Filter and sort options
-    const options = selectedOptions.filter((o) => !!o.vc).sort((a, b) => a.idx - b.idx);
-
-    const plan = options.map((o) => {
-      return [o.idx, o.vc] as [number, number];
-    });
+    const plan = this.normalizeVoteOptions(selectedOptions);
 
     const payload = this.batchGenMessage(stateIdx, operatorPubkey, plan, derivePathParams);
 
@@ -185,7 +205,8 @@ export class VoterClient {
     for (let i = plan.length - 1; i >= 0; i--) {
       const p = plan[i];
       const encAccount = genKeypair();
-      const msg = genMessage(BigInt(encAccount.privKey), i + 1, p[0], p[1], i === plan.length - 1);
+      const isLastCmd = i === plan.length - 1;
+      const msg = genMessage(BigInt(encAccount.privKey), i + 1, p[0], p[1], isLastCmd);
 
       payload.push({
         msg,
@@ -228,9 +249,12 @@ export class VoterClient {
 
       const signer = this.getSigner(derivePathParams);
 
-      let newPubKey = [...signer.getPublicKey().toPoints()];
+      let newPubKey: PubKey;
       if (isLastCmd) {
         newPubKey = [0n, 0n];
+      } else {
+        // For non-last commands, keep the current public key (no rotation)
+        newPubKey = [...signer.getPublicKey().toPoints()];
       }
 
       const hash = poseidon([packaged, ...newPubKey]);
