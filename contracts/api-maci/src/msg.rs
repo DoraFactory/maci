@@ -222,6 +222,9 @@ pub enum QueryMsg {
 
     #[returns(Uint256)]
     GetNode { index: Uint256 },
+
+    #[returns(Option<Uint256>)]
+    Signuped { pubkey: PubKey },
 }
 
 #[cw_serde]

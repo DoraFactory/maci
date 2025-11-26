@@ -206,8 +206,8 @@ pub enum QueryMsg {
 
     // #[returns(Uint256)]
     // WhiteBalanceOf { sender: String },
-    #[returns(Uint256)]
-    Signuped { pubkey_x: Uint256 },
+    #[returns(Option<Uint256>)]
+    Signuped { pubkey: PubKey },
 
     #[returns(Vec<String>)]
     VoteOptionMap {},

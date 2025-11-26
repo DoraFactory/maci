@@ -715,9 +715,9 @@ impl MaciContract {
             .query_wasm_smart(self.addr(), &QueryMsg::GetNumSignUp {})
     }
 
-    pub fn signuped(&self, app: &App, pubkey_x: Uint256) -> StdResult<Uint256> {
+    pub fn signuped(&self, app: &App, pubkey: PubKey) -> StdResult<Option<Uint256>> {
         app.wrap()
-            .query_wasm_smart(self.addr(), &QueryMsg::Signuped { pubkey_x })
+            .query_wasm_smart(self.addr(), &QueryMsg::Signuped { pubkey })
     }
 
     pub fn vote_option_map(&self, app: &App) -> StdResult<Vec<String>> {
@@ -1099,9 +1099,9 @@ impl MaciContract {
             .query_wasm_smart(self.addr(), &QueryMsg::GetNumSignUp {})
     }
 
-    pub fn amaci_signuped(&self, app: &DefaultApp, pubkey_x: Uint256) -> StdResult<Uint256> {
+    pub fn amaci_signuped(&self, app: &DefaultApp, pubkey: PubKey) -> StdResult<Option<Uint256>> {
         app.wrap()
-            .query_wasm_smart(self.addr(), &QueryMsg::Signuped { pubkey_x })
+            .query_wasm_smart(self.addr(), &QueryMsg::Signuped { pubkey })
     }
 
     pub fn amaci_vote_option_map(&self, app: &DefaultApp) -> StdResult<Vec<String>> {

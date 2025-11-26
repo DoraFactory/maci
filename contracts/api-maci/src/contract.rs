@@ -13,8 +13,8 @@ use crate::state::{
     GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS, MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS,
     MAX_WHITELIST_NUM, MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NUMSIGNUPS, ORACLE_WHITELIST_CONFIG,
     PERIOD, PLONK_PROCESS_VKEYS, PLONK_TALLY_VKEYS, PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT,
-    QTR_LIB, RESULT, ROUNDINFO, STATEIDXINC, TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE,
-    VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS,
+    QTR_LIB, RESULT, ROUNDINFO, SIGNUPED, STATEIDXINC, TOTAL_RESULT, USED_ENC_PUB_KEYS,
+    VOICECREDITBALANCE, VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS,
 };
 use sha2::{Digest as ShaDigest, Sha256};
 
@@ -605,6 +605,15 @@ pub fn execute_sign_up(
         &voting_power,
     )?;
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
+    // Save the actual state_index (0-based), not num_sign_ups
+    SIGNUPED.save(
+        deps.storage,
+        &(
+            pubkey.x.to_be_bytes().to_vec(),
+            pubkey.y.to_be_bytes().to_vec(),
+        ),
+        &state_index,
+    )?;
 
     let white_curr = WhitelistConfig {
         balance: voting_power,
@@ -1782,6 +1791,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .may_load(deps.storage, index.to_be_bytes().to_vec())?
                 .unwrap_or_default();
             to_json_binary::<Uint256>(&node)
+        }
+        QueryMsg::Signuped { pubkey } => {
+            let state_idx = SIGNUPED.may_load(
+                deps.storage,
+                &(
+                    pubkey.x.to_be_bytes().to_vec(),
+                    pubkey.y.to_be_bytes().to_vec(),
+                ),
+            )?;
+            to_json_binary(&state_idx)
         }
     }
 }

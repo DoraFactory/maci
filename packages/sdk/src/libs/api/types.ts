@@ -13,7 +13,7 @@ export interface paths {
     };
     /**
      * Health check
-     * @description Returns liveness of the API service.
+     * @description Returns basic liveness of the API service (database connection check).
      */
     get: {
       parameters: {
@@ -40,6 +40,67 @@ export interface paths {
               time: string;
               /** @description Optional app version/commit */
               version?: string | null;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/health/pools': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Account pool status
+     * @description Returns account pool status for both orchestrator (Redis) and pre-generated (Database) pools.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /**
+               * Format: date-time
+               * @description Server ISO timestamp
+               */
+              timestamp: string;
+              /** @description Orchestrator operator account pool status (Redis) */
+              orchestratorPool: {
+                /** @description Total accounts in pool (configured max) */
+                total: number;
+                /** @description Number of available accounts */
+                available: number;
+                /** @description Number of locked accounts */
+                locked: number;
+                /** @description Percentage of accounts locked */
+                usagePercentage: number;
+              };
+              /** @description Pre-generated account pool status (Database) */
+              preGeneratedPool: {
+                /** @description Number of available pre-generated accounts */
+                available: number;
+              };
             };
           };
         };
@@ -371,7 +432,7 @@ export interface paths {
     put?: never;
     /**
      * Create tenant
-     * @description Creates a new tenant that will own API keys. Public endpoint - anyone can create a tenant.
+     * @description Creates a new tenant that will own API keys. Requires X-Admin-Secret header.
      */
     post: {
       parameters: {
@@ -640,6 +701,8 @@ export interface operations {
           certificate: string;
           /** @description Voice credit amount (optional, defaults to "1") */
           amount?: string;
+          /** @description Round ticket (JWT) for authentication */
+          ticket: string;
         };
       };
     };
@@ -664,6 +727,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */
@@ -697,6 +762,8 @@ export interface operations {
             /** @description Encrypted public keys (2 elements) */
             encPubkeys: string[];
           }[];
+          /** @description Round ticket (JWT) for authentication */
+          ticket: string;
         };
       };
     };
@@ -721,6 +788,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */
@@ -793,6 +862,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */
@@ -863,6 +934,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */
@@ -919,6 +992,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */
@@ -971,6 +1046,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */
@@ -1004,6 +1081,8 @@ export interface operations {
             /** @description Encrypted public keys (2 elements) */
             encPubkeys: string[];
           };
+          /** @description Round ticket (JWT) for authentication */
+          ticket: string;
         };
       };
     };
@@ -1028,6 +1107,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */
@@ -1069,6 +1150,8 @@ export interface operations {
           nullifier: string;
           /** @description New public key (2 elements) */
           newPubkey: string[];
+          /** @description Round ticket (JWT) for authentication */
+          ticket: string;
         };
       };
     };
@@ -1093,6 +1176,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */
@@ -1134,6 +1219,8 @@ export interface operations {
           nullifier: string;
           /** @description New public key (2 elements) */
           newPubkey: string[];
+          /** @description Round ticket (JWT) for authentication */
+          ticket: string;
         };
       };
     };
@@ -1158,6 +1245,8 @@ export interface operations {
             status: 'confirmed' | 'failed';
             /** @description Contract address (for successful transactions) */
             contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
             /** @description Error message (for failed transactions) */
             error?: string;
             /** @description Pre-generated accounts (for pre-deactivate mode only) */

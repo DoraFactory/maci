@@ -58,6 +58,10 @@ pub struct MaciParameters {
 
 pub const STATEIDXINC: Map<&Addr, Uint256> = Map::new("state_idx_inc");
 
+// Map (pubkey.x, pubkey.y) to stateIdx for signup tracking
+// Using both x and y to handle potential x-coordinate collisions on the curve
+pub const SIGNUPED: Map<&(Vec<u8>, Vec<u8>), Uint256> = Map::new("signuped");
+
 pub const ADMIN: Item<Admin> = Item::new("admin");
 pub const PERIOD: Item<Period> = Item::new("period");
 pub const MACIPARAMETERS: Item<MaciParameters> = Item::new("maci_param");

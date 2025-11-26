@@ -354,11 +354,11 @@
         "signuped": {
           "type": "object",
           "required": [
-            "pubkey_x"
+            "pubkey"
           ],
           "properties": {
-            "pubkey_x": {
-              "$ref": "#/definitions/Uint256"
+            "pubkey": {
+              "$ref": "#/definitions/PubKey"
             }
           },
           "additionalProperties": false

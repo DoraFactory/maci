@@ -117,6 +117,37 @@
     {
       "type": "object",
       "required": [
+        "publish_message_batch"
+      ],
+      "properties": {
+        "publish_message_batch": {
+          "type": "object",
+          "required": [
+            "enc_pub_keys",
+            "messages"
+          ],
+          "properties": {
+            "enc_pub_keys": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PubKey"
+              }
+            },
+            "messages": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/MessageData"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "process_message"
       ],
       "properties": {

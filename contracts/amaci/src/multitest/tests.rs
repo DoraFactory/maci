@@ -1261,12 +1261,12 @@ mod test {
         );
 
         assert_eq!(
-            contract.signuped(&app, pubkey0.x).unwrap(),
-            Uint256::from_u128(1u128)
+            contract.signuped(&app, pubkey0.clone()).unwrap(),
+            Some(Uint256::from_u128(0u128))
         );
         assert_eq!(
-            contract.signuped(&app, pubkey1.x).unwrap(),
-            Uint256::from_u128(2u128)
+            contract.signuped(&app, pubkey1.clone()).unwrap(),
+            Some(Uint256::from_u128(1u128))
         );
 
         for entry in &logs_data {
@@ -1700,12 +1700,12 @@ mod test {
         );
 
         assert_eq!(
-            contract.signuped(&app, pubkey0.x).unwrap(),
-            Uint256::from_u128(1u128)
+            contract.signuped(&app, pubkey0.clone()).unwrap(),
+            Some(Uint256::from_u128(0u128))
         );
         assert_eq!(
-            contract.signuped(&app, pubkey1.x).unwrap(),
-            Uint256::from_u128(2u128)
+            contract.signuped(&app, pubkey1.clone()).unwrap(),
+            Some(Uint256::from_u128(1u128))
         );
 
         for entry in &logs_data {
@@ -1992,6 +1992,187 @@ mod test {
         assert_eq!(
             ContractError::OracleWhitelistNotConfigured {},
             no_config_error.downcast().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_query_signuped_state_idx() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let owner = owner();
+        let user1 = user1();
+        let user2 = user2();
+
+        // Create contract with whitelist
+        let maci_contract = code_id
+            .instantiate_with_voting_time(
+                &mut app,
+                owner.clone(),
+                user1.clone(),
+                user2.clone(),
+                "test",
+            )
+            .unwrap();
+
+        // Start voting period
+        app.update_block(next_block);
+
+        // Query non-existent user - should return None
+        let pubkey_non_existent = test_pubkey1();
+        let result: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey_non_existent.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(result, None, "Non-existent user should return None");
+
+        // User1 signs up
+        let pubkey1 = test_pubkey1();
+        maci_contract
+            .sign_up(&mut app, user1.clone(), pubkey1.clone())
+            .unwrap();
+
+        // Query user1's state idx - should be 0 (first user)
+        let state_idx_1: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey1.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state_idx_1,
+            Some(Uint256::from_u128(0)),
+            "First user should have state_idx 0"
+        );
+
+        // User2 signs up
+        let pubkey2 = test_pubkey2();
+        maci_contract
+            .sign_up(&mut app, user2.clone(), pubkey2.clone())
+            .unwrap();
+
+        // Query user2's state idx - should be 1 (second user)
+        let state_idx_2: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey2.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state_idx_2,
+            Some(Uint256::from_u128(1)),
+            "Second user should have state_idx 1"
+        );
+
+        // Query user1 again - should still be 0
+        let state_idx_1_again: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey1.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state_idx_1_again,
+            Some(Uint256::from_u128(0)),
+            "First user should still have state_idx 0"
+        );
+    }
+
+    // Note: Oracle whitelist test omitted as it requires complex setup.
+    // The signuped query functionality for oracle mode is tested implicitly
+    // in the existing comprehensive amaci tests.
+
+    #[test]
+    fn test_query_signuped_pubkey_uniqueness() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let owner = owner();
+        let user1 = user1();
+        let user2 = user2();
+
+        // Create contract with whitelist (using existing instantiate method)
+        let maci_contract = code_id
+            .instantiate_with_voting_time(
+                &mut app,
+                owner.clone(),
+                user1.clone(),
+                user2.clone(),
+                "test",
+            )
+            .unwrap();
+
+        // Start voting period
+        app.update_block(next_block);
+
+        // Two different pubkeys with same x coordinate
+        let pubkey1 = PubKey {
+            x: Uint256::from_u128(100),
+            y: Uint256::from_u128(200),
+        };
+        let pubkey2 = PubKey {
+            x: Uint256::from_u128(100), // Same x as pubkey1
+            y: Uint256::from_u128(300), // Different y
+        };
+
+        // User1 signs up with pubkey1
+        maci_contract
+            .sign_up(&mut app, user1.clone(), pubkey1.clone())
+            .unwrap();
+
+        // User2 signs up with pubkey2 (same x, different y)
+        maci_contract
+            .sign_up(&mut app, user2.clone(), pubkey2.clone())
+            .unwrap();
+
+        // Query both users - they should have different state indices despite same x
+        let idx1: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey1.clone(),
+                },
+            )
+            .unwrap();
+
+        let idx2: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey2.clone(),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(idx1, Some(Uint256::from_u128(0)));
+        assert_eq!(idx2, Some(Uint256::from_u128(1)));
+
+        // Verify that pubkey1 and pubkey2 have same x but different indices
+        assert_eq!(
+            pubkey1.x, pubkey2.x,
+            "pubkey1 and pubkey2 should have same x"
+        );
+        assert_ne!(
+            pubkey1.y, pubkey2.y,
+            "pubkey1 and pubkey2 should have different y"
+        );
+        assert_ne!(
+            idx1, idx2,
+            "Users with same x but different y should have different state indices"
         );
     }
 }

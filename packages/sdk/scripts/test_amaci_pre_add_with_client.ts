@@ -131,10 +131,16 @@ async function main() {
     throw new Error('Contract address not returned');
   }
 
+  const ticket = createRoundData.ticket;
+  if (!ticket) {
+    throw new Error('Ticket not returned');
+  }
+
   console.log('✓ Round created successfully!');
   console.log('  Contract Address:', contractAddress);
   console.log('  Status:', createRoundData.status);
   console.log('  TX Hash:', createRoundData.txHash);
+  console.log('  Ticket:', ticket);
 
   // Verify accounts are returned
   if (!createRoundData.accounts) {
@@ -212,7 +218,8 @@ async function main() {
       coordinatorPubkey: coordinatorPubkey,
       deactivates: deactivateData.deactivates,
       wasmFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.wasm`),
-      zkeyFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.zkey`)
+      zkeyFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.zkey`),
+      ticket: ticket
       //   derivePathParams
     });
     console.log('accountinfo:', account.getSigner().getPrivateKey());
@@ -246,14 +253,16 @@ async function main() {
         { idx: 0, vc: 1 },
         { idx: 2, vc: 1 },
         { idx: 3, vc: 1 }
-      ]
+      ],
+      ticket: ticket
     });
 
     console.log('✓ Voting succeeded!', voteResult);
     const voteResult2 = await account.saasVote({
       contractAddress,
       operatorPubkey,
-      selectedOptions: [{ idx: 3, vc: 2 }]
+      selectedOptions: [{ idx: 3, vc: 2 }],
+      ticket: ticket
     });
 
     console.log('✓ Voting succeeded!', voteResult2);

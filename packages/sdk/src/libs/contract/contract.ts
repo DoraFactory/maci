@@ -2,20 +2,21 @@ import { OfflineSigner } from '@cosmjs/proto-signing';
 import { ContractParams } from '../../types';
 import {
   createAMaciClientBy,
+  createAMaciQueryClientBy,
   createApiMaciClientBy,
   createApiSaasClientBy,
   createContractClientByWallet,
   createMaciClientBy,
   createOracleMaciClientBy,
   createRegistryClientBy,
-  createSaasClientBy,
+  createSaasClientBy
 } from './config';
 import {
   CreateAMaciRoundParams,
   CreateMaciRoundParams,
   CreateOracleMaciRoundParams,
   CreateSaasOracleMaciRoundParams,
-  CreateApiSaasAmaciRoundParams,
+  CreateApiSaasAmaciRoundParams
 } from './types';
 import { getAMaciRoundCircuitFee, getContractParams } from './utils';
 import { QTR_LIB } from './vars';
@@ -45,7 +46,7 @@ export class Contract {
     maciCodeId,
     oracleCodeId,
     feegrantOperator,
-    whitelistBackendPubkey,
+    whitelistBackendPubkey
   }: ContractParams) {
     this.network = network;
     this.rpcEndpoint = rpcEndpoint;
@@ -74,27 +75,22 @@ export class Contract {
     preDeactivateRoot,
     preDeactivateCoordinator,
     oracleWhitelistPubkey,
-    fee = 'auto',
+    fee = 'auto'
   }: CreateAMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 10 ** 6).toString();
     const end_time = (endVoting.getTime() * 10 ** 6).toString();
     const client = await createRegistryClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.registryAddress,
+      contractAddress: this.registryAddress
     });
 
-    const requiredFee = getAMaciRoundCircuitFee(
-      this.network,
-      maxVoter,
-      voteOptionMap.length
-    );
+    const requiredFee = getAMaciRoundCircuitFee(this.network, maxVoter, voteOptionMap.length);
 
     preDeactivateRoot = preDeactivateRoot || '0';
 
     // Convert preDeactivateCoordinator to {x, y} format if provided
-    let preDeactivateCoordinatorPubKey: { x: string; y: string } | undefined =
-      undefined;
+    let preDeactivateCoordinatorPubKey: { x: string; y: string } | undefined = undefined;
     if (preDeactivateCoordinator !== undefined) {
       let coordinatorX: bigint;
       let coordinatorY: bigint;
@@ -109,7 +105,7 @@ export class Contract {
 
       preDeactivateCoordinatorPubKey = {
         x: coordinatorX.toString(),
-        y: coordinatorY.toString(),
+        y: coordinatorY.toString()
       };
     }
 
@@ -123,17 +119,17 @@ export class Contract {
         roundInfo: {
           title,
           description: description || '',
-          link: link || '',
+          link: link || ''
         },
         votingTime: {
           start_time,
-          end_time,
+          end_time
         },
         maxVoter: maxVoter.toString(),
         voteOptionMap,
         certificationSystem: '0',
         circuitType,
-        oracleWhitelistPubkey,
+        oracleWhitelistPubkey
       },
       fee,
       undefined,
@@ -142,9 +138,7 @@ export class Contract {
     let contractAddress = '';
     res.events.map((event) => {
       if (event.type === 'wasm') {
-        let actionEvent = event.attributes.find(
-          (attr) => attr.key === 'action'
-        )!;
+        let actionEvent = event.attributes.find((attr) => attr.key === 'action')!;
         if (actionEvent.value === 'created_round') {
           contractAddress = event.attributes
             .find((attr) => attr.key === 'round_addr')!
@@ -154,7 +148,7 @@ export class Contract {
     });
     return {
       ...res,
-      contractAddress,
+      contractAddress
     };
   }
 
@@ -171,15 +165,13 @@ export class Contract {
     maxOption,
     circuitType,
     certSystemType,
-    fee = 'auto',
+    fee = 'auto'
   }: CreateMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 10 ** 6).toString();
     const end_time = (endVoting.getTime() * 10 ** 6).toString();
     const [{ address }] = await signer.getAccounts();
     const client = await createContractClientByWallet(this.rpcEndpoint, signer);
-    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(
-      BigInt(operatorPubkey)
-    );
+    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(BigInt(operatorPubkey));
     const {
       parameters,
       groth16ProcessVkey,
@@ -187,14 +179,8 @@ export class Contract {
       plonkProcessVkey,
       plonkTallyVkey,
       maciVoteType,
-      maciCertSystem,
-    } = getContractParams(
-      MaciRoundType.MACI,
-      circuitType,
-      certSystemType,
-      maxVoter,
-      maxOption
-    );
+      maciCertSystem
+    } = getContractParams(MaciRoundType.MACI, circuitType, certSystemType, maxVoter, maxOption);
 
     const instantiateResponse = await client.instantiate(
       address,
@@ -203,12 +189,12 @@ export class Contract {
         round_info: { title, description: description || '', link: link || '' },
         voting_time: {
           start_time,
-          end_time,
+          end_time
         },
         parameters,
         coordinator: {
           x: operatorPubkeyX.toString(),
-          y: operatorPubkeyY.toString(),
+          y: operatorPubkeyY.toString()
         },
         groth16_process_vkey: groth16ProcessVkey,
         groth16_tally_vkey: groth16TallyVkey,
@@ -218,7 +204,7 @@ export class Contract {
         whitelist,
         circuit_type: maciVoteType,
         certification_system: maciCertSystem,
-        qtr_lib: QTR_LIB,
+        qtr_lib: QTR_LIB
       },
       `[MACI] ${title}`,
       fee
@@ -240,15 +226,13 @@ export class Contract {
     whitelistEcosystem,
     whitelistSnapshotHeight,
     whitelistVotingPowerArgs,
-    fee = 'auto',
+    fee = 'auto'
   }: CreateOracleMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 1_000_000).toString();
     const end_time = (endVoting.getTime() * 1_000_000).toString();
     const [{ address }] = await signer.getAccounts();
     const client = await createContractClientByWallet(this.rpcEndpoint, signer);
-    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(
-      BigInt(operatorPubkey)
-    );
+    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(BigInt(operatorPubkey));
     const { maciVoteType, maciCertSystem } = getContractParams(
       MaciRoundType.ORACLE_MACI,
       circuitType,
@@ -264,11 +248,11 @@ export class Contract {
         round_info: { title, description: description || '', link: link || '' },
         voting_time: {
           start_time,
-          end_time,
+          end_time
         },
         coordinator: {
           x: operatorPubkeyX.toString(),
-          y: operatorPubkeyY.toString(),
+          y: operatorPubkeyY.toString()
         },
         vote_option_map: voteOptionMap,
         whitelist_backend_pubkey: this.whitelistBackendPubkey,
@@ -277,7 +261,7 @@ export class Contract {
         whitelist_voting_power_args: whitelistVotingPowerArgs,
         circuit_type: maciVoteType,
         certification_system: maciCertSystem,
-        feegrant_operator: this.feegrantOperator,
+        feegrant_operator: this.feegrantOperator
       },
       `[Oracle MACI] ${title}`,
       fee
@@ -298,7 +282,7 @@ export class Contract {
     voteOptionMap,
     whitelistBackendPubkey,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: CreateSaasOracleMaciRoundParams & { signer: OfflineSigner }) {
     const startTime = (startVoting.getTime() * 1_000_000).toString();
     const endTime = (endVoting.getTime() * 1_000_000).toString();
@@ -306,30 +290,27 @@ export class Contract {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
-    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(
-      BigInt(operatorPubkey)
-    );
+    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(BigInt(operatorPubkey));
 
     const roundParams = {
       certificationSystem: '0',
       circuitType: '0',
       coordinator: {
         x: operatorPubkeyX.toString(),
-        y: operatorPubkeyY.toString(),
+        y: operatorPubkeyY.toString()
       },
       maxVoters: maxVoter,
       roundInfo: {
         title,
         description: description || '',
-        link: link || '',
+        link: link || ''
       },
       startTime,
       endTime,
       voteOptionMap,
-      whitelistBackendPubkey:
-        whitelistBackendPubkey || this.whitelistBackendPubkey,
+      whitelistBackendPubkey: whitelistBackendPubkey || this.whitelistBackendPubkey
     };
 
     let createResponse;
@@ -348,8 +329,8 @@ export class Contract {
           start_time: roundParams.startTime,
           end_time: roundParams.endTime,
           vote_option_map: roundParams.voteOptionMap,
-          whitelist_backend_pubkey: roundParams.whitelistBackendPubkey,
-        },
+          whitelist_backend_pubkey: roundParams.whitelistBackendPubkey
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -359,37 +340,28 @@ export class Contract {
             value: {
               sender: address,
               contract: this.saasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
-      createResponse = await client.createOracleMaciRound(
-        roundParams,
-        grantFee
-      );
+      createResponse = await client.createOracleMaciRound(roundParams, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
-      createResponse = await client.createOracleMaciRound(
-        roundParams,
-        grantFee
-      );
+      createResponse = await client.createOracleMaciRound(roundParams, grantFee);
     } else {
       createResponse = await client.createOracleMaciRound(roundParams, fee);
     }
@@ -397,9 +369,7 @@ export class Contract {
     let contractAddress = '';
     createResponse.events.map((event) => {
       if (event.type === 'wasm') {
-        let actionEvent = event.attributes.find(
-          (attr) => attr.key === 'action'
-        )!;
+        let actionEvent = event.attributes.find((attr) => attr.key === 'action')!;
         if (actionEvent.value === 'created_oracle_maci_round') {
           contractAddress = event.attributes
             .find((attr) => attr.key === 'round_addr')!
@@ -409,7 +379,7 @@ export class Contract {
     });
     return {
       ...createResponse,
-      contractAddress,
+      contractAddress
     };
   }
 
@@ -420,7 +390,7 @@ export class Contract {
     description,
     link,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -433,13 +403,13 @@ export class Contract {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
 
     const roundInfo = {
       title,
       description,
-      link,
+      link
     };
 
     if (gasStation && typeof fee !== 'object') {
@@ -449,8 +419,8 @@ export class Contract {
       const msg = {
         set_round_info: {
           contract_addr: contractAddress,
-          round_info: roundInfo,
-        },
+          round_info: roundInfo
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -460,27 +430,24 @@ export class Contract {
             value: {
               sender: address,
               contract: this.saasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.setRoundInfo(
         {
           contractAddr: contractAddress,
-          roundInfo,
+          roundInfo
         },
         grantFee
       );
@@ -488,12 +455,12 @@ export class Contract {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.setRoundInfo(
         {
           contractAddr: contractAddress,
-          roundInfo,
+          roundInfo
         },
         grantFee
       );
@@ -502,7 +469,7 @@ export class Contract {
     return client.setRoundInfo(
       {
         contractAddr: contractAddress,
-        roundInfo,
+        roundInfo
       },
       fee
     );
@@ -513,7 +480,7 @@ export class Contract {
     contractAddress,
     voteOptionMap,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -524,7 +491,7 @@ export class Contract {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -534,8 +501,8 @@ export class Contract {
       const msg = {
         set_vote_options_map: {
           contract_addr: contractAddress,
-          vote_option_map: voteOptionMap,
-        },
+          vote_option_map: voteOptionMap
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -545,27 +512,24 @@ export class Contract {
             value: {
               sender: address,
               contract: this.saasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.setVoteOptionsMap(
         {
           contractAddr: contractAddress,
-          voteOptionMap,
+          voteOptionMap
         },
         grantFee
       );
@@ -573,12 +537,12 @@ export class Contract {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.setVoteOptionsMap(
         {
           contractAddr: contractAddress,
-          voteOptionMap,
+          voteOptionMap
         },
         grantFee
       );
@@ -587,7 +551,7 @@ export class Contract {
     return client.setVoteOptionsMap(
       {
         contractAddr: contractAddress,
-        voteOptionMap,
+        voteOptionMap
       },
       fee
     );
@@ -599,7 +563,7 @@ export class Contract {
     contractAddress,
     grantee,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     baseAmount: string;
@@ -611,7 +575,7 @@ export class Contract {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -622,8 +586,8 @@ export class Contract {
         grant_to_voter: {
           base_amount: baseAmount,
           contract_addr: contractAddress,
-          grantee,
-        },
+          grantee
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -633,28 +597,25 @@ export class Contract {
             value: {
               sender: address,
               contract: this.saasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.grantToVoter(
         {
           baseAmount,
           contractAddr: contractAddress,
-          grantee,
+          grantee
         },
         grantFee
       );
@@ -662,13 +623,13 @@ export class Contract {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.grantToVoter(
         {
           baseAmount,
           contractAddr: contractAddress,
-          grantee,
+          grantee
         },
         grantFee
       );
@@ -678,7 +639,7 @@ export class Contract {
       {
         baseAmount,
         contractAddr: contractAddress,
-        grantee,
+        grantee
       },
       fee
     );
@@ -688,7 +649,7 @@ export class Contract {
     signer,
     operator,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     operator: string;
@@ -698,7 +659,7 @@ export class Contract {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -707,8 +668,8 @@ export class Contract {
       const contractClient = await this.contractClient({ signer });
       const msg = {
         add_operator: {
-          operator,
-        },
+          operator
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -718,29 +679,26 @@ export class Contract {
             value: {
               sender: address,
               contract: this.saasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.addOperator({ operator }, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.addOperator({ operator }, grantFee);
     }
@@ -752,7 +710,7 @@ export class Contract {
     signer,
     operator,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     operator: string;
@@ -762,7 +720,7 @@ export class Contract {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -771,8 +729,8 @@ export class Contract {
       const contractClient = await this.contractClient({ signer });
       const msg = {
         remove_operator: {
-          operator,
-        },
+          operator
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -782,29 +740,26 @@ export class Contract {
             value: {
               sender: address,
               contract: this.saasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.removeOperator({ operator }, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.removeOperator({ operator }, grantFee);
     }
@@ -812,17 +767,11 @@ export class Contract {
     return client.removeOperator({ operator }, fee);
   }
 
-  async isSaasOperator({
-    signer,
-    operator,
-  }: {
-    signer: OfflineSigner;
-    operator: string;
-  }) {
+  async isSaasOperator({ signer, operator }: { signer: OfflineSigner; operator: string }) {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
     return client.isOperator({ address: operator });
   }
@@ -831,7 +780,7 @@ export class Contract {
     signer,
     amount,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     amount: string;
@@ -841,14 +790,14 @@ export class Contract {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
 
     const funds = [
       {
         denom: 'peaka',
-        amount: amount,
-      },
+        amount: amount
+      }
     ];
 
     if (gasStation && typeof fee !== 'object') {
@@ -856,7 +805,7 @@ export class Contract {
       const [{ address }] = await signer.getAccounts();
       const contractClient = await this.contractClient({ signer });
       const msg = {
-        deposit: {},
+        deposit: {}
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -867,29 +816,26 @@ export class Contract {
               sender: address,
               contract: this.saasAddress,
               msg: new TextEncoder().encode(JSON.stringify(msg)),
-              funds,
-            },
-          },
+              funds
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.deposit(grantFee, undefined, funds);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.deposit(grantFee, undefined, funds);
     }
@@ -901,7 +847,7 @@ export class Contract {
     signer,
     amount,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     amount: string;
@@ -911,7 +857,7 @@ export class Contract {
     const client = await createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress,
+      contractAddress: this.saasAddress
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -920,8 +866,8 @@ export class Contract {
       const contractClient = await this.contractClient({ signer });
       const msg = {
         withdraw: {
-          amount,
-        },
+          amount
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -931,29 +877,26 @@ export class Contract {
             value: {
               sender: address,
               contract: this.saasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.withdraw({ amount }, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.saasAddress,
+        granter: this.saasAddress
       };
       return client.withdraw({ amount }, grantFee);
     }
@@ -961,25 +904,34 @@ export class Contract {
     return client.withdraw({ amount }, fee);
   }
 
-  async queryRoundInfo({
-    signer,
-    roundAddress,
-  }: {
-    signer: OfflineSigner;
-    roundAddress: string;
-  }) {
+  async queryRoundInfo({ signer, roundAddress }: { signer: OfflineSigner; roundAddress: string }) {
     const client = await createMaciClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: roundAddress,
+      contractAddress: roundAddress
     });
     const roundInfo = await client.getRoundInfo();
     return roundInfo;
   }
 
+  async getStateIdx({
+    contractAddress,
+    pubkey
+  }: {
+    contractAddress: string;
+    pubkey: { x: string; y: string };
+  }) {
+    const client = await createAMaciQueryClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      contractAddress
+    });
+    const stateIdx = await client.signuped({ pubkey });
+    return stateIdx;
+  }
+
   async oracleMaciClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -987,14 +939,14 @@ export class Contract {
     const client = await createOracleMaciClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress,
+      contractAddress
     });
     return client;
   }
 
   async registryClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1002,13 +954,13 @@ export class Contract {
     return createRegistryClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress,
+      contractAddress
     });
   }
 
   async maciClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1016,13 +968,13 @@ export class Contract {
     return createMaciClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress,
+      contractAddress
     });
   }
 
   async amaciClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1030,13 +982,13 @@ export class Contract {
     return createAMaciClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress,
+      contractAddress
     });
   }
 
   async apiMaciClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1044,13 +996,13 @@ export class Contract {
     return createApiMaciClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress,
+      contractAddress
     });
   }
 
   async saasClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1058,13 +1010,13 @@ export class Contract {
     return createSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress,
+      contractAddress
     });
   }
 
   async apiSaasClient({
     signer,
-    contractAddress,
+    contractAddress
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1072,7 +1024,7 @@ export class Contract {
     return createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress,
+      contractAddress
     });
   }
 
@@ -1092,7 +1044,7 @@ export class Contract {
     voteOptionMap,
     whitelistBackendPubkey,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: CreateSaasOracleMaciRoundParams & { signer: OfflineSigner }) {
     const startTime = (startVoting.getTime() * 1_000_000).toString();
     const endTime = (endVoting.getTime() * 1_000_000).toString();
@@ -1100,30 +1052,27 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.apiSaasAddress,
+      contractAddress: this.apiSaasAddress
     });
-    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(
-      BigInt(operatorPubkey)
-    );
+    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(BigInt(operatorPubkey));
 
     const roundParams = {
       certificationSystem: '0',
       circuitType: '0',
       coordinator: {
         x: operatorPubkeyX.toString(),
-        y: operatorPubkeyY.toString(),
+        y: operatorPubkeyY.toString()
       },
       maxVoters: maxVoter,
       roundInfo: {
         title,
         description: description || '',
-        link: link || '',
+        link: link || ''
       },
       startTime,
       endTime,
       voteOptionMap,
-      whitelistBackendPubkey:
-        whitelistBackendPubkey || this.whitelistBackendPubkey,
+      whitelistBackendPubkey: whitelistBackendPubkey || this.whitelistBackendPubkey
     };
 
     let createResponse;
@@ -1142,8 +1091,8 @@ export class Contract {
           start_time: roundParams.startTime,
           end_time: roundParams.endTime,
           vote_option_map: roundParams.voteOptionMap,
-          whitelist_backend_pubkey: roundParams.whitelistBackendPubkey,
-        },
+          whitelist_backend_pubkey: roundParams.whitelistBackendPubkey
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -1153,29 +1102,26 @@ export class Contract {
             value: {
               sender: address,
               contract: this.apiSaasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       createResponse = await client.createMaciRound(roundParams, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       createResponse = await client.createMaciRound(roundParams, grantFee);
     } else {
@@ -1185,9 +1131,7 @@ export class Contract {
     let contractAddress = '';
     createResponse.events.map((event) => {
       if (event.type === 'wasm') {
-        let actionEvent = event.attributes.find(
-          (attr) => attr.key === 'action'
-        )!;
+        let actionEvent = event.attributes.find((attr) => attr.key === 'action')!;
         if (actionEvent.value === 'created_maci_round') {
           contractAddress = event.attributes
             .find((attr) => attr.key === 'round_addr')!
@@ -1197,7 +1141,7 @@ export class Contract {
     });
     return {
       ...createResponse,
-      contractAddress,
+      contractAddress
     };
   }
 
@@ -1208,7 +1152,7 @@ export class Contract {
     description,
     link,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1221,13 +1165,13 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.apiSaasAddress,
+      contractAddress: this.apiSaasAddress
     });
 
     const roundInfo = {
       title,
       description,
-      link,
+      link
     };
 
     if (gasStation && typeof fee !== 'object') {
@@ -1237,8 +1181,8 @@ export class Contract {
       const msg = {
         set_round_info: {
           contract_addr: contractAddress,
-          round_info: roundInfo,
-        },
+          round_info: roundInfo
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -1248,27 +1192,24 @@ export class Contract {
             value: {
               sender: address,
               contract: this.apiSaasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       return client.setRoundInfo(
         {
           contractAddr: contractAddress,
-          roundInfo,
+          roundInfo
         },
         grantFee
       );
@@ -1276,12 +1217,12 @@ export class Contract {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       return client.setRoundInfo(
         {
           contractAddr: contractAddress,
-          roundInfo,
+          roundInfo
         },
         grantFee
       );
@@ -1290,7 +1231,7 @@ export class Contract {
     return client.setRoundInfo(
       {
         contractAddr: contractAddress,
-        roundInfo,
+        roundInfo
       },
       fee
     );
@@ -1301,7 +1242,7 @@ export class Contract {
     contractAddress,
     voteOptionMap,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     contractAddress: string;
@@ -1312,7 +1253,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.apiSaasAddress,
+      contractAddress: this.apiSaasAddress
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -1322,8 +1263,8 @@ export class Contract {
       const msg = {
         set_vote_options_map: {
           contract_addr: contractAddress,
-          vote_option_map: voteOptionMap,
-        },
+          vote_option_map: voteOptionMap
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -1333,27 +1274,24 @@ export class Contract {
             value: {
               sender: address,
               contract: this.apiSaasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       return client.setVoteOptionsMap(
         {
           contractAddr: contractAddress,
-          voteOptionMap,
+          voteOptionMap
         },
         grantFee
       );
@@ -1361,12 +1299,12 @@ export class Contract {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       return client.setVoteOptionsMap(
         {
           contractAddr: contractAddress,
-          voteOptionMap,
+          voteOptionMap
         },
         grantFee
       );
@@ -1375,7 +1313,7 @@ export class Contract {
     return client.setVoteOptionsMap(
       {
         contractAddr: contractAddress,
-        voteOptionMap,
+        voteOptionMap
       },
       fee
     );
@@ -1385,7 +1323,7 @@ export class Contract {
     signer,
     operator,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     operator: string;
@@ -1395,7 +1333,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.apiSaasAddress,
+      contractAddress: this.apiSaasAddress
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -1404,8 +1342,8 @@ export class Contract {
       const contractClient = await this.contractClient({ signer });
       const msg = {
         add_operator: {
-          operator,
-        },
+          operator
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -1415,29 +1353,26 @@ export class Contract {
             value: {
               sender: address,
               contract: this.apiSaasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       return client.addOperator({ operator }, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       return client.addOperator({ operator }, grantFee);
     }
@@ -1449,7 +1384,7 @@ export class Contract {
     signer,
     operator,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: {
     signer: OfflineSigner;
     operator: string;
@@ -1459,7 +1394,7 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.apiSaasAddress,
+      contractAddress: this.apiSaasAddress
     });
 
     if (gasStation && typeof fee !== 'object') {
@@ -1468,8 +1403,8 @@ export class Contract {
       const contractClient = await this.contractClient({ signer });
       const msg = {
         remove_operator: {
-          operator,
-        },
+          operator
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -1479,29 +1414,26 @@ export class Contract {
             value: {
               sender: address,
               contract: this.apiSaasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       return client.removeOperator({ operator }, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       return client.removeOperator({ operator }, grantFee);
     }
@@ -1509,17 +1441,11 @@ export class Contract {
     return client.removeOperator({ operator }, fee);
   }
 
-  async isApiSaasOperator({
-    signer,
-    operator,
-  }: {
-    signer: OfflineSigner;
-    operator: string;
-  }) {
+  async isApiSaasOperator({ signer, operator }: { signer: OfflineSigner; operator: string }) {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.apiSaasAddress,
+      contractAddress: this.apiSaasAddress
     });
     return client.isOperator({ address: operator });
   }
@@ -1541,7 +1467,7 @@ export class Contract {
     oracleWhitelistPubkey,
     circuitType,
     gasStation = false,
-    fee = 1.8,
+    fee = 1.8
   }: CreateApiSaasAmaciRoundParams & { signer: OfflineSigner }) {
     const startTime = (startVoting.getTime() * 1_000_000).toString();
     const endTime = (endVoting.getTime() * 1_000_000).toString();
@@ -1549,12 +1475,11 @@ export class Contract {
     const client = await createApiSaasClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.apiSaasAddress,
+      contractAddress: this.apiSaasAddress
     });
 
     // Convert preDeactivateCoordinator to {x, y} format if provided
-    let preDeactivateCoordinatorPubKey: { x: string; y: string } | undefined =
-      undefined;
+    let preDeactivateCoordinatorPubKey: { x: string; y: string } | undefined = undefined;
     if (preDeactivateCoordinator !== undefined) {
       let coordinatorX: bigint;
       let coordinatorY: bigint;
@@ -1569,7 +1494,7 @@ export class Contract {
 
       preDeactivateCoordinatorPubKey = {
         x: coordinatorX.toString(),
-        y: coordinatorY.toString(),
+        y: coordinatorY.toString()
       };
     }
 
@@ -1584,15 +1509,15 @@ export class Contract {
       roundInfo: {
         title,
         description: description || '',
-        link: link || '',
+        link: link || ''
       },
       voiceCreditAmount,
       voteOptionMap,
       votingTime: {
         start_time: startTime,
-        end_time: endTime,
+        end_time: endTime
       },
-      whitelist,
+      whitelist
     };
 
     let createResponse;
@@ -1614,8 +1539,8 @@ export class Contract {
           voice_credit_amount: voiceCreditAmount,
           vote_option_map: voteOptionMap,
           voting_time: roundParams.votingTime,
-          whitelist,
-        },
+          whitelist
+        }
       };
       const gasEstimation = await contractClient.simulate(
         address,
@@ -1625,29 +1550,26 @@ export class Contract {
             value: {
               sender: address,
               contract: this.apiSaasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg)),
-            },
-          },
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
         ],
         ''
       );
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(
-        Math.round(gasEstimation * multiplier),
-        gasPrice
-      );
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
       const grantFee: StdFee = {
         amount: calculatedFee.amount,
         gas: calculatedFee.gas,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       createResponse = await client.createAmaciRound(roundParams, grantFee);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
-        granter: this.apiSaasAddress,
+        granter: this.apiSaasAddress
       };
       createResponse = await client.createAmaciRound(roundParams, grantFee);
     } else {
@@ -1657,13 +1579,9 @@ export class Contract {
     let contractAddress = '';
     createResponse.events.map((event) => {
       if (event.type === 'wasm') {
-        let actionEvent = event.attributes.find(
-          (attr) => attr.key === 'action'
-        );
+        let actionEvent = event.attributes.find((attr) => attr.key === 'action');
         if (actionEvent && actionEvent.value === 'created_round') {
-          const roundAddrEvent = event.attributes.find(
-            (attr) => attr.key === 'round_addr'
-          );
+          const roundAddrEvent = event.attributes.find((attr) => attr.key === 'round_addr');
           if (roundAddrEvent) {
             contractAddress = roundAddrEvent.value.toString();
           }
@@ -1672,7 +1590,7 @@ export class Contract {
     });
     return {
       ...createResponse,
-      contractAddress,
+      contractAddress
     };
   }
 }
