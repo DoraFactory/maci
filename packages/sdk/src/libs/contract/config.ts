@@ -1,9 +1,9 @@
 import { Secp256k1HdWallet } from '@cosmjs/launchpad';
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient, SigningStargateClientOptions } from '@cosmjs/stargate';
-import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
+import { CosmWasmClient, SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { MaciClient } from './ts/Maci.client';
-import { AMaciClient } from './ts/AMaci.client';
+import { AMaciClient, AMaciQueryClient } from './ts/AMaci.client';
 import { RegistryClient } from './ts/Registry.client';
 import { OracleMaciClient } from './ts/OracleMaci.client';
 import { SaasClient } from './ts/Saas.client';
@@ -42,6 +42,17 @@ export async function createAMaciClientBy({
   const signingCosmWasmClient = await createContractClientByWallet(rpcEndpoint, wallet);
   const [{ address }] = await wallet.getAccounts();
   return new AMaciClient(signingCosmWasmClient, address, contractAddress);
+}
+
+export async function createAMaciQueryClientBy({
+  rpcEndpoint,
+  contractAddress
+}: {
+  rpcEndpoint: string;
+  contractAddress: string;
+}) {
+  const cosmWasmClient = await CosmWasmClient.connect(rpcEndpoint);
+  return new AMaciQueryClient(cosmWasmClient, contractAddress);
 }
 
 export async function createApiMaciClientBy({

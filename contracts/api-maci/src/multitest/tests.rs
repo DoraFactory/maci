@@ -651,4 +651,215 @@ mod test {
             contract.get_period(&app).unwrap()
         );
     }
+
+    #[test]
+    fn test_query_signuped_state_idx() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let owner = owner();
+
+        let contract = code_id
+            .instantiate_with_voting_time(&mut app, owner.clone(), "test")
+            .unwrap();
+
+        // Start voting period
+        app.update_block(next_block);
+
+        // Query non-existent user - should return None
+        let pubkey_non_existent = PubKey {
+            x: Uint256::from_u128(999),
+            y: Uint256::from_u128(888),
+        };
+        let result: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey_non_existent.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(result, None, "Non-existent user should return None");
+
+        // User1 signs up - use pubkey matching the certificate
+        let user_cert = match_user_certificate(0);
+        let pubkey1 = PubKey {
+            x: uint256_from_decimal_string(
+                "8446677751716569713622015905729882243875224951572887602730835165068040887285",
+            ),
+            y: uint256_from_decimal_string(
+                "12484654491029393893324568717198080229359788322121893494118068510674758553628",
+            ),
+        };
+
+        contract
+            .sign_up(
+                &mut app,
+                owner.clone(),
+                pubkey1.clone(),
+                user_cert.amount,
+                user_cert.certificate,
+            )
+            .unwrap();
+
+        // Query user1's state idx - should be 0 (first user)
+        let state_idx_1: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey1.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state_idx_1,
+            Some(Uint256::from_u128(0)),
+            "First user should have state_idx 0"
+        );
+
+        // User2 signs up - use pubkey matching the certificate
+        let user_cert2 = match_user_certificate(1);
+        let pubkey2 = PubKey {
+            x: uint256_from_decimal_string(
+                "4934845797881523927654842245387640257368309434525961062601274110069416343731",
+            ),
+            y: uint256_from_decimal_string(
+                "7218132018004361008636029786293016526331813670637191622129869640055131468762",
+            ),
+        };
+
+        contract
+            .sign_up(
+                &mut app,
+                owner.clone(),
+                pubkey2.clone(),
+                user_cert2.amount,
+                user_cert2.certificate,
+            )
+            .unwrap();
+
+        // Query user2's state idx - should be 1 (second user)
+        let state_idx_2: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey2.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state_idx_2,
+            Some(Uint256::from_u128(1)),
+            "Second user should have state_idx 1"
+        );
+
+        // Query user1 again - should still be 0
+        let state_idx_1_again: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey1.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state_idx_1_again,
+            Some(Uint256::from_u128(0)),
+            "First user should still have state_idx 0"
+        );
+    }
+
+    #[test]
+    fn test_query_signuped_pubkey_uniqueness() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let owner = owner();
+
+        let contract = code_id
+            .instantiate_with_voting_time(&mut app, owner.clone(), "test")
+            .unwrap();
+
+        // Start voting period
+        app.update_block(next_block);
+
+        // Use two different users with their matching certificates
+        let user_cert1 = match_user_certificate(0);
+        let pubkey1 = PubKey {
+            x: uint256_from_decimal_string(
+                "8446677751716569713622015905729882243875224951572887602730835165068040887285",
+            ),
+            y: uint256_from_decimal_string(
+                "12484654491029393893324568717198080229359788322121893494118068510674758553628",
+            ),
+        };
+
+        let user_cert2 = match_user_certificate(1);
+        let pubkey2 = PubKey {
+            x: uint256_from_decimal_string(
+                "4934845797881523927654842245387640257368309434525961062601274110069416343731",
+            ),
+            y: uint256_from_decimal_string(
+                "7218132018004361008636029786293016526331813670637191622129869640055131468762",
+            ),
+        };
+
+        // Sign up two users
+        contract
+            .sign_up(
+                &mut app,
+                owner.clone(),
+                pubkey1.clone(),
+                user_cert1.amount,
+                user_cert1.certificate,
+            )
+            .unwrap();
+
+        contract
+            .sign_up(
+                &mut app,
+                owner.clone(),
+                pubkey2.clone(),
+                user_cert2.amount,
+                user_cert2.certificate,
+            )
+            .unwrap();
+
+        // Query both users
+        let idx1: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey1.clone(),
+                },
+            )
+            .unwrap();
+
+        let idx2: Option<Uint256> = app
+            .wrap()
+            .query_wasm_smart(
+                contract.addr().clone(),
+                &crate::msg::QueryMsg::Signuped {
+                    pubkey: pubkey2.clone(),
+                },
+            )
+            .unwrap();
+
+        // Both should have different indices
+        assert_eq!(idx1, Some(Uint256::from_u128(0)));
+        assert_eq!(idx2, Some(Uint256::from_u128(1)));
+
+        // Verify they have different pubkeys
+        assert_ne!(
+            pubkey1.x, pubkey2.x,
+            "pubkey1 and pubkey2 should have different x"
+        );
+        assert_ne!(
+            idx1, idx2,
+            "Different users should have different state indices"
+        );
+    }
 }

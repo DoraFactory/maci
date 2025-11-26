@@ -193,7 +193,7 @@ export type QueryMsg = {
   };
 } | {
   signuped: {
-    pubkey_x: Uint256;
+    pubkey: PubKey;
   };
 } | {
   vote_option_map: {};

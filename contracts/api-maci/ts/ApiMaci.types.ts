@@ -59,6 +59,11 @@ export type ExecuteMsg = {
     message: MessageData;
   };
 } | {
+  publish_message_batch: {
+    enc_pub_keys: PubKey[];
+    messages: MessageData[];
+  };
+} | {
   process_message: {
     groth16_proof?: Groth16ProofType | null;
     new_state_commitment: Uint256;
@@ -167,6 +172,18 @@ export type QueryMsg = {
   query_cert_system: {};
 } | {
   query_oracle_whitelist_config: {};
+} | {
+  query_current_state_commitment: {};
+} | {
+  get_state_tree_root: {};
+} | {
+  get_node: {
+    index: Uint256;
+  };
+} | {
+  signuped: {
+    pubkey: PubKey;
+  };
 };
 export type Addr = string;
 export type PeriodStatus = "pending" | "voting" | "processing" | "tallying" | "ended";
@@ -181,6 +198,7 @@ export interface OracleWhitelistConfig {
   threshold: Uint256;
   voting_power_mode: VotingPowerMode;
 }
+export type NullableUint256 = Uint256 | null;
 export type ArrayOfString = string[];
 export interface WhitelistConfig {
   balance: Uint256;

@@ -339,6 +339,74 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "query_current_state_commitment"
+      ],
+      "properties": {
+        "query_current_state_commitment": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_state_tree_root"
+      ],
+      "properties": {
+        "get_state_tree_root": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_node"
+      ],
+      "properties": {
+        "get_node": {
+          "type": "object",
+          "required": [
+            "index"
+          ],
+          "properties": {
+            "index": {
+              "$ref": "#/definitions/Uint256"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "signuped"
+      ],
+      "properties": {
+        "signuped": {
+          "type": "object",
+          "required": [
+            "pubkey"
+          ],
+          "properties": {
+            "pubkey": {
+              "$ref": "#/definitions/PubKey"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

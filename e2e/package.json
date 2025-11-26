@@ -13,6 +13,7 @@
     "test:advanced": "pnpm run mocha-test tests/advanced.e2e.test.ts",
     "test:stateTree": "pnpm run mocha-test tests/state-tree.e2e.test.ts",
     "test:batch-publish": "pnpm run mocha-test tests/batch-publish.e2e.test.ts",
+    "test:key-rotation": "pnpm run mocha-test tests/key-rotation.e2e.test.ts",
     "generate:vectors": "ts-node poseidon-test/generate-vectors.ts",
     "pretest:poseidon": "pnpm run generate:vectors",
     "test:poseidon": "pnpm run mocha-test tests/poseidon-consistency.e2e.test.ts",

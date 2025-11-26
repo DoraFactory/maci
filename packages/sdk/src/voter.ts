@@ -24,6 +24,7 @@ import { VoterClientParams, DerivePathParams, PubKey, PrivKey, DeactivateMessage
 import { Indexer, Http } from './libs';
 import { getDefaultParams } from './libs/const';
 import { isErrorResponse } from './libs/maci/maci';
+import { Contract } from './libs/contract';
 
 /**
  * @class Maci Voter Client
@@ -34,6 +35,7 @@ export class VoterClient {
 
   public accountManager: MaciAccount;
   public saasApiClient: MaciApiClient;
+  public contract: Contract;
 
   public http: Http;
   public indexer: Indexer;
@@ -82,6 +84,19 @@ export class VoterClient {
       baseUrl: this.saasApiEndpoint,
       apiKey: saasApiKey,
       customFetch
+    });
+
+    // Initialize Contract instance
+    this.contract = new Contract({
+      network: this.network,
+      rpcEndpoint: defaultParams.rpcEndpoint,
+      registryAddress: this.registryAddress,
+      saasAddress: defaultParams.saasAddress,
+      apiSaasAddress: defaultParams.apiSaasAddress,
+      maciCodeId: defaultParams.maciCodeId,
+      oracleCodeId: defaultParams.oracleCodeId,
+      feegrantOperator: defaultParams.oracleFeegrantOperator,
+      whitelistBackendPubkey: defaultParams.oracleWhitelistBackendPubkey
     });
   }
 
@@ -135,6 +150,40 @@ export class VoterClient {
     return this.accountManager.getKeyPair(derivePathParams).getPublicKey();
   }
 
+  /**
+   * Normalize and validate vote options.
+   * This method performs duplicate checking, filtering, sorting, and format conversion.
+   *
+   * @param selectedOptions - Array of vote options with idx and vc
+   * @returns Normalized plan format: [voteOptionIndex, voteWeight][]
+   * @throws Error if duplicate option indices are found
+   */
+  normalizeVoteOptions(
+    selectedOptions: {
+      idx: number;
+      vc: number;
+    }[]
+  ): [number, number][] {
+    // Check for duplicate options
+    const idxSet = new Set<number>();
+    for (const option of selectedOptions) {
+      if (idxSet.has(option.idx)) {
+        throw new Error(`Duplicate option index (${option.idx}) is not allowed`);
+      }
+      idxSet.add(option.idx);
+    }
+
+    // Filter and sort options
+    const options = selectedOptions.filter((o) => !!o.vc).sort((a, b) => a.idx - b.idx);
+
+    // Convert to plan format
+    const plan = options.map((o) => {
+      return [o.idx, o.vc] as [number, number];
+    });
+
+    return plan;
+  }
+
   buildVotePayload({
     stateIdx,
     operatorPubkey,
@@ -149,21 +198,7 @@ export class VoterClient {
     }[];
     derivePathParams?: DerivePathParams;
   }) {
-    // Check for duplicate options
-    const idxSet = new Set();
-    for (const option of selectedOptions) {
-      if (idxSet.has(option.idx)) {
-        throw new Error(`Duplicate option index (${option.idx}) is not allowed`);
-      }
-      idxSet.add(option.idx);
-    }
-
-    // Filter and sort options
-    const options = selectedOptions.filter((o) => !!o.vc).sort((a, b) => a.idx - b.idx);
-
-    const plan = options.map((o) => {
-      return [o.idx, o.vc] as [number, number];
-    });
+    const plan = this.normalizeVoteOptions(selectedOptions);
 
     const payload = this.batchGenMessage(stateIdx, operatorPubkey, plan, derivePathParams);
 
@@ -185,7 +220,8 @@ export class VoterClient {
     for (let i = plan.length - 1; i >= 0; i--) {
       const p = plan[i];
       const encAccount = genKeypair();
-      const msg = genMessage(BigInt(encAccount.privKey), i + 1, p[0], p[1], i === plan.length - 1);
+      const isLastCmd = i === plan.length - 1;
+      const msg = genMessage(BigInt(encAccount.privKey), i + 1, p[0], p[1], isLastCmd);
 
       payload.push({
         msg,
@@ -228,9 +264,12 @@ export class VoterClient {
 
       const signer = this.getSigner(derivePathParams);
 
-      let newPubKey = [...signer.getPublicKey().toPoints()];
+      let newPubKey: PubKey;
       if (isLastCmd) {
         newPubKey = [0n, 0n];
+      } else {
+        // For non-last commands, keep the current public key (no rotation)
+        newPubKey = [...signer.getPublicKey().toPoints()];
       }
 
       const hash = poseidon([packaged, ...newPubKey]);
@@ -248,19 +287,37 @@ export class VoterClient {
 
   async getStateIdx({
     contractAddress,
-    pubkey
+    pubkey,
+    derivePathParams
   }: {
     contractAddress: string;
     pubkey?: PubKey | string | bigint;
+    derivePathParams?: DerivePathParams;
   }) {
-    pubkey = this.unpackMaciPubkey(pubkey || this.accountManager.currentPubkey.toPoints());
-
-    const response = await this.indexer.getSignUpEventByPubKey(contractAddress, pubkey);
-
-    if (isErrorResponse(response)) {
-      return -1;
+    // If pubkey is not provided, get it from the current signer
+    if (!pubkey) {
+      pubkey = this.getPubkey(derivePathParams).toPoints();
     }
-    return response.data.signUpEvents[0].stateIdx;
+    pubkey = this.unpackMaciPubkey(pubkey);
+
+    try {
+      const stateIdx = await this.contract.getStateIdx({
+        contractAddress,
+        pubkey: { x: pubkey[0].toString(), y: pubkey[1].toString() }
+      });
+      if (stateIdx === null) {
+        return -1;
+      }
+      return parseInt(stateIdx);
+    } catch (error) {
+      // Query via indexer
+      const response = await this.indexer.getSignUpEventByPubKey(contractAddress, pubkey);
+
+      if (isErrorResponse(response)) {
+        return -1;
+      }
+      return response.data.signUpEvents[0].stateIdx;
+    }
   }
 
   async buildAddNewKeyPayload({
@@ -536,6 +593,34 @@ export class VoterClient {
   // ==================== SaaS API Client Methods ====================
 
   /**
+   * Create a MACI round via SaaS API
+   * @param params - Round creation parameters
+   * @returns Response with transaction details and ticket
+   */
+  async saasCreateRound(
+    params: operations['createRound']['requestBody']['content']['application/json']
+  ) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.createRound(params);
+  }
+
+  /**
+   * Create an AMACI round via SaaS API
+   * @param params - AMACI round creation parameters
+   * @returns Response with transaction details and ticket
+   */
+  async saasCreateAmaciRound(
+    params: operations['createAmaciRound']['requestBody']['content']['application/json']
+  ) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.createAmaciRound(params);
+  }
+
+  /**
    * Get pre-deactivate data via SaaS API
    * @param contractAddress - Contract address
    */
@@ -547,8 +632,61 @@ export class VoterClient {
   }
 
   /**
+   * Signup via SaaS API
+   * @param params - Signup parameters (including ticket)
+   * @returns Response with transaction details
+   */
+  async saasSignup(params: operations['signup']['requestBody']['content']['application/json']) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.signup(params);
+  }
+
+  /**
+   * Vote via SaaS API
+   * @param params - Vote parameters (including ticket)
+   * @returns Response with transaction details
+   */
+  async saasSubmitVote(params: operations['vote']['requestBody']['content']['application/json']) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.vote(params);
+  }
+
+  /**
+   * Deactivate via SaaS API
+   * @param params - Deactivate parameters (including ticket)
+   * @returns Response with transaction details
+   */
+  async saasDeactivate(
+    params: operations['deactivate']['requestBody']['content']['application/json']
+  ) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.deactivate(params);
+  }
+
+  /**
+   * Add new key via SaaS API
+   * @param params - Add new key parameters (including ticket)
+   * @returns Response with transaction details
+   */
+  async saasAddNewKey(
+    params: operations['addNewKey']['requestBody']['content']['application/json']
+  ) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.addNewKey(params);
+  }
+
+  /**
    * Pre add new key via SaaS API
-   * @param params - Pre add new key parameters
+   * @param params - Pre add new key parameters (including ticket)
+   * @returns Response with transaction details
    */
   async saasSubmitPreAddNewKey(
     params: operations['preAddNewKey']['requestBody']['content']['application/json']
@@ -559,18 +697,12 @@ export class VoterClient {
     return await this.saasApiClient.preAddNewKey(params);
   }
 
-  /**
-   * Vote via SaaS API
-   * @param params - Vote parameters
-   */
-  async saasSubmitVote(params: operations['vote']['requestBody']['content']['application/json']) {
-    if (!this.saasApiClient) {
-      throw new Error('SaaS API client not initialized');
-    }
-    return await this.saasApiClient.vote(params);
-  }
-
   // ==================== Maci Voter Methods ====================
+  /**
+   * Pre-create a new account for AMACI voting (pre-deactivate mode)
+   * @param params - Parameters including contract address, deactivates, circuit files, and ticket
+   * @returns Result with transaction details and new voter account
+   */
   async saasPreCreateNewAccount({
     contractAddress,
     stateTreeDepth,
@@ -578,6 +710,7 @@ export class VoterClient {
     deactivates,
     wasmFile,
     zkeyFile,
+    ticket,
     derivePathParams
   }: {
     contractAddress: string;
@@ -586,6 +719,7 @@ export class VoterClient {
     deactivates: bigint[][] | string[][];
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
+    ticket: string;
     derivePathParams?: DerivePathParams;
   }) {
     const addNewKeyPayload = await this.buildPreAddNewKeyPayload({
@@ -613,7 +747,8 @@ export class VoterClient {
       newPubkey: newVoterClient
         .getPubkey()
         .toPoints()
-        .map((p) => p.toString())
+        .map((p) => p.toString()),
+      ticket
     });
 
     return {
@@ -622,10 +757,16 @@ export class VoterClient {
     };
   }
 
+  /**
+   * Vote via SaaS API with automatic payload building
+   * @param params - Parameters including contract address, operator pubkey, vote options, and ticket
+   * @returns Response with transaction details
+   */
   async saasVote({
     contractAddress,
     operatorPubkey,
     selectedOptions,
+    ticket,
     derivePathParams
   }: {
     contractAddress: string;
@@ -634,10 +775,12 @@ export class VoterClient {
       idx: number;
       vc: number;
     }[];
+    ticket: string;
     derivePathParams?: DerivePathParams;
   }) {
     const stateIdx = await this.getStateIdx({
-      contractAddress
+      contractAddress,
+      derivePathParams
     });
 
     if (stateIdx === -1) {
@@ -653,7 +796,8 @@ export class VoterClient {
 
     const voteResult = await this.saasSubmitVote({
       contractAddress,
-      payload
+      payload,
+      ticket
     });
 
     return voteResult;

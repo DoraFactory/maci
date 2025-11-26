@@ -760,6 +760,10 @@ export class OperatorClient {
     this.messages = [];
     this.states = MACI_STATES.FILLING;
     this.logs = [];
+
+    // Initialize stateCommitment with initial state
+    this.stateCommitment = poseidon([this.stateTree.root, this.stateSalt]);
+    console.log('- Initial state commitment:', this.stateCommitment);
   }
 
   /**
@@ -871,6 +875,9 @@ export class OperatorClient {
     }
 
     this.stateTree.updateLeaf(leafIdx, hash);
+
+    // Update stateCommitment after state tree changes
+    this.stateCommitment = poseidon([this.stateTree.root, this.stateSalt]);
 
     console.log(`Set State Leaf ${leafIdx}:`);
     console.log('- Leaf hash:', hash.toString());

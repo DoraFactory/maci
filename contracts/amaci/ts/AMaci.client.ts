@@ -60,10 +60,10 @@ export interface AMaciReadOnlyInterface {
     sender: Addr;
   }) => Promise<Boolean>;
   signuped: ({
-    pubkeyX
+    pubkey
   }: {
-    pubkeyX: Uint256;
-  }) => Promise<Uint256>;
+    pubkey: PubKey;
+  }) => Promise<NullableUint256>;
   voteOptionMap: () => Promise<ArrayOfString>;
   maxVoteOptions: () => Promise<Uint256>;
   queryTotalFeeGrant: () => Promise<Uint128>;
@@ -286,13 +286,13 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     });
   };
   signuped = async ({
-    pubkeyX
+    pubkey
   }: {
-    pubkeyX: Uint256;
-  }): Promise<Uint256> => {
+    pubkey: PubKey;
+  }): Promise<NullableUint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       signuped: {
-        pubkey_x: pubkeyX
+        pubkey
       }
     });
   };

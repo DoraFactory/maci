@@ -107,6 +107,10 @@ pub enum ExecuteMsg {
         message: MessageData,
         enc_pub_key: PubKey,
     },
+    PublishMessageBatch {
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+    },
     ProcessMessage {
         new_state_commitment: Uint256,
         groth16_proof: Option<Groth16ProofType>,
@@ -218,6 +222,9 @@ pub enum QueryMsg {
 
     #[returns(Uint256)]
     GetNode { index: Uint256 },
+
+    #[returns(Option<Uint256>)]
+    Signuped { pubkey: PubKey },
 }
 
 #[cw_serde]

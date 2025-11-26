@@ -158,7 +158,9 @@ pub const DNODES: Map<Vec<u8>, Uint256> = Map::new("dnodes");
 pub const DEACTIVATED_COUNT: Item<Uint256> = Item::new("deactivated_count");
 pub const NULLIFIERS: Map<Vec<u8>, bool> = Map::new("nullifiers");
 pub const CURRENT_DEACTIVATE_COMMITMENT: Item<Uint256> = Item::new("current_deactivate_commitment");
-pub const SIGNUPED: Map<Vec<u8>, Uint256> = Map::new("signuped");
+// Map (pubkey.x, pubkey.y) to stateIdx for signup tracking
+// Using both x and y to handle potential x-coordinate collisions on the curve
+pub const SIGNUPED: Map<&(Vec<u8>, Vec<u8>), Uint256> = Map::new("signuped");
 pub const PRE_DEACTIVATE_ROOT: Item<Uint256> = Item::new("pre_deactivate_root");
 pub const PRE_DEACTIVATE_COORDINATOR_HASH: Item<Uint256> =
     Item::new("pre_deactivate_coordinator_hash");

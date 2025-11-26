@@ -774,7 +774,15 @@ pub fn execute_sign_up(
 
     // Save the updated state index and number of sign-ups
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
-    SIGNUPED.save(deps.storage, pubkey.x.to_be_bytes().to_vec(), &num_sign_ups)?;
+    // Save the actual state_index (0-based), not num_sign_ups
+    SIGNUPED.save(
+        deps.storage,
+        &(
+            pubkey.x.to_be_bytes().to_vec(),
+            pubkey.y.to_be_bytes().to_vec(),
+        ),
+        &state_index,
+    )?;
 
     // Update storage based on mode
     if is_oracle_mode {
@@ -1395,7 +1403,15 @@ pub fn execute_add_new_key(
     num_sign_ups += Uint256::from_u128(1u128);
 
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
-    SIGNUPED.save(deps.storage, pubkey.x.to_be_bytes().to_vec(), &num_sign_ups)?;
+    // Save the actual state_index (0-based), not num_sign_ups
+    SIGNUPED.save(
+        deps.storage,
+        &(
+            pubkey.x.to_be_bytes().to_vec(),
+            pubkey.y.to_be_bytes().to_vec(),
+        ),
+        &state_index,
+    )?;
 
     Ok(Response::new()
         .add_attribute("action", "add_new_key")
@@ -1520,7 +1536,15 @@ pub fn execute_pre_add_new_key(
     num_sign_ups += Uint256::from_u128(1u128);
 
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
-    SIGNUPED.save(deps.storage, pubkey.x.to_be_bytes().to_vec(), &num_sign_ups)?;
+    // Save the actual state_index (0-based), not num_sign_ups
+    SIGNUPED.save(
+        deps.storage,
+        &(
+            pubkey.x.to_be_bytes().to_vec(),
+            pubkey.y.to_be_bytes().to_vec(),
+        ),
+        &state_index,
+    )?;
 
     Ok(Response::new()
         .add_attribute("action", "pre_add_new_key")
@@ -2346,11 +2370,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::IsWhiteList { sender } => to_json_binary::<bool>(&is_whitelist(deps, &sender)?),
         QueryMsg::IsRegister { sender } => to_json_binary::<bool>(&is_register(deps, &sender)?),
-        QueryMsg::Signuped { pubkey_x } => to_json_binary::<Uint256>(
-            &SIGNUPED
-                .load(deps.storage, pubkey_x.to_be_bytes().to_vec())
-                .unwrap(),
-        ),
+        QueryMsg::Signuped { pubkey } => {
+            let state_idx = SIGNUPED.may_load(
+                deps.storage,
+                &(
+                    pubkey.x.to_be_bytes().to_vec(),
+                    pubkey.y.to_be_bytes().to_vec(),
+                ),
+            )?;
+            to_json_binary(&state_idx)
+        }
         QueryMsg::VoteOptionMap {} => {
             to_json_binary::<Vec<String>>(&VOTEOPTIONMAP.load(deps.storage).unwrap())
         }

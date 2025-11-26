@@ -38,6 +38,7 @@
     "test:elgamalEncryption": "pnpm run mocha-test ts/__tests__/ElGamalEncryption.test.ts",
     "test:stateLeafTransformerAmaci": "pnpm run mocha-test ts/__tests__/StateLeafTransformerAmaci.test.ts",
     "test:messageValidatorAmaci": "pnpm run mocha-test ts/__tests__/MessageValidatorAmaci.test.ts",
+    "test:messageValidatorMaci": "pnpm run mocha-test ts/__tests__/MessageValidatorMaci.test.ts",
     "test:processDeactivate": "pnpm run mocha-test ts/__tests__/ProcessDeactivate.test.ts",
     "test:amaciIntegration": "pnpm run mocha-test ts/__tests__/AmaciIntegration.test.ts",
     "test:maciIntegration": "pnpm run mocha-test ts/__tests__/MaciIntegration.test.ts",
@@ -45,7 +46,10 @@
     "test:messageToCommand": "pnpm run mocha-test ts/__tests__/MessageToCommand.test.ts",
     "test:checkRoot": "pnpm run mocha-test ts/__tests__/CheckRoot.test.ts",
     "test:sha256Hasher": "pnpm run mocha-test ts/__tests__/Sha256Hasher.test.ts",
-    "test:messageHasher": "pnpm run mocha-test ts/__tests__/MessageHasher.test.ts"
+    "test:messageHasher": "pnpm run mocha-test ts/__tests__/MessageHasher.test.ts",
+    "test:stateLeafTransformerMaci": "pnpm run mocha-test ts/__tests__/StateLeafTransformerMaci.test.ts",
+    "test:processMessagesAmaci": "pnpm run mocha-test ts/__tests__/ProcessMessagesAmaci.test.ts",
+    "test:processMessagesMaci": "pnpm run mocha-test ts/__tests__/ProcessMessagesMaci.test.ts"
   },
   "dependencies": {
     "circomkit": "^0.3.4",

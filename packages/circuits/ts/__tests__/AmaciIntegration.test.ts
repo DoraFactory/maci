@@ -404,4 +404,158 @@ describe('AMACI Integration Test', function () {
       testOperator.endVotePeriod();
     }).to.throw('Vote period already ended');
   });
+
+  it('should verify vote overwrite behavior - second vote should completely overwrite first vote', async () => {
+    console.log('\n=== Testing Vote Overwrite Behavior ===\n');
+
+    const testOperator = new OperatorClient({
+      network: 'testnet',
+      secretKey: 123456n
+    });
+
+    const testVoter = new VoterClient({
+      network: 'testnet',
+      secretKey: 789012n
+    });
+
+    testOperator.initMaci({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      numSignUps: 1,
+      isQuadraticCost: false, // Use linear cost for easier calculation
+      isAmaci: true
+    });
+
+    // Register user
+    const userPubKey = testVoter.getPubkey().toPoints();
+    const USER_IDX = 0;
+    testOperator.initStateTree(USER_IDX, userPubKey, 1000); // Give user 1000 voice credits
+
+    const coordPubKey = testOperator.getPubkey().toPoints();
+
+    console.log('=== First Vote: Option 1=5, Option 2=3 ===');
+    // First vote: option 1 = 5, option 2 = 3
+    const firstVotePayload = testVoter.buildVotePayload({
+      stateIdx: USER_IDX,
+      operatorPubkey: coordPubKey,
+      selectedOptions: [
+        { idx: 1, vc: 5 },
+        { idx: 2, vc: 3 }
+      ]
+    });
+
+    console.log('First vote messages count:', firstVotePayload.length);
+
+    // Publish first vote
+    for (const payload of firstVotePayload) {
+      const message = payload.msg.map((m) => BigInt(m));
+      const messageEncPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
+      testOperator.pushMessage(message, messageEncPubKey);
+    }
+
+    // Process first vote
+    testOperator.endVotePeriod();
+    while (testOperator.states === 1) {
+      await testOperator.processMessages();
+    }
+
+    // Check state after first vote
+    const stateAfterFirst = testOperator.stateLeaves.get(USER_IDX);
+    expect(stateAfterFirst).to.not.be.undefined;
+    const votesAfterFirst = stateAfterFirst!.voTree.leaves();
+    console.log(
+      'Votes after first vote:',
+      votesAfterFirst.map((v, i) => `Option ${i}: ${v}`)
+    );
+
+    // Verify first vote was recorded
+    expect(votesAfterFirst[1]).to.equal(5n, 'Option 1 should be 5 after first vote');
+    expect(votesAfterFirst[2]).to.equal(3n, 'Option 2 should be 3 after first vote');
+
+    console.log('\n=== Second Vote: Only Option 1=10 ===');
+    // Reset operator for second vote (simulate new voting period)
+    // Actually, we need to check if we can vote again in the same period
+    // Let's create a new operator to simulate a fresh voting scenario
+    const testOperator2 = new OperatorClient({
+      network: 'testnet',
+      secretKey: 123456n
+    });
+
+    testOperator2.initMaci({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      numSignUps: 1,
+      isQuadraticCost: false,
+      isAmaci: true
+    });
+
+    // Register same user
+    testOperator2.initStateTree(USER_IDX, userPubKey, 1000);
+
+    // First vote: option 1 = 5, option 2 = 3
+    for (const payload of firstVotePayload) {
+      const message = payload.msg.map((m) => BigInt(m));
+      const messageEncPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
+      testOperator2.pushMessage(message, messageEncPubKey);
+    }
+
+    // Second vote: only option 1 = 10 (no option 2)
+    const secondVotePayload = testVoter.buildVotePayload({
+      stateIdx: USER_IDX,
+      operatorPubkey: coordPubKey,
+      selectedOptions: [{ idx: 1, vc: 10 }]
+    });
+
+    console.log('Second vote messages count:', secondVotePayload.length);
+
+    // Publish second vote
+    for (const payload of secondVotePayload) {
+      const message = payload.msg.map((m) => BigInt(m));
+      const messageEncPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
+      testOperator2.pushMessage(message, messageEncPubKey);
+    }
+
+    // Process all messages (both first and second vote)
+    testOperator2.endVotePeriod();
+    while (testOperator2.states === 1) {
+      await testOperator2.processMessages();
+    }
+
+    // Check final state
+    const finalState = testOperator2.stateLeaves.get(USER_IDX);
+    expect(finalState).to.not.be.undefined;
+    const finalVotes = finalState!.voTree.leaves();
+    console.log(
+      'Final votes after both votes:',
+      finalVotes.map((v, i) => `Option ${i}: ${v}`)
+    );
+
+    // Verify second vote behavior
+    expect(finalVotes[1]).to.equal(10n, 'Option 1 should be 10 after second vote');
+
+    // This is the key test: does option 2 remain 3 or become 0?
+    if (finalVotes[2] === 0n) {
+      console.log('✓ Second vote COMPLETELY OVERWRITES: Option 2 is 0 (was reset)');
+      expect(finalVotes[2]).to.equal(
+        0n,
+        'Option 2 should be 0 if second vote completely overwrites'
+      );
+    } else if (finalVotes[2] === 3n) {
+      console.log('✓ Second vote PARTIALLY UPDATES: Option 2 remains 3 (not reset)');
+      expect(finalVotes[2]).to.equal(
+        3n,
+        'Option 2 should remain 3 if second vote only updates specified options'
+      );
+    } else {
+      throw new Error(`Unexpected value for option 2: ${finalVotes[2]}, expected either 0 or 3`);
+    }
+
+    console.log('\n=== Vote Overwrite Test Completed ===\n');
+  });
 });

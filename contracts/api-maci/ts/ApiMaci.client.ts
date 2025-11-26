@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Uint256, Timestamp, Uint64, VotingPowerMode, InstantiateMsg, PubKey, RoundInfo, VotingTime, VotingPowerArgs, ExecuteMsg, Uint128, MessageData, Groth16ProofType, PlonkProofType, QueryMsg, Addr, PeriodStatus, Period, Boolean, Binary, OracleWhitelistConfig, ArrayOfString, WhitelistConfig } from "./ApiMaci.types";
+import { Uint256, Timestamp, Uint64, VotingPowerMode, InstantiateMsg, PubKey, RoundInfo, VotingTime, VotingPowerArgs, ExecuteMsg, Uint128, MessageData, Groth16ProofType, PlonkProofType, QueryMsg, Addr, PeriodStatus, Period, Boolean, Binary, OracleWhitelistConfig, NullableUint256, ArrayOfString, WhitelistConfig } from "./ApiMaci.types";
 export interface ApiMaciReadOnlyInterface {
   contractAddress: string;
   getRoundInfo: () => Promise<RoundInfo>;
@@ -62,6 +62,18 @@ export interface ApiMaciReadOnlyInterface {
   queryCircuitType: () => Promise<Uint256>;
   queryCertSystem: () => Promise<Uint256>;
   queryOracleWhitelistConfig: () => Promise<OracleWhitelistConfig>;
+  queryCurrentStateCommitment: () => Promise<Uint256>;
+  getStateTreeRoot: () => Promise<Uint256>;
+  getNode: ({
+    index
+  }: {
+    index: Uint256;
+  }) => Promise<Uint256>;
+  signuped: ({
+    pubkey
+  }: {
+    pubkey: PubKey;
+  }) => Promise<NullableUint256>;
 }
 export class ApiMaciQueryClient implements ApiMaciReadOnlyInterface {
   client: CosmWasmClient;
@@ -90,6 +102,10 @@ export class ApiMaciQueryClient implements ApiMaciReadOnlyInterface {
     this.queryCircuitType = this.queryCircuitType.bind(this);
     this.queryCertSystem = this.queryCertSystem.bind(this);
     this.queryOracleWhitelistConfig = this.queryOracleWhitelistConfig.bind(this);
+    this.queryCurrentStateCommitment = this.queryCurrentStateCommitment.bind(this);
+    this.getStateTreeRoot = this.getStateTreeRoot.bind(this);
+    this.getNode = this.getNode.bind(this);
+    this.signuped = this.signuped.bind(this);
   }
   getRoundInfo = async (): Promise<RoundInfo> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -244,6 +260,38 @@ export class ApiMaciQueryClient implements ApiMaciReadOnlyInterface {
       query_oracle_whitelist_config: {}
     });
   };
+  queryCurrentStateCommitment = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      query_current_state_commitment: {}
+    });
+  };
+  getStateTreeRoot = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_state_tree_root: {}
+    });
+  };
+  getNode = async ({
+    index
+  }: {
+    index: Uint256;
+  }): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_node: {
+        index
+      }
+    });
+  };
+  signuped = async ({
+    pubkey
+  }: {
+    pubkey: PubKey;
+  }): Promise<NullableUint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      signuped: {
+        pubkey
+      }
+    });
+  };
 }
 export interface ApiMaciInterface extends ApiMaciReadOnlyInterface {
   contractAddress: string;
@@ -274,6 +322,13 @@ export interface ApiMaciInterface extends ApiMaciReadOnlyInterface {
   }: {
     encPubKey: PubKey;
     message: MessageData;
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  publishMessageBatch: ({
+    encPubKeys,
+    messages
+  }: {
+    encPubKeys: PubKey[];
+    messages: MessageData[];
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   processMessage: ({
     groth16Proof,
@@ -322,6 +377,7 @@ export class ApiMaciClient extends ApiMaciQueryClient implements ApiMaciInterfac
     this.signUp = this.signUp.bind(this);
     this.startProcessPeriod = this.startProcessPeriod.bind(this);
     this.publishMessage = this.publishMessage.bind(this);
+    this.publishMessageBatch = this.publishMessageBatch.bind(this);
     this.processMessage = this.processMessage.bind(this);
     this.stopProcessingPeriod = this.stopProcessingPeriod.bind(this);
     this.processTally = this.processTally.bind(this);
@@ -384,6 +440,20 @@ export class ApiMaciClient extends ApiMaciQueryClient implements ApiMaciInterfac
       publish_message: {
         enc_pub_key: encPubKey,
         message
+      }
+    }, fee, memo, _funds);
+  };
+  publishMessageBatch = async ({
+    encPubKeys,
+    messages
+  }: {
+    encPubKeys: PubKey[];
+    messages: MessageData[];
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      publish_message_batch: {
+        enc_pub_keys: encPubKeys,
+        messages
       }
     }, fee, memo, _funds);
   };

@@ -799,12 +799,12 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
     );
 
     assert_eq!(
-        maci_contract.amaci_signuped(&app, pubkey0.x).unwrap(),
-        Uint256::from_u128(1u128)
+        maci_contract.amaci_signuped(&app, pubkey0.clone()).unwrap(),
+        Some(Uint256::from_u128(0u128))
     );
     assert_eq!(
-        maci_contract.amaci_signuped(&app, pubkey1.x).unwrap(),
-        Uint256::from_u128(2u128)
+        maci_contract.amaci_signuped(&app, pubkey1.clone()).unwrap(),
+        Some(Uint256::from_u128(1u128))
     );
 
     for entry in &logs_data {
@@ -1402,12 +1402,12 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
     );
 
     assert_eq!(
-        maci_contract.amaci_signuped(&app, pubkey0.x).unwrap(),
-        Uint256::from_u128(1u128)
+        maci_contract.amaci_signuped(&app, pubkey0.clone()).unwrap(),
+        Some(Uint256::from_u128(0u128))
     );
     assert_eq!(
-        maci_contract.amaci_signuped(&app, pubkey1.x).unwrap(),
-        Uint256::from_u128(2u128)
+        maci_contract.amaci_signuped(&app, pubkey1.clone()).unwrap(),
+        Some(Uint256::from_u128(1u128))
     );
 
     for entry in &logs_data {
@@ -1993,12 +1993,12 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
 
     // Verify signups
     assert_eq!(
-        maci_contract.amaci_signuped(&app, pubkey0.x).unwrap(),
-        Uint256::from_u128(1u128)
+        maci_contract.amaci_signuped(&app, pubkey0.clone()).unwrap(),
+        Some(Uint256::from_u128(0u128))
     );
     assert_eq!(
-        maci_contract.amaci_signuped(&app, pubkey1.x).unwrap(),
-        Uint256::from_u128(2u128)
+        maci_contract.amaci_signuped(&app, pubkey1.clone()).unwrap(),
+        Some(Uint256::from_u128(1u128))
     );
 
     for entry in &logs_data {
