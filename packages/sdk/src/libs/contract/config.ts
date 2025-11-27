@@ -1,4 +1,3 @@
-import { Secp256k1HdWallet } from '@cosmjs/launchpad';
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient, SigningStargateClientOptions } from '@cosmjs/stargate';
 import { CosmWasmClient, SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
