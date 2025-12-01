@@ -49,7 +49,8 @@
     "test:messageHasher": "pnpm run mocha-test ts/__tests__/MessageHasher.test.ts",
     "test:stateLeafTransformerMaci": "pnpm run mocha-test ts/__tests__/StateLeafTransformerMaci.test.ts",
     "test:processMessagesAmaci": "pnpm run mocha-test ts/__tests__/ProcessMessagesAmaci.test.ts",
-    "test:processMessagesMaci": "pnpm run mocha-test ts/__tests__/ProcessMessagesMaci.test.ts"
+    "test:processMessagesMaci": "pnpm run mocha-test ts/__tests__/ProcessMessagesMaci.test.ts",
+    "test:tallyVotes": "pnpm run mocha-test ts/__tests__/TallyVotes.test.ts"
   },
   "dependencies": {
     "circomkit": "^0.3.4",
