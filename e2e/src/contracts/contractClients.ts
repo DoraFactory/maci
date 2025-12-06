@@ -120,6 +120,25 @@ export class AmaciContractClient extends BaseContractClient {
   }
 
   /**
+   * Pre add new key (uses pre-uploaded deactivate data)
+   */
+  async preAddNewKey(
+    pubkey: { x: string; y: string },
+    nullifier: string,
+    d: [string, string, string, string],
+    proof: { a: string; b: string; c: string }
+  ): Promise<any> {
+    return await this.execute({
+      pre_add_new_key: {
+        pubkey,
+        nullifier,
+        d,
+        groth16_proof: proof
+      }
+    });
+  }
+
+  /**
    * Publish message (vote)
    */
   async publishMessage(message: string[], encPubKey: { x: string; y: string }): Promise<any> {
@@ -268,6 +287,24 @@ export class AmaciContractClient extends BaseContractClient {
    */
   async getProcessedDMsgCount(): Promise<any> {
     return await this.query({ get_processed_d_msg_count: {} });
+  }
+
+  /**
+   * Upload deactivate message (for pre-add-new-key)
+   */
+  async uploadDeactivateMessage(deactivateMessage: string[][]): Promise<any> {
+    return await this.execute({
+      upload_deactivate_message: {
+        deactivate_message: deactivateMessage
+      }
+    });
+  }
+
+  /**
+   * Query: Get deactivate message
+   */
+  async getDeactivateMessage(): Promise<string[][]> {
+    return await this.query({ get_deactivate_message: {} });
   }
 }
 

@@ -1,5 +1,3 @@
-import CryptoJS from 'crypto-js';
-import { solidityPackedSha256 } from 'ethers';
 import { groth16, ZKArtifact } from 'snarkjs';
 
 import { MaciAccount } from './libs/account';
@@ -15,7 +13,8 @@ import {
   SNARK_FIELD_SIZE,
   adaptToUncompressed,
   unpackElement,
-  packElement
+  packElement,
+  computeInputHash
 } from './libs/crypto';
 import { encryptOdevity, decrypt } from './libs/crypto/rerandomize';
 import { poseidon } from './libs/crypto/hashing';
@@ -435,7 +434,7 @@ export class OperatorClient {
   }: {
     stateTreeDepth: number;
     operatorPubkey: bigint | string | PubKey;
-    deactivates: DeactivateMessage[];
+    deactivates: DeactivateMessage[] | bigint[][] | string[][];
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -571,21 +570,15 @@ export class OperatorClient {
     const deactivateRoot = tree.root;
     const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
 
-    const inputHash =
-      BigInt(
-        solidityPackedSha256(
-          new Array(7).fill('uint256'),
-          stringizing([
-            deactivateRoot,
-            poseidon(coordPubKey),
-            nullifier,
-            d1[0],
-            d1[1],
-            d2[0],
-            d2[1]
-          ]) as string[]
-        )
-      ) % SNARK_FIELD_SIZE;
+    const inputHash = computeInputHash([
+      deactivateRoot,
+      poseidon(coordPubKey),
+      nullifier,
+      d1[0],
+      d1[1],
+      d2[0],
+      d2[1]
+    ]);
 
     const input = {
       inputHash,
@@ -644,21 +637,15 @@ export class OperatorClient {
     const deactivateRoot = tree.root;
     const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
 
-    const inputHash =
-      BigInt(
-        solidityPackedSha256(
-          new Array(7).fill('uint256'),
-          stringizing([
-            deactivateRoot,
-            poseidon(coordPubKey),
-            nullifier,
-            d1[0],
-            d1[1],
-            d2[0],
-            d2[1]
-          ]) as string[]
-        )
-      ) % SNARK_FIELD_SIZE;
+    const inputHash = computeInputHash([
+      deactivateRoot,
+      poseidon(coordPubKey),
+      nullifier,
+      d1[0],
+      d1[1],
+      d2[0],
+      d2[1]
+    ]);
 
     const input = {
       inputHash,
@@ -693,6 +680,33 @@ export class OperatorClient {
       msg: string[];
       encPubkeys: string[];
     };
+  }
+
+  /**
+   * Generate a pre-deactivate entry for a voter (used in AMACI pre-deactivate mode)
+   * @param voterPubkey - The voter's public key
+   * @param isDeactivated - Whether the voter should be marked as deactivated (false = active, true = deactivated)
+   * @param randomVal - Optional random value for encryption (if not provided, uses genRandomSalt)
+   * @param derivePathParams - Optional derive path parameters
+   * @returns Deactivate entry in format: [c1[0], c1[1], c2[0], c2[1], sharedKeyHash]
+   */
+  genPreDeactivate({
+    voterPubkeys,
+    stateTreeDepth,
+    derivePathParams
+  }: {
+    voterPubkeys: PubKey[] | bigint[];
+    stateTreeDepth: number;
+    derivePathParams?: DerivePathParams;
+  }): {
+    deactivates: bigint[][];
+    root: bigint;
+    leaves: bigint[];
+    tree: Tree;
+  } {
+    const signer = this.getSigner(derivePathParams);
+    const deactivates = signer.genDeactivateRoot(voterPubkeys, stateTreeDepth);
+    return deactivates;
   }
 
   // ==================== MACI Coordinator Methods ====================
@@ -1129,21 +1143,15 @@ export class OperatorClient {
     const batchStartHash = this.dMessages[batchStartIdx].prevHash;
     const batchEndHash = this.dMessages[batchEndIdx - 1].hash;
 
-    const inputHash =
-      BigInt(
-        solidityPackedSha256(
-          new Array(7).fill('uint256'),
-          stringizing([
-            newDeactivateRoot,
-            this.pubKeyHasher!,
-            batchStartHash,
-            batchEndHash,
-            currentDeactivateCommitment,
-            newDeactivateCommitment,
-            subStateTree.root
-          ]) as string[]
-        )
-      ) % SNARK_FIELD_SIZE;
+    const inputHash = computeInputHash([
+      newDeactivateRoot,
+      this.pubKeyHasher!,
+      batchStartHash,
+      batchEndHash,
+      currentDeactivateCommitment,
+      newDeactivateCommitment,
+      subStateTree.root
+    ]);
 
     const msgs = messages.map((msg) => msg.ciphertext);
     const encPubKeys = messages.map((msg) => msg.encPubKey);
@@ -1397,37 +1405,25 @@ export class OperatorClient {
     let inputHash: bigint;
     if (this.isAmaci) {
       // AMACI: 7 fields (includes deactivateCommitment)
-      inputHash =
-        BigInt(
-          solidityPackedSha256(
-            new Array(7).fill('uint256'),
-            stringizing([
-              packedVals,
-              this.pubKeyHasher!,
-              batchStartHash,
-              batchEndHash,
-              this.stateCommitment,
-              newStateCommitment,
-              deactivateCommitment
-            ]) as string[]
-          )
-        ) % SNARK_FIELD_SIZE;
+      inputHash = computeInputHash([
+        packedVals,
+        this.pubKeyHasher!,
+        batchStartHash,
+        batchEndHash,
+        this.stateCommitment,
+        newStateCommitment,
+        deactivateCommitment
+      ]);
     } else {
       // MACI: 6 fields (no deactivateCommitment)
-      inputHash =
-        BigInt(
-          solidityPackedSha256(
-            new Array(6).fill('uint256'),
-            stringizing([
-              packedVals,
-              this.pubKeyHasher!,
-              batchStartHash,
-              batchEndHash,
-              this.stateCommitment,
-              newStateCommitment
-            ]) as string[]
-          )
-        ) % SNARK_FIELD_SIZE;
+      inputHash = computeInputHash([
+        packedVals,
+        this.pubKeyHasher!,
+        batchStartHash,
+        batchEndHash,
+        this.stateCommitment,
+        newStateCommitment
+      ]);
     }
 
     const msgs = messages.map((msg) => msg.ciphertext);
@@ -1635,18 +1631,12 @@ export class OperatorClient {
     // Generate input
     const packedVals = BigInt(this.batchNum) + (BigInt(this.numSignUps!) << 32n);
 
-    const inputHash =
-      BigInt(
-        solidityPackedSha256(
-          new Array(4).fill('uint256'),
-          stringizing([
-            packedVals,
-            this.stateCommitment,
-            this.tallyCommitment,
-            newTallyCommitment
-          ]) as string[]
-        )
-      ) % SNARK_FIELD_SIZE;
+    const inputHash = computeInputHash([
+      packedVals,
+      this.stateCommitment,
+      this.tallyCommitment,
+      newTallyCommitment
+    ]);
 
     const input = {
       stateRoot: this.stateTree.root,

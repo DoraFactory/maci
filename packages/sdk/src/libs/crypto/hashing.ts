@@ -6,6 +6,7 @@ import assert from 'assert';
 import type { Plaintext, PoseidonFuncs } from './types';
 
 import { SNARK_FIELD_SIZE } from './constants';
+import { stringizing } from './bigintUtils';
 
 /**
  * Hash an array of uint256 values the same way that the EVM does.
@@ -192,3 +193,20 @@ export const hash12 = (elements: Plaintext): bigint => {
  * @returns The hash of the element
  */
 export const hashOne = (preImage: bigint): bigint => poseidonT3([preImage, BigInt(0)]);
+
+/**
+ * Compute input hash for zkSNARK circuits using EVM-compatible packed sha256
+ * This is a unified function used across MACI circuits for computing input hashes
+ * @param values - Array of bigint values to hash
+ * @returns Input hash modulo SNARK_FIELD_SIZE
+ */
+export const computeInputHash = (values: bigint[]): bigint => {
+  return (
+    BigInt(
+      solidityPackedSha256(
+        new Array(values.length).fill('uint256'),
+        stringizing(values) as string[]
+      )
+    ) % SNARK_FIELD_SIZE
+  );
+};

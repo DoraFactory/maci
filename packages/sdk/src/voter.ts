@@ -16,7 +16,8 @@ import {
   stringizing,
   SNARK_FIELD_SIZE,
   adaptToUncompressed,
-  packElement
+  packElement,
+  computeInputHash
 } from './libs/crypto';
 import { poseidon } from './libs/crypto/hashing';
 import { poseidonEncrypt } from '@zk-kit/poseidon-cipher';
@@ -330,7 +331,7 @@ export class VoterClient {
   }: {
     stateTreeDepth: number;
     operatorPubkey: bigint | string | PubKey;
-    deactivates: DeactivateMessage[];
+    deactivates: DeactivateMessage[] | bigint[][] | string[][];
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -466,21 +467,15 @@ export class VoterClient {
     const deactivateRoot = tree.root;
     const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
 
-    const inputHash =
-      BigInt(
-        solidityPackedSha256(
-          new Array(7).fill('uint256'),
-          stringizing([
-            deactivateRoot,
-            poseidon(coordPubKey),
-            nullifier,
-            d1[0],
-            d1[1],
-            d2[0],
-            d2[1]
-          ]) as string[]
-        )
-      ) % SNARK_FIELD_SIZE;
+    const inputHash = computeInputHash([
+      deactivateRoot,
+      poseidon(coordPubKey),
+      nullifier,
+      d1[0],
+      d1[1],
+      d2[0],
+      d2[1]
+    ]);
 
     const input = {
       inputHash,
@@ -539,21 +534,15 @@ export class VoterClient {
     const deactivateRoot = tree.root;
     const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
 
-    const inputHash =
-      BigInt(
-        solidityPackedSha256(
-          new Array(7).fill('uint256'),
-          stringizing([
-            deactivateRoot,
-            poseidon(coordPubKey),
-            nullifier,
-            d1[0],
-            d1[1],
-            d2[0],
-            d2[1]
-          ]) as string[]
-        )
-      ) % SNARK_FIELD_SIZE;
+    const inputHash = computeInputHash([
+      deactivateRoot,
+      poseidon(coordPubKey),
+      nullifier,
+      d1[0],
+      d1[1],
+      d2[0],
+      d2[1]
+    ]);
 
     const input = {
       inputHash,

@@ -85,6 +85,14 @@ TallyVotes (主电路)
 
 ### 参数配置
 
+```
+2-1-1-5
+4-2-2-25
+state tree - int state - vote option - batch size 
+```
+
+
+
 ```circom
 template TallyVotes(
     stateTreeDepth,        // 状态树深度 (例如: 4)
@@ -396,6 +404,7 @@ votes[4][2] = 0    // 用户 4 给选项 2: 0 票
 
 // 电路计算
 nums[0] = 0 * (0 + 10^24) = 0
+// v * (v + MAX_VOTES)
 nums[1] = 3 * (3 + 10^24) = 3 * 10^24 + 9
 nums[2] = 0 * (0 + 10^24) = 0
 nums[3] = 5 * (5 + 10^24) = 5 * 10^24 + 25
