@@ -4,6 +4,8 @@ members = [
     "contracts/registry",
     "contracts/api-maci",
     "contracts/api-saas",
+    "contracts/test",
+
     "crates/maci-utils",
 ]
 resolver = "2"
@@ -23,10 +25,6 @@ resolver = "2"
 
 
 [profile.release.package.cw-amaci]
-codegen-units = 1
-incremental = false
-
-[profile.release.package.register]
 codegen-units = 1
 incremental = false
 

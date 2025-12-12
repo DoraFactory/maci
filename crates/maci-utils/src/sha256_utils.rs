@@ -22,7 +22,7 @@ pub fn encode_packed(arrays: &[&[u8; 32]]) -> Vec<u8> {
     let mut result: Vec<u8> = Vec::with_capacity(total_length);
 
     for array in arrays {
-        result.extend_from_slice(*array);
+        result.extend_from_slice(&array[..]);
     }
 
     result
