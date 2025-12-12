@@ -2,6 +2,7 @@ use cosmwasm_std::Uint256;
 
 /// Convert hex string to Uint256 (OLD implementation - for reference and testing)
 /// Uses string formatting for padding
+#[cfg(test)]
 pub fn uint256_from_hex_string_old(hex_string: &str) -> Uint256 {
     let padded_hex_string = if hex_string.len() < 64 {
         let padding_length = 64 - hex_string.len();

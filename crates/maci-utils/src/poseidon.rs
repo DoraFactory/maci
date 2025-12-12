@@ -17,6 +17,7 @@ fn get_poseidon() -> &'static Poseidon {
 
 /// Converts Uint256 to Fr field element (OLD implementation - for reference and testing)
 /// Uses string conversion for compatibility
+#[cfg(test)]
 #[inline]
 pub fn uint256_to_fr_old(input: &Uint256) -> Fr {
     // Original implementation: String-based conversion
@@ -57,6 +58,7 @@ pub fn hash_uint256(data: Uint256) -> Uint256 {
 
 /// Core hash function using cached Poseidon instance (OLD implementation - for reference and testing)
 /// Uses string conversion for compatibility
+#[cfg(test)]
 pub fn hash_old(message: Vec<Fr>) -> Uint256 {
     use crate::conversions::uint256_from_hex_string;
 
@@ -97,12 +99,14 @@ pub fn hash(message: Vec<Fr>) -> Uint256 {
 }
 
 /// Hash 2 Uint256 values using OLD implementation (for testing)
+#[cfg(test)]
 pub fn hash2_old(data: [Uint256; 2]) -> Uint256 {
     let uint256_inputs: Vec<Fr> = data.iter().map(uint256_to_fr_old).collect();
     hash_old(uint256_inputs)
 }
 
 /// Hash 5 Uint256 values using OLD implementation (for testing)
+#[cfg(test)]
 pub fn hash5_old(data: [Uint256; 5]) -> Uint256 {
     let uint256_inputs: Vec<Fr> = data.iter().map(uint256_to_fr_old).collect();
     hash_old(uint256_inputs)
