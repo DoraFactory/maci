@@ -31,7 +31,7 @@ overflow-checks = true
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-mt = ["library", "anyhow", "cw-multi-test", "secp256k1", "base64"]
+mt = ["library", "anyhow", "cw-multi-test", "secp256k1", "base64", "num-bigint"]
 
 
 [package.metadata.scripts]
@@ -62,6 +62,7 @@ anyhow = { version = "1.0", optional = true }
 cw-multi-test = { version = "0.20.0", optional = true }
 secp256k1 = { version = "0.27", optional = true }
 base64 = { version = "0.21", optional = true }
+num-bigint = { version = "0.4.3", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0"
