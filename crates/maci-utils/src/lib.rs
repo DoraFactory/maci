@@ -30,12 +30,6 @@ pub use conversions::{hex_to_decimal, hex_to_uint256, uint256_from_hex_string, u
 pub use poseidon::{hash, hash2, hash5, hash_uint256, uint256_to_fr, Fr};
 pub use sha256_utils::{encode_packed, hash_256_uint256_list};
 
-// Re-export old implementations for testing and comparison
-#[cfg(test)]
-pub use conversions::uint256_from_hex_string_old;
-#[cfg(test)]
-pub use poseidon::{hash2_old, hash5_old, hash_old, uint256_to_fr_old};
-
 #[cfg(test)]
 mod tests {
     use super::*;

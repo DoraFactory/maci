@@ -1,24 +1,26 @@
 use crate::error::ContractError;
-use crate::msg::{
-    ExecuteMsg, HashImplementation, HashMode, InstantiateMsg, InstantiationData, QueryMsg,
-};
+use crate::msg::{ExecuteMsg, HashOperation, InstantiateMsg, InstantiationData, QueryMsg};
 use crate::state::{
-    MessageData, PubKey, QuinaryTreeRoot, StateLeaf, LEAF_IDX_0, MACIPARAMETERS, MAX_LEAVES_COUNT,
-    MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NODES_NO_HASH, NUMSIGNUPS, NUMSIGNUPS_NO_HASH, QTR_LIB,
-    SIGNUPED, SIGNUPED_NO_HASH, VOICE_CREDIT_AMOUNT, ZEROS, ZEROS_H10, ZEROS_H10_NO_HASH,
+    MessageData, PubKey, QuinaryTreeRoot, StateLeaf, ACTIVE_BATCH_ID, BATCH_HASH_COUNT,
+    BATCH_HASH_RESULTS, LEAF_IDX_0, MACIPARAMETERS, MAX_LEAVES_COUNT, MSG_CHAIN_LENGTH, MSG_HASHES,
+    NODES, NODES_NO_HASH, NUMSIGNUPS, NUMSIGNUPS_NO_HASH, QTR_LIB, SIGNUPED, SIGNUPED_NO_HASH,
+    VOICE_CREDIT_AMOUNT, ZEROS, ZEROS_H10, ZEROS_H10_NO_HASH,
 };
-use crate::utils;
 use cosmwasm_std::entry_point;
 use cw2::set_contract_version;
 
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint256,
+    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, SubMsg,
+    Uint256, WasmMsg,
 };
 use maci_utils::{hash2, hash5, uint256_from_hex_string};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw-amaci";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// Reply IDs for batch hash operations
+const BATCH_HASH_REPLY_ID_BASE: u64 = 1000;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -188,30 +190,20 @@ pub fn execute(
             message,
             enc_pub_key,
         } => execute_test_publish_message(deps, env, info, message, enc_pub_key),
-        ExecuteMsg::TestPoseidonHashOnce { data } => {
-            execute_test_poseidon_hash_once(deps, env, info, data)
+        ExecuteMsg::TestHash2 { data } => execute_test_hash2(deps, env, info, data),
+        ExecuteMsg::TestHash5 { data } => execute_test_hash5(deps, env, info, data),
+        ExecuteMsg::TestHashUint256 { data } => execute_test_hash_uint256(deps, env, info, data),
+        ExecuteMsg::TestHashOnce { data } => execute_test_hash_once(deps, env, info, data),
+        ExecuteMsg::TestHashMultiple { data, count } => {
+            execute_test_hash_multiple(deps, env, info, data, count)
         }
-        ExecuteMsg::TestPoseidonHashMultiple {
-            data,
-            instance_count,
-        } => execute_test_poseidon_hash_multiple(deps, env, info, data, instance_count),
-        ExecuteMsg::TestPoseidonHashBatch { data } => {
-            execute_test_poseidon_hash_batch(deps, env, info, data)
+        ExecuteMsg::TestHashBatch { data } => execute_test_hash_batch(deps, env, info, data),
+        ExecuteMsg::TestHashComposed { data, repeat_count } => {
+            execute_test_hash_composed(deps, env, info, data, repeat_count)
         }
-        ExecuteMsg::TestPoseidonHashMode {
-            implementation,
-            mode,
-            data,
-            repeat_count,
-        } => execute_test_poseidon_hash_mode(
-            deps,
-            env,
-            info,
-            implementation,
-            mode,
-            data,
-            repeat_count,
-        ),
+        ExecuteMsg::TestBatchHash { operations } => {
+            execute_test_batch_hash(deps, env, info, operations)
+        }
     }
 }
 
@@ -618,147 +610,314 @@ pub fn execute_test_publish_message(
         .add_attribute("enc_pub_key_y", enc_pub_key.y.to_string()))
 }
 
-/// Test function for single Poseidon hash
-/// Measures gas cost of one hash5 call (including Poseidon instantiation)
-/// Uses utils::hash5 which instantiates Poseidon each time
-pub fn execute_test_poseidon_hash_once(
+/// Test function for hash2
+/// Measures gas cost of hash2 function from maci-utils
+pub fn execute_test_hash2(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    data: [Uint256; 5],
+    data: [Uint256; 2],
 ) -> Result<Response, ContractError> {
-    // Call utils::hash5 once (includes Poseidon instantiation)
-    let result = utils::hash5(data);
+    let result = hash2(data);
 
     Ok(Response::new()
-        .add_attribute("action", "test_poseidon_hash_once")
+        .add_attribute("action", "test_hash2")
         .add_attribute("result", result.to_string()))
 }
 
-/// Test function for multiple Poseidon hash instantiations
-/// Measures gas cost of multiple separate hash5 calls
-/// Uses utils::hash5 which instantiates Poseidon each time
-pub fn execute_test_poseidon_hash_multiple(
+/// Test function for hash5
+/// Measures gas cost of hash5 function from maci-utils
+pub fn execute_test_hash5(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     data: [Uint256; 5],
-    instance_count: u32,
+) -> Result<Response, ContractError> {
+    let result = hash5(data);
+
+    Ok(Response::new()
+        .add_attribute("action", "test_hash5")
+        .add_attribute("result", result.to_string()))
+}
+
+/// Test function for hash_uint256
+/// Measures gas cost of hash_uint256 function from maci-utils
+pub fn execute_test_hash_uint256(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    data: Uint256,
+) -> Result<Response, ContractError> {
+    let result = maci_utils::hash_uint256(data);
+
+    Ok(Response::new()
+        .add_attribute("action", "test_hash_uint256")
+        .add_attribute("result", result.to_string()))
+}
+
+/// Test function for single hash5 call
+/// Measures gas cost of one hash5 call
+pub fn execute_test_hash_once(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    data: [Uint256; 5],
+) -> Result<Response, ContractError> {
+    let result = hash5(data);
+
+    Ok(Response::new()
+        .add_attribute("action", "test_hash_once")
+        .add_attribute("result", result.to_string()))
+}
+
+/// Test function for multiple hash5 calls in a single transaction
+/// Measures gas cost of multiple hash5 calls with the same data
+pub fn execute_test_hash_multiple(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    data: [Uint256; 5],
+    count: u32,
 ) -> Result<Response, ContractError> {
     let mut last_result = Uint256::zero();
 
-    // Call utils::hash5 multiple times (each call creates a new Poseidon instance)
-    for _i in 0..instance_count {
-        last_result = utils::hash5(data);
+    // Call hash5 multiple times in a single transaction
+    for _i in 0..count {
+        last_result = hash5(data);
     }
 
     Ok(Response::new()
-        .add_attribute("action", "test_poseidon_hash_multiple")
-        .add_attribute("instance_count", instance_count.to_string())
+        .add_attribute("action", "test_hash_multiple")
+        .add_attribute("count", count.to_string())
         .add_attribute("last_result", last_result.to_string()))
 }
 
-/// Test function for batch Poseidon hashing
-/// Measures gas cost of hashing multiple data arrays
-/// Uses utils::hash5 which instantiates Poseidon each time
-pub fn execute_test_poseidon_hash_batch(
+/// Test function for batch hashing
+/// Measures gas cost of hashing multiple different data arrays
+pub fn execute_test_hash_batch(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     data: Vec<[Uint256; 5]>,
 ) -> Result<Response, ContractError> {
     let mut last_result = Uint256::zero();
+
     // Hash each data item in the batch
     for item in data.iter() {
         last_result = hash5(*item);
     }
 
     Ok(Response::new()
-        .add_attribute("action", "test_poseidon_hash_batch")
+        .add_attribute("action", "test_hash_batch")
         .add_attribute("hash_count", data.len().to_string())
         .add_attribute("last_result", last_result.to_string()))
 }
 
-/// Flexible test function supporting different hash modes and implementations
-/// Measures gas cost for various hash operations and compositions
-pub fn execute_test_poseidon_hash_mode(
+/// Test function for composed hash operations
+/// Tests various hash compositions (hash2, hash5, and combinations)
+pub fn execute_test_hash_composed(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    implementation: HashImplementation,
-    mode: HashMode,
     data: [Uint256; 5],
     repeat_count: u32,
 ) -> Result<Response, ContractError> {
     let mut last_result = Uint256::zero();
 
     for _i in 0..repeat_count {
-        last_result = match implementation {
-            HashImplementation::LocalUtils => {
-                // Use crate::utils (instantiates Poseidon each time)
-                match mode {
-                    HashMode::Hash2 => utils::hash2([data[0], data[1]]),
-                    HashMode::Hash5 => utils::hash5(data),
-                    HashMode::Hash2Hash5Hash5 => {
-                        let hash5_result1 = utils::hash5(data);
-                        let hash5_result2 = utils::hash5(data);
-                        utils::hash2([hash5_result1, hash5_result2])
-                    }
-                    HashMode::Hash5Hash2 => {
-                        let hash2_result = utils::hash2([data[0], data[1]]);
-                        utils::hash5([
-                            hash2_result,
-                            Uint256::zero(),
-                            Uint256::zero(),
-                            Uint256::zero(),
-                            Uint256::zero(),
-                        ])
-                    }
-                }
-            }
-            HashImplementation::MaciUtils => {
-                // Use maci_utils (may have optimizations)
-                match mode {
-                    HashMode::Hash2 => hash2([data[0], data[1]]),
-                    HashMode::Hash5 => hash5(data),
-                    HashMode::Hash2Hash5Hash5 => {
-                        let hash5_result1 = hash5(data);
-                        let hash5_result2 = hash5(data);
-                        hash2([hash5_result1, hash5_result2])
-                    }
-                    HashMode::Hash5Hash2 => {
-                        let hash2_result = hash2([data[0], data[1]]);
-                        hash5([
-                            hash2_result,
-                            Uint256::zero(),
-                            Uint256::zero(),
-                            Uint256::zero(),
-                            Uint256::zero(),
-                        ])
-                    }
-                }
-            }
-        };
+        // Test hash2
+        let hash2_result = hash2([data[0], data[1]]);
+
+        // Test hash5
+        let hash5_result1 = hash5(data);
+        let hash5_result2 = hash5(data);
+
+        // Test hash2(hash5, hash5) composition
+        let composed_hash2 = hash2([hash5_result1, hash5_result2]);
+
+        // Test hash5(hash2, composed_hash2, 0, 0, 0) composition
+        last_result = hash5([
+            hash2_result,
+            composed_hash2,
+            Uint256::zero(),
+            Uint256::zero(),
+            Uint256::zero(),
+        ]);
     }
 
-    let impl_str = match implementation {
-        HashImplementation::LocalUtils => "local_utils",
-        HashImplementation::MaciUtils => "maci_utils",
-    };
-
-    let mode_str = match mode {
-        HashMode::Hash2 => "hash2",
-        HashMode::Hash5 => "hash5",
-        HashMode::Hash2Hash5Hash5 => "hash2_hash5_hash5",
-        HashMode::Hash5Hash2 => "hash5_hash2",
-    };
-
     Ok(Response::new()
-        .add_attribute("action", "test_poseidon_hash_mode")
-        .add_attribute("implementation", impl_str)
-        .add_attribute("mode", mode_str)
+        .add_attribute("action", "test_hash_composed")
         .add_attribute("repeat_count", repeat_count.to_string())
         .add_attribute("last_result", last_result.to_string()))
+}
+
+/// Test function for batch hash operations
+/// Executes multiple hash operations in a single transaction using submessages
+pub fn execute_test_batch_hash(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    operations: Vec<HashOperation>,
+) -> Result<Response, ContractError> {
+    if operations.is_empty() {
+        return Err(ContractError::Std(cosmwasm_std::StdError::generic_err(
+            "Operations list cannot be empty",
+        )));
+    }
+
+    // Generate a unique batch ID using block time and height
+    let batch_id = env.block.time.nanos() % 1_000_000_000_000; // Use last 12 digits of nanos
+    let contract_addr = env.contract.address.clone();
+
+    // Store batch information
+    BATCH_HASH_COUNT.save(deps.storage, batch_id, &(operations.len() as u32))?;
+    BATCH_HASH_RESULTS.save(deps.storage, batch_id, &Vec::new())?;
+    ACTIVE_BATCH_ID.save(deps.storage, &batch_id)?;
+
+    let mut response = Response::new()
+        .add_attribute("action", "test_batch_hash")
+        .add_attribute("operation_count", operations.len().to_string())
+        .add_attribute("batch_id", batch_id.to_string());
+
+    // Convert each HashOperation to ExecuteMsg and create SubMsg
+    for (index, op) in operations.iter().enumerate() {
+        let execute_msg = match op {
+            HashOperation::Hash2 { data } => ExecuteMsg::TestHash2 { data: *data },
+            HashOperation::Hash5 { data } => ExecuteMsg::TestHash5 { data: *data },
+            HashOperation::HashUint256 { data } => ExecuteMsg::TestHashUint256 { data: *data },
+            HashOperation::HashComposed { data, repeat_count } => ExecuteMsg::TestHashComposed {
+                data: *data,
+                repeat_count: *repeat_count,
+            },
+        };
+
+        let wasm_msg = WasmMsg::Execute {
+            contract_addr: contract_addr.to_string(),
+            msg: to_json_binary(&execute_msg)?,
+            funds: vec![],
+        };
+
+        let reply_id = BATCH_HASH_REPLY_ID_BASE + index as u64;
+        let submsg = SubMsg::reply_on_success(wasm_msg, reply_id);
+
+        response = response.add_submessage(submsg);
+    }
+
+    Ok(response)
+}
+
+// ============================================================================
+// Reply Handler
+// ============================================================================
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    // Check if this is a batch hash operation reply
+    if msg.id >= BATCH_HASH_REPLY_ID_BASE && msg.id < BATCH_HASH_REPLY_ID_BASE + 1000 {
+        handle_batch_hash_reply(deps, msg)
+    } else {
+        Err(ContractError::Std(cosmwasm_std::StdError::generic_err(
+            format!("Unknown reply id: {}", msg.id),
+        )))
+    }
+}
+
+fn handle_batch_hash_reply(deps: DepsMut, msg: Reply) -> Result<Response, ContractError> {
+    // Extract operation index from reply ID
+    let operation_index = (msg.id - BATCH_HASH_REPLY_ID_BASE) as usize;
+
+    // Parse the submessage response
+    let response = msg.result.into_result().map_err(|e| {
+        ContractError::Std(cosmwasm_std::StdError::generic_err(format!(
+            "Submessage failed: {}",
+            e
+        )))
+    })?;
+
+    // Extract result from submessage response attributes
+    // Look for "result" attribute in the response
+    let mut hash_result = Uint256::zero();
+    for event in response.events.iter() {
+        for attr in event.attributes.iter() {
+            if attr.key == "result" {
+                // Parse Uint256 from string
+                // Try parsing as u128 first (for smaller values)
+                hash_result = attr
+                    .value
+                    .parse::<u128>()
+                    .map(Uint256::from_u128)
+                    .unwrap_or_else(|_| {
+                        // For larger values, parse using BigUint
+                        use num_bigint::BigUint;
+                        BigUint::parse_bytes(attr.value.as_bytes(), 10)
+                            .map(|n| {
+                                let bytes = n.to_bytes_be();
+                                let mut array = [0u8; 32];
+                                let len = bytes.len().min(32);
+                                if len > 0 {
+                                    let start = 32 - len;
+                                    array[start..].copy_from_slice(&bytes[..len]);
+                                }
+                                Uint256::from_be_bytes(array)
+                            })
+                            .unwrap_or(Uint256::zero())
+                    });
+                break;
+            }
+        }
+        if hash_result != Uint256::zero() {
+            break;
+        }
+    }
+
+    // Load active batch_id
+    let batch_id = ACTIVE_BATCH_ID.load(deps.storage).map_err(|_| {
+        ContractError::Std(cosmwasm_std::StdError::generic_err("No active batch found"))
+    })?;
+
+    // Load current results
+    let mut results = BATCH_HASH_RESULTS
+        .load(deps.storage, batch_id)
+        .unwrap_or_default();
+
+    // Add this operation's result
+    results.push((operation_index, hash_result));
+
+    // Load expected count
+    let expected_count = BATCH_HASH_COUNT.load(deps.storage, batch_id)? as usize;
+
+    // Save updated results
+    BATCH_HASH_RESULTS.save(deps.storage, batch_id, &results)?;
+
+    // Check if all operations are complete
+    if results.len() >= expected_count {
+        // All operations complete, return final response
+        // Sort results by index to ensure correct order
+        results.sort_by_key(|(idx, _)| *idx);
+
+        let last_result = results.last().map(|(_, r)| *r).unwrap_or(Uint256::zero());
+
+        let mut response = Response::new()
+            .add_attribute("action", "test_batch_hash_complete")
+            .add_attribute("batch_id", batch_id.to_string())
+            .add_attribute("operation_count", expected_count.to_string())
+            .add_attribute("last_result", last_result.to_string());
+
+        // Add individual results
+        for (index, result) in results.iter() {
+            response = response.add_attribute(format!("result_{}", index), result.to_string());
+        }
+
+        // Clean up temporary storage
+        BATCH_HASH_RESULTS.remove(deps.storage, batch_id);
+        BATCH_HASH_COUNT.remove(deps.storage, batch_id);
+        ACTIVE_BATCH_ID.remove(deps.storage);
+
+        Ok(response)
+    } else {
+        // More operations pending, return empty response
+        Ok(Response::new().add_attribute("action", "test_batch_hash_partial"))
+    }
 }
 
 // ============================================================================

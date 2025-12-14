@@ -3,9 +3,10 @@ mod tests;
 
 use anyhow::Result as AnyResult;
 
+use crate::msg::HashOperation;
 use crate::state::{MaciParameters, MessageData, PubKey};
 use crate::{
-    contract::{execute, instantiate, query},
+    contract::{execute, instantiate, query, reply},
     msg::*,
 };
 use maci_utils::uint256_from_hex_string;
@@ -63,7 +64,7 @@ impl MaciCodeId {
     }
 
     pub fn store_code(app: &mut App) -> Self {
-        let contract = ContractWrapper::new(execute, instantiate, query);
+        let contract = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
         let code_id = app.store_code(Box::new(contract));
         Self(code_id)
     }
@@ -301,41 +302,68 @@ impl TestContract {
     }
 
     #[track_caller]
-    pub fn test_poseidon_hash_once(
+    pub fn test_hash2(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        data: [Uint256; 2],
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(sender, self.addr(), &ExecuteMsg::TestHash2 { data }, &[])
+    }
+
+    #[track_caller]
+    pub fn test_hash5(
         &self,
         app: &mut App,
         sender: Addr,
         data: [Uint256; 5],
     ) -> AnyResult<AppResponse> {
-        app.execute_contract(
-            sender,
-            self.addr(),
-            &ExecuteMsg::TestPoseidonHashOnce { data },
-            &[],
-        )
+        app.execute_contract(sender, self.addr(), &ExecuteMsg::TestHash5 { data }, &[])
     }
 
     #[track_caller]
-    pub fn test_poseidon_hash_multiple(
+    pub fn test_hash_uint256(
         &self,
         app: &mut App,
         sender: Addr,
-        data: [Uint256; 5],
-        instance_count: u32,
+        data: Uint256,
     ) -> AnyResult<AppResponse> {
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::TestPoseidonHashMultiple {
-                data,
-                instance_count,
-            },
+            &ExecuteMsg::TestHashUint256 { data },
             &[],
         )
     }
 
     #[track_caller]
-    pub fn test_poseidon_hash_batch(
+    pub fn test_hash_once(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        data: [Uint256; 5],
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(sender, self.addr(), &ExecuteMsg::TestHashOnce { data }, &[])
+    }
+
+    #[track_caller]
+    pub fn test_hash_multiple(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        data: [Uint256; 5],
+        count: u32,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::TestHashMultiple { data, count },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn test_hash_batch(
         &self,
         app: &mut App,
         sender: Addr,
@@ -344,30 +372,38 @@ impl TestContract {
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::TestPoseidonHashBatch { data },
+            &ExecuteMsg::TestHashBatch { data },
             &[],
         )
     }
 
     #[track_caller]
-    pub fn test_poseidon_hash_mode(
+    pub fn test_hash_composed(
         &self,
         app: &mut App,
         sender: Addr,
-        implementation: HashImplementation,
-        mode: HashMode,
         data: [Uint256; 5],
         repeat_count: u32,
     ) -> AnyResult<AppResponse> {
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::TestPoseidonHashMode {
-                implementation,
-                mode,
-                data,
-                repeat_count,
-            },
+            &ExecuteMsg::TestHashComposed { data, repeat_count },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn test_batch_hash(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        operations: Vec<HashOperation>,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::TestBatchHash { operations },
             &[],
         )
     }

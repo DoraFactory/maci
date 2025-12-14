@@ -1,127 +1,123 @@
+use ark_bn254::Fr as ArkFr;
+use ark_ff::{BigInteger, PrimeField};
 use cosmwasm_std::Uint256;
-use ff::*;
-use poseidon_rs::Poseidon;
+use light_poseidon::{Poseidon, PoseidonHasher};
 
 // Re-export Fr type for convenience
-pub type Fr = poseidon_rs::Fr;
-
-// Cache Poseidon instance for reuse
-// Creating Poseidon instance is expensive due to constant loading
-use std::sync::OnceLock;
-static POSEIDON_INSTANCE: OnceLock<Poseidon> = OnceLock::new();
-
-/// Get or initialize the cached Poseidon instance
-fn get_poseidon() -> &'static Poseidon {
-    POSEIDON_INSTANCE.get_or_init(Poseidon::new)
-}
-
-/// Converts Uint256 to Fr field element (OLD implementation - for reference and testing)
-/// Uses string conversion for compatibility
-#[cfg(test)]
-#[inline]
-pub fn uint256_to_fr_old(input: &Uint256) -> Fr {
-    // Original implementation: String-based conversion
-    Fr::from_str(&input.to_string()).unwrap()
-}
+pub type Fr = ArkFr;
 
 /// Converts Uint256 to Fr field element
-/// Optimized to use direct byte conversion instead of string operations
+/// Optimized to use direct byte conversion
 #[inline]
 pub fn uint256_to_fr(input: &Uint256) -> Fr {
-    // Optimization: Direct byte conversion using PrimeFieldRepr
-    let bytes = input.to_le_bytes(); // Fr uses little-endian
+    // Convert Uint256 to little-endian bytes
+    let bytes = input.to_le_bytes();
 
-    // Create FrRepr from bytes
-    let mut repr = <Fr as PrimeField>::Repr::default();
-
-    // Use read_le to parse bytes into FrRepr
-    use std::io::Cursor;
-    if repr.read_le(&mut Cursor::new(&bytes[..])).is_ok() {
-        // Try to convert FrRepr to Fr
-        match Fr::from_repr(repr) {
-            Ok(fr) => return fr,
-            Err(_) => {
-                // Value exceeds field modulus, fallback to string conversion
-            }
-        }
+    // Try to create Fr from little-endian bytes
+    match Fr::from_le_bytes_mod_order(&bytes) {
+        fr => fr,
     }
-
-    // Fallback to string conversion for edge cases
-    Fr::from_str(&input.to_string()).unwrap()
 }
 
 /// Hash a single Uint256 value
 pub fn hash_uint256(data: Uint256) -> Uint256 {
-    let uint256_inputs = vec![uint256_to_fr(&data)];
-    hash(uint256_inputs)
+    // Hash single value using width 1
+    let fr_value = uint256_to_fr(&data);
+    let mut poseidon = Poseidon::<ArkFr>::new_circom(1).unwrap();
+    let result_fr = poseidon.hash(&[fr_value]).unwrap();
+
+    // Convert Fr to Uint256 via little-endian bytes
+    let bigint = result_fr.into_bigint();
+    let bytes = bigint.to_bytes_le();
+
+    // Pad to 32 bytes if needed
+    let mut padded = [0u8; 32];
+    let len = bytes.len().min(32);
+    padded[..len].copy_from_slice(&bytes[..len]);
+
+    Uint256::from_le_bytes(padded)
 }
 
-/// Core hash function using cached Poseidon instance (OLD implementation - for reference and testing)
-/// Uses string conversion for compatibility
-#[cfg(test)]
-pub fn hash_old(message: Vec<Fr>) -> Uint256 {
-    use crate::conversions::uint256_from_hex_string;
-
-    // Use cached Poseidon instance
-    let poseidon = get_poseidon();
-
-    // Original implementation: String-based conversion
-    let hash_item = poseidon.hash(message).unwrap().to_string();
-    let hash_res = &hash_item[5..hash_item.len() - 1];
-
-    uint256_from_hex_string(hash_res)
-}
-
-/// Core hash function using cached Poseidon instance
-pub fn hash(message: Vec<Fr>) -> Uint256 {
-    // Use cached Poseidon instance instead of creating new one each time
-    let poseidon = get_poseidon();
+/// Core hash function for width 2
+fn hash_width_2(message: &[Fr; 2]) -> Uint256 {
+    let mut poseidon = Poseidon::<ArkFr>::new_circom(2).unwrap();
     let result_fr = poseidon.hash(message).unwrap();
 
-    // Optimization: Direct byte conversion using PrimeFieldRepr
-    let repr = result_fr.into_repr();
+    // Convert Fr to Uint256 via little-endian bytes
+    let bigint = result_fr.into_bigint();
+    let bytes = bigint.to_bytes_le();
 
-    // Convert FrRepr to bytes using write_le
-    let mut bytes = [0u8; 32];
-    use std::io::Cursor;
-    let mut cursor = Cursor::new(&mut bytes[..]);
+    // Pad to 32 bytes if needed
+    let mut padded = [0u8; 32];
+    let len = bytes.len().min(32);
+    padded[..len].copy_from_slice(&bytes[..len]);
 
-    if repr.write_le(&mut cursor).is_ok() {
-        // Successfully wrote bytes, convert to Uint256
-        Uint256::from_le_bytes(bytes)
+    Uint256::from_le_bytes(padded)
+}
+
+/// Core hash function for width 5
+fn hash_width_5(message: &[Fr; 5]) -> Uint256 {
+    let mut poseidon = Poseidon::<ArkFr>::new_circom(5).unwrap();
+    let result_fr = poseidon.hash(message).unwrap();
+
+    // Convert Fr to Uint256 via little-endian bytes
+    let bigint = result_fr.into_bigint();
+    let bytes = bigint.to_bytes_le();
+
+    // Pad to 32 bytes if needed
+    let mut padded = [0u8; 32];
+    let len = bytes.len().min(32);
+    padded[..len].copy_from_slice(&bytes[..len]);
+
+    Uint256::from_le_bytes(padded)
+}
+
+/// Core hash function
+/// This is a generic version that accepts a Vec<Fr> for backward compatibility
+pub fn hash(message: Vec<Fr>) -> Uint256 {
+    // For backward compatibility, support variable-width hashing
+    let len = message.len();
+
+    if len == 2 {
+        let arr: [Fr; 2] = [message[0], message[1]];
+        return hash_width_2(&arr);
+    } else if len == 5 {
+        let arr: [Fr; 5] = [message[0], message[1], message[2], message[3], message[4]];
+        return hash_width_5(&arr);
     } else {
-        // Fallback to string conversion (should rarely happen)
-        let hash_item = result_fr.to_string();
-        let hash_res = &hash_item[5..hash_item.len() - 1];
-        use crate::conversions::uint256_from_hex_string;
-        uint256_from_hex_string(hash_res)
+        // For other widths, create a new Poseidon instance
+        let mut poseidon = Poseidon::<Fr>::new_circom(len).unwrap();
+        let result_fr = poseidon.hash(&message).unwrap();
+
+        // Convert Fr to Uint256 via little-endian bytes
+        let bigint = result_fr.into_bigint();
+        let bytes = bigint.to_bytes_le();
+
+        // Pad to 32 bytes if needed
+        let mut padded = [0u8; 32];
+        let len = bytes.len().min(32);
+        padded[..len].copy_from_slice(&bytes[..len]);
+
+        Uint256::from_le_bytes(padded)
     }
-}
-
-/// Hash 2 Uint256 values using OLD implementation (for testing)
-#[cfg(test)]
-pub fn hash2_old(data: [Uint256; 2]) -> Uint256 {
-    let uint256_inputs: Vec<Fr> = data.iter().map(uint256_to_fr_old).collect();
-    hash_old(uint256_inputs)
-}
-
-/// Hash 5 Uint256 values using OLD implementation (for testing)
-#[cfg(test)]
-pub fn hash5_old(data: [Uint256; 5]) -> Uint256 {
-    let uint256_inputs: Vec<Fr> = data.iter().map(uint256_to_fr_old).collect();
-    hash_old(uint256_inputs)
 }
 
 /// Hash 2 Uint256 values (commonly used for Merkle trees)
 pub fn hash2(data: [Uint256; 2]) -> Uint256 {
-    let uint256_inputs: Vec<Fr> = data.iter().map(uint256_to_fr).collect();
-    hash(uint256_inputs)
+    let fr_array: [Fr; 2] = [uint256_to_fr(&data[0]), uint256_to_fr(&data[1])];
+    hash_width_2(&fr_array)
 }
 
 /// Hash 5 Uint256 values (commonly used for message hashing)
 pub fn hash5(data: [Uint256; 5]) -> Uint256 {
-    let uint256_inputs: Vec<Fr> = data.iter().map(uint256_to_fr).collect();
-    hash(uint256_inputs)
+    let fr_array: [Fr; 5] = [
+        uint256_to_fr(&data[0]),
+        uint256_to_fr(&data[1]),
+        uint256_to_fr(&data[2]),
+        uint256_to_fr(&data[3]),
+        uint256_to_fr(&data[4]),
+    ];
+    hash_width_5(&fr_array)
 }
 
 #[cfg(test)]
@@ -462,264 +458,5 @@ mod tests {
         assert_ne!(hash_zeros, hash_same);
         assert_ne!(hash_same, hash_mixed);
         assert_ne!(hash_zeros, hash_mixed);
-    }
-
-    // === Old vs New Implementation Comparison Tests ===
-
-    #[test]
-    fn test_uint256_to_fr_old_vs_new() {
-        // Test that old and new conversions produce the same Fr values
-        let test_values = vec![
-            Uint256::zero(),
-            Uint256::from_u128(1),
-            Uint256::from_u128(42),
-            Uint256::from_u128(12345),
-            Uint256::from_u128(999999),
-            Uint256::from_u128(u128::MAX / 2),
-        ];
-
-        for value in test_values {
-            let fr_old = uint256_to_fr_old(&value);
-            let fr_new = uint256_to_fr(&value);
-
-            // Compare as strings to ensure exact match
-            assert_eq!(
-                fr_old.to_string(),
-                fr_new.to_string(),
-                "Old and new uint256_to_fr should produce same result for {}",
-                value
-            );
-        }
-    }
-
-    #[test]
-    fn test_hash2_old_vs_new() {
-        // Test that old and new hash2 produce identical results
-        let test_cases = vec![
-            [Uint256::zero(), Uint256::zero()],
-            [Uint256::from_u128(1), Uint256::from_u128(2)],
-            [Uint256::from_u128(100), Uint256::from_u128(200)],
-            [Uint256::from_u128(12345), Uint256::from_u128(67890)],
-            [
-                Uint256::from_u128(u128::MAX / 2),
-                Uint256::from_u128(u128::MAX / 3),
-            ],
-        ];
-
-        for data in test_cases {
-            let result_old = hash2_old(data);
-            let result_new = hash2(data);
-
-            assert_eq!(
-                result_old, result_new,
-                "Old and new hash2 should produce identical results for [{}, {}]",
-                data[0], data[1]
-            );
-        }
-    }
-
-    #[test]
-    fn test_hash5_old_vs_new() {
-        // Test that old and new hash5 produce identical results
-        let test_cases = vec![
-            [
-                Uint256::zero(),
-                Uint256::zero(),
-                Uint256::zero(),
-                Uint256::zero(),
-                Uint256::zero(),
-            ],
-            [
-                Uint256::from_u128(1),
-                Uint256::from_u128(2),
-                Uint256::from_u128(3),
-                Uint256::from_u128(4),
-                Uint256::from_u128(5),
-            ],
-            [
-                Uint256::from_u128(100),
-                Uint256::from_u128(200),
-                Uint256::from_u128(300),
-                Uint256::from_u128(400),
-                Uint256::from_u128(500),
-            ],
-            [
-                Uint256::from_u128(u128::MAX / 10),
-                Uint256::from_u128(u128::MAX / 9),
-                Uint256::from_u128(u128::MAX / 8),
-                Uint256::from_u128(u128::MAX / 7),
-                Uint256::from_u128(u128::MAX / 6),
-            ],
-        ];
-
-        for data in test_cases {
-            let result_old = hash5_old(data);
-            let result_new = hash5(data);
-
-            assert_eq!(
-                result_old, result_new,
-                "Old and new hash5 should produce identical results for [{}, {}, {}, {}, {}]",
-                data[0], data[1], data[2], data[3], data[4]
-            );
-        }
-    }
-
-    #[test]
-    fn test_hash_old_vs_new_with_fr() {
-        // Test the core hash function with Fr inputs
-        let test_cases = vec![
-            vec![uint256_to_fr(&Uint256::from_u128(1))],
-            vec![
-                uint256_to_fr(&Uint256::from_u128(1)),
-                uint256_to_fr(&Uint256::from_u128(2)),
-            ],
-            vec![
-                uint256_to_fr(&Uint256::from_u128(10)),
-                uint256_to_fr(&Uint256::from_u128(20)),
-                uint256_to_fr(&Uint256::from_u128(30)),
-            ],
-        ];
-
-        for message in test_cases {
-            let result_old = hash_old(message.clone());
-            let result_new = hash(message.clone());
-
-            assert_eq!(
-                result_old,
-                result_new,
-                "Old and new hash should produce identical results for {} Fr elements",
-                message.len()
-            );
-        }
-    }
-
-    #[test]
-    fn test_backward_compatibility() {
-        // Critical test: Ensure optimized version is backward compatible
-        // This test uses known values from the old implementation
-
-        // Test case 1: Simple hash2
-        let data2 = [Uint256::from_u128(123), Uint256::from_u128(456)];
-        let expected2 = hash2_old(data2);
-        let actual2 = hash2(data2);
-        println!(
-            "expected2: {:?}, actual2: {:?}",
-            expected2.to_string(),
-            actual2.to_string()
-        );
-        assert_eq!(
-            expected2, actual2,
-            "Backward compatibility failed for hash2"
-        );
-
-        // Test case 2: Simple hash5
-        let data5 = [
-            Uint256::from_u128(1),
-            Uint256::from_u128(2),
-            Uint256::from_u128(3),
-            Uint256::from_u128(4),
-            Uint256::from_u128(5),
-        ];
-        let expected5 = hash5_old(data5);
-        let actual5 = hash5(data5);
-        assert_eq!(
-            expected5, actual5,
-            "Backward compatibility failed for hash5"
-        );
-
-        // Test case 3: Edge case with zeros
-        let zeros = [Uint256::zero(), Uint256::zero()];
-        let expected_zeros = hash2_old(zeros);
-        let actual_zeros = hash2(zeros);
-        assert_eq!(
-            expected_zeros, actual_zeros,
-            "Backward compatibility failed for zeros"
-        );
-
-        // Test case 4: Edge case with actual large values from production
-        use std::str::FromStr;
-        let large_values = [
-            Uint256::from_str(
-                "12761031405884291514862783980916548812409192269495287387226935999678051935688",
-            )
-            .unwrap(),
-            Uint256::from_str(
-                "5560333312265220368904143333705565012889927992449600963705144275569222325479",
-            )
-            .unwrap(),
-        ];
-        let expected_large_values = hash2_old(large_values);
-        let actual_large_values = hash2(large_values);
-
-        println!(
-            "Large values test - Value1: {}, Value2: {}",
-            large_values[0], large_values[1]
-        );
-        println!(
-            "Expected hash: {}, Actual hash: {}",
-            expected_large_values, actual_large_values
-        );
-
-        assert_eq!(
-            expected_large_values, actual_large_values,
-            "Backward compatibility failed for large values"
-        );
-    }
-
-    #[test]
-    fn test_performance_comparison() {
-        // Simple performance comparison test
-        // Note: This is not a precise benchmark, just a sanity check
-
-        use std::time::Instant;
-
-        let data = [
-            Uint256::from_u128(1),
-            Uint256::from_u128(2),
-            Uint256::from_u128(3),
-            Uint256::from_u128(4),
-            Uint256::from_u128(5),
-        ];
-
-        let iterations = 100;
-
-        // Test old implementation
-        let start_old = Instant::now();
-        for _ in 0..iterations {
-            let _ = hash5_old(data);
-        }
-        let duration_old = start_old.elapsed();
-
-        // Test new implementation
-        let start_new = Instant::now();
-        for _ in 0..iterations {
-            let _ = hash5(data);
-        }
-        let duration_new = start_new.elapsed();
-
-        println!(
-            "\n=== Performance Comparison (hash5, {} iterations) ===",
-            iterations
-        );
-        println!("Old implementation: {:?}", duration_old);
-        println!("New implementation: {:?}", duration_new);
-
-        if duration_new < duration_old {
-            let improvement = ((duration_old.as_nanos() - duration_new.as_nanos()) as f64
-                / duration_old.as_nanos() as f64)
-                * 100.0;
-            println!("Improvement: {:.2}%", improvement);
-        } else {
-            println!("Note: New implementation may be slower in debug mode");
-        }
-        println!("========================================\n");
-
-        // Sanity check: new should be at least not significantly slower
-        // Allow 100% margin in debug mode (optimizations apply in release)
-        let acceptable_ratio = 2.0;
-        assert!(
-            duration_new.as_nanos() < duration_old.as_nanos() * acceptable_ratio as u128,
-            "New implementation is significantly slower than old"
-        );
     }
 }

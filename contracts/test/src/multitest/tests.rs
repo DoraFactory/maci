@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod test {
-    use crate::msg::{HashImplementation, HashMode};
+    use crate::msg::HashOperation;
     use crate::multitest::{
         create_app, owner, test_pubkey1, test_pubkey2, user1, user2, MaciCodeId,
     };
@@ -223,40 +223,31 @@ mod test {
     }
 
     #[test]
-    fn test_poseidon_hash_once() {
+    fn test_hash2() {
         let mut app = create_app();
         let code_id = MaciCodeId::store_code(&mut app);
         let contract = code_id
             .instantiate_default(&mut app, owner(), "test_contract")
             .unwrap();
 
-        let data = [
-            Uint256::from_u128(1u128),
-            Uint256::from_u128(2u128),
-            Uint256::from_u128(3u128),
-            Uint256::from_u128(4u128),
-            Uint256::from_u128(5u128),
-        ];
+        let data = [Uint256::from_u128(1u128), Uint256::from_u128(2u128)];
 
-        // Test single hash
-        let response = contract
-            .test_poseidon_hash_once(&mut app, user1(), data)
-            .unwrap();
+        let response = contract.test_hash2(&mut app, user1(), data).unwrap();
+
         assert!(response.events.iter().any(|e| {
             e.attributes
                 .iter()
-                .any(|attr| attr.key == "action" && attr.value == "test_poseidon_hash_once")
+                .any(|attr| attr.key == "action" && attr.value == "test_hash2")
         }));
 
-        // Verify result attribute exists
         assert!(response
             .events
             .iter()
-            .any(|e| e.attributes.iter().any(|attr| attr.key == "result")));
+            .any(|e| { e.attributes.iter().any(|attr| attr.key == "result") }));
     }
 
     #[test]
-    fn test_poseidon_hash_multiple() {
+    fn test_hash5() {
         let mut app = create_app();
         let code_id = MaciCodeId::store_code(&mut app);
         let contract = code_id
@@ -270,28 +261,105 @@ mod test {
             Uint256::from_u128(4u128),
             Uint256::from_u128(5u128),
         ];
-        let instance_count = 10;
 
-        // Test multiple hash instances
-        let response = contract
-            .test_poseidon_hash_multiple(&mut app, user1(), data, instance_count)
-            .unwrap();
+        let response = contract.test_hash5(&mut app, user1(), data).unwrap();
+
         assert!(response.events.iter().any(|e| {
             e.attributes
                 .iter()
-                .any(|attr| attr.key == "action" && attr.value == "test_poseidon_hash_multiple")
+                .any(|attr| attr.key == "action" && attr.value == "test_hash5")
         }));
 
-        // Verify instance count attribute
+        assert!(response
+            .events
+            .iter()
+            .any(|e| { e.attributes.iter().any(|attr| attr.key == "result") }));
+    }
+
+    #[test]
+    fn test_hash_uint256() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let contract = code_id
+            .instantiate_default(&mut app, owner(), "test_contract")
+            .unwrap();
+
+        let data = Uint256::from_u128(100u128);
+
+        let response = contract.test_hash_uint256(&mut app, user1(), data).unwrap();
+
         assert!(response.events.iter().any(|e| {
-            e.attributes.iter().any(|attr| {
-                attr.key == "instance_count" && attr.value == instance_count.to_string()
-            })
+            e.attributes
+                .iter()
+                .any(|attr| attr.key == "action" && attr.value == "test_hash_uint256")
+        }));
+
+        assert!(response
+            .events
+            .iter()
+            .any(|e| { e.attributes.iter().any(|attr| attr.key == "result") }));
+    }
+
+    #[test]
+    fn test_hash_once() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let contract = code_id
+            .instantiate_default(&mut app, owner(), "test_contract")
+            .unwrap();
+
+        let data = [
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(2u128),
+            Uint256::from_u128(3u128),
+            Uint256::from_u128(4u128),
+            Uint256::from_u128(5u128),
+        ];
+
+        let response = contract.test_hash_once(&mut app, user1(), data).unwrap();
+
+        assert!(response.events.iter().any(|e| {
+            e.attributes
+                .iter()
+                .any(|attr| attr.key == "action" && attr.value == "test_hash_once")
         }));
     }
 
     #[test]
-    fn test_poseidon_hash_batch() {
+    fn test_hash_multiple() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let contract = code_id
+            .instantiate_default(&mut app, owner(), "test_contract")
+            .unwrap();
+
+        let data = [
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(2u128),
+            Uint256::from_u128(3u128),
+            Uint256::from_u128(4u128),
+            Uint256::from_u128(5u128),
+        ];
+
+        let response = contract
+            .test_hash_multiple(&mut app, user1(), data, 5)
+            .unwrap();
+
+        assert!(response.events.iter().any(|e| {
+            e.attributes
+                .iter()
+                .any(|attr| attr.key == "action" && attr.value == "test_hash_multiple")
+        }));
+
+        assert!(response.events.iter().any(|e| {
+            e.attributes
+                .iter()
+                .any(|attr| attr.key == "count" && attr.value == "5")
+        }));
+    }
+
+    #[test]
+    fn test_hash_batch() {
         let mut app = create_app();
         let code_id = MaciCodeId::store_code(&mut app);
         let contract = code_id
@@ -313,35 +381,19 @@ mod test {
                 Uint256::from_u128(9u128),
                 Uint256::from_u128(10u128),
             ],
-            [
-                Uint256::from_u128(11u128),
-                Uint256::from_u128(12u128),
-                Uint256::from_u128(13u128),
-                Uint256::from_u128(14u128),
-                Uint256::from_u128(15u128),
-            ],
         ];
 
-        // Test batch hash
-        let response = contract
-            .test_poseidon_hash_batch(&mut app, user1(), data.clone())
-            .unwrap();
-        assert!(response.events.iter().any(|e| {
-            e.attributes
-                .iter()
-                .any(|attr| attr.key == "action" && attr.value == "test_poseidon_hash_batch")
-        }));
+        let response = contract.test_hash_batch(&mut app, user1(), data).unwrap();
 
-        // Verify hash count
         assert!(response.events.iter().any(|e| {
             e.attributes
                 .iter()
-                .any(|attr| attr.key == "hash_count" && attr.value == data.len().to_string())
+                .any(|attr| attr.key == "action" && attr.value == "test_hash_batch")
         }));
     }
 
     #[test]
-    fn test_poseidon_hash_mode_local_utils_hash2() {
+    fn test_hash_composed() {
         let mut app = create_app();
         let code_id = MaciCodeId::store_code(&mut app);
         let contract = code_id
@@ -356,169 +408,126 @@ mod test {
             Uint256::from_u128(5u128),
         ];
 
-        // Test LocalUtils Hash2
         let response = contract
-            .test_poseidon_hash_mode(
-                &mut app,
-                user1(),
-                HashImplementation::LocalUtils,
-                HashMode::Hash2,
-                data,
-                5,
-            )
+            .test_hash_composed(&mut app, user1(), data, 2)
             .unwrap();
-        assert!(response.events.iter().any(|e| {
-            e.attributes
-                .iter()
-                .any(|attr| attr.key == "action" && attr.value == "test_poseidon_hash_mode")
-        }));
 
         assert!(response.events.iter().any(|e| {
             e.attributes
                 .iter()
-                .any(|attr| attr.key == "implementation" && attr.value == "local_utils")
-        }));
-
-        assert!(response.events.iter().any(|e| {
-            e.attributes
-                .iter()
-                .any(|attr| attr.key == "mode" && attr.value == "hash2")
+                .any(|attr| attr.key == "action" && attr.value == "test_hash_composed")
         }));
     }
 
     #[test]
-    fn test_poseidon_hash_mode_local_utils_hash5() {
+    fn test_batch_hash() {
         let mut app = create_app();
         let code_id = MaciCodeId::store_code(&mut app);
         let contract = code_id
             .instantiate_default(&mut app, owner(), "test_contract")
             .unwrap();
 
-        let data = [
-            Uint256::from_u128(1u128),
-            Uint256::from_u128(2u128),
-            Uint256::from_u128(3u128),
-            Uint256::from_u128(4u128),
-            Uint256::from_u128(5u128),
+        let operations = vec![
+            HashOperation::Hash2 {
+                data: [Uint256::from_u128(1u128), Uint256::from_u128(2u128)],
+            },
+            HashOperation::Hash5 {
+                data: [
+                    Uint256::from_u128(1u128),
+                    Uint256::from_u128(2u128),
+                    Uint256::from_u128(3u128),
+                    Uint256::from_u128(4u128),
+                    Uint256::from_u128(5u128),
+                ],
+            },
+            HashOperation::HashUint256 {
+                data: Uint256::from_u128(100u128),
+            },
+            HashOperation::HashComposed {
+                data: [
+                    Uint256::from_u128(1u128),
+                    Uint256::from_u128(2u128),
+                    Uint256::from_u128(3u128),
+                    Uint256::from_u128(4u128),
+                    Uint256::from_u128(5u128),
+                ],
+                repeat_count: 1,
+            },
         ];
 
-        // Test LocalUtils Hash5
         let response = contract
-            .test_poseidon_hash_mode(
-                &mut app,
-                user1(),
-                HashImplementation::LocalUtils,
-                HashMode::Hash5,
-                data,
-                5,
-            )
+            .test_batch_hash(&mut app, user1(), operations)
             .unwrap();
+
         assert!(response.events.iter().any(|e| {
             e.attributes
                 .iter()
-                .any(|attr| attr.key == "mode" && attr.value == "hash5")
+                .any(|attr| attr.key == "action" && attr.value == "test_batch_hash")
+        }));
+
+        assert!(response.events.iter().any(|e| {
+            e.attributes
+                .iter()
+                .any(|attr| attr.key == "operation_count" && attr.value == "4")
         }));
     }
 
     #[test]
-    fn test_poseidon_hash_mode_maci_utils() {
+    fn test_batch_hash_multiple_composed() {
         let mut app = create_app();
         let code_id = MaciCodeId::store_code(&mut app);
         let contract = code_id
             .instantiate_default(&mut app, owner(), "test_contract")
             .unwrap();
 
-        let data = [
-            Uint256::from_u128(1u128),
-            Uint256::from_u128(2u128),
-            Uint256::from_u128(3u128),
-            Uint256::from_u128(4u128),
-            Uint256::from_u128(5u128),
+        // Test batch with multiple composed operations
+        let operations = vec![
+            HashOperation::HashComposed {
+                data: [
+                    Uint256::from_u128(1u128),
+                    Uint256::from_u128(2u128),
+                    Uint256::from_u128(3u128),
+                    Uint256::from_u128(4u128),
+                    Uint256::from_u128(5u128),
+                ],
+                repeat_count: 1,
+            },
+            HashOperation::HashComposed {
+                data: [
+                    Uint256::from_u128(6u128),
+                    Uint256::from_u128(7u128),
+                    Uint256::from_u128(8u128),
+                    Uint256::from_u128(9u128),
+                    Uint256::from_u128(10u128),
+                ],
+                repeat_count: 2,
+            },
+            HashOperation::HashComposed {
+                data: [
+                    Uint256::from_u128(11u128),
+                    Uint256::from_u128(12u128),
+                    Uint256::from_u128(13u128),
+                    Uint256::from_u128(14u128),
+                    Uint256::from_u128(15u128),
+                ],
+                repeat_count: 3,
+            },
         ];
 
-        // Test MaciUtils Hash5
         let response = contract
-            .test_poseidon_hash_mode(
-                &mut app,
-                user1(),
-                HashImplementation::MaciUtils,
-                HashMode::Hash5,
-                data,
-                5,
-            )
+            .test_batch_hash(&mut app, user1(), operations)
             .unwrap();
+
         assert!(response.events.iter().any(|e| {
             e.attributes
                 .iter()
-                .any(|attr| attr.key == "implementation" && attr.value == "maci_utils")
+                .any(|attr| attr.key == "action" && attr.value == "test_batch_hash")
         }));
-    }
 
-    #[test]
-    fn test_poseidon_hash_mode_hash2_hash5_hash5() {
-        let mut app = create_app();
-        let code_id = MaciCodeId::store_code(&mut app);
-        let contract = code_id
-            .instantiate_default(&mut app, owner(), "test_contract")
-            .unwrap();
-
-        let data = [
-            Uint256::from_u128(1u128),
-            Uint256::from_u128(2u128),
-            Uint256::from_u128(3u128),
-            Uint256::from_u128(4u128),
-            Uint256::from_u128(5u128),
-        ];
-
-        // Test Hash2Hash5Hash5 mode
-        let response = contract
-            .test_poseidon_hash_mode(
-                &mut app,
-                user1(),
-                HashImplementation::MaciUtils,
-                HashMode::Hash2Hash5Hash5,
-                data,
-                3,
-            )
-            .unwrap();
         assert!(response.events.iter().any(|e| {
             e.attributes
                 .iter()
-                .any(|attr| attr.key == "mode" && attr.value == "hash2_hash5_hash5")
-        }));
-    }
-
-    #[test]
-    fn test_poseidon_hash_mode_hash5_hash2() {
-        let mut app = create_app();
-        let code_id = MaciCodeId::store_code(&mut app);
-        let contract = code_id
-            .instantiate_default(&mut app, owner(), "test_contract")
-            .unwrap();
-
-        let data = [
-            Uint256::from_u128(1u128),
-            Uint256::from_u128(2u128),
-            Uint256::from_u128(3u128),
-            Uint256::from_u128(4u128),
-            Uint256::from_u128(5u128),
-        ];
-
-        // Test Hash5Hash2 mode
-        let response = contract
-            .test_poseidon_hash_mode(
-                &mut app,
-                user1(),
-                HashImplementation::MaciUtils,
-                HashMode::Hash5Hash2,
-                data,
-                3,
-            )
-            .unwrap();
-        assert!(response.events.iter().any(|e| {
-            e.attributes
-                .iter()
-                .any(|attr| attr.key == "mode" && attr.value == "hash5_hash2")
+                .any(|attr| attr.key == "operation_count" && attr.value == "3")
         }));
     }
 
@@ -554,61 +563,6 @@ mod test {
         // Verify operation succeeded
         let num_sign_ups = contract.get_num_sign_up(&app).unwrap();
         assert_eq!(num_sign_ups, Uint256::from_u128(1u128));
-    }
-
-    #[test]
-    fn test_gas_comparison_hash_implementations() {
-        use crate::multitest::TestContract;
-
-        let mut app = create_app();
-        let code_id = MaciCodeId::store_code(&mut app);
-        let contract = code_id
-            .instantiate_default(&mut app, owner(), "test_contract")
-            .unwrap();
-
-        let data = [
-            Uint256::from_u128(1u128),
-            Uint256::from_u128(2u128),
-            Uint256::from_u128(3u128),
-            Uint256::from_u128(4u128),
-            Uint256::from_u128(5u128),
-        ];
-
-        println!("\n=== Gas Comparison: Hash Implementations ===");
-
-        // Test LocalUtils Hash5
-        let response1 = contract
-            .test_poseidon_hash_mode(
-                &mut app,
-                user1(),
-                HashImplementation::LocalUtils,
-                HashMode::Hash5,
-                data,
-                10,
-            )
-            .unwrap();
-
-        // Test MaciUtils Hash5
-        let response2 = contract
-            .test_poseidon_hash_mode(
-                &mut app,
-                user1(),
-                HashImplementation::MaciUtils,
-                HashMode::Hash5,
-                data,
-                10,
-            )
-            .unwrap();
-
-        // Use helper function to compare
-        TestContract::compare_responses(
-            &response1,
-            "LocalUtils Hash5 (x10)",
-            &response2,
-            "MaciUtils Hash5 (x10)",
-        );
-
-        println!("Note: For accurate gas measurements, use wasmd integration tests");
     }
 
     #[test]
@@ -652,93 +606,6 @@ mod test {
 
         let msg_chain_length = contract.get_msg_chain_length(&app).unwrap();
         assert_eq!(msg_chain_length, Uint256::from_u128(1u128));
-    }
-
-    #[test]
-    fn test_performance_timing() {
-        use std::time::Instant;
-
-        let mut app = create_app();
-        let code_id = MaciCodeId::store_code(&mut app);
-        let contract = code_id
-            .instantiate_default(&mut app, owner(), "test_contract")
-            .unwrap();
-
-        let data = [
-            Uint256::from_u128(1u128),
-            Uint256::from_u128(2u128),
-            Uint256::from_u128(3u128),
-            Uint256::from_u128(4u128),
-            Uint256::from_u128(5u128),
-        ];
-
-        println!("\n{}", "=".repeat(60));
-        println!("Performance Timing Analysis");
-        println!("{}", "=".repeat(60));
-
-        // Warm up
-        for _ in 0..5 {
-            contract
-                .test_poseidon_hash_mode(
-                    &mut app,
-                    user1(),
-                    HashImplementation::LocalUtils,
-                    HashMode::Hash5,
-                    data,
-                    1,
-                )
-                .unwrap();
-        }
-
-        // Test LocalUtils
-        let start = Instant::now();
-        let iterations = 50;
-        for _ in 0..iterations {
-            contract
-                .test_poseidon_hash_mode(
-                    &mut app,
-                    user1(),
-                    HashImplementation::LocalUtils,
-                    HashMode::Hash5,
-                    data,
-                    1,
-                )
-                .unwrap();
-        }
-        let duration_local = start.elapsed();
-
-        // Test MaciUtils
-        let start = Instant::now();
-        for _ in 0..iterations {
-            contract
-                .test_poseidon_hash_mode(
-                    &mut app,
-                    user1(),
-                    HashImplementation::MaciUtils,
-                    HashMode::Hash5,
-                    data,
-                    1,
-                )
-                .unwrap();
-        }
-        let duration_maci = start.elapsed();
-
-        println!("\nResults for {} iterations:", iterations);
-        println!("{}", "-".repeat(60));
-        println!("LocalUtils Hash5:");
-        println!("  Total time: {:?}", duration_local);
-        println!("  Avg per op: {:?}", duration_local / iterations);
-        println!("\nMaciUtils Hash5:");
-        println!("  Total time: {:?}", duration_maci);
-        println!("  Avg per op: {:?}", duration_maci / iterations);
-
-        let ratio = duration_local.as_nanos() as f64 / duration_maci.as_nanos() as f64;
-        println!("\nSpeed ratio (LocalUtils/MaciUtils): {:.2}x", ratio);
-
-        println!("{}", "=".repeat(60));
-        println!("\n⚠️  Note: Execution time ≠ Gas cost!");
-        println!("This measures Rust execution time, not on-chain gas.");
-        println!("For accurate gas costs, use wasmd integration tests.\n");
     }
 
     #[test]

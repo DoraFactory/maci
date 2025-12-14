@@ -562,23 +562,7 @@ test_gas_performance() {
     execute_tx "test_signup_with_hash" "$signup_hash_cmd"
     sleep 2
     
-    # Test PoseidonHashOnce
-    log "Testing PoseidonHashOnce..."
-    local hash_once_msg='{"test_poseidon_hash_once": {"data": ["1", "2", "3", "4", "5"]}}'
-    local hash_once_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
-        '$hash_once_msg' \
-        --from '$TEST_ACCOUNT' \
-        --chain-id '$CHAIN_ID' \
-        --gas-prices '$GAS_PRICES' \
-        --gas auto \
-        --gas-adjustment '$GAS_ADJUSTMENT' \
-        --node '$RPC_NODE' \
-        -y"
-    
-    execute_tx "test_hash_once" "$hash_once_cmd"
-    sleep 2
-    
-    # Test PublishMessage (5.3)
+    # Test PublishMessage
     log "Testing PublishMessage..."
     local test_publish_msg='{"test_publish_message": {"message": {"data": ["1", "2", "3", "4", "5", "6", "7"]}, "enc_pub_key": {"x": "111", "y": "222"}}}'
     local test_publish_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
@@ -594,10 +578,74 @@ test_gas_performance() {
     execute_tx "test_publish_message" "$test_publish_cmd"
     sleep 2
     
-    # Test PoseidonHashMultiple (5.5) - test different instance counts
-    for count in 1 5 10 20; do
-        log "Testing PoseidonHashMultiple with $count instances..."
-        local hash_multiple_msg="{\"test_poseidon_hash_multiple\": {\"data\": [\"1\", \"2\", \"3\", \"4\", \"5\"], \"instance_count\": $count}}"
+    # Test Hash2
+    log "Testing Hash2..."
+    local hash2_msg='{"test_hash2": {"data": ["1", "2"]}}'
+    local hash2_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
+        '$hash2_msg' \
+        --from '$TEST_ACCOUNT' \
+        --chain-id '$CHAIN_ID' \
+        --gas-prices '$GAS_PRICES' \
+        --gas auto \
+        --gas-adjustment '$GAS_ADJUSTMENT' \
+        --node '$RPC_NODE' \
+        -y"
+    
+    execute_tx "test_hash2" "$hash2_cmd"
+    sleep 2
+    
+    # Test Hash5
+    log "Testing Hash5..."
+    local hash5_msg='{"test_hash5": {"data": ["1", "2", "3", "4", "5"]}}'
+    local hash5_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
+        '$hash5_msg' \
+        --from '$TEST_ACCOUNT' \
+        --chain-id '$CHAIN_ID' \
+        --gas-prices '$GAS_PRICES' \
+        --gas auto \
+        --gas-adjustment '$GAS_ADJUSTMENT' \
+        --node '$RPC_NODE' \
+        -y"
+    
+    execute_tx "test_hash5" "$hash5_cmd"
+    sleep 2
+    
+    # Test HashUint256
+    log "Testing HashUint256..."
+    local hash_uint256_msg='{"test_hash_uint256": {"data": "100"}}'
+    local hash_uint256_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
+        '$hash_uint256_msg' \
+        --from '$TEST_ACCOUNT' \
+        --chain-id '$CHAIN_ID' \
+        --gas-prices '$GAS_PRICES' \
+        --gas auto \
+        --gas-adjustment '$GAS_ADJUSTMENT' \
+        --node '$RPC_NODE' \
+        -y"
+    
+    execute_tx "test_hash_uint256" "$hash_uint256_cmd"
+    sleep 2
+    
+    # Test HashOnce (single hash5 call)
+    log "Testing HashOnce..."
+    local hash_once_msg='{"test_hash_once": {"data": ["1", "2", "3", "4", "5"]}}'
+    local hash_once_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
+        '$hash_once_msg' \
+        --from '$TEST_ACCOUNT' \
+        --chain-id '$CHAIN_ID' \
+        --gas-prices '$GAS_PRICES' \
+        --gas auto \
+        --gas-adjustment '$GAS_ADJUSTMENT' \
+        --node '$RPC_NODE' \
+        -y"
+    
+    execute_tx "test_hash_once" "$hash_once_cmd"
+    sleep 2
+    
+    # Test HashMultiple (multiple hash5 calls with same data)
+    for count in 1 5 10 20 50 100; do
+        log "Testing HashMultiple with $count calls..."
+        local hash_multiple_msg="{\"test_hash_multiple\": {\"data\": [\"1\", \"2\", \"3\", \"4\", \"5\"], \"count\": $count}}"
         local hash_multiple_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
             '$hash_multiple_msg' \
             --from '$TEST_ACCOUNT' \
@@ -612,9 +660,9 @@ test_gas_performance() {
         sleep 2
     done
     
-    # Test PoseidonHashBatch (5.6) - test batch size of 3
-    log "Testing PoseidonHashBatch (batch of 3)..."
-    local hash_batch_msg='{"test_poseidon_hash_batch": {"data": [["1","2","3","4","5"], ["6","7","8","9","10"], ["11","12","13","14","15"]]}}'
+    # Test HashBatch (batch hashing with different data)
+    log "Testing HashBatch (batch of 3)..."
+    local hash_batch_msg='{"test_hash_batch": {"data": [["1","2","3","4","5"], ["6","7","8","9","10"], ["11","12","13","14","15"]]}}'
     local hash_batch_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
         '$hash_batch_msg' \
         --from '$TEST_ACCOUNT' \
@@ -628,32 +676,89 @@ test_gas_performance() {
     execute_tx "test_hash_batch_3" "$hash_batch_cmd"
     sleep 2
     
-    # Test PoseidonHashMode (5.7) - test all mode combinations
-    for impl in "local_utils" "maci_utils"; do
-        for mode in "hash2" "hash5"; do
-            log "Testing PoseidonHashMode: $impl - $mode..."
-            local hash_mode_msg="{\"test_poseidon_hash_mode\": {\"implementation\": \"$impl\", \"mode\": \"$mode\", \"data\": [\"1\",\"2\",\"3\",\"4\",\"5\"], \"repeat_count\": 1}}"
-            local hash_mode_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
-                '$hash_mode_msg' \
-                --from '$TEST_ACCOUNT' \
-                --chain-id '$CHAIN_ID' \
-                --gas-prices '$GAS_PRICES' \
-                --gas auto \
-                --gas-adjustment '$GAS_ADJUSTMENT' \
-                --node '$RPC_NODE' \
-                -y"
-            
-            execute_tx "test_hash_mode_${impl}_${mode}" "$hash_mode_cmd"
-            sleep 2
-        done
-    done
+    # Test HashComposed (composed hash operations)
+    log "Testing HashComposed..."
+    local hash_composed_msg='{"test_hash_composed": {"data": ["1", "2", "3", "4", "5"], "repeat_count": 1}}'
+    local hash_composed_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
+        '$hash_composed_msg' \
+        --from '$TEST_ACCOUNT' \
+        --chain-id '$CHAIN_ID' \
+        --gas-prices '$GAS_PRICES' \
+        --gas auto \
+        --gas-adjustment '$GAS_ADJUSTMENT' \
+        --node '$RPC_NODE' \
+        -y"
     
-    # MaciUtils special modes
-    for mode in "hash2_hash5_hash5" "hash5_hash2"; do
-        log "Testing PoseidonHashMode: maci_utils - $mode..."
-        local hash_mode_msg="{\"test_poseidon_hash_mode\": {\"implementation\": \"maci_utils\", \"mode\": \"$mode\", \"data\": [\"1\",\"2\",\"3\",\"4\",\"5\"], \"repeat_count\": 1}}"
-        local hash_mode_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
-            '$hash_mode_msg' \
+    execute_tx "test_hash_composed" "$hash_composed_cmd"
+    sleep 2
+    
+    # Test BatchHash - Performance tests with different batch sizes
+    # Helper function to generate batch hash operations
+    generate_batch_hash_ops() {
+        local count=$1
+        local ops_json=""
+        local i=0
+        while [ $i -lt $count ]; do
+            local op_type=$((i % 4))
+            case $op_type in
+                0)
+                    # Hash2
+                    local val1=$((i * 2 + 1))
+                    local val2=$((i * 2 + 2))
+                    if [ -z "$ops_json" ]; then
+                        ops_json="{\"hash2\": {\"data\": [\"$val1\", \"$val2\"]}}"
+                    else
+                        ops_json="$ops_json, {\"hash2\": {\"data\": [\"$val1\", \"$val2\"]}}"
+                    fi
+                    ;;
+                1)
+                    # Hash5
+                    local v1=$((i * 5 + 1))
+                    local v2=$((i * 5 + 2))
+                    local v3=$((i * 5 + 3))
+                    local v4=$((i * 5 + 4))
+                    local v5=$((i * 5 + 5))
+                    if [ -z "$ops_json" ]; then
+                        ops_json="{\"hash5\": {\"data\": [\"$v1\", \"$v2\", \"$v3\", \"$v4\", \"$v5\"]}}"
+                    else
+                        ops_json="$ops_json, {\"hash5\": {\"data\": [\"$v1\", \"$v2\", \"$v3\", \"$v4\", \"$v5\"]}}"
+                    fi
+                    ;;
+                2)
+                    # HashUint256
+                    local uint_val=$((i * 100 + 100))
+                    if [ -z "$ops_json" ]; then
+                        ops_json="{\"hash_uint256\": {\"data\": \"$uint_val\"}}"
+                    else
+                        ops_json="$ops_json, {\"hash_uint256\": {\"data\": \"$uint_val\"}}"
+                    fi
+                    ;;
+                3)
+                    # HashComposed
+                    local c1=$((i * 5 + 1))
+                    local c2=$((i * 5 + 2))
+                    local c3=$((i * 5 + 3))
+                    local c4=$((i * 5 + 4))
+                    local c5=$((i * 5 + 5))
+                    local repeat=$((i % 3 + 1))
+                    if [ -z "$ops_json" ]; then
+                        ops_json="{\"hash_composed\": {\"data\": [\"$c1\", \"$c2\", \"$c3\", \"$c4\", \"$c5\"], \"repeat_count\": $repeat}}"
+                    else
+                        ops_json="$ops_json, {\"hash_composed\": {\"data\": [\"$c1\", \"$c2\", \"$c3\", \"$c4\", \"$c5\"], \"repeat_count\": $repeat}}"
+                    fi
+                    ;;
+            esac
+            i=$((i + 1))
+        done
+        echo "{\"test_batch_hash\": {\"operations\": [$ops_json]}}"
+    }
+    
+    # Test BatchHash with different batch sizes: 1, 5, 10, 20, 50, 100
+    for batch_size in 1 5 10 20 50 100; do
+        log "Testing BatchHash with $batch_size operations..."
+        local batch_hash_msg=$(generate_batch_hash_ops $batch_size)
+        local batch_hash_cmd="dorad tx wasm execute '$CONTRACT_ADDR' \
+            '$batch_hash_msg' \
             --from '$TEST_ACCOUNT' \
             --chain-id '$CHAIN_ID' \
             --gas-prices '$GAS_PRICES' \
@@ -662,7 +767,7 @@ test_gas_performance() {
             --node '$RPC_NODE' \
             -y"
         
-        execute_tx "test_hash_mode_maci_utils_${mode}" "$hash_mode_cmd"
+        execute_tx "test_batch_hash_${batch_size}" "$batch_hash_cmd"
         sleep 2
     done
     
@@ -786,19 +891,23 @@ generate_report() {
 |------|--------|----------|-------------|------------|---------|
 | SignupNoHash (baseline) | $(get_result "test_signup_no_hash") | $(get_gas "test_signup_no_hash") | $(get_fee "test_signup_no_hash") | $(format_fee_to_dora "test_signup_no_hash") | $(get_tx "test_signup_no_hash") |
 | SignupWithHash (full) | $(get_result "test_signup_with_hash") | $(get_gas "test_signup_with_hash") | $(get_fee "test_signup_with_hash") | $(format_fee_to_dora "test_signup_with_hash") | $(get_tx "test_signup_with_hash") |
-| PoseidonHashOnce | $(get_result "test_hash_once") | $(get_gas "test_hash_once") | $(get_fee "test_hash_once") | $(format_fee_to_dora "test_hash_once") | $(get_tx "test_hash_once") |
 | TestPublishMessage | $(get_result "test_publish_message") | $(get_gas "test_publish_message") | $(get_fee "test_publish_message") | $(format_fee_to_dora "test_publish_message") | $(get_tx "test_publish_message") |
+| Hash2 | $(get_result "test_hash2") | $(get_gas "test_hash2") | $(get_fee "test_hash2") | $(format_fee_to_dora "test_hash2") | $(get_tx "test_hash2") |
+| Hash5 | $(get_result "test_hash5") | $(get_gas "test_hash5") | $(get_fee "test_hash5") | $(format_fee_to_dora "test_hash5") | $(get_tx "test_hash5") |
+| HashUint256 | $(get_result "test_hash_uint256") | $(get_gas "test_hash_uint256") | $(get_fee "test_hash_uint256") | $(format_fee_to_dora "test_hash_uint256") | $(get_tx "test_hash_uint256") |
+| HashOnce | $(get_result "test_hash_once") | $(get_gas "test_hash_once") | $(get_fee "test_hash_once") | $(format_fee_to_dora "test_hash_once") | $(get_tx "test_hash_once") |
 | HashMultiple (1x) | $(get_result "test_hash_multiple_1") | $(get_gas "test_hash_multiple_1") | $(get_fee "test_hash_multiple_1") | $(format_fee_to_dora "test_hash_multiple_1") | $(get_tx "test_hash_multiple_1") |
 | HashMultiple (5x) | $(get_result "test_hash_multiple_5") | $(get_gas "test_hash_multiple_5") | $(get_fee "test_hash_multiple_5") | $(format_fee_to_dora "test_hash_multiple_5") | $(get_tx "test_hash_multiple_5") |
 | HashMultiple (10x) | $(get_result "test_hash_multiple_10") | $(get_gas "test_hash_multiple_10") | $(get_fee "test_hash_multiple_10") | $(format_fee_to_dora "test_hash_multiple_10") | $(get_tx "test_hash_multiple_10") |
 | HashMultiple (20x) | $(get_result "test_hash_multiple_20") | $(get_gas "test_hash_multiple_20") | $(get_fee "test_hash_multiple_20") | $(format_fee_to_dora "test_hash_multiple_20") | $(get_tx "test_hash_multiple_20") |
 | HashBatch (3 batches) | $(get_result "test_hash_batch_3") | $(get_gas "test_hash_batch_3") | $(get_fee "test_hash_batch_3") | $(format_fee_to_dora "test_hash_batch_3") | $(get_tx "test_hash_batch_3") |
-| HashMode LocalUtils-Hash2 | $(get_result "test_hash_mode_local_utils_hash2") | $(get_gas "test_hash_mode_local_utils_hash2") | $(get_fee "test_hash_mode_local_utils_hash2") | $(format_fee_to_dora "test_hash_mode_local_utils_hash2") | $(get_tx "test_hash_mode_local_utils_hash2") |
-| HashMode LocalUtils-Hash5 | $(get_result "test_hash_mode_local_utils_hash5") | $(get_gas "test_hash_mode_local_utils_hash5") | $(get_fee "test_hash_mode_local_utils_hash5") | $(format_fee_to_dora "test_hash_mode_local_utils_hash5") | $(get_tx "test_hash_mode_local_utils_hash5") |
-| HashMode MaciUtils-Hash2 | $(get_result "test_hash_mode_maci_utils_hash2") | $(get_gas "test_hash_mode_maci_utils_hash2") | $(get_fee "test_hash_mode_maci_utils_hash2") | $(format_fee_to_dora "test_hash_mode_maci_utils_hash2") | $(get_tx "test_hash_mode_maci_utils_hash2") |
-| HashMode MaciUtils-Hash5 | $(get_result "test_hash_mode_maci_utils_hash5") | $(get_gas "test_hash_mode_maci_utils_hash5") | $(get_fee "test_hash_mode_maci_utils_hash5") | $(format_fee_to_dora "test_hash_mode_maci_utils_hash5") | $(get_tx "test_hash_mode_maci_utils_hash5") |
-| HashMode MaciUtils-Hash2Hash5Hash5 | $(get_result "test_hash_mode_maci_utils_hash2_hash5_hash5") | $(get_gas "test_hash_mode_maci_utils_hash2_hash5_hash5") | $(get_fee "test_hash_mode_maci_utils_hash2_hash5_hash5") | $(format_fee_to_dora "test_hash_mode_maci_utils_hash2_hash5_hash5") | $(get_tx "test_hash_mode_maci_utils_hash2_hash5_hash5") |
-| HashMode MaciUtils-Hash5Hash2 | $(get_result "test_hash_mode_maci_utils_hash5_hash2") | $(get_gas "test_hash_mode_maci_utils_hash5_hash2") | $(get_fee "test_hash_mode_maci_utils_hash5_hash2") | $(format_fee_to_dora "test_hash_mode_maci_utils_hash5_hash2") | $(get_tx "test_hash_mode_maci_utils_hash5_hash2") |
+| HashComposed | $(get_result "test_hash_composed") | $(get_gas "test_hash_composed") | $(get_fee "test_hash_composed") | $(format_fee_to_dora "test_hash_composed") | $(get_tx "test_hash_composed") |
+| BatchHash (1 op) | $(get_result "test_batch_hash_1") | $(get_gas "test_batch_hash_1") | $(get_fee "test_batch_hash_1") | $(format_fee_to_dora "test_batch_hash_1") | $(get_tx "test_batch_hash_1") |
+| BatchHash (5 ops) | $(get_result "test_batch_hash_5") | $(get_gas "test_batch_hash_5") | $(get_fee "test_batch_hash_5") | $(format_fee_to_dora "test_batch_hash_5") | $(get_tx "test_batch_hash_5") |
+| BatchHash (10 ops) | $(get_result "test_batch_hash_10") | $(get_gas "test_batch_hash_10") | $(get_fee "test_batch_hash_10") | $(format_fee_to_dora "test_batch_hash_10") | $(get_tx "test_batch_hash_10") |
+| BatchHash (20 ops) | $(get_result "test_batch_hash_20") | $(get_gas "test_batch_hash_20") | $(get_fee "test_batch_hash_20") | $(format_fee_to_dora "test_batch_hash_20") | $(get_tx "test_batch_hash_20") |
+| BatchHash (50 ops) | $(get_result "test_batch_hash_50") | $(get_gas "test_batch_hash_50") | $(get_fee "test_batch_hash_50") | $(format_fee_to_dora "test_batch_hash_50") | $(get_tx "test_batch_hash_50") |
+| BatchHash (100 ops) | $(get_result "test_batch_hash_100") | $(get_gas "test_batch_hash_100") | $(get_fee "test_batch_hash_100") | $(format_fee_to_dora "test_batch_hash_100") | $(get_tx "test_batch_hash_100") |
 
 ### Gas Performance Analysis
 
@@ -827,43 +936,64 @@ EOF
     local gas_hash5=$(get_gas "test_hash_multiple_5")
     local gas_hash_10=$(get_gas "test_hash_multiple_10")
     local gas_hash20=$(get_gas "test_hash_multiple_20")
+    local gas_hash50=$(get_gas "test_hash_multiple_50")
+    local gas_hash100=$(get_gas "test_hash_multiple_100")
     
     if [ -n "$gas_hash_1" ] && [ "$gas_hash_1" != "0" ]; then
         cat >> "$REPORT_FILE" << EOF
 
-### PoseidonHashMultiple Performance Comparison
+### HashMultiple Performance Comparison
 
-| Instance Count | Gas Used | Avg Gas/Instance |
-|---------------|----------|------------------|
-| 1x | $gas_hash_1 | $gas_hash_1 |
-| 5x | $gas_hash5 | $(if [ -n "$gas_hash5" ] && [ "$gas_hash5" != "0" ]; then awk -v g="$gas_hash5" 'BEGIN {printf "%d", g/5}'; else echo "N/A"; fi) |
-| 10x | $gas_hash_10 | $(if [ -n "$gas_hash_10" ] && [ "$gas_hash_10" != "0" ]; then awk -v g="$gas_hash_10" 'BEGIN {printf "%d", g/10}'; else echo "N/A"; fi) |
-| 20x | $gas_hash20 | $(if [ -n "$gas_hash20" ] && [ "$gas_hash20" != "0" ]; then awk -v g="$gas_hash20" 'BEGIN {printf "%d", g/20}'; else echo "N/A"; fi) |
+| Instance Count | Gas Used | Avg Gas/Instance | Efficiency |
+|---------------|----------|------------------|------------|
+| 1x | $gas_hash_1 | $gas_hash_1 | 100% |
+| 5x | $gas_hash5 | $(if [ -n "$gas_hash5" ] && [ "$gas_hash5" != "0" ]; then awk -v g="$gas_hash5" 'BEGIN {printf "%d", g/5}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash_1" ] && [ -n "$gas_hash5" ] && [ "$gas_hash_1" != "0" ] && [ "$gas_hash5" != "0" ]; then awk -v g1="$gas_hash_1" -v g5="$gas_hash5" 'BEGIN {eff = (g1 * 5 / g5) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) |
+| 10x | $gas_hash_10 | $(if [ -n "$gas_hash_10" ] && [ "$gas_hash_10" != "0" ]; then awk -v g="$gas_hash_10" 'BEGIN {printf "%d", g/10}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash_1" ] && [ -n "$gas_hash_10" ] && [ "$gas_hash_1" != "0" ] && [ "$gas_hash_10" != "0" ]; then awk -v g1="$gas_hash_1" -v g10="$gas_hash_10" 'BEGIN {eff = (g1 * 10 / g10) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) |
+| 20x | $gas_hash20 | $(if [ -n "$gas_hash20" ] && [ "$gas_hash20" != "0" ]; then awk -v g="$gas_hash20" 'BEGIN {printf "%d", g/20}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash_1" ] && [ -n "$gas_hash20" ] && [ "$gas_hash_1" != "0" ] && [ "$gas_hash20" != "0" ]; then awk -v g1="$gas_hash_1" -v g20="$gas_hash20" 'BEGIN {eff = (g1 * 20 / g20) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) |
+| 50x | $gas_hash50 | $(if [ -n "$gas_hash50" ] && [ "$gas_hash50" != "0" ]; then awk -v g="$gas_hash50" 'BEGIN {printf "%d", g/50}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash_1" ] && [ -n "$gas_hash50" ] && [ "$gas_hash_1" != "0" ] && [ "$gas_hash50" != "0" ]; then awk -v g1="$gas_hash_1" -v g50="$gas_hash50" 'BEGIN {eff = (g1 * 50 / g50) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) |
+| 100x | $gas_hash100 | $(if [ -n "$gas_hash100" ] && [ "$gas_hash100" != "0" ]; then awk -v g="$gas_hash100" 'BEGIN {printf "%d", g/100}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash_1" ] && [ -n "$gas_hash100" ] && [ "$gas_hash_1" != "0" ] && [ "$gas_hash100" != "0" ]; then awk -v g1="$gas_hash_1" -v g100="$gas_hash100" 'BEGIN {eff = (g1 * 100 / g100) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) |
 
 EOF
     fi
     
-    # Add HashMode performance comparison table
-    local gas_local_hash2=$(get_gas "test_hash_mode_local_utils_hash2")
-    local gas_local_hash5=$(get_gas "test_hash_mode_local_utils_hash5")
-    local gas_maci_hash2=$(get_gas "test_hash_mode_maci_utils_hash2")
-    local gas_maci_hash5=$(get_gas "test_hash_mode_maci_utils_hash5")
-    local gas_maci_h2h5h5=$(get_gas "test_hash_mode_maci_utils_hash2_hash5_hash5")
-    local gas_maci_h5h2=$(get_gas "test_hash_mode_maci_utils_hash5_hash2")
+    # Add BatchHash performance comparison table
+    local gas_batch_1=$(get_gas "test_batch_hash_1")
+    local gas_batch_5=$(get_gas "test_batch_hash_5")
+    local gas_batch_10=$(get_gas "test_batch_hash_10")
+    local gas_batch_20=$(get_gas "test_batch_hash_20")
+    local gas_batch_50=$(get_gas "test_batch_hash_50")
+    local gas_batch_100=$(get_gas "test_batch_hash_100")
+    local gas_hash2=$(get_gas "test_hash2")
+    local gas_hash5=$(get_gas "test_hash5")
+    local gas_hash_uint256=$(get_gas "test_hash_uint256")
+    local gas_hash_composed=$(get_gas "test_hash_composed")
     
-    if [ -n "$gas_local_hash2" ] && [ "$gas_local_hash2" != "0" ]; then
+    if [ -n "$gas_batch_1" ] && [ "$gas_batch_1" != "0" ]; then
         cat >> "$REPORT_FILE" << EOF
 
-### PoseidonHashMode Performance Comparison
+### BatchHash Performance Analysis
 
-| Implementation | Mode | Gas Used | Relative Performance |
-|---------------|------|----------|---------------------|
-| LocalUtils | Hash2 | $gas_local_hash2 | Baseline |
-| LocalUtils | Hash5 | $gas_local_hash5 | $(if [ -n "$gas_local_hash2" ] && [ -n "$gas_local_hash5" ] && [ "$gas_local_hash2" != "0" ] && [ "$gas_local_hash5" != "0" ]; then awk -v h5="$gas_local_hash5" -v h2="$gas_local_hash2" 'BEGIN {printf "%.2fx", h5/h2}'; else echo "N/A"; fi) |
-| MaciUtils | Hash2 | $gas_maci_hash2 | $(if [ -n "$gas_local_hash2" ] && [ -n "$gas_maci_hash2" ] && [ "$gas_local_hash2" != "0" ] && [ "$gas_maci_hash2" != "0" ]; then awk -v m="$gas_maci_hash2" -v l="$gas_local_hash2" 'BEGIN {printf "%.2fx", m/l}'; else echo "N/A"; fi) |
-| MaciUtils | Hash5 | $gas_maci_hash5 | $(if [ -n "$gas_local_hash2" ] && [ -n "$gas_maci_hash5" ] && [ "$gas_local_hash2" != "0" ] && [ "$gas_maci_hash5" != "0" ]; then awk -v m="$gas_maci_hash5" -v l="$gas_local_hash2" 'BEGIN {printf "%.2fx", m/l}'; else echo "N/A"; fi) |
-| MaciUtils | Hash2Hash5Hash5 | $gas_maci_h2h5h5 | $(if [ -n "$gas_local_hash2" ] && [ -n "$gas_maci_h2h5h5" ] && [ "$gas_local_hash2" != "0" ] && [ "$gas_maci_h2h5h5" != "0" ]; then awk -v m="$gas_maci_h2h5h5" -v l="$gas_local_hash2" 'BEGIN {printf "%.2fx", m/l}'; else echo "N/A"; fi) |
-| MaciUtils | Hash5Hash2 | $gas_maci_h5h2 | $(if [ -n "$gas_local_hash2" ] && [ -n "$gas_maci_h5h2" ] && [ "$gas_local_hash2" != "0" ] && [ "$gas_maci_h5h2" != "0" ]; then awk -v m="$gas_maci_h5h2" -v l="$gas_local_hash2" 'BEGIN {printf "%.2fx", m/l}'; else echo "N/A"; fi) |
+#### Batch Size Comparison (Submessage-based)
+
+| Batch Size | Operations | Gas Used | Avg Gas/Op | Efficiency | Overhead/Op |
+|------------|------------|----------|-----------|------------|-------------|
+| 1 op | 1 | $gas_batch_1 | $gas_batch_1 | 100% | - |
+| 5 ops | 5 | $gas_batch_5 | $(if [ -n "$gas_batch_5" ] && [ "$gas_batch_5" != "0" ]; then awk -v g="$gas_batch_5" 'BEGIN {printf "%d", g/5}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_5" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_5" != "0" ]; then awk -v g1="$gas_batch_1" -v g5="$gas_batch_5" 'BEGIN {eff = (g1 * 5 / g5) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_5" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_5" != "0" ]; then awk -v g1="$gas_batch_1" -v g5="$gas_batch_5" 'BEGIN {overhead = (g5/5) - g1; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+| 10 ops | 10 | $gas_batch_10 | $(if [ -n "$gas_batch_10" ] && [ "$gas_batch_10" != "0" ]; then awk -v g="$gas_batch_10" 'BEGIN {printf "%d", g/10}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_10" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_10" != "0" ]; then awk -v g1="$gas_batch_1" -v g10="$gas_batch_10" 'BEGIN {eff = (g1 * 10 / g10) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_10" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_10" != "0" ]; then awk -v g1="$gas_batch_1" -v g10="$gas_batch_10" 'BEGIN {overhead = (g10/10) - g1; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+| 20 ops | 20 | $gas_batch_20 | $(if [ -n "$gas_batch_20" ] && [ "$gas_batch_20" != "0" ]; then awk -v g="$gas_batch_20" 'BEGIN {printf "%d", g/20}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_20" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_20" != "0" ]; then awk -v g1="$gas_batch_1" -v g20="$gas_batch_20" 'BEGIN {eff = (g1 * 20 / g20) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_20" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_20" != "0" ]; then awk -v g1="$gas_batch_1" -v g20="$gas_batch_20" 'BEGIN {overhead = (g20/20) - g1; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+| 50 ops | 50 | $gas_batch_50 | $(if [ -n "$gas_batch_50" ] && [ "$gas_batch_50" != "0" ]; then awk -v g="$gas_batch_50" 'BEGIN {printf "%d", g/50}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_50" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_50" != "0" ]; then awk -v g1="$gas_batch_1" -v g50="$gas_batch_50" 'BEGIN {eff = (g1 * 50 / g50) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_50" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_50" != "0" ]; then awk -v g1="$gas_batch_1" -v g50="$gas_batch_50" 'BEGIN {overhead = (g50/50) - g1; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+| 100 ops | 100 | $gas_batch_100 | $(if [ -n "$gas_batch_100" ] && [ "$gas_batch_100" != "0" ]; then awk -v g="$gas_batch_100" 'BEGIN {printf "%d", g/100}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_100" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_100" != "0" ]; then awk -v g1="$gas_batch_1" -v g100="$gas_batch_100" 'BEGIN {eff = (g1 * 100 / g100) * 100; if (eff > 100) eff = 100; printf "%.1f%%", eff}'; else echo "N/A"; fi) | $(if [ -n "$gas_batch_1" ] && [ -n "$gas_batch_100" ] && [ "$gas_batch_1" != "0" ] && [ "$gas_batch_100" != "0" ]; then awk -v g1="$gas_batch_1" -v g100="$gas_batch_100" 'BEGIN {overhead = (g100/100) - g1; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+
+#### Individual vs Batch Comparison
+
+| Operation | Individual Gas | Batch Gas (per op, 10 ops) | Overhead |
+|-----------|----------------|----------------------------|----------|
+| Hash2 | $gas_hash2 | $(if [ -n "$gas_batch_10" ] && [ "$gas_batch_10" != "0" ]; then awk -v g="$gas_batch_10" 'BEGIN {printf "%d", g/10}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash2" ] && [ -n "$gas_batch_10" ] && [ "$gas_hash2" != "0" ] && [ "$gas_batch_10" != "0" ]; then awk -v h="$gas_hash2" -v b="$gas_batch_10" 'BEGIN {overhead = (b/10) - h; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+| Hash5 | $gas_hash5 | $(if [ -n "$gas_batch_10" ] && [ "$gas_batch_10" != "0" ]; then awk -v g="$gas_batch_10" 'BEGIN {printf "%d", g/10}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash5" ] && [ -n "$gas_batch_10" ] && [ "$gas_hash5" != "0" ] && [ "$gas_batch_10" != "0" ]; then awk -v h="$gas_hash5" -v b="$gas_batch_10" 'BEGIN {overhead = (b/10) - h; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+| HashUint256 | $gas_hash_uint256 | $(if [ -n "$gas_batch_10" ] && [ "$gas_batch_10" != "0" ]; then awk -v g="$gas_batch_10" 'BEGIN {printf "%d", g/10}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash_uint256" ] && [ -n "$gas_batch_10" ] && [ "$gas_hash_uint256" != "0" ] && [ "$gas_batch_10" != "0" ]; then awk -v h="$gas_hash_uint256" -v b="$gas_batch_10" 'BEGIN {overhead = (b/10) - h; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+| HashComposed | $gas_hash_composed | $(if [ -n "$gas_batch_10" ] && [ "$gas_batch_10" != "0" ]; then awk -v g="$gas_batch_10" 'BEGIN {printf "%d", g/10}'; else echo "N/A"; fi) | $(if [ -n "$gas_hash_composed" ] && [ -n "$gas_batch_10" ] && [ "$gas_hash_composed" != "0" ] && [ "$gas_batch_10" != "0" ]; then awk -v h="$gas_hash_composed" -v b="$gas_batch_10" 'BEGIN {overhead = (b/10) - h; if (overhead > 0) printf "+%d", overhead; else printf "%d", overhead}'; else echo "N/A"; fi) |
+
+**Note**: Batch operations use submessages, which adds overhead for message handling and reply processing. The overhead represents the cost of the submessage mechanism. Larger batches may show better efficiency due to amortized overhead.
 
 EOF
     fi
@@ -877,23 +1007,29 @@ EOF
     local publish_fee=$(get_fee "publish_message")
     local nohash_fee=$(get_fee "test_signup_no_hash")
     local withhash_fee=$(get_fee "test_signup_with_hash")
-    local hash_fee=$(get_fee "test_hash_once")
     local test_publish_fee=$(get_fee "test_publish_message")
+    local hash2_fee=$(get_fee "test_hash2")
+    local hash5_fee=$(get_fee "test_hash5")
+    local hash_uint256_fee=$(get_fee "test_hash_uint256")
+    local hash_once_fee=$(get_fee "test_hash_once")
     local hash_mult_1_fee=$(get_fee "test_hash_multiple_1")
     local hash_mult_5_fee=$(get_fee "test_hash_multiple_5")
     local hash_mult_10_fee=$(get_fee "test_hash_multiple_10")
     local hash_mult_20_fee=$(get_fee "test_hash_multiple_20")
+    local hash_mult_50_fee=$(get_fee "test_hash_multiple_50")
+    local hash_mult_100_fee=$(get_fee "test_hash_multiple_100")
     local hash_batch_fee=$(get_fee "test_hash_batch_3")
-    local hash_mode_lu_h2_fee=$(get_fee "test_hash_mode_local_utils_hash2")
-    local hash_mode_lu_h5_fee=$(get_fee "test_hash_mode_local_utils_hash5")
-    local hash_mode_mu_h2_fee=$(get_fee "test_hash_mode_maci_utils_hash2")
-    local hash_mode_mu_h5_fee=$(get_fee "test_hash_mode_maci_utils_hash5")
-    local hash_mode_mu_h2h5h5_fee=$(get_fee "test_hash_mode_maci_utils_hash2_hash5_hash5")
-    local hash_mode_mu_h5h2_fee=$(get_fee "test_hash_mode_maci_utils_hash5_hash2")
+    local hash_composed_fee=$(get_fee "test_hash_composed")
+    local batch_hash_1_fee=$(get_fee "test_batch_hash_1")
+    local batch_hash_5_fee=$(get_fee "test_batch_hash_5")
+    local batch_hash_10_fee=$(get_fee "test_batch_hash_10")
+    local batch_hash_20_fee=$(get_fee "test_batch_hash_20")
+    local batch_hash_50_fee=$(get_fee "test_batch_hash_50")
+    local batch_hash_100_fee=$(get_fee "test_batch_hash_100")
     
     # Sum up all fees (if they exist and are not empty)
     # Use awk for large number arithmetic (fees are too large for bash arithmetic)
-    for fee in "$store_fee" "$inst_fee" "$signup1_fee" "$signup2_fee" "$publish_fee" "$nohash_fee" "$withhash_fee" "$hash_fee" "$test_publish_fee" "$hash_mult_1_fee" "$hash_mult_5_fee" "$hash_mult_10_fee" "$hash_mult_20_fee" "$hash_batch_fee" "$hash_mode_lu_h2_fee" "$hash_mode_lu_h5_fee" "$hash_mode_mu_h2_fee" "$hash_mode_mu_h5_fee" "$hash_mode_mu_h2h5h5_fee" "$hash_mode_mu_h5h2_fee"; do
+    for fee in "$store_fee" "$inst_fee" "$signup1_fee" "$signup2_fee" "$publish_fee" "$nohash_fee" "$withhash_fee" "$test_publish_fee" "$hash2_fee" "$hash5_fee" "$hash_uint256_fee" "$hash_once_fee" "$hash_mult_1_fee" "$hash_mult_5_fee" "$hash_mult_10_fee" "$hash_mult_20_fee" "$hash_mult_50_fee" "$hash_mult_100_fee" "$hash_batch_fee" "$hash_composed_fee" "$batch_hash_1_fee" "$batch_hash_5_fee" "$batch_hash_10_fee" "$batch_hash_20_fee" "$batch_hash_50_fee" "$batch_hash_100_fee"; do
         if [ -n "$fee" ] && [ "$fee" != "0" ]; then
             total_fee=$(awk -v t="$total_fee" -v f="$fee" 'BEGIN {printf "%.0f", t + f}')
         fi

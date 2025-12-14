@@ -382,6 +382,14 @@ impl OracleWhitelistUser {
 pub const ORACLE_WHITELIST: Map<&(Vec<u8>, Vec<u8>), OracleWhitelistUser> =
     Map::new("oracle_whitelist");
 
+// Temporary storage for batch hash operations
+// Key: batch_id (u64), Value: results vector (index, result)
+pub const BATCH_HASH_RESULTS: Map<u64, Vec<(usize, Uint256)>> = Map::new("batch_hash_results");
+// Key: batch_id (u64), Value: total operation count
+pub const BATCH_HASH_COUNT: Map<u64, u32> = Map::new("batch_hash_count");
+// Active batch ID for tracking current batch
+pub const ACTIVE_BATCH_ID: Item<u64> = Item::new("active_batch_id");
+
 #[cfg(test)]
 mod tests {
     use super::*;

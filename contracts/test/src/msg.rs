@@ -28,26 +28,6 @@ pub struct Groth16ProofType {
 }
 
 #[cw_serde]
-pub enum HashImplementation {
-    /// Use local utils::hash (instantiates Poseidon each time)
-    LocalUtils,
-    /// Use maci_utils::hash (may have optimizations)
-    MaciUtils,
-}
-
-#[cw_serde]
-pub enum HashMode {
-    /// Hash2: hash(2 inputs)
-    Hash2,
-    /// Hash5: hash(5 inputs)
-    Hash5,
-    /// Hash2Hash5Hash5: hash2(hash5(5 inputs), hash5(5 inputs))
-    Hash2Hash5Hash5,
-    /// Hash5Hash2: hash5([hash2(2 inputs), 0, 0, 0, 0])
-    Hash5Hash2,
-}
-
-#[cw_serde]
 pub enum ExecuteMsg {
     SignUp {
         pubkey: PubKey,
@@ -67,20 +47,49 @@ pub enum ExecuteMsg {
         message: MessageData,
         enc_pub_key: PubKey,
     },
-    TestPoseidonHashOnce {
+    // Hash function tests
+    TestHash2 {
+        data: [Uint256; 2],
+    },
+    TestHash5 {
         data: [Uint256; 5],
     },
-    TestPoseidonHashMultiple {
-        data: [Uint256; 5],
-        instance_count: u32,
+    TestHashUint256 {
+        data: Uint256,
     },
-    TestPoseidonHashBatch {
+    // Multiple hash tests
+    TestHashOnce {
+        data: [Uint256; 5],
+    },
+    TestHashMultiple {
+        data: [Uint256; 5],
+        count: u32,
+    },
+    TestHashBatch {
         data: Vec<[Uint256; 5]>,
     },
-    /// Flexible hash testing with different modes and implementations
-    TestPoseidonHashMode {
-        implementation: HashImplementation,
-        mode: HashMode,
+    TestHashComposed {
+        data: [Uint256; 5],
+        repeat_count: u32,
+    },
+    /// Batch execute multiple hash operations in a single transaction
+    TestBatchHash {
+        operations: Vec<HashOperation>,
+    },
+}
+
+#[cw_serde]
+pub enum HashOperation {
+    Hash2 {
+        data: [Uint256; 2],
+    },
+    Hash5 {
+        data: [Uint256; 5],
+    },
+    HashUint256 {
+        data: Uint256,
+    },
+    HashComposed {
         data: [Uint256; 5],
         repeat_count: u32,
     },
