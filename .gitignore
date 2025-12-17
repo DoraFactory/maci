@@ -51,8 +51,9 @@ add-new-key_v3/
 /target
 /schema
 */target
-/artifacts
-*/artifacts
+# Ignore wasm files in artifacts, but keep checksums.txt
+**/*.wasm
+!/artifacts/checksums.txt
 
 # Cargo+Git helper file (https://github.com/rust-lang/cargo/blob/0.44.1/src/cargo/sources/git/utils.rs#L320-L327)
 .cargo-ok
@@ -66,3 +67,5 @@ add-new-key_v3/
 # IDEs
 *.iml
 .idea
+
+maci-details.md
