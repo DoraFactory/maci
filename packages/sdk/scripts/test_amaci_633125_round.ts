@@ -87,6 +87,9 @@ async function main() {
   const endVoting = new Date(startVoting.getTime() + 11 * 60 * 1000); // 11 minutes later
   const maxVoter = 10000;
 
+  const createRoundStartTime = Date.now();
+  console.log('\n⏱️  Starting saasCreateAmaciRound...');
+
   const createRoundData = await maciClient.saasCreateAmaciRound({
     title: 'Pre-Add-New-Key Test Round',
     description: 'Testing pre-add-new-key with auto pre-deactivate',
@@ -127,6 +130,12 @@ async function main() {
     voiceCreditAmount: 100
     // Without allowlistId, API will auto-generate pre-deactivate data
   });
+
+  const createRoundEndTime = Date.now();
+  const createRoundDuration = createRoundEndTime - createRoundStartTime;
+  console.log(
+    `\n⏱️  saasCreateAmaciRound completed in ${createRoundDuration}ms (${(createRoundDuration / 1000).toFixed(2)}s)`
+  );
 
   // Save createRoundData to JSON file
   const outputDir = path.join(process.cwd(), 'test-output');
@@ -213,7 +222,7 @@ async function main() {
     // saasApiEndpoint: API_BASE_URL
   });
 
-  const circuitPower = '4-2-2-25';
+  const circuitPower = '6-3-3-125';
   console.log('Executing Pre-Add-New-Key (with auto payload generation)...');
 
   // Get coordinator pubkey from deactivateData
@@ -226,6 +235,10 @@ async function main() {
     console.log('deactivates.length', deactivateData.deactivates.length);
     console.log('addKey file name', `add-new-key_v3/${circuitPower}/addKey.wasm`);
     console.log('addKey file name', `add-new-key_v3/${circuitPower}/addKey.zkey`);
+
+    const startTime = Date.now();
+    console.log('\n⏱️  Starting saasPreCreateNewAccount...');
+
     const { account, result } = await voterClient.saasPreCreateNewAccount({
       contractAddress: contractAddress,
       stateTreeDepth: Number(circuitPower.split('-')[0]),
@@ -236,6 +249,13 @@ async function main() {
       ticket: ticket
       //   derivePathParams
     });
+
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    console.log(
+      `\n⏱️  saasPreCreateNewAccount completed in ${duration}ms (${(duration / 1000).toFixed(2)}s)`
+    );
+
     console.log('accountinfo:', account.getSigner().getPrivateKey());
     console.log('accountinfo:', account.getPubkey().toPackedData());
 
@@ -260,6 +280,9 @@ async function main() {
     // ==================== 5. Test Voting ====================
     console.log('\n[5/5] Testing Voting (with auto payload generation)');
 
+    const vote1StartTime = Date.now();
+    console.log('\n⏱️  Starting first saasVote (3 options)...');
+
     const voteResult = await account.saasVote({
       contractAddress,
       operatorPubkey,
@@ -271,7 +294,17 @@ async function main() {
       ticket: ticket
     });
 
+    const vote1EndTime = Date.now();
+    const vote1Duration = vote1EndTime - vote1StartTime;
+    console.log(
+      `\n⏱️  First saasVote completed in ${vote1Duration}ms (${(vote1Duration / 1000).toFixed(2)}s)`
+    );
+
     console.log('✓ Voting succeeded!', voteResult);
+
+    const vote2StartTime = Date.now();
+    console.log('\n⏱️  Starting second saasVote (25 options)...');
+
     const voteResult2 = await account.saasVote({
       contractAddress,
       operatorPubkey,
@@ -304,6 +337,12 @@ async function main() {
       ],
       ticket: ticket
     });
+
+    const vote2EndTime = Date.now();
+    const vote2Duration = vote2EndTime - vote2StartTime;
+    console.log(
+      `\n⏱️  Second saasVote completed in ${vote2Duration}ms (${(vote2Duration / 1000).toFixed(2)}s)`
+    );
 
     console.log('✓ Voting succeeded!', voteResult2);
   } catch (error) {
