@@ -566,14 +566,24 @@ export class VoterClient {
   async buildDeactivatePayload({
     stateIdx,
     operatorPubkey,
+    nonce = 0,
     derivePathParams
   }: {
     stateIdx: number;
     operatorPubkey: bigint | string | PubKey;
+    nonce?: number;
     derivePathParams?: DerivePathParams;
   }) {
-    const payload = this.batchGenMessage(stateIdx, operatorPubkey, [[0, 0]], derivePathParams);
-    return stringizing(payload[0]) as {
+    // Deactivate messages use nonce=0 (independent from vote messages)
+    // Create a custom message with explicit nonce
+    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, derivePathParams);
+    const encAccount = genKeypair();
+    const msg = genMessage(BigInt(encAccount.privKey), nonce, 0, 0, true);
+
+    return stringizing({
+      msg,
+      encPubkeys: encAccount.pubKey
+    }) as {
       msg: string[];
       encPubkeys: string[];
     };

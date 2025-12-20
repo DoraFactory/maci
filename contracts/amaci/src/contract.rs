@@ -256,8 +256,12 @@ pub fn instantiate(
         // &Uint256::from_u128(0u128),
     )?;
 
-    // Define an array of zero values
-    let zeros: [Uint256; 8] = [
+    // Define an array of zero values for Merkle tree
+    // These are precomputed hash values for empty subtrees at each depth
+    // zeros[0] = 0 (zero leaf)
+    // zeros[i] = poseidon([zeros[i-1], zeros[i-1], zeros[i-1], zeros[i-1], zeros[i-1]])
+    // This supports state trees up to depth 6 (requires zeros[0] through zeros[8])
+    let zeros: [Uint256; 9] = [
         Uint256::from_u128(0u128),
         uint256_from_hex_string("2066be41bebe6caf7e079360abe14fbf9118c62eabc42e2fe75e342b160a95bc"),
         //     "14655542659562014735865511769057053982292279840403315552050801315682099828156",
@@ -273,7 +277,7 @@ pub fn instantiate(
         //     "2612442706402737973181840577010736087708621987282725873936541279764292204086",
         uint256_from_hex_string("272b3425fcc3b2c45015559b9941fde27527aab5226045bf9b0a6c1fe902d601"),
         //     "17716535433480122581515618850811568065658392066947958324371350481921422579201",
-        // uint256_from_hex_string("268d82cc07023a1d5e7c987cbd0328b34762c9ea21369bea418f08b71b16846a"),
+        uint256_from_hex_string("268d82cc07023a1d5e7c987cbd0328b34762c9ea21369bea418f08b71b16846a"),
         //     "17437916409890180001398333108882255895598851862997171508841759030332444017770",
     ];
     ZEROS.save(deps.storage, &zeros)?;

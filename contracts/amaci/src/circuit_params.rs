@@ -169,6 +169,60 @@ pub fn match_vkeys(parameters: &MaciParameters) -> Result<VkeyParams, ContractEr
             add_key_vkey: groth16_add_new_key_vkeys,
         };
         return Ok(vkeys);
+    } else if parameters.state_tree_depth == Uint256::from_u128(6)
+        && parameters.int_state_tree_depth == Uint256::from_u128(3)
+        && parameters.vote_option_tree_depth == Uint256::from_u128(3)
+        && parameters.message_batch_size == Uint256::from_u128(125)
+    {
+        let groth16_process_vkey = Groth16VKeyType {
+            vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
+            vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
+            vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+            vk_delta_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+            vk_ic0: "004acde283c7e2f3a172146fde9076f996a4aee5f8855fd644c8cda0bbbe501504bde32d4f9976252ece9e5f41f00e19317587ddd7e80092937d0faa08896421".to_string(),
+            vk_ic1: "22cd5260f9bfb2e93bcb2e378aabc18a195d8c9f4c571cb8663381c0642daaff0e67b71c87fcfee8e9b0b46ef46874c43b02cc93bab22949afe5550afe07f224".to_string(),
+        };
+
+        let groth16_tally_vkey = Groth16VKeyType {
+            vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
+            vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
+            vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+            vk_delta_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+            vk_ic0: "23bee370108a6b1620be673d2c498afc2044e181d018c0339e72c81ea758d1da0bdf3384853747dbeb7569a6329dd9b87a3b816554a885d2f228f6fa51696379".to_string(),
+            vk_ic1: "2ef29a80116a8b7c5989c7ea8ed89fef6e574328c0b5168991fbe3ff5c2fee1919c82267e87309edc10ee70705147eafdced664b0d94ba3a704a166bcfa95ee7".to_string(),
+        };
+
+        let groth16_deactivate_vkey = Groth16VKeyType {
+            vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
+            vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
+            vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+            vk_delta_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+            vk_ic0: "03dd160100847287cbdb29dd3117ee0edac3f66bd19454ccc68191af41d1498d21070e29927c04c68b0428d5b701a3e935a7951cfc49afa174da33c0066c159c".to_string(),
+            vk_ic1: "12b983c06d2fde3b7ec2726e3180efcd5db34ac4bea974dab3221c1ba584b6cb17aaff163a8d99e8f3b05378294f10b71dbf21d3471cb8b3d4a82de7d6d0b60c".to_string(),
+        };
+
+        let groth16_add_new_key_vkey = Groth16VKeyType {
+            vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
+            vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
+            vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+            vk_delta_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+            vk_ic0: "0ddc195c17736cafb45d5ceabe6e9e8d038a5c4ea456f3a09c42891cce237f5e1da82175eeb13cc895f8d69d6c28e2514fbfd5dc25eeec8c4f7ca3cd9e6b80b2".to_string(),
+            vk_ic1: "018feb5d122cb96fc55309e5818ba2dbd5f493db38dbd10aceab2e846e7838fe04d0b00b725ac7a20c033868b342291db38d85fefb1e34486c0ba254c8904783".to_string(),
+        };
+
+        let groth16_process_vkeys = format_vkey(&groth16_process_vkey)?;
+        let groth16_tally_vkeys = format_vkey(&groth16_tally_vkey)?;
+        let groth16_deactivate_vkeys = format_vkey(&groth16_deactivate_vkey)?;
+        let groth16_add_new_key_vkeys = format_vkey(&groth16_add_new_key_vkey)?;
+
+        let vkeys = VkeyParams {
+            process_vkey: groth16_process_vkeys,
+            tally_vkey: groth16_tally_vkeys,
+            deactivate_vkey: groth16_deactivate_vkeys,
+            add_key_vkey: groth16_add_new_key_vkeys,
+        };
+
+        Ok(vkeys)
     } else {
         return Err(ContractError::NotMatchCircuitSize {});
     }
