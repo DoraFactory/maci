@@ -307,9 +307,11 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Step 5: Operator processes deactivate messages
     log('\nProcessing deactivate messages...');
+    // subStateTreeLength should be 5^stateTreeDepth (the max leaves in the state tree subtree)
+    const subStateTreeLength = 5 ** stateTreeDepth; // 5^2 = 25
     const deactivateResult = await operator.processDeactivateMessages({
       inputSize: batchSize,
-      subStateTreeLength: numSignUps,
+      subStateTreeLength: subStateTreeLength,
       wasmFile: processDeactivateWasm,
       zkeyFile: processDeactivateZkey
     });
@@ -664,7 +666,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     }
   });
 
-  it('should reject signup/addNewKey when state tree is full', async function () {
+  it('should reject old voter votes after AddNewKey (with DEBUG)', async function () {
     this.timeout(900000); // 15 minutes for this comprehensive test
 
     log('\n=== Testing Old Voter Vote Rejection After AddNewKey ===');
@@ -826,7 +828,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const testDeactivateResult = await testOperator.processDeactivateMessages({
       inputSize: batchSize,
-      subStateTreeLength: numSignUps,
+      subStateTreeLength: 5 ** stateTreeDepth, // Use 5^stateTreeDepth, not numSignUps
       wasmFile: processDeactivateWasm,
       zkeyFile: processDeactivateZkey
     });
@@ -970,6 +972,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Phase 8: Process messages and verify
     log('\n--- Phase 8: Process messages and verify results ---');
+    log('🔍 DEBUG: Starting processMessages phase');
 
     const currentTime = BigInt(app.time);
     if (currentTime < endTime) {
@@ -982,23 +985,118 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       'Start process period failed'
     );
 
+    // 🔍 DEBUG: Dump state before endVotePeriod
+    log('\n🔍 DEBUG: State BEFORE endVotePeriod():');
+    log(`  - Operator state: ${testOperator.states} (0=FILLING, 1=PROCESSING, 2=TALLYING)`);
+    log(`  - Total messages: ${testOperator.messages.length}`);
+    log(`  - Total deactivate messages: ${testOperator.dMessages.length}`);
+    log(`  - State tree root: ${testOperator.stateTree?.root || 'N/A'}`);
+    log(`  - Active state tree root: ${testOperator.activeStateTree?.root || 'N/A'}`);
+
+    // Dump all messages
+    log('\n🔍 DEBUG: All messages in queue:');
+    testOperator.messages.forEach((msg, idx) => {
+      const msgStr = Array.isArray(msg)
+        ? `[${msg.map((m) => m.toString().slice(0, 10) + '...').join(', ')}]`
+        : `${msg}`;
+      log(`  Message ${idx}: ${msgStr}`);
+    });
+
+    // Dump state leaves
+    log('\n🔍 DEBUG: State leaves before processMessages:');
+    [USER_1_OLD, USER_1_NEW, USER_2].forEach((idx) => {
+      const leaf = testOperator.stateLeaves.get(idx);
+      if (leaf) {
+        log(`  StateLeaf[${idx}]:`);
+        log(
+          `    - pubKey: [${leaf.pubKey[0].toString().slice(0, 20)}..., ${leaf.pubKey[1].toString().slice(0, 20)}...]`
+        );
+        log(`    - balance: ${leaf.balance}`);
+        log(`    - nonce: ${leaf.nonce}`);
+        log(`    - voted: ${leaf.voted}`);
+        log(`    - d1: ${leaf.d1}, d2: ${leaf.d2}`);
+        log(`    - activeState: ${testOperator.activeStateTree!.leaf(idx)}`);
+      }
+    });
+
     testOperator.endVotePeriod();
+
+    // 🔍 DEBUG: Dump state after endVotePeriod
+    log('\n🔍 DEBUG: State AFTER endVotePeriod():');
+    log(`  - Operator state: ${testOperator.states}`);
+    log(`  - State tree root: ${testOperator.stateTree?.root || 'N/A'}`);
 
     let batchCount = 0;
     while (testOperator.states === 1) {
+      log(`\n🔍 DEBUG: ========== Processing batch ${batchCount} ==========`);
+
+      // 🔍 DEBUG: Before processMessages
+      log(
+        `🔍 DEBUG: State tree root before processMessages: ${testOperator.stateTree?.root || 'N/A'}`
+      );
+      log(`🔍 DEBUG: Messages in queue: ${testOperator.messages.length}`);
+
       const processResult = await testOperator.processMessages({
         wasmFile: processMessagesWasm,
         zkeyFile: processMessagesZkey
       });
 
-      await assertExecuteSuccess(
-        () =>
-          testContract.processMessage(
-            processResult.input.newStateCommitment.toString(),
-            processResult.proof!
-          ),
-        `Process message batch ${batchCount} failed`
+      // 🔍 DEBUG: After processMessages, before contract call
+      log(`\n🔍 DEBUG: processMessages result for batch ${batchCount}:`);
+      log(`  - input.newStateCommitment: ${processResult.input.newStateCommitment}`);
+      log(
+        `  - proof length: ${processResult.proof ? JSON.stringify(processResult.proof).length : 'null'}`
       );
+      log(
+        `  - State tree root after SDK processMessages: ${testOperator.stateTree?.root || 'N/A'}`
+      );
+
+      // 🔍 DEBUG: Dump processed state leaves
+      log(`\n🔍 DEBUG: State leaves after SDK processMessages (batch ${batchCount}):`);
+      [USER_1_OLD, USER_1_NEW, USER_2].forEach((idx) => {
+        const leaf = testOperator.stateLeaves.get(idx);
+        if (leaf) {
+          log(`  StateLeaf[${idx}]:`);
+          log(
+            `    - pubKey: [${leaf.pubKey[0].toString().slice(0, 20)}..., ${leaf.pubKey[1].toString().slice(0, 20)}...]`
+          );
+          log(`    - balance: ${leaf.balance}`);
+          log(`    - nonce: ${leaf.nonce}`);
+          log(`    - voted: ${leaf.voted}`);
+          log(`    - activeState: ${testOperator.activeStateTree!.leaf(idx)}`);
+        }
+      });
+
+      // 🔍 DEBUG: Contract state before submission
+      try {
+        // Note: getStateCommitment may not exist on the contract client
+        log(`🔍 DEBUG: Contract ready for submission`);
+      } catch (e) {
+        log(`🔍 DEBUG: Could not get contract state: ${e}`);
+      }
+
+      log(`\n🔍 DEBUG: Submitting processMessage to contract...`);
+      try {
+        await assertExecuteSuccess(
+          () =>
+            testContract.processMessage(
+              processResult.input.newStateCommitment.toString(),
+              processResult.proof!
+            ),
+          `Process message batch ${batchCount} failed`
+        );
+        log(`✅ DEBUG: Batch ${batchCount} submitted successfully`);
+      } catch (error: any) {
+        log(`\n❌ DEBUG: processMessage FAILED for batch ${batchCount}`);
+        log(`❌ DEBUG: Error: ${error.message}`);
+        log(`\n🔍 DEBUG: Dumping complete state for debugging:`);
+        log(`  - newStateCommitment: ${processResult.input.newStateCommitment}`);
+        log(`  - proof: ${JSON.stringify(processResult.proof, null, 2)}`);
+        log(`  - State tree root: ${testOperator.stateTree?.root || 'N/A'}`);
+        log(`  - Active state tree root: ${testOperator.activeStateTree?.root || 'N/A'}`);
+        log(`  - Total messages: ${testOperator.messages.length}`);
+        throw error;
+      }
 
       batchCount++;
       if (batchCount > 10) throw new Error('Too many processing iterations');
@@ -1203,7 +1301,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const concurrentDeactivateResult = await concurrentOperator.processDeactivateMessages({
       inputSize: batchSize,
-      subStateTreeLength: numSignUps,
+      subStateTreeLength: 5 ** stateTreeDepth, // Use 5^stateTreeDepth, not numSignUps
       wasmFile: processDeactivateWasm,
       zkeyFile: processDeactivateZkey
     });
@@ -1334,6 +1432,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Phase 6: Process messages
     log('\n--- Phase 6: Process messages and verify results ---');
+    log('🔍 DEBUG: Starting processMessages phase (Concurrent test)');
 
     const currentTime = BigInt(app.time);
     if (currentTime < endTime) {
@@ -1346,23 +1445,101 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       'Start process period failed'
     );
 
+    // 🔍 DEBUG: Dump state before endVotePeriod
+    log('\n🔍 DEBUG: State BEFORE endVotePeriod() (Concurrent test):');
+    log(`  - Operator state: ${concurrentOperator.states}`);
+    log(`  - Total messages: ${concurrentOperator.messages.length}`);
+    log(`  - Total deactivate messages: ${concurrentOperator.dMessages.length}`);
+    log(`  - State tree root: ${concurrentOperator.stateTree?.root || 'N/A'}`);
+    log(`  - Active state tree root: ${concurrentOperator.activeStateTree?.root || 'N/A'}`);
+
+    // Dump all messages
+    log('\n🔍 DEBUG: All messages in queue:');
+    concurrentOperator.messages.forEach((msg, idx) => {
+      const msgStr = Array.isArray(msg)
+        ? `[${msg.map((m) => m.toString().slice(0, 10) + '...').join(', ')}]`
+        : `${msg}`;
+      log(`  Message ${idx}: ${msgStr}`);
+    });
+
+    // Dump state leaves
+    log('\n🔍 DEBUG: State leaves before processMessages:');
+    [USER_1_OLD, USER_1_NEW, USER_2].forEach((idx) => {
+      const leaf = concurrentOperator.stateLeaves.get(idx);
+      if (leaf) {
+        log(`  StateLeaf[${idx}]:`);
+        log(
+          `    - pubKey: [${leaf.pubKey[0].toString().slice(0, 20)}..., ${leaf.pubKey[1].toString().slice(0, 20)}...]`
+        );
+        log(`    - balance: ${leaf.balance}`);
+        log(`    - nonce: ${leaf.nonce}`);
+        log(`    - voted: ${leaf.voted}`);
+        log(`    - d1: ${leaf.d1}, d2: ${leaf.d2}`);
+        log(`    - activeState: ${concurrentOperator.activeStateTree!.leaf(idx)}`);
+      }
+    });
+
     concurrentOperator.endVotePeriod();
+
+    // 🔍 DEBUG: Dump state after endVotePeriod
+    log('\n🔍 DEBUG: State AFTER endVotePeriod():');
+    log(`  - Operator state: ${concurrentOperator.states}`);
+    log(`  - State tree root: ${concurrentOperator.stateTree?.root || 'N/A'}`);
 
     let batchCount = 0;
     while (concurrentOperator.states === 1) {
+      log(`\n🔍 DEBUG: ========== Processing batch ${batchCount} (Concurrent) ==========`);
+
+      log(
+        `🔍 DEBUG: State tree root before processMessages: ${concurrentOperator.stateTree?.root || 'N/A'}`
+      );
+      log(`🔍 DEBUG: Messages in queue: ${concurrentOperator.messages.length}`);
+
       const processResult = await concurrentOperator.processMessages({
         wasmFile: processMessagesWasm,
         zkeyFile: processMessagesZkey
       });
 
-      await assertExecuteSuccess(
-        () =>
-          concurrentContract.processMessage(
-            processResult.input.newStateCommitment.toString(),
-            processResult.proof!
-          ),
-        `Process message batch ${batchCount} failed`
+      log(`\n🔍 DEBUG: processMessages result for batch ${batchCount}:`);
+      log(`  - input.newStateCommitment: ${processResult.input.newStateCommitment}`);
+      log(
+        `  - proof length: ${processResult.proof ? JSON.stringify(processResult.proof).length : 'null'}`
       );
+      log(
+        `  - State tree root after SDK processMessages: ${concurrentOperator.stateTree?.root || 'N/A'}`
+      );
+
+      log(`\n🔍 DEBUG: State leaves after SDK processMessages (batch ${batchCount}):`);
+      [USER_1_OLD, USER_1_NEW, USER_2].forEach((idx) => {
+        const leaf = concurrentOperator.stateLeaves.get(idx);
+        if (leaf) {
+          log(`  StateLeaf[${idx}]:`);
+          log(`    - balance: ${leaf.balance}, nonce: ${leaf.nonce}, voted: ${leaf.voted}`);
+          log(`    - activeState: ${concurrentOperator.activeStateTree!.leaf(idx)}`);
+        }
+      });
+
+      log(`\n🔍 DEBUG: Submitting processMessage to contract (Concurrent)...`);
+      try {
+        await assertExecuteSuccess(
+          () =>
+            concurrentContract.processMessage(
+              processResult.input.newStateCommitment.toString(),
+              processResult.proof!
+            ),
+          `Process message batch ${batchCount} failed`
+        );
+        log(`✅ DEBUG: Batch ${batchCount} submitted successfully`);
+      } catch (error: any) {
+        log(`\n❌ DEBUG: processMessage FAILED for batch ${batchCount} (Concurrent)`);
+        log(`❌ DEBUG: Error: ${error.message}`);
+        log(`\n🔍 DEBUG: Dumping complete state:`);
+        log(`  - newStateCommitment: ${processResult.input.newStateCommitment}`);
+        log(`  - State tree root: ${concurrentOperator.stateTree?.root || 'N/A'}`);
+        log(`  - Active state tree root: ${concurrentOperator.activeStateTree?.root || 'N/A'}`);
+        log(`  - Total messages: ${concurrentOperator.messages.length}`);
+        throw error;
+      }
 
       batchCount++;
       if (batchCount > 10) throw new Error('Too many processing iterations');
@@ -1618,7 +1795,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       // Process the deactivate
       const deactivateResult = await boundaryOperator.processDeactivateMessages({
         inputSize: batchSize,
-        subStateTreeLength: 25,
+        subStateTreeLength: 5 ** stateTreeDepth, // Use 5^stateTreeDepth (25), not the number of signups
         wasmFile: processDeactivateWasm,
         zkeyFile: processDeactivateZkey
       });

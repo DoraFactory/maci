@@ -13,9 +13,16 @@
 5. [状态转换图](#状态转换图)
 6. [关键数据结构](#关键数据结构)
 7. [安全机制](#安全机制)
+   - Nullifier 防重放
+   - ECDH 绑定
+   - 双层验证
+   - Circuit 约束
+   - **错误消息处理的安全性** ⭐ 新增
 8. [代码示例](#代码示例)
 9. [测试覆盖](#测试覆盖)
 10. [常见问题](#常见问题)
+    - Q7: 错误 deactivate message 的处理 ⭐ 新增
+    - Q8: 奇数 d1/d2 账户能否再次 deactivate ⭐ 新增
 
 ---
 
@@ -43,6 +50,10 @@ AMACI (Anonymous MACI) 是 MACI 的增强版本，添加了**匿名密钥更换*
 │ 4. ElGamal 加密 - 隐私保护的状态标记                  │
 │ 5. 双层验证 - ActiveStateTree + d1/d2 解密检查       │
 │ 6. Nullifier 机制 - 防止 deactivate 数据重用          │
+│ 7. 奇偶性编码 - 优雅的错误消息处理 ⭐                │
+│    • 正确消息 → 偶数 c1c2 → 可用于 AddNewKey         │
+│    • 错误消息 → 奇数 c1c2 → 无法创建可用账户         │
+│    • 防止通过错误消息进行 Sybil 攻击                 │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -812,6 +823,180 @@ AddNewKey 电路约束:
 └──────────────────────────────────────────────┘
 ```
 
+### 5. 错误消息处理的安全性
+
+```
+目的: 确保错误的 deactivate 消息不会破坏系统完整性
+═══════════════════════════════════════════════════════════
+
+processDeactivateMessages 的容错设计:
+┌────────────────────────────────────────────────────┐
+│ for (let i = 0; i < batchSize; i++) {              │
+│   const cmd = commands[i];                         │
+│   const error = checkDeactivateCommand(cmd);       │
+│                                                    │
+│   if (!error) {                                    │
+│     // 正确的消息: 生成偶数 c1c2                   │
+│     const deactivate = encryptOdevity(            │
+│       false,  // 偶数 → active                    │
+│       coordPubKey,                                 │
+│       randomKey                                    │
+│     );                                             │
+│                                                    │
+│     // 更新 ActiveStateTree (标记为 inactive)      │
+│     activeStateTree.updateLeaf(stateIdx, newVal); │
+│     deactivateTree.updateLeaf(idx, hash(dLeaf));  │
+│   } else {                                         │
+│     // 错误的消息: 生成奇数 c1c2                   │
+│     const deactivate = encryptOdevity(            │
+│       true,   // 奇数 → deactivated               │
+│       coordPubKey,                                 │
+│       randomKey                                    │
+│     );                                             │
+│                                                    │
+│     // 不更新 ActiveStateTree (保护原账户)        │
+│     // 只更新 DeactivateTree (存入奇数标记)       │
+│     if (messages[i].ciphertext[0] !== 0n) {       │
+│       deactivateTree.updateLeaf(idx, hash(dLeaf));│
+│     }                                              │
+│   }                                                │
+│ }                                                  │
+└────────────────────────────────────────────────────┘
+
+checkDeactivateCommand 的检查层级:
+┌────────────────────────────────────────────────────┐
+│ 1. 空命令检查                                      │
+│    if (!cmd) return 'empty command';              │
+│                                                    │
+│ 2. 索引溢出检查                                    │
+│    if (cmd.stateIdx >= subStateTreeLength)        │
+│      return 'state leaf index overflow';          │
+│                                                    │
+│ 3. 已 deactivate 检查（关键！）                   │
+│    const deactivate = decrypt(coordPrivKey, {     │
+│      c1: { x: s.d1[0], y: s.d1[1] },             │
+│      c2: { x: s.d2[0], y: s.d2[1] }              │
+│    });                                            │
+│    if (deactivate % 2n === 1n)                    │
+│      return 'deactivated';  // ← 防止重复 deact  │
+│                                                    │
+│ 4. 签名验证                                        │
+│    const verified = verifySignature(...);         │
+│    if (!verified) return 'signature error';       │
+└────────────────────────────────────────────────────┘
+
+安全保障机制:
+═══════════════════════════════════════════════════════════
+
+保障 1: 原账户不受影响
+─────────────────────────────────────────────
+场景: 用户发送签名错误的 deactivate 消息
+
+结果:
+  ✅ ActiveStateTree 不变 (仍为 0/active)
+  ✅ StateTree.d1/d2 不变 (仍为偶数/active)
+  ✅ 用户可以继续使用原账户投票
+  ❌ DeactivateTree 存入奇数 c1c2 (无法用于 AddNewKey)
+
+防止: 恶意/错误消息破坏现有账户
+
+保障 2: 防止创建多个可用账户
+─────────────────────────────────────────────
+场景: 用户尝试用错误消息的奇数 c1c2 进行 AddNewKey
+
+流程:
+  1. AddNewKey 成功创建新账户
+     - ActiveStateTree[new] = 0 (active) ✅
+     - d1/d2 = 奇数 (deactivated) ❌
+     
+  2. 新账户尝试投票时被拒绝
+     - 检查 1: ActiveStateTree[new] === 0 → 通过 ✅
+     - 检查 2: decrypt(d1,d2) % 2 === 0 → 失败 ❌
+     
+  3. 新账户尝试再次 deactivate 被拒绝
+     - checkDeactivateCommand 检测到 d1/d2 是奇数
+     - 返回 'deactivated' 错误
+     - 又生成奇数 c1c2 (无限循环)
+
+结果:
+  ✅ 只有原账户可用
+  ❌ 新账户无法投票
+  ❌ 无法通过新账户再创建可用账户
+
+防止: Sybil 攻击（一人多票）
+
+保障 3: 奇偶性传递链
+─────────────────────────────────────────────
+奇数 d1/d2 账户的传播链:
+
+  错误消息 → 奇数 c1c2 → DeactivateTree
+       ↓
+  AddNewKey (rerandomize 保持奇偶性)
+       ↓
+  新账户: d1/d2 = 奇数
+       ↓
+  尝试 deactivate → checkDeactivateCommand 检测到奇数
+       ↓
+  返回 'deactivated' 错误 → 又生成奇数 c1c2
+       ↓
+  AddNewKey (rerandomize) → 又是奇数 d1/d2
+       ↓
+  (无限循环，无法逃脱)
+
+特性:
+  ✅ rerandomize 保持奇偶性不变
+  ✅ 一旦是奇数，永远是奇数
+  ✅ 无法通过任何方式创建可用的后续账户
+
+防止: 通过错误数据绕过安全检查
+
+状态转换表:
+═══════════════════════════════════════════════════════════
+┌────────────┬──────────┬─────────┬─────────┬──────────────┐
+│ 消息类型   │ActiveTree│ d1/d2   │能投票   │能 Deactivate │
+├────────────┼──────────┼─────────┼─────────┼──────────────┤
+│正确 deact  │非0(✗)    │偶数(✓)  │不能(✗) │能(✓)        │
+│错误 deact  │0(✓)      │偶数(✓)  │能(✓)   │能(✓)        │
+│AddNewKey(正)│0(✓)      │偶数(✓)  │能(✓)   │能(✓)        │
+│AddNewKey(错)│0(✓)      │奇数(✗)  │不能(✗) │不能(✗)      │
+└────────────┴──────────┴─────────┴─────────┴──────────────┘
+
+安全性证明:
+═══════════════════════════════════════════════════════════
+
+定理 1: 错误消息不会破坏原账户
+  证明: 当 error 存在时，processDeactivateMessages 不更新
+       ActiveStateTree，原账户的所有状态保持不变。
+       ∴ 原账户仍可正常使用 ✓
+
+定理 2: 不可能同时拥有两个可用账户
+  证明: 
+    情况 A: deactivate 成功
+      → old: ActiveTree = 非0, d1/d2 = 偶数 → 不能投票
+      → new: ActiveTree = 0, d1/d2 = 偶数 → 能投票
+      → 结果: 只有 new 可用 ✓
+      
+    情况 B: deactivate 失败
+      → old: ActiveTree = 0, d1/d2 = 偶数 → 能投票
+      → new: ActiveTree = 0, d1/d2 = 奇数 → 不能投票
+      → 结果: 只有 old 可用 ✓
+      
+    ∴ 任何情况下最多只有一个可用账户 ✓
+
+定理 3: 奇数 d1/d2 账户不可修复
+  证明: 
+    设账户 A 的 d1/d2 = 奇数
+    
+    1. A 不能投票 (d1/d2 检查失败)
+    2. A 不能 deactivate (checkDeactivateCommand 检测到奇数)
+    3. 即使 A 强行 deactivate，生成的 c1c2 仍是奇数
+    4. 用这个奇数 c1c2 的 AddNewKey 创建的账户 B
+       B 的 d1/d2 也是奇数 (rerandomize 保持奇偶性)
+    5. B 重复 A 的状态 (步骤 1-4)
+    
+    ∴ 奇数 d1/d2 账户及其所有后代都不可用 ✓
+```
+
 ---
 
 ## 代码示例
@@ -1281,6 +1466,153 @@ packages/circuits/ts/__tests__/
   - 可以标记为 .skip() 或待完成
 ```
 
+### Q7: 如果用户上传了错误的 deactivate message 会发生什么？
+
+**A:** 系统会安全处理错误，但会导致 AddNewKey 失败。
+
+```
+场景: 用户上传签名错误/nonce 错误/已 deactivate 的消息
+═══════════════════════════════════════════════════════════
+
+步骤 1: Operator 处理错误消息
+─────────────────────────────────────────────
+const error = checkDeactivateCommand(cmd);
+// error = 'signature error' / 'deactivated' / etc.
+
+if (error) {
+  // 生成奇数的 c1c2（标记为 deactivated）
+  const deactivate = encryptOdevity(true, coordPubKey, randomKey);
+  
+  // 关键：不更新 ActiveStateTree
+  // ActiveStateTree[stateIdx] 保持原值（0 = active）
+  
+  // 只更新 DeactivateTree（存入奇数 c1c2）
+  deactivateTree.updateLeaf(index, poseidon(dLeaf));
+}
+
+结果:
+  ✅ Old Voter 账户未受影响
+     - ActiveStateTree[5] = 0 (仍然 active)
+     - StateTree[5].d1/d2 = 偶数 (仍然 active)
+     - ➜ 可以继续投票 ✅
+     
+  ❌ DeactivateTree 中存入了奇数 c1c2
+     - 如果用户用这个数据进行 AddNewKey
+     - 新账户会继承奇数 d1/d2
+     - ➜ 新账户无法投票 ❌
+
+步骤 2: 如果用户用奇数 c1c2 进行 AddNewKey
+─────────────────────────────────────────────
+New Voter (stateIdx=10):
+  ActiveStateTree[10] = 0        // 新账户默认 active ✅
+  StateTree[10].d1/d2 = 奇数     // 继承了错误数据 ❌
+
+当 New Voter 尝试投票时:
+  ✓ 检查 1: ActiveStateTree[10] === 0  → 通过
+  ✗ 检查 2: decrypt(d1,d2) % 2 === 0   → 失败（奇数）
+  
+  ➜ 投票被拒绝 ❌
+
+安全保障:
+  ✅ 错误消息不会破坏 Old Voter 账户
+  ✅ Old Voter 仍然可以正常使用
+  ✅ 新账户虽然创建成功，但无法投票
+  ✅ 防止了通过错误消息创建多个可用账户
+```
+
+**最佳实践**：
+```typescript
+// 用户应该在 AddNewKey 前验证 deactivate 是否成功
+const activeState = await queryActiveStateTree(oldStateIdx);
+if (activeState !== 0n) {
+  console.log('✅ Deactivate 成功，可以进行 AddNewKey');
+} else {
+  console.log('❌ Deactivate 失败，请检查并重新发送');
+}
+```
+
+### Q8: 用奇数 d1/d2 的账户能否再次 deactivate？
+
+**A:** 不能。系统会检测到账户已经 deactivated 并拒绝。
+
+```
+场景: New Voter1 (d1/d2 奇数) 尝试再次 deactivate
+═══════════════════════════════════════════════════════
+
+初始状态:
+  Old Voter (stateIdx=5):
+    ActiveStateTree[5] = 0 (active) ✅
+    d1/d2 = 偶数 (active) ✅
+    ➜ 可以投票 ✅
+    
+  New Voter1 (stateIdx=10) - 通过错误 deactivate 创建:
+    ActiveStateTree[10] = 0 (active) ✅
+    d1/d2 = 奇数 (deactivated) ❌
+    ➜ 不能投票 ❌
+
+用户尝试: New Voter1 发送 deactivate 消息
+─────────────────────────────────────────────
+步骤 1: checkDeactivateCommand 检查
+  
+  const deactivate = decrypt(coordPrivKey, {
+    c1: { x: s.d1[0], y: s.d1[1] },
+    c2: { x: s.d2[0], y: s.d2[1] },
+    xIncrement: 0n
+  });
+  
+  if (deactivate % 2n === 1n) {
+    return 'deactivated';  // ← 在这里被拒绝！
+  }
+
+步骤 2: processDeactivateMessages 处理错误
+  
+  const error = checkDeactivateCommand(cmd);
+  // error = 'deactivated'
+  
+  // 生成新的奇数 c1c2（因为有 error）
+  const deactivate = encryptOdevity(!!error, ...);  // true → 奇数
+  
+  // 不更新 ActiveStateTree（因为有 error）
+  // 只更新 DeactivateTree（又是奇数 c1c2）
+
+步骤 3: 如果用这个新的奇数 c1c2 创建 New Voter2
+  
+  New Voter2 (stateIdx=15):
+    ActiveStateTree[15] = 0 (active) ✅
+    d1/d2 = 奇数 (deactivated) ❌  // 又是奇数！
+    ➜ 不能投票 ❌
+
+结果: 无限循环，无法创建可用账户
+─────────────────────────────────────────────
+奇数 d1/d2 → deactivate 被拒绝 → 生成奇数 c1/c2 
+    ↑                                      ↓
+    └──────── AddNewKey (rerandomize) ────┘
+
+防止的攻击:
+  ✅ 无法通过错误消息创建多个 active 账户
+  ✅ 无法绕过 deactivate 机制保持多个身份
+  ✅ 防止 Sybil 攻击（一人多票）
+
+正确的做法:
+  如果第一次 deactivate 失败:
+    ➜ Old Voter 仍然可用，继续用旧账户投票
+    ➜ 重新发送正确的 deactivate 消息
+    ➜ 确保 ActiveStateTree 被正确更新后再 AddNewKey
+```
+
+**状态汇总表**：
+```
+┌──────────┬─────────────────┬─────────────┬─────────┬────────────────┐
+│ 账户     │ ActiveStateTree │ d1/d2 解密  │ 能投票  │ 能 Deactivate  │
+├──────────┼─────────────────┼─────────────┼─────────┼────────────────┤
+│ Old (5)  │ 0 (active) ✅   │ 偶数 ✅     │ 能 ✅  │ 能 ✅          │
+│ New1(10) │ 0 (active) ✅   │ 奇数 ❌     │ 不能 ❌│ 不能 ❌        │
+│ New2(15) │ 0 (active) ✅   │ 奇数 ❌     │ 不能 ❌│ 不能 ❌        │
+└──────────┴─────────────────┴─────────────┴─────────┴────────────────┘
+
+系统中只有 Old Voter 一个可用的 active 账户。
+```
+
 ---
 
 ## 附录
@@ -1371,17 +1703,57 @@ AMACI 通过以下创新实现匿名密钥更换：
 4. **双层验证** - ActiveTree + d1/d2 检查
 5. **Nullifier** - 防重放攻击
 6. **ECDH 绑定** - 防止数据盗用
+7. **奇偶性编码** - 优雅的错误处理 ⭐
+
+### 关键安全特性
+
+```
+容错机制:
+═══════════════════════════════════════════════════════════
+✅ 错误消息不会破坏原账户
+   - ActiveStateTree 保持不变
+   - d1/d2 保持原值
+   - 用户可以继续使用
+
+✅ 不可能同时拥有两个可用账户
+   - 正确 deactivate: old 不可用，new 可用
+   - 错误 deactivate: old 可用，new 不可用
+   - 数学证明：最多一个账户可用
+
+✅ 奇数 d1/d2 账户不可修复
+   - 无法投票
+   - 无法 deactivate
+   - 无法创建可用的后代账户
+   - 防止 Sybil 攻击
+
+防御纵深:
+═══════════════════════════════════════════════════════════
+Layer 1: ActiveStateTree 检查
+  ➜ 快速识别 deactivated 用户
+
+Layer 2: d1/d2 解密检查
+  ➜ 防御数据损坏和篡改
+
+Layer 3: 奇偶性传递
+  ➜ 错误数据永久隔离
+
+Layer 4: Circuit 约束
+  ➜ 所有操作经过 ZK 验证
+```
 
 这些机制共同保证了：
 - ✅ 隐私保护
 - ✅ 安全性
 - ✅ 防篡改
 - ✅ 可验证性
+- ✅ 容错性 ⭐
+- ✅ 防 Sybil 攻击 ⭐
 
 ---
 
-**文档版本**: v1.0  
-**最后更新**: 2024  
+**文档版本**: v1.1  
+**最后更新**: 2024-12-21  
+**更新内容**: 添加错误消息处理和安全分析 (Q7, Q8, 安全机制第5节)  
 **作者**: AMACI Team  
 **许可**: MIT
 
