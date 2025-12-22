@@ -265,7 +265,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     // Calculate voting times
     const now = BigInt(app.time);
     const startTime = now - BigInt(585) * BigInt(1_000_000_000);
-    const votingEndTime = now + BigInt(35) * BigInt(1_000_000_000);
+    const votingEndTime = now + BigInt(180) * BigInt(1_000_000_000); // 180 seconds (3 minutes) for CICD compatibility
 
     const instantiateMsg = {
       parameters: {
