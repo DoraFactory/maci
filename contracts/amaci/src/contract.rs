@@ -2441,6 +2441,21 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let current_state_commitment = CURRENT_STATE_COMMITMENT.may_load(deps.storage)?;
             to_json_binary(&current_state_commitment)
         }
+        QueryMsg::GetCoordinatorHash {} => {
+            let coordinator_hash = COORDINATORHASH.may_load(deps.storage)?;
+            to_json_binary(&coordinator_hash)
+        }
+        QueryMsg::GetMsgHash { index } => {
+            let msg_hash = MSG_HASHES
+                .may_load(deps.storage, index.to_be_bytes().to_vec())?
+                .unwrap_or_default();
+            to_json_binary(&msg_hash)
+        }
+        QueryMsg::GetCurrentDeactivateCommitment {} => {
+            let current_deactivate_commitment =
+                CURRENT_DEACTIVATE_COMMITMENT.may_load(deps.storage)?;
+            to_json_binary(&current_deactivate_commitment)
+        }
     }
 }
 

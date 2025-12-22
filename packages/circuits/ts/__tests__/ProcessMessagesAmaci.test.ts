@@ -30,7 +30,6 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
   const voteOptionTreeDepth = 2;
   const batchSize = 5;
   const maxVoteOptions = 5;
-  const numSignUps = 3;
 
   before(async () => {
     console.log('Initializing AMACI ProcessMessages circuit...');
@@ -51,13 +50,12 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
       secretKey: 111111n
     });
 
-    operator.initMaci({
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth: 1,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps,
       isQuadraticCost,
       isAmaci: true // AMACI mode
     });
@@ -73,7 +71,7 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
     voters.forEach((voter, idx) => {
       const pubKey = voter.getPubkey().toPoints();
       // In AMACI, we need to provide d1, d2
-      operator.initStateTree(idx, pubKey, 100);
+      operator.updateStateTree(idx, pubKey, 100);
     });
 
     return { operator, voters };
@@ -371,7 +369,6 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
 
       console.log('\n=== Checkpoint 3: Parameter Range ===');
       console.log('maxVoteOptions:', maxVoteOptions);
-      console.log('numSignUps:', numSignUps);
       console.log('Max capacity: 5^depth');
 
       // Verify with circuit (will fail if parameters are out of range)
@@ -680,33 +677,33 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
       });
 
       // Initialize MACI
-      maciOperator.initMaci({
+      maciOperator.initRound({
         stateTreeDepth: 2,
         intStateTreeDepth: 1,
         voteOptionTreeDepth: 2,
         batchSize: 5,
         maxVoteOptions: 5,
-        numSignUps: 2,
+
         isQuadraticCost: false,
         isAmaci: false
       });
 
       // Initialize AMACI
-      amaciOperator.initMaci({
+      amaciOperator.initRound({
         stateTreeDepth: 2,
         intStateTreeDepth: 1,
         voteOptionTreeDepth: 2,
         batchSize: 5,
         maxVoteOptions: 5,
-        numSignUps: 2,
+
         isQuadraticCost: false,
         isAmaci: true
       });
 
       const testPubKey: [bigint, bigint] = [12345n, 67890n];
 
-      maciOperator.initStateTree(0, testPubKey, 100);
-      amaciOperator.initStateTree(0, testPubKey, 100);
+      maciOperator.updateStateTree(0, testPubKey, 100);
+      amaciOperator.updateStateTree(0, testPubKey, 100);
 
       console.log('\n=== AMACI vs MACI State Leaf ===');
       console.log('MACI: 5 fields [pubKey, balance, voRoot, nonce]');
@@ -789,13 +786,13 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
         secretKey: 999999n
       });
 
-      amaciOperator.initMaci({
+      amaciOperator.initRound({
         stateTreeDepth: 2,
         intStateTreeDepth: 1,
         voteOptionTreeDepth: 2,
         batchSize: 5,
         maxVoteOptions: 5,
-        numSignUps: 2,
+
         isQuadraticCost: false,
         isAmaci: true
       });

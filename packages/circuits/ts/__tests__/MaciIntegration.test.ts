@@ -79,13 +79,13 @@ describe('MACI Integration Test', function () {
     console.log('\n=== Step 1: Initialize MACI ===\n');
 
     // Initialize MACI with coordinator using the same parameters as circuits
-    operator.initMaci({
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 2,
+
       isQuadraticCost: true, // QV mode
       isAmaci: false // Standard MACI (no anonymous keys)
     });
@@ -99,8 +99,8 @@ describe('MACI Integration Test', function () {
     const user2PubKey = voter2.getPubkey().toPoints();
 
     // In standard MACI, we don't pass d1/d2 (anonymous keys)
-    operator.initStateTree(USER_1, user1PubKey, 100);
-    operator.initStateTree(USER_2, user2PubKey, 100);
+    operator.updateStateTree(USER_1, user1PubKey, 100);
+    operator.updateStateTree(USER_2, user2PubKey, 100);
 
     expect(operator.stateLeaves.size).to.equal(2);
 
@@ -242,13 +242,13 @@ describe('MACI Integration Test', function () {
       secretKey: 999999n
     });
 
-    newOperator.initMaci({
+    newOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 2,
+
       isQuadraticCost: false,
       isAmaci: false // Standard MACI
     });
@@ -268,19 +268,19 @@ describe('MACI Integration Test', function () {
       secretKey: 888888n
     });
 
-    testOperator.initMaci({
+    testOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 2,
+
       isQuadraticCost: false,
       isAmaci: false // Standard MACI
     });
 
     const testPubKey: [bigint, bigint] = [12345n, 67890n];
-    testOperator.initStateTree(0, testPubKey, 200);
+    testOperator.updateStateTree(0, testPubKey, 200);
 
     const stateLeaf = testOperator.stateLeaves.get(0);
     expect(stateLeaf).to.not.be.undefined;
@@ -294,13 +294,13 @@ describe('MACI Integration Test', function () {
       secretKey: 777777n
     });
 
-    testOperator.initMaci({
+    testOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 2,
+
       isQuadraticCost: false,
       isAmaci: false // Standard MACI
     });
@@ -328,25 +328,25 @@ describe('MACI Integration Test', function () {
     });
 
     // Initialize MACI
-    maciOperator.initMaci({
+    maciOperator.initRound({
       stateTreeDepth: 2,
       intStateTreeDepth: 1,
       voteOptionTreeDepth: 1,
       batchSize: 5,
       maxVoteOptions: 5,
-      numSignUps: 2,
+
       isQuadraticCost: false,
       isAmaci: false
     });
 
     // Initialize AMACI
-    amaciOperator.initMaci({
+    amaciOperator.initRound({
       stateTreeDepth: 2,
       intStateTreeDepth: 1,
       voteOptionTreeDepth: 1,
       batchSize: 5,
       maxVoteOptions: 5,
-      numSignUps: 2,
+
       isQuadraticCost: false,
       isAmaci: true
     });
@@ -354,8 +354,8 @@ describe('MACI Integration Test', function () {
     const testPubKey: [bigint, bigint] = [12345n, 67890n];
 
     // Add same state to both
-    maciOperator.initStateTree(0, testPubKey, 100);
-    amaciOperator.initStateTree(0, testPubKey, 100);
+    maciOperator.updateStateTree(0, testPubKey, 100);
+    amaciOperator.updateStateTree(0, testPubKey, 100);
 
     // MACI and AMACI should have different state tree roots
     // because they use different hashing (single vs double layer)

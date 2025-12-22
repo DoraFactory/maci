@@ -54,7 +54,8 @@
     "test:processMessagesAmaciEdgeCases": "pnpm run mocha-test ts/__tests__/ProcessMessagesAmaciEdgeCases.test.ts",
     "test:processMessagesAmaciSecurity": "pnpm run mocha-test ts/__tests__/ProcessMessagesAmaciSecurity.test.ts",
     "test:processMessagesAmaciSync": "pnpm run mocha-test ts/__tests__/ProcessMessagesAmaciSync.test.ts",
-    "test:processMessagesAmaciIntegration": "pnpm run mocha-test ts/__tests__/ProcessMessagesAmaciIntegration.test.ts"
+    "test:processMessagesAmaciIntegration": "pnpm run mocha-test ts/__tests__/ProcessMessagesAmaciIntegration.test.ts",
+    "test:deactivateStatusDetection": "pnpm run mocha-test ts/__tests__/DeactivateStatusDetection.test.ts"
   },
   "dependencies": {
     "circomkit": "^0.3.4",

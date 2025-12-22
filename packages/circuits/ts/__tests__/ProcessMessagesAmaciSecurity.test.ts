@@ -20,7 +20,6 @@ describe('AMACI ProcessMessages Security Tests', function () {
   const voteOptionTreeDepth = 2;
   const batchSize = 5;
   const maxVoteOptions = 5;
-  const numSignUps = 5;
 
   before(async () => {
     console.log('Security tests ready...');
@@ -35,13 +34,12 @@ describe('AMACI ProcessMessages Security Tests', function () {
         secretKey: 123456n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -50,7 +48,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
       const coordPubKey = operator.getPubkey().toPoints();
 
       // SignUp
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       // Deactivate
       const deactivatePayload = await voter.buildDeactivatePayload({
@@ -95,19 +93,18 @@ describe('AMACI ProcessMessages Security Tests', function () {
         secretKey: 234567n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
 
       const voter = new VoterClient({ network: 'testnet', secretKey: 890123n });
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
@@ -141,13 +138,12 @@ describe('AMACI ProcessMessages Security Tests', function () {
         secretKey: 345678n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -158,7 +154,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
 
       // Scenario A: ActiveStateTree says inactive, d1/d2 even
       console.log('Scenario A: activeStateTree inactive, d1/d2 even');
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100); // d1/d2 = [0,0,0,0] even
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100); // d1/d2 = [0,0,0,0] even
 
       // Deactivate to make activeStateTree inactive
       const deactivatePayload = await voter.buildDeactivatePayload({
@@ -217,13 +213,12 @@ describe('AMACI ProcessMessages Security Tests', function () {
         secretKey: 456789n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -232,7 +227,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
       const coordPubKey = operator.getPubkey().toPoints();
 
       // User deactivated
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey
@@ -284,13 +279,12 @@ describe('AMACI ProcessMessages Security Tests', function () {
         secretKey: 567890n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -305,7 +299,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
 
       // SignUp all voters
       voters.forEach((voter, idx) => {
-        operator.initStateTree(idx, voter.getPubkey().toPoints(), 100);
+        operator.updateStateTree(idx, voter.getPubkey().toPoints(), 100);
       });
 
       // All voters send deactivate messages
@@ -354,19 +348,18 @@ describe('AMACI ProcessMessages Security Tests', function () {
         secretKey: 678901n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
 
       const voter = new VoterClient({ network: 'testnet', secretKey: 44444n });
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       const payload = await voter.buildDeactivatePayload({
         stateIdx: 0,
@@ -400,13 +393,12 @@ describe('AMACI ProcessMessages Security Tests', function () {
         secretKey: 789012n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -417,7 +409,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
 
       // Complete flow with security checks at each step
       console.log('Step 1: SignUp');
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       // Security check: d1/d2 should be even
       let stateLeaf = operator.stateLeaves.get(0)!;

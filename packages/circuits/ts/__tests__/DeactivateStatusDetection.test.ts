@@ -114,7 +114,7 @@ describe('AMACI Deactivate Status Detection', function test() {
       const circuitInputs = {
         isQuadraticCost: 0n,
         coordPrivKey,
-        numSignUps: 25n,
+        numSignUps: 1n, // Number of registered users
         maxVoteOptions: 5n,
 
         // State leaf data (active user)

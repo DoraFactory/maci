@@ -19,7 +19,6 @@ describe('AMACI ProcessMessages Integration Tests', function () {
   const voteOptionTreeDepth = 2;
   const batchSize = 5;
   const maxVoteOptions = 5;
-  const numSignUps = 5; // Allow for AddNewKey scenarios
 
   before(async () => {
     console.log('Integration tests ready...');
@@ -35,13 +34,12 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         secretKey: 111111n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -57,7 +55,7 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       console.log('Step 1: SignUp voters');
       voters.forEach((voter, idx) => {
         const pubKey = voter.getPubkey().toPoints();
-        operator.initStateTree(idx, pubKey, 100); // d1,d2 default [0,0,0,0]
+        operator.updateStateTree(idx, pubKey, 100); // d1,d2 default [0,0,0,0]
       });
 
       // Verify initial state
@@ -111,13 +109,12 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         secretKey: 555555n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -129,8 +126,8 @@ describe('AMACI ProcessMessages Integration Tests', function () {
 
       // Step 1: SignUp
       console.log('Step 1: User A and B SignUp');
-      operator.initStateTree(0, voterA.getPubkey().toPoints(), 100);
-      operator.initStateTree(1, voterB.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voterA.getPubkey().toPoints(), 100);
+      operator.updateStateTree(1, voterB.getPubkey().toPoints(), 100);
 
       const initialActiveStateA = operator.activeStateTree!.leaf(0);
       const initialActiveStateB = operator.activeStateTree!.leaf(1);
@@ -219,13 +216,13 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         secretKey: 123123123n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 10,
+
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -239,14 +236,14 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       const NEW_IDX = 3;
 
       // Old voter signup
-      operator.initStateTree(OLD_IDX, oldVoter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(OLD_IDX, oldVoter.getPubkey().toPoints(), 100);
 
       // Simulate AddNewKey: Create new account with inherited deactivate data (even = active)
       const newKeypair = genKeypair();
       const newVoter = new VoterClient({ network: 'testnet', secretKey: newKeypair.privKey });
       const deactivateData = encryptOdevity(false, operator.getPubkey().toPoints(), 999888n);
 
-      operator.initStateTree(NEW_IDX, newVoter.getPubkey().toPoints(), 200, [
+      operator.updateStateTree(NEW_IDX, newVoter.getPubkey().toPoints(), 200, [
         deactivateData.c1.x,
         deactivateData.c1.y,
         deactivateData.c2.x,
@@ -382,13 +379,13 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         secretKey: 888888n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 10, // More slots for multiple cycles
+        // More slots for multiple cycles
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -401,7 +398,7 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       // Cycle 1: SignUp → Deactivate → AddNewKey
       console.log('Cycle 1: Initial signup');
       const voter1 = new VoterClient({ network: 'testnet', secretKey: 999999n });
-      operator.initStateTree(0, voter1.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter1.getPubkey().toPoints(), 100);
       accountHistory.push({ idx: 0, status: 'active', cycle: 1 });
 
       // Vote
@@ -469,13 +466,13 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         secretKey: 101010n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 10,
+
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -484,15 +481,15 @@ describe('AMACI ProcessMessages Integration Tests', function () {
 
       // User A: Standard voting (no deactivate)
       const voterA = new VoterClient({ network: 'testnet', secretKey: 111n });
-      operator.initStateTree(0, voterA.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voterA.getPubkey().toPoints(), 100);
 
       // User B: Vote → Deactivate
       const voterB = new VoterClient({ network: 'testnet', secretKey: 222n });
-      operator.initStateTree(1, voterB.getPubkey().toPoints(), 100);
+      operator.updateStateTree(1, voterB.getPubkey().toPoints(), 100);
 
       // User C: Standard voting
       const voterC = new VoterClient({ network: 'testnet', secretKey: 333n });
-      operator.initStateTree(2, voterC.getPubkey().toPoints(), 100);
+      operator.updateStateTree(2, voterC.getPubkey().toPoints(), 100);
 
       console.log('All users vote');
       [voterA, voterB, voterC].forEach((voter, idx) => {

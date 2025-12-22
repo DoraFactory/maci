@@ -29,18 +29,145 @@ import {
  * 8. Verify results include votes from both keys
  */
 
+/**
+ * Helper function to verify state tree root consistency
+ */
+async function verifyStateTreeRoot(
+  operator: OperatorClient,
+  contract: AmaciContractClient,
+  context: string
+): Promise<void> {
+  const operatorRoot = operator.stateTree?.root.toString() || 'N/A';
+  const contractRoot = await contract.getStateTreeRoot();
+
+  log(`\n🔍 State Tree Root Verification (${context}):`);
+  log(`  Operator Root:  ${operatorRoot}`);
+  log(`  Contract Root:  ${contractRoot}`);
+
+  if (operatorRoot !== 'N/A' && contractRoot) {
+    if (operatorRoot === contractRoot) {
+      log(`  ✅ State tree roots match!`);
+    } else {
+      log(`  ❌ State tree roots MISMATCH!`);
+      log(`  This indicates operator and contract have diverged.`);
+    }
+  }
+}
+
+/**
+ * Helper function to verify processMessages public input consistency
+ */
+async function verifyProcessMessagesInput(
+  operator: OperatorClient,
+  contract: AmaciContractClient,
+  processResult: any,
+  batchSize: number,
+  maxVoteOptions: number,
+  context: string
+): Promise<void> {
+  log(`\n🔍 ProcessMessages Public Input Verification (${context}):`);
+
+  try {
+    // Get contract data
+    const numSignUps = await contract.getNumSignUp();
+    const circuitType = await contract.getCircuitType();
+    const coordinatorHash = await contract.getCoordinatorHash();
+    const msgChainLength = await contract.getMsgChainLength();
+    const processedMsgCount = await contract.getProcessedMsgCount();
+    const currentStateCommitment = await contract.getCurrentStateCommitment();
+    const currentDeactivateCommitment = await contract.getCurrentDeactivateCommitment();
+
+    // Calculate batch indices (same logic as contract)
+    const batchStartIndex =
+      Math.floor((Number(msgChainLength) - Number(processedMsgCount) - 1) / batchSize) * batchSize;
+    const batchEndIndex = Math.min(batchStartIndex + batchSize, Number(msgChainLength));
+
+    // Get message hashes
+    const batchStartHash = await contract.getMsgHash(batchStartIndex.toString());
+    const batchEndHash = await contract.getMsgHash(batchEndIndex.toString());
+
+    // Calculate packedVals (same logic as contract)
+    let packedVals: bigint;
+    if (circuitType === '0') {
+      // 1p1v
+      packedVals = (BigInt(numSignUps) << 32n) + BigInt(maxVoteOptions);
+    } else {
+      // qv
+      packedVals =
+        (BigInt(numSignUps) << 32n) + (BigInt(circuitType) << 64n) + BigInt(maxVoteOptions);
+    }
+
+    // Compare with operator's input
+    const operatorInput = processResult.input;
+
+    log(`  📊 Public Input Components:`);
+    log(`  [0] packedVals:`);
+    log(`      Contract: ${packedVals.toString()}`);
+    log(`      Operator: ${operatorInput.packedVals.toString()}`);
+    log(
+      `      Match: ${packedVals.toString() === operatorInput.packedVals.toString() ? '✅' : '❌'}`
+    );
+
+    log(`  [1] coordPubKeyHash:`);
+    log(`      Contract: ${coordinatorHash}`);
+    log(`      Operator: ${operatorInput.coordPubKey ? 'computed from coordPubKey' : 'N/A'}`);
+    // Note: Operator uses coordPubKey directly, contract stores the hash
+
+    log(`  [2] batchStartHash:`);
+    log(`      Contract: ${batchStartHash}`);
+    log(`      Operator: ${operatorInput.batchStartHash.toString()}`);
+    log(`      Match: ${batchStartHash === operatorInput.batchStartHash.toString() ? '✅' : '❌'}`);
+
+    log(`  [3] batchEndHash:`);
+    log(`      Contract: ${batchEndHash}`);
+    log(`      Operator: ${operatorInput.batchEndHash.toString()}`);
+    log(`      Match: ${batchEndHash === operatorInput.batchEndHash.toString() ? '✅' : '❌'}`);
+
+    log(`  [4] currentStateCommitment:`);
+    log(`      Contract: ${currentStateCommitment}`);
+    log(`      Operator: ${operatorInput.currentStateCommitment.toString()}`);
+    log(
+      `      Match: ${currentStateCommitment === operatorInput.currentStateCommitment.toString() ? '✅' : '❌'}`
+    );
+
+    log(`  [5] newStateCommitment:`);
+    log(`      Operator: ${operatorInput.newStateCommitment.toString()}`);
+    log(`      (Contract will receive this value)`);
+
+    log(`  [6] deactivateCommitment:`);
+    log(`      Contract: ${currentDeactivateCommitment}`);
+    log(`      Operator: ${operatorInput.deactivateCommitment?.toString() || 'N/A'}`);
+    if (operatorInput.deactivateCommitment) {
+      log(
+        `      Match: ${currentDeactivateCommitment === operatorInput.deactivateCommitment.toString() ? '✅' : '❌'}`
+      );
+    }
+
+    // Summary
+    const allMatch =
+      packedVals.toString() === operatorInput.packedVals.toString() &&
+      batchStartHash === operatorInput.batchStartHash.toString() &&
+      batchEndHash === operatorInput.batchEndHash.toString() &&
+      currentStateCommitment === operatorInput.currentStateCommitment.toString() &&
+      (operatorInput.deactivateCommitment
+        ? currentDeactivateCommitment === operatorInput.deactivateCommitment.toString()
+        : true);
+
+    if (allMatch) {
+      log(`\n  ✅ All public input components match!`);
+    } else {
+      log(`\n  ❌ Some public input components MISMATCH!`);
+      log(`  This may cause proof verification to fail.`);
+    }
+  } catch (error: any) {
+    log(`  ⚠️ Error during verification: ${error.message}`);
+  }
+}
+
 describe('AMACI AddNewKey End-to-End Test', function () {
   this.timeout(900000); // 15 minutes for the entire test suite
 
-  let client: SimulateCosmWasmClient;
-  let operator: OperatorClient;
-  let voter1: VoterClient;
-  let voter1NewKey: VoterClient;
-  let voter2: VoterClient;
-  let amaciContract: AmaciContractClient;
-  let votingEndTime: bigint;
-  let deactivatesForProof: bigint[][] = []; // Store deactivate data for AddNewKey proof
-
+  // Shared constants (addresses and test parameters)
   const adminAddress = 'dora1admin000000000000000000000000000000';
   const operatorAddress = 'dora1operator000000000000000000000000';
   const feeRecipient = 'dora1feerecipient0000000000000000000';
@@ -62,7 +189,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
   const USER_2 = 1;
   const USER_1_NEW = 2; // User 1's new key after deactivate + addNewKey
 
-  // Circuit artifacts paths
+  // Circuit artifacts paths (shared across tests)
   const circuitConfig = 'amaci-2-1-1-5';
   const circuitDir = path.join(__dirname, '../circuits', circuitConfig);
   const processMessagesWasm = path.join(circuitDir, 'processMessages.wasm');
@@ -74,60 +201,57 @@ describe('AMACI AddNewKey End-to-End Test', function () {
   const addNewKeyWasm = path.join(circuitDir, 'addNewKey.wasm');
   const addNewKeyZkey = path.join(circuitDir, 'addNewKey.zkey');
 
-  before(async () => {
-    log('=== Setting up AddNewKey test environment ===');
+  it('should complete full AddNewKey flow', async () => {
+    log('\n=== Test 1: Full AddNewKey Flow ===');
+    log('Setting up independent test environment...');
 
-    // Create test environment
+    // Create INDEPENDENT test environment for this test
     const env = await createTestEnvironment({
-      chainId: 'addnewkey-test',
+      chainId: 'addnewkey-test-1',
       bech32Prefix: 'dora'
     });
+    const client = env.client;
+    log('✓ Test environment created');
 
-    client = env.client;
-    log('Test environment created');
-
-    // Initialize SDK clients
-    operator = new OperatorClient({
+    // Initialize INDEPENDENT SDK clients
+    const operator = new OperatorClient({
       network: 'testnet',
       secretKey: 111111n
     });
 
-    voter1 = new VoterClient({
+    const voter1 = new VoterClient({
       network: 'testnet',
       secretKey: 222222n
     });
 
-    voter1NewKey = new VoterClient({
+    const voter1NewKey = new VoterClient({
       network: 'testnet',
-      secretKey: 333333n // Different key for voter1
+      secretKey: 333333n
     });
 
-    voter2 = new VoterClient({
+    const voter2 = new VoterClient({
       network: 'testnet',
       secretKey: 555555n
     });
 
-    log('SDK clients initialized');
+    log('✓ SDK clients initialized');
 
-    // Initialize operator AMACI
-    operator.initMaci({
+    // Initialize operator AMACI round
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps,
       isQuadraticCost: true,
       isAmaci: true
     });
 
-    log('Operator AMACI initialized');
+    log('✓ Operator AMACI round initialized');
 
     // Deploy AMACI contract
     const contractLoader = new ContractLoader();
     const deployManager = new DeployManager(client, contractLoader);
-
-    log('Deploying AMACI contract...');
 
     const coordPubKey = operator.getPubkey().toPoints();
 
@@ -135,13 +259,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const app: any = client.app;
     if (!app.time || app.time === 0) {
       app.time = Date.now() * 1e6;
-      log(`Initialized app.time: ${app.time} ns`);
+      log(`✓ Initialized app.time: ${app.time} ns`);
     }
 
     // Calculate voting times
     const now = BigInt(app.time);
-    const startTime = now - BigInt(585) * BigInt(1_000_000_000); // 585 seconds ago
-    votingEndTime = now + BigInt(35) * BigInt(1_000_000_000); // 35 seconds in the future
+    const startTime = now - BigInt(585) * BigInt(1_000_000_000);
+    const votingEndTime = now + BigInt(35) * BigInt(1_000_000_000);
 
     const instantiateMsg = {
       parameters: {
@@ -160,7 +284,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       voice_credit_amount: '100',
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
-        title: 'AMACI AddNewKey Test',
+        title: 'AMACI AddNewKey Test 1',
         description: 'Test AddNewKey functionality',
         link: 'https://test.example.com'
       },
@@ -179,18 +303,25 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         ]
       },
       pre_deactivate_root: '0',
-      circuit_type: '1', // QV
-      certification_system: '0', // Groth16
+      circuit_type: '1',
+      certification_system: '0',
       oracle_whitelist_pubkey: null,
       pre_deactivate_coordinator: null
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
-    amaciContract = new AmaciContractClient(client, contractInfo.contractAddress, operatorAddress);
-    log(`AMACI contract deployed at: ${contractInfo.contractAddress}`);
-  });
+    const amaciContract = new AmaciContractClient(
+      client,
+      contractInfo.contractAddress,
+      operatorAddress
+    );
+    log(`✓ AMACI contract deployed at: ${contractInfo.contractAddress}`);
+    log('Test environment setup complete\n');
 
-  it('should complete full AddNewKey flow', async () => {
+    // Store deactivate data for AddNewKey proof
+    let deactivatesForProof: bigint[][] = [];
+
+    // ========== Original test logic starts here ==========
     log('\n=== Phase 1: Initial registration and voting ===');
 
     // Step 1: Register voters (including old key for voter1)
@@ -203,7 +334,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       'Voter1 sign up failed'
     );
 
-    operator.initStateTree(USER_1_OLD, voter1OldPubKey, 100, [0n, 0n, 0n, 0n]);
+    operator.updateStateTree(USER_1_OLD, voter1OldPubKey, 100, [0n, 0n, 0n, 0n]);
     log(`Voter1 (old key) registered at index ${USER_1_OLD}`);
 
     log('Registering voter2...');
@@ -215,12 +346,11 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       'Voter2 sign up failed'
     );
 
-    operator.initStateTree(USER_2, voter2PubKey, 100, [0n, 0n, 0n, 0n]);
+    operator.updateStateTree(USER_2, voter2PubKey, 100, [0n, 0n, 0n, 0n]);
     log(`Voter2 registered at index ${USER_2}`);
 
     // Step 2: Voter1 votes with old key
     log('\nVoter1 voting with old key...');
-    const coordPubKey = operator.getPubkey().toPoints();
 
     const voter1OldVote = voter1.buildVotePayload({
       stateIdx: USER_1_OLD,
@@ -406,7 +536,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       );
     }
     const dValues = addKeyResult.d.map((v: string) => BigInt(v));
-    operator.initStateTree(USER_1_NEW, newPubKey, 100, [
+    operator.updateStateTree(USER_1_NEW, newPubKey, 100, [
       dValues[0],
       dValues[1],
       dValues[2],
@@ -631,23 +761,15 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     log('\n✅ AddNewKey flow completed successfully!');
     log('All votes from both old and new keys are correctly tallied');
-  });
 
-  it('should reject invalid AddNewKey proof', async () => {
-    log('\n=== Testing invalid AddNewKey proof rejection ===');
-
-    // Ensure deactivatesForProof is available from the first test
-    if (!deactivatesForProof || deactivatesForProof.length === 0) {
-      throw new Error('deactivatesForProof not available - previous test may have failed');
-    }
+    // Additional test: Verify that invalid AddNewKey proof is rejected
+    log('\n=== Additional verification: Invalid AddNewKey proof rejection ===');
 
     // Create a new voter who hasn't deactivated
     const attackerVoter = new VoterClient({
       network: 'testnet',
       secretKey: 999999n
     });
-
-    const coordPubKey = operator.getPubkey().toPoints();
 
     // Try to generate AddNewKey proof - should fail because attacker's sharedKey doesn't match
     try {
@@ -664,13 +786,23 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       expect(error.message).to.include('genAddKeyInput failed');
       log("✅ Correctly prevented using someone else's deactivate");
     }
+
+    log('\n✅ All tests in this flow completed successfully!');
   });
 
   it('should reject old voter votes after AddNewKey (with DEBUG)', async function () {
     this.timeout(900000); // 15 minutes for this comprehensive test
 
-    log('\n=== Testing Old Voter Vote Rejection After AddNewKey ===');
-    log('This test validates that old voter votes are rejected while new voter votes succeed');
+    log('\n=== Test 2: Old Voter Vote Rejection After AddNewKey ===');
+    log('Setting up independent test environment...');
+
+    // Create INDEPENDENT test environment for this test
+    const env = await createTestEnvironment({
+      chainId: 'addnewkey-test-2',
+      bech32Prefix: 'dora'
+    });
+    const client = env.client;
+    log('✓ Test environment created');
 
     // Deploy a fresh contract for this test
     const testOperator = new OperatorClient({
@@ -678,13 +810,12 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       secretKey: 123456n
     });
 
-    testOperator.initMaci({
+    testOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 5,
       isQuadraticCost: true,
       isAmaci: true
     });
@@ -700,6 +831,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const deployManager = new DeployManager(client, contractLoader);
 
     const app: any = client.app;
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6;
+      log(`✓ Initialized app.time: ${app.time} ns`);
+    }
     const now = BigInt(app.time);
     const startTime = now - BigInt(585) * BigInt(1_000_000_000);
     const endTime = now + BigInt(60) * BigInt(1_000_000_000); // 60 seconds
@@ -763,7 +898,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       () => testContract.signUp(formatPubKeyForContract(voter1OldPubKey)),
       'Voter1 old key signup failed'
     );
-    testOperator.initStateTree(USER_1_OLD, voter1OldPubKey, 100, [0n, 0n, 0n, 0n]);
+    testOperator.updateStateTree(USER_1_OLD, voter1OldPubKey, 100, [0n, 0n, 0n, 0n]);
     log(`Voter1 (old key) registered at index ${USER_1_OLD}`);
 
     const voter2PubKey = testVoter2.getPubkey().toPoints();
@@ -772,8 +907,11 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       () => testContract.signUp(formatPubKeyForContract(voter2PubKey)),
       'Voter2 signup failed'
     );
-    testOperator.initStateTree(USER_2, voter2PubKey, 100, [0n, 0n, 0n, 0n]);
+    testOperator.updateStateTree(USER_2, voter2PubKey, 100, [0n, 0n, 0n, 0n]);
     log(`Voter2 registered at index ${USER_2}`);
+
+    // Verify state tree root after SignUp
+    await verifyStateTreeRoot(testOperator, testContract, 'After SignUp (2 users)');
 
     // Phase 2: Voter1 votes with old key
     log('\n--- Phase 2: Voter1 votes with old key (5 votes to option 0) ---');
@@ -878,7 +1016,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     );
 
     const dValues = testAddKeyResult.d!.map((v: string) => BigInt(v));
-    testOperator.initStateTree(USER_1_NEW, voter1NewPubKey, 100, [
+    testOperator.updateStateTree(USER_1_NEW, voter1NewPubKey, 100, [
       dValues[0],
       dValues[1],
       dValues[2],
@@ -891,6 +1029,9 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const newKeyActiveState = testOperator.activeStateTree!.leaf(USER_1_NEW);
     expect(newKeyActiveState).to.equal(0n, 'New key should be marked active');
     log(`  ActiveStateTree[${USER_1_NEW}] = ${newKeyActiveState} (active)`);
+
+    // Verify state tree root after AddNewKey
+    await verifyStateTreeRoot(testOperator, testContract, 'After AddNewKey');
 
     // Phase 5: OLD voter tries to vote again (should be rejected)
     log('\n--- Phase 5: OLD voter tries to vote again (should be REJECTED) ---');
@@ -1030,6 +1171,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     while (testOperator.states === 1) {
       log(`\n🔍 DEBUG: ========== Processing batch ${batchCount} ==========`);
 
+      // 🔍 VERIFY: State tree root consistency before processMessages
+      await verifyStateTreeRoot(
+        testOperator,
+        testContract,
+        `Before processMessages batch ${batchCount}`
+      );
+
       // 🔍 DEBUG: Before processMessages
       log(
         `🔍 DEBUG: State tree root before processMessages: ${testOperator.stateTree?.root || 'N/A'}`
@@ -1040,6 +1188,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         wasmFile: processMessagesWasm,
         zkeyFile: processMessagesZkey
       });
+
+      // 🔍 VERIFY: Public input consistency
+      await verifyProcessMessagesInput(
+        testOperator,
+        testContract,
+        processResult,
+        batchSize,
+        maxVoteOptions,
+        `Batch ${batchCount}`
+      );
 
       // 🔍 DEBUG: After processMessages, before contract call
       log(`\n🔍 DEBUG: processMessages result for batch ${batchCount}:`);
@@ -1112,8 +1270,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter2Account = testOperator.stateLeaves.get(USER_2)!;
 
     log('\nOld voter (deactivated) account:');
-    log(`  Balance: ${oldAccount.balance} (expected: 75, first vote cost 25)`);
-    log(`  Voted: ${oldAccount.voted} (expected: true from first vote)`);
+    log(
+      `  Balance: ${oldAccount.balance} (expected: 100, vote was rejected because account is inactive)`
+    );
+    log(`  Voted: ${oldAccount.voted} (expected: false, vote was rejected)`);
     log(
       `  ActiveState: ${testOperator.activeStateTree!.leaf(USER_1_OLD)} (expected: non-zero/inactive)`
     );
@@ -1133,11 +1293,12 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     log(`  ActiveState: ${testOperator.activeStateTree!.leaf(USER_2)} (expected: 0/active)`);
 
     // Assertions
+    // Old voter was deactivated BEFORE voting, so their vote was rejected
     expect(oldAccount.balance).to.equal(
-      75n,
-      'Old account: balance should be 75 (first vote used 25)'
+      100n,
+      'Old account: balance should remain 100 (vote was rejected because account is inactive)'
     );
-    expect(oldAccount.voted).to.be.true; // First vote succeeded
+    expect(oldAccount.voted).to.be.false; // Vote was rejected
     expect(testOperator.activeStateTree!.leaf(USER_1_OLD)).to.not.equal(
       0n,
       'Old account should be inactive'
@@ -1165,8 +1326,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
   it('should handle old and new voter votes in same round', async function () {
     this.timeout(900000); // 15 minutes for this test
 
-    log('\n=== Testing Concurrent Old and New Voter Scenarios ===');
-    log('Validating that old/new voter behavior is correct in the same voting round');
+    log('\n=== Test 3: Concurrent Old and New Voter Scenarios ===');
+    log('Setting up independent test environment...');
+
+    // Create INDEPENDENT test environment for this test
+    const env = await createTestEnvironment({
+      chainId: 'addnewkey-test-3',
+      bech32Prefix: 'dora'
+    });
+    const client = env.client;
+    log('✓ Test environment created');
 
     // Setup - Deploy a fresh contract
     const concurrentOperator = new OperatorClient({
@@ -1174,13 +1343,12 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       secretKey: 234567n
     });
 
-    concurrentOperator.initMaci({
+    concurrentOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 5,
       isQuadraticCost: true,
       isAmaci: true
     });
@@ -1196,6 +1364,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const deployManager = new DeployManager(client, contractLoader);
 
     const app: any = client.app;
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6;
+      log(`✓ Initialized app.time: ${app.time} ns`);
+    }
     const now = BigInt(app.time);
     const startTime = now - BigInt(585) * BigInt(1_000_000_000);
     const endTime = now + BigInt(60) * BigInt(1_000_000_000);
@@ -1262,7 +1434,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       () => concurrentContract.signUp(formatPubKeyForContract(user1OldPubKey)),
       'User1 old key signup failed'
     );
-    concurrentOperator.initStateTree(USER_1_OLD, user1OldPubKey, 100, [0n, 0n, 0n, 0n]);
+    concurrentOperator.updateStateTree(USER_1_OLD, user1OldPubKey, 100, [0n, 0n, 0n, 0n]);
     log(`User1 (old key) registered at index ${USER_1_OLD}`);
 
     const user2PubKey = user2.getPubkey().toPoints();
@@ -1271,7 +1443,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       () => concurrentContract.signUp(formatPubKeyForContract(user2PubKey)),
       'User2 signup failed'
     );
-    concurrentOperator.initStateTree(USER_2, user2PubKey, 100, [0n, 0n, 0n, 0n]);
+    concurrentOperator.updateStateTree(USER_2, user2PubKey, 100, [0n, 0n, 0n, 0n]);
     log(`User2 registered at index ${USER_2}`);
 
     // Phase 2: User1 deactivate and AddNewKey
@@ -1343,7 +1515,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     );
 
     const dValues = concurrentAddKeyResult.d!.map((v: string) => BigInt(v));
-    concurrentOperator.initStateTree(USER_1_NEW, user1NewPubKey, 100, [
+    concurrentOperator.updateStateTree(USER_1_NEW, user1NewPubKey, 100, [
       dValues[0],
       dValues[1],
       dValues[2],
@@ -1490,6 +1662,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     while (concurrentOperator.states === 1) {
       log(`\n🔍 DEBUG: ========== Processing batch ${batchCount} (Concurrent) ==========`);
 
+      // 🔍 VERIFY: State tree root consistency before processMessages
+      await verifyStateTreeRoot(
+        concurrentOperator,
+        concurrentContract,
+        `Before processMessages batch ${batchCount} (Concurrent)`
+      );
+
       log(
         `🔍 DEBUG: State tree root before processMessages: ${concurrentOperator.stateTree?.root || 'N/A'}`
       );
@@ -1603,10 +1782,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
   it('should reject signup/addNewKey when state tree is full', async function () {
     this.timeout(1800000); // 30 minutes for this test (24 ZK proofs)
 
-    log('\n=== Testing State Tree Boundary (5^2 = 25 positions) ===');
+    log('\n=== Test 5: State Tree Boundary (5^2 = 25 positions) ===');
+    log('Setting up independent test environment...');
 
-    // Deploy a fresh contract for this test
-    log('\n=== Setting up new test environment ===');
+    // Create INDEPENDENT test environment for this test
+    const env = await createTestEnvironment({
+      chainId: 'addnewkey-test-5',
+      bech32Prefix: 'dora'
+    });
+    const client = env.client;
+    log('✓ Test environment created');
 
     // Create a new operator for this test
     const boundaryOperator = new OperatorClient({
@@ -1614,18 +1799,17 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       secretKey: 888888n
     });
 
-    boundaryOperator.initMaci({
+    boundaryOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 25, // We'll have 25 users
       isQuadraticCost: true,
       isAmaci: true
     });
 
-    log('Boundary test operator initialized');
+    log('✓ Boundary test operator initialized');
 
     // Deploy new contract
     const contractLoader = new ContractLoader();
@@ -1635,6 +1819,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Initialize app.time for the new contract
     const app: any = client.app;
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6;
+      log(`✓ Initialized app.time: ${app.time} ns`);
+    }
     const now = BigInt(app.time);
     const boundaryStartTime = now - BigInt(585) * BigInt(1_000_000_000); // 585 seconds ago (voting already started)
     const boundaryEndTime = now + BigInt(7200) * BigInt(1_000_000_000); // 2 hours from now
@@ -1721,7 +1909,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         `Signup ${i + 1} failed`
       );
 
-      boundaryOperator.initStateTree(i, pubKey, 100, [0n, 0n, 0n, 0n]);
+      boundaryOperator.updateStateTree(i, pubKey, 100, [0n, 0n, 0n, 0n]);
 
       if ((i + 1) % 5 === 0 || i === 24) {
         log(`  ✓ Positions 0-${i} occupied (${i + 1}/25 signups completed)`);

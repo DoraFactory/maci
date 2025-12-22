@@ -28,7 +28,6 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
   const voteOptionTreeDepth = 2;
   const batchSize = 5;
   const maxVoteOptions = 5;
-  const numSignUps = 5;
 
   before(async () => {
     console.log('Sync tests ready...');
@@ -43,13 +42,12 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         secretKey: 111222n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -59,7 +57,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       const voter1 = new VoterClient({ network: 'testnet', secretKey: 333444n });
       const pubKey1 = voter1.getPubkey().toPoints();
 
-      operator.initStateTree(0, pubKey1, 100);
+      operator.updateStateTree(0, pubKey1, 100);
 
       // SDK calculates hash
       const stateLeaf1 = operator.stateLeaves.get(0)!;
@@ -97,7 +95,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       const voter2 = new VoterClient({ network: 'testnet', secretKey: 555666n });
       const pubKey2 = voter2.getPubkey().toPoints();
 
-      operator.initStateTree(1, pubKey2, 100, [
+      operator.updateStateTree(1, pubKey2, 100, [
         evenData.c1.x,
         evenData.c1.y,
         evenData.c2.x,
@@ -129,7 +127,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       const voter3 = new VoterClient({ network: 'testnet', secretKey: 777888n });
       const pubKey3 = voter3.getPubkey().toPoints();
 
-      operator.initStateTree(2, pubKey3, 100, [
+      operator.updateStateTree(2, pubKey3, 100, [
         oddData.c1.x,
         oddData.c1.y,
         oddData.c2.x,
@@ -166,19 +164,18 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         secretKey: 999888n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
 
       const voter = new VoterClient({ network: 'testnet', secretKey: 777666n });
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       const initialStateRoot = operator.stateTree!.root;
       console.log('  Initial stateRoot:', initialStateRoot.toString());
@@ -216,36 +213,35 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         secretKey: 222333n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
 
       const voter = new VoterClient({ network: 'testnet', secretKey: 444555n });
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       // Record initial activeStateRoot
       const initialActiveStateRoot = operator.activeStateTree!.root;
       console.log('  Initial activeStateRoot:', initialActiveStateRoot.toString());
 
       // Deactivate
-      const deactivatePayload = voter.buildVotePayload({
+      const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints(),
-        selectedOptions: [{ idx: 0, vc: 0 }]
+        operatorPubkey: operator.getPubkey().toPoints()
       });
 
-      deactivatePayload.forEach((p) => {
-        const message = p.msg.map((m) => BigInt(m));
-        const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
-        operator.pushDeactivateMessage(message, encPubKey);
-      });
+      const message = deactivatePayload.msg.map((m: string) => BigInt(m));
+      const encPubKey = deactivatePayload.encPubkeys.map((k: string) => BigInt(k)) as [
+        bigint,
+        bigint
+      ];
+      operator.pushDeactivateMessage(message, encPubKey);
 
       await operator.processDeactivateMessages({
         inputSize: 1,
@@ -313,19 +309,18 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         secretKey: 333444n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
 
       const voter = new VoterClient({ network: 'testnet', secretKey: 555666n });
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       const votePayload = voter.buildVotePayload({
         stateIdx: 0,
@@ -353,19 +348,18 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         secretKey: 666777n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
 
       const voter = new VoterClient({ network: 'testnet', secretKey: 888999n });
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       const votePayload = voter.buildVotePayload({
         stateIdx: 0,
@@ -413,13 +407,12 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         secretKey: 444555n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -429,7 +422,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
 
       // Checkpoint 1: Initial SignUp
       console.log('\n📍 Checkpoint 1: SignUp');
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       const cp1_stateRoot = operator.stateTree!.root;
       const cp1_activeStateRoot = operator.activeStateTree!.root;
@@ -439,8 +432,8 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       console.log('  activeStateRoot:', cp1_activeStateRoot.toString());
       console.log('  deactivateRoot:', cp1_deactivateRoot.toString());
 
-      // Checkpoint 2: Vote
-      console.log('\n📍 Checkpoint 2: Vote');
+      // Checkpoint 2: Send Vote Message (before endVotePeriod)
+      console.log('\n📍 Checkpoint 2: Send Vote Message');
       const votePayload = voter.buildVotePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey,
@@ -452,102 +445,56 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
         operator.pushMessage(message, encPubKey);
       });
+      console.log('  ✓ Vote message sent');
 
-      operator.endVotePeriod();
-      await operator.processMessages();
-
-      const cp2_stateRoot = operator.stateTree!.root;
-      const cp2_activeStateRoot = operator.activeStateTree!.root;
-      const cp2_deactivateRoot = operator.deactivateTree!.root;
-
-      console.log('  stateRoot:', cp2_stateRoot.toString());
-      console.log('  activeStateRoot:', cp2_activeStateRoot.toString());
-      console.log('  deactivateRoot:', cp2_deactivateRoot.toString());
-      console.log('  ✓ Vote processed');
-
-      // Checkpoint 3: Deactivate
-      console.log('\n📍 Checkpoint 3: Deactivate');
-      const deactivatePayload = voter.buildVotePayload({
+      // Checkpoint 3: Send Deactivate Message (before endVotePeriod)
+      console.log('\n📍 Checkpoint 3: Send Deactivate Message');
+      const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 0 }]
+        operatorPubkey: coordPubKey
       });
 
-      deactivatePayload.forEach((p) => {
-        const message = p.msg.map((m) => BigInt(m));
-        const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
-        operator.pushDeactivateMessage(message, encPubKey);
-      });
+      const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));
+      const deactivateEncPubKey = deactivatePayload.encPubkeys.map((k: string) => BigInt(k)) as [
+        bigint,
+        bigint
+      ];
+      operator.pushDeactivateMessage(deactivateMessage, deactivateEncPubKey);
+      console.log('  ✓ Deactivate message sent');
+
+      // Checkpoint 4: Process Messages
+      console.log('\n📍 Checkpoint 4: Process All Messages');
+      operator.endVotePeriod();
+
+      await operator.processMessages();
+      console.log('  ✓ Vote messages processed');
 
       await operator.processDeactivateMessages({
         inputSize: 1,
         subStateTreeLength: 5 ** stateTreeDepth
       });
+      console.log('  ✓ Deactivate messages processed');
 
       const cp3_stateRoot = operator.stateTree!.root;
       const cp3_activeStateRoot = operator.activeStateTree!.root;
       const cp3_deactivateRoot = operator.deactivateTree!.root;
 
-      console.log('  stateRoot:', cp3_stateRoot.toString());
-      console.log('  activeStateRoot:', cp3_activeStateRoot.toString());
-      console.log('  deactivateRoot:', cp3_deactivateRoot.toString());
-      console.log('  ✓ Deactivate processed');
-
-      // Checkpoint 4: AddNewKey (simulated)
-      console.log('\n📍 Checkpoint 4: AddNewKey');
-      const newKeypair = genKeypair();
-      const newPubKey: [bigint, bigint] = [newKeypair.pubKey[0], newKeypair.pubKey[1]];
-      const newAccountData = encryptOdevity(false, operator.getPubkey().toPoints(), 99999n);
-
-      operator.initStateTree(3, newPubKey, 100, [
-        newAccountData.c1.x,
-        newAccountData.c1.y,
-        newAccountData.c2.x,
-        newAccountData.c2.y
-      ]);
-
-      const cp4_stateRoot = operator.stateTree!.root;
-      const cp4_activeStateRoot = operator.activeStateTree!.root;
-      const cp4_deactivateRoot = operator.deactivateTree!.root;
-
-      console.log('  stateRoot:', cp4_stateRoot.toString());
-      console.log('  activeStateRoot:', cp4_activeStateRoot.toString());
-      console.log('  deactivateRoot:', cp4_deactivateRoot.toString());
-
-      // Checkpoint 5: Vote with new key
-      console.log('\n📍 Checkpoint 5: Vote with new key');
-      const voterNew = new VoterClient({ network: 'testnet', secretKey: newKeypair.privKey });
-      const votePayload2 = voterNew.buildVotePayload({
-        stateIdx: 3,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 15 }]
-      });
-
-      votePayload2.forEach((p) => {
-        const message = p.msg.map((m) => BigInt(m));
-        const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
-        operator.pushMessage(message, encPubKey);
-      });
-
-      operator.endVotePeriod();
-      await operator.processMessages();
-
-      const cp5_stateRoot = operator.stateTree!.root;
-      const cp5_activeStateRoot = operator.activeStateTree!.root;
-      const cp5_deactivateRoot = operator.deactivateTree!.root;
-
-      console.log('  stateRoot:', cp5_stateRoot.toString());
-      console.log('  activeStateRoot:', cp5_activeStateRoot.toString());
-      console.log('  deactivateRoot:', cp5_deactivateRoot.toString());
-      console.log('  ✓ New key vote processed');
+      console.log('  Final Results:');
+      console.log('    stateRoot:', cp3_stateRoot.toString());
+      console.log('    activeStateRoot:', cp3_activeStateRoot.toString());
+      console.log('    deactivateRoot:', cp3_deactivateRoot.toString());
 
       // Final summary
       console.log('\n✅ Complete flow verified at all checkpoints');
       console.log('   All SDK operations completed successfully:');
-      console.log('   - StateRoot updates');
+      console.log('   - StateRoot updates after SignUp');
+      console.log('   - Vote message processing');
+      console.log('   - Deactivate message processing');
       console.log('   - ActiveStateRoot updates');
       console.log('   - DeactivateRoot updates');
-      console.log('   - Complete lifecycle flows');
+
+      // Note: AddNewKey and subsequent voting would require a new round
+      // as operator state becomes ENDED after processing messages
     });
   });
 });

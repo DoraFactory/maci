@@ -1008,19 +1008,19 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         secretKey: 111111n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 1,
+
         isQuadraticCost: false,
         isAmaci: false
       });
 
       const userPubKey = voter.getPubkey().toPoints();
-      operator.initStateTree(USER_IDX, userPubKey, 1000);
+      operator.updateStateTree(USER_IDX, userPubKey, 1000);
     });
 
     it('should handle single payload with multiple options', async () => {
@@ -1146,19 +1146,19 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         secretKey: 111111n
       });
 
-      operator2.initMaci({
+      operator2.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 1,
+
         isQuadraticCost: false,
         isAmaci: false
       });
 
       const userPubKey = voter.getPubkey().toPoints();
-      operator2.initStateTree(USER_IDX, userPubKey, 1000);
+      operator2.updateStateTree(USER_IDX, userPubKey, 1000);
 
       // Re-push first payload messages
       for (const payload of firstPayload) {
@@ -1225,19 +1225,19 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         secretKey: 111111n
       });
 
-      operator2.initMaci({
+      operator2.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 1,
+
         isQuadraticCost: false,
         isAmaci: false
       });
 
       const userPubKey = voter.getPubkey().toPoints();
-      operator2.initStateTree(USER_IDX, userPubKey, 1000);
+      operator2.updateStateTree(USER_IDX, userPubKey, 1000);
 
       // Re-push first payload
       for (const payload of firstPayload) {

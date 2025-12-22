@@ -27,7 +27,6 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
   const voteOptionTreeDepth = 2;
   const batchSize = 5;
   const maxVoteOptions = 5;
-  const numSignUps = 10; // More slots for edge cases
 
   before(async () => {
     console.log('Edge case tests ready...');
@@ -42,13 +41,12 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         secretKey: 111000n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -58,22 +56,19 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
       const coordPrivKey = operator.getSigner().getFormatedPrivKey();
 
       // SignUp
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       // Send deactivate message with WRONG signature (invalid)
       console.log('Sending deactivate message with invalid signature...');
       const wrongVoter = new VoterClient({ network: 'testnet', secretKey: 999999n }); // Different key
-      const invalidPayload = wrongVoter.buildVotePayload({
+      const invalidPayload = await wrongVoter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 0 }]
+        operatorPubkey: coordPubKey
       });
 
-      invalidPayload.forEach((p) => {
-        const message = p.msg.map((m) => BigInt(m));
-        const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
-        operator.pushDeactivateMessage(message, encPubKey);
-      });
+      const message = invalidPayload.msg.map((m: string) => BigInt(m));
+      const encPubKey = invalidPayload.encPubkeys.map((k: string) => BigInt(k)) as [bigint, bigint];
+      operator.pushDeactivateMessage(message, encPubKey);
 
       // Process deactivate messages
       console.log('Processing invalid deactivate message...');
@@ -116,33 +111,29 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         secretKey: 333000n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
 
       const voter = new VoterClient({ network: 'testnet', secretKey: 444000n });
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       // Invalid message
       const wrongVoter = new VoterClient({ network: 'testnet', secretKey: 888888n });
-      const invalidPayload = wrongVoter.buildVotePayload({
+      const invalidPayload = await wrongVoter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints(),
-        selectedOptions: [{ idx: 0, vc: 0 }]
+        operatorPubkey: operator.getPubkey().toPoints()
       });
 
-      invalidPayload.forEach((p) => {
-        const message = p.msg.map((m) => BigInt(m));
-        const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
-        operator.pushDeactivateMessage(message, encPubKey);
-      });
+      const message = invalidPayload.msg.map((m: string) => BigInt(m));
+      const encPubKey = invalidPayload.encPubkeys.map((k: string) => BigInt(k)) as [bigint, bigint];
+      operator.pushDeactivateMessage(message, encPubKey);
 
       const beforeRoot = operator.deactivateTree!.root;
 
@@ -169,13 +160,12 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         secretKey: 555000n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -188,7 +178,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
       console.log('Creating account with odd d1/d2...');
       const oddData = encryptOdevity(true, operator.getPubkey().toPoints(), genRandomSalt()); // true = odd
 
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100, [
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100, [
         oddData.c1.x,
         oddData.c1.y,
         oddData.c2.x,
@@ -245,13 +235,12 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         secretKey: 777000n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -296,7 +285,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
           ? encryptOdevity(true, operator.getPubkey().toPoints(), BigInt(idx))
           : encryptOdevity(false, operator.getPubkey().toPoints(), BigInt(idx));
 
-        operator.initStateTree(idx, voter.getPubkey().toPoints(), 100, [
+        operator.updateStateTree(idx, voter.getPubkey().toPoints(), 100, [
           data.c1.x,
           data.c1.y,
           data.c2.x,
@@ -403,13 +392,12 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         secretKey: 999000n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -453,7 +441,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         });
 
         console.log(`\nSyncing account ${account.idx}: ${account.name}`);
-        operator.initStateTree(
+        operator.updateStateTree(
           account.idx,
           voter.getPubkey().toPoints(),
           100,
@@ -494,13 +482,12 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         secretKey: 100100n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -510,7 +497,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
 
       // Sync account with odd d1/d2 (simulated corrupted chain data)
       const oddData = encryptOdevity(true, operator.getPubkey().toPoints(), 333n);
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100, [
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100, [
         oddData.c1.x,
         oddData.c1.y,
         oddData.c2.x,
@@ -566,19 +553,18 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         secretKey: 300300n
       });
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
 
       const voter = new VoterClient({ network: 'testnet', secretKey: 400400n });
-      operator.initStateTree(0, voter.getPubkey().toPoints(), 100);
+      operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       // Submit only 1 real message (rest will be padded)
       const votePayload = voter.buildVotePayload({

@@ -712,15 +712,14 @@ export class OperatorClient {
   // ==================== MACI Coordinator Methods ====================
 
   /**
-   * Initialize MACI coordinator state
+   * Initialize MACI round
    */
-  initMaci({
+  initRound({
     stateTreeDepth,
     intStateTreeDepth,
     voteOptionTreeDepth,
     batchSize,
     maxVoteOptions,
-    numSignUps,
     isQuadraticCost = false,
     isAmaci = false,
     derivePathParams
@@ -729,8 +728,7 @@ export class OperatorClient {
     intStateTreeDepth: number;
     voteOptionTreeDepth: number;
     batchSize: number;
-    maxVoteOptions: number;
-    numSignUps: number;
+    maxVoteOptions: number; // Required: must match contract's vote options count
     isQuadraticCost?: boolean;
     isAmaci?: boolean;
     derivePathParams?: DerivePathParams;
@@ -740,9 +738,9 @@ export class OperatorClient {
     this.intStateTreeDepth = intStateTreeDepth;
     this.voteOptionTreeDepth = voteOptionTreeDepth;
     this.batchSize = batchSize;
-    this.maxVoteOptions = maxVoteOptions;
     this.voSize = 5 ** voteOptionTreeDepth;
-    this.numSignUps = numSignUps;
+    this.maxVoteOptions = maxVoteOptions;
+    this.numSignUps = 0; // Auto-increment on each updateStateTree call
     this.isQuadraticCost = isQuadraticCost;
     this.isAmaci = isAmaci;
 
@@ -757,9 +755,10 @@ export class OperatorClient {
     const stateTreeZeroValue = isAmaci ? zeroHash10 : zeroHash5;
     const stateTree = new Tree(5, stateTreeDepth, stateTreeZeroValue);
 
-    console.log(`Init ${isAmaci ? 'AMACI' : 'MACI'} Coordinator:`);
+    console.log(`Init ${isAmaci ? 'AMACI' : 'MACI'} Round:`);
     console.log('- Vote option tree root:', emptyVOTree.root);
     console.log('- State tree root:', stateTree.root);
+    console.log('- Max vote options:', this.maxVoteOptions);
 
     this.voTreeZeroRoot = emptyVOTree.root;
     this.stateTree = stateTree;
@@ -851,9 +850,9 @@ export class OperatorClient {
   }
 
   /**
-   * Initialize state tree leaf
+   * Update state tree leaf (for user signup or addNewKey)
    */
-  initStateTree(
+  updateStateTree(
     leafIdx: number,
     pubKey: PubKey,
     balance: number | bigint,
@@ -863,7 +862,7 @@ export class OperatorClient {
       throw new Error('Vote period ended');
     }
     if (!this.stateTree) {
-      throw new Error('MACI not initialized. Call initMaci first.');
+      throw new Error('Round not initialized. Call initRound first.');
     }
 
     const s = this.stateLeaves.get(leafIdx) || this.emptyState();
@@ -873,6 +872,11 @@ export class OperatorClient {
     s.d2 = [c[2], c[3]];
 
     this.stateLeaves.set(leafIdx, s);
+
+    // Auto-increment numSignUps
+    if (leafIdx >= this.numSignUps!) {
+      this.numSignUps = leafIdx + 1;
+    }
 
     // Calculate state leaf hash based on mode
     let hash: bigint;
@@ -893,9 +897,10 @@ export class OperatorClient {
     // Update stateCommitment after state tree changes
     this.stateCommitment = poseidon([this.stateTree.root, this.stateSalt]);
 
-    console.log(`Set State Leaf ${leafIdx}:`);
+    console.log(`Update State Leaf ${leafIdx}:`);
     console.log('- Leaf hash:', hash.toString());
     console.log('- New tree root:', this.stateTree.root.toString());
+    console.log('- Total sign-ups:', this.numSignUps);
 
     this.logs.push({
       type: 'setStateLeaf',

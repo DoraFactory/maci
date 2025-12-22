@@ -70,13 +70,12 @@ describe('AMACI Deactivate E2E Tests', function () {
 
       const testOperator = new OperatorClient({ network: 'testnet', secretKey: 555555n });
 
-      testOperator.initMaci({
+      testOperator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -146,7 +145,7 @@ describe('AMACI Deactivate E2E Tests', function () {
         () => testContract.signUp(formatPubKeyForContract(voterPubKey)),
         'Voter signup failed'
       );
-      testOperator.initStateTree(0, voterPubKey, 100, [0n, 0n, 0n, 0n]);
+      testOperator.updateStateTree(0, voterPubKey, 100, [0n, 0n, 0n, 0n]);
       log('✓ Voter registered at index 0');
 
       const initialActiveState = testOperator.activeStateTree!.leaf(0);
@@ -206,7 +205,10 @@ describe('AMACI Deactivate E2E Tests', function () {
       log('\n--- Phase 4: Verify state changes ---');
 
       const activeStateAfter = testOperator.activeStateTree!.leaf(0);
-      expect(activeStateAfter).to.not.equal(0n, 'ActiveState should be non-zero after deactivate (inactive)');
+      expect(activeStateAfter).to.not.equal(
+        0n,
+        'ActiveState should be non-zero after deactivate (inactive)'
+      );
       log(`  ActiveStateTree[0] = ${activeStateAfter} (inactive)`);
 
       log('\n✅ ActiveStateTree State Validation Test PASSED!');
@@ -215,8 +217,9 @@ describe('AMACI Deactivate E2E Tests', function () {
       log('  - After deactivate: non-0 (inactive) ✓');
       log('  - ProcessDeactivateMessage chain integration ✓');
       log('  - SDK and contract state synchronization ✓');
-      log('\nNote: More complex scenarios (voting with deactivated accounts) are tested in circuits');
+      log(
+        '\nNote: More complex scenarios (voting with deactivated accounts) are tested in circuits'
+      );
     });
   });
 });
-

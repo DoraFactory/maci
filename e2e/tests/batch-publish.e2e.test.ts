@@ -91,18 +91,17 @@ describe('Batch Publish Message E2E Test', function () {
     log('SDK clients initialized');
 
     // Initialize operator MACI
-    operator.initMaci({
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps,
       isQuadraticCost: false,
       isAmaci: true
     });
 
-    log('Operator MACI initialized');
+    log('Operator MACI round initialized');
 
     // Load and deploy contracts
     const contractLoader = new ContractLoader();
@@ -181,7 +180,7 @@ describe('Batch Publish Message E2E Test', function () {
       () => amaciContract.signUp(formatPubKeyForContract(user1PubKey)),
       'User 1 signup failed'
     );
-    operator.initStateTree(USER_1, user1PubKey, 100);
+    operator.updateStateTree(USER_1, user1PubKey, 100);
     log('User 1 registered');
 
     const user2PubKey = voter2.getPubkey().toPoints();
@@ -190,7 +189,7 @@ describe('Batch Publish Message E2E Test', function () {
       () => amaciContract.signUp(formatPubKeyForContract(user2PubKey)),
       'User 2 signup failed'
     );
-    operator.initStateTree(USER_2, user2PubKey, 100);
+    operator.updateStateTree(USER_2, user2PubKey, 100);
     log('User 2 registered');
 
     const numSignUp = await amaciContract.getNumSignUp();

@@ -70,13 +70,13 @@ describe('TallyVotes Circuit Tests', function () {
       console.log('\n=== Test: Basic Single Batch Tally ===\n');
 
       // Initialize MACI
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 2,
+
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -85,8 +85,8 @@ describe('TallyVotes Circuit Tests', function () {
       const user1PubKey = voter1.getPubkey().toPoints();
       const user2PubKey = voter2.getPubkey().toPoints();
 
-      operator.initStateTree(0, user1PubKey, 100);
-      operator.initStateTree(1, user2PubKey, 100);
+      operator.updateStateTree(0, user1PubKey, 100);
+      operator.updateStateTree(1, user2PubKey, 100);
 
       // Submit votes
       const coordPubKey = operator.getPubkey().toPoints();
@@ -153,13 +153,13 @@ describe('TallyVotes Circuit Tests', function () {
       const largerStateTreeDepth = 3;
       const largerIntStateTreeDepth = 1;
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth: largerStateTreeDepth,
         intStateTreeDepth: largerIntStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 10, // More than one batch
+        // More than one batch
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -171,7 +171,7 @@ describe('TallyVotes Circuit Tests', function () {
           secretKey: BigInt(1000 + i)
         });
         const pubKey = tempVoter.getPubkey().toPoints();
-        operator.initStateTree(i, pubKey, 100);
+        operator.updateStateTree(i, pubKey, 100);
       }
 
       // Submit votes from some users
@@ -236,20 +236,20 @@ describe('TallyVotes Circuit Tests', function () {
     it('should handle first batch with zero currentTallyCommitment', async function () {
       console.log('\n=== Test: First Batch Zero Commitment ===\n');
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 2,
+
         isQuadraticCost: false,
         isAmaci: false
       });
 
       // Register users
       const user1PubKey = voter1.getPubkey().toPoints();
-      operator.initStateTree(0, user1PubKey, 100);
+      operator.updateStateTree(0, user1PubKey, 100);
 
       // Submit one vote
       const coordPubKey = operator.getPubkey().toPoints();
@@ -292,13 +292,13 @@ describe('TallyVotes Circuit Tests', function () {
     it('should handle empty votes correctly', async function () {
       console.log('\n=== Test: Empty Votes ===\n');
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 2,
+
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -307,8 +307,8 @@ describe('TallyVotes Circuit Tests', function () {
       const user1PubKey = voter1.getPubkey().toPoints();
       const user2PubKey = voter2.getPubkey().toPoints();
 
-      operator.initStateTree(0, user1PubKey, 100);
-      operator.initStateTree(1, user2PubKey, 100);
+      operator.updateStateTree(0, user1PubKey, 100);
+      operator.updateStateTree(1, user2PubKey, 100);
 
       // End vote period without any votes
       operator.endVotePeriod();
@@ -345,20 +345,20 @@ describe('TallyVotes Circuit Tests', function () {
     it('should verify state tree root and commitment correctly', async function () {
       console.log('\n=== Test: State Tree Verification ===\n');
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 2,
+
         isQuadraticCost: true,
         isAmaci: false
       });
 
       // Register users
       const user1PubKey = voter1.getPubkey().toPoints();
-      operator.initStateTree(0, user1PubKey, 100);
+      operator.updateStateTree(0, user1PubKey, 100);
 
       const coordPubKey = operator.getPubkey().toPoints();
       const votePayload = voter1.buildVotePayload({
@@ -402,13 +402,13 @@ describe('TallyVotes Circuit Tests', function () {
       const largerStateTreeDepth = 3;
       const largerIntStateTreeDepth = 1;
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth: largerStateTreeDepth,
         intStateTreeDepth: largerIntStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 8,
+
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -422,7 +422,7 @@ describe('TallyVotes Circuit Tests', function () {
         });
         voters.push(tempVoter);
         const pubKey = tempVoter.getPubkey().toPoints();
-        operator.initStateTree(i, pubKey, 100);
+        operator.updateStateTree(i, pubKey, 100);
       }
 
       const coordPubKey = operator.getPubkey().toPoints();
@@ -488,19 +488,19 @@ describe('TallyVotes Circuit Tests', function () {
     it('should handle quadratic voting formula correctly', async function () {
       console.log('\n=== Test: Quadratic Voting Formula ===\n');
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 2,
+
         isQuadraticCost: true,
         isAmaci: false
       });
 
       const user1PubKey = voter1.getPubkey().toPoints();
-      operator.initStateTree(0, user1PubKey, 100);
+      operator.updateStateTree(0, user1PubKey, 100);
 
       const coordPubKey = operator.getPubkey().toPoints();
 
@@ -583,13 +583,13 @@ describe('TallyVotes Circuit Tests', function () {
     it('should verify AMACI tally with anonymous keys', async function () {
       console.log('\n=== Test: AMACI Tally with Anonymous Keys ===\n');
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 2,
+
         isQuadraticCost: true,
         isAmaci: true // AMACI mode
       });
@@ -598,7 +598,7 @@ describe('TallyVotes Circuit Tests', function () {
       const user1PubKey = voter1.getPubkey().toPoints();
       const c: [bigint, bigint, bigint, bigint] = [123n, 456n, 789n, 101112n];
 
-      operator.initStateTree(0, user1PubKey, 100, c);
+      operator.updateStateTree(0, user1PubKey, 100, c);
 
       const coordPubKey = operator.getPubkey().toPoints();
       const votePayload = voter1.buildVotePayload({
@@ -651,13 +651,13 @@ describe('TallyVotes Circuit Tests', function () {
     it('should throw error when tallying before processing period ends', async function () {
       console.log('\n=== Test: Invalid Tally Timing ===\n');
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth: 2,
         intStateTreeDepth: 1,
         voteOptionTreeDepth: 1,
         batchSize: 5,
         maxVoteOptions: 5,
-        numSignUps: 2,
+
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -675,13 +675,13 @@ describe('TallyVotes Circuit Tests', function () {
     it('should verify packed values encoding', async function () {
       console.log('\n=== Test: Packed Values Encoding ===\n');
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth: 2,
         intStateTreeDepth: 1,
         voteOptionTreeDepth: 1,
         batchSize: 5,
         maxVoteOptions: 5,
-        numSignUps: 3,
+
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -692,7 +692,7 @@ describe('TallyVotes Circuit Tests', function () {
       });
 
       const pubKey = voter.getPubkey().toPoints();
-      operator.initStateTree(0, pubKey, 100);
+      operator.updateStateTree(0, pubKey, 100);
 
       const coordPubKey = operator.getPubkey().toPoints();
       const votePayload = voter.buildVotePayload({
@@ -716,7 +716,7 @@ describe('TallyVotes Circuit Tests', function () {
 
       // Verify packedVals = batchNum + (numSignUps << 32)
       const batchNum = 0n; // First batch
-      const numSignUps = 3n;
+      const numSignUps = 1n; // Only 1 user registered (auto-tracked)
       const expectedPackedVals = batchNum + (numSignUps << 32n);
 
       console.log('Packed Values Verification:');
@@ -733,13 +733,13 @@ describe('TallyVotes Circuit Tests', function () {
 
       const maxVoteOptions = 5; // 5^1 = 5 options
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth: 2,
         intStateTreeDepth: 1,
         voteOptionTreeDepth: 1,
         batchSize: 5,
         maxVoteOptions,
-        numSignUps: 1,
+
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -750,7 +750,7 @@ describe('TallyVotes Circuit Tests', function () {
       });
 
       const pubKey = voter.getPubkey().toPoints();
-      operator.initStateTree(0, pubKey, 100);
+      operator.updateStateTree(0, pubKey, 100);
 
       const coordPubKey = operator.getPubkey().toPoints();
 
@@ -821,13 +821,13 @@ describe('TallyVotes Circuit Tests', function () {
       const intStateTreeDepth = 1;
       const voteOptionTreeDepth = 1;
 
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize: 5,
         maxVoteOptions: 5,
-        numSignUps: 3,
+
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -835,7 +835,7 @@ describe('TallyVotes Circuit Tests', function () {
       // Register all voters
       for (let i = 0; i < 3; i++) {
         const pubKey = voters[i].getPubkey().toPoints();
-        operator.initStateTree(i, pubKey, 100);
+        operator.updateStateTree(i, pubKey, 100);
       }
 
       const coordPubKey = operator.getPubkey().toPoints();
