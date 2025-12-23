@@ -11,8 +11,12 @@
 3. [核心组件](#核心组件)
 4. [Deactivate 完整流程](#deactivate-完整流程)
 5. [状态转换图](#状态转换图)
-6. [关键数据结构](#关键数据结构)
-7. [安全机制](#安全机制)
+6. [状态组合详解](#状态组合详解) ⭐ 新增
+   - 四种 d1/d2 与 ActiveStateTree 组合
+   - 状态产生方式与交互分析
+   - 安全性分析与最佳实践
+7. [关键数据结构](#关键数据结构)
+8. [安全机制](#安全机制)
    - Nullifier 防重放
    - ECDH 绑定
    - 双层验证
@@ -46,11 +50,12 @@ AMACI (Anonymous MACI) 是 MACI 的增强版本，添加了**匿名密钥更换*
 ├─────────────────────────────────────────────────────┤
 │ 1. 10字段 StateLeaf (vs MACI的5字段)                 │
 │ 2. ActiveStateTree - 快速检查用户是否活跃             │
-│ 3. DeactivateTree - 存储重随机化的 deactivate 数据   │
+│ 3. DeactivateTree - 存储 Operator 生成的 c1/c2       │
 │ 4. ElGamal 加密 - 隐私保护的状态标记                  │
-│ 5. 双层验证 - ActiveStateTree + d1/d2 解密检查       │
-│ 6. Nullifier 机制 - 防止 deactivate 数据重用          │
-│ 7. 奇偶性编码 - 优雅的错误消息处理 ⭐                │
+│ 5. 重随机化 - AddNewKey 时将 c1/c2 转为 d1/d2        │
+│ 6. 双层验证 - ActiveStateTree + d1/d2 解密检查       │
+│ 7. Nullifier 机制 - 防止 deactivate 数据重用          │
+│ 8. 奇偶性编码 - 优雅的错误消息处理 ⭐                │
 │    • 正确消息 → 偶数 c1c2 → 可用于 AddNewKey         │
 │    • 错误消息 → 奇数 c1c2 → 无法创建可用账户         │
 │    • 防止通过错误消息进行 Sybil 攻击                 │
@@ -100,15 +105,15 @@ MACI 树结构:
 AMACI 树结构:
 ┌─────────────┐   ┌──────────────────┐   ┌──────────────┐
 │  StateTree  │   │ ActiveStateTree  │   │DeactivateTree│
-│  (完整状态) │   │  (快速查询状态)  │   │(重随机化数据)│
+│  (完整状态) │   │  (快速查询状态)  │   │  (c1/c2数据) │
 └─────────────┘   └──────────────────┘   └──────────────┘
        │                   │                      │
        ├──── 10字段 ───────┼──── 单值 ────────────┼─── Hash ─────┐
        │                   │                      │              │
-   完整信息            0=active              重随机化的        │
-                      非0=inactive          deactivate数据    │
-                                                               │
-                                           用于 AddNewKey 证明 ←┘
+   完整信息            0=active              Operator生成的   │
+   (d1/d2是          非0=inactive           c1/c2加密数据    │
+   重随机化的)                                               │
+                                           用于 AddNewKey 重随机化为 d1/d2 ←┘
 ```
 
 ### ProcessMessages 输入对比
@@ -236,31 +241,51 @@ AMACI 树结构:
 ### 3. DeactivateTree
 
 ```
-作用: 存储重随机化的 deactivate 数据，用于 AddNewKey
+作用: 存储 Operator 第一次生成的 c1/c2 加密数据
+
+⚠️ 重要概念澄清:
+  • DeactivateTree 存储的是 Operator 生成的 c1/c2（第一次加密）
+  • 重随机化发生在 AddNewKey 时，由用户执行
+  • 用户从 DeactivateTree 获取 c1/c2，然后调用 rerandomize() 生成 d1/d2
+  • d1/d2（重随机化后）存入新的 StateTree leaf 中
+
+数据流程:
+  processDeactivateMessages:
+    Operator 生成 c1/c2 → 存入 DeactivateTree
+  
+  AddNewKey:
+    用户取出 c1/c2 → rerandomize() → 生成 d1/d2 → 存入 StateTree
 
 结构:
 ┌────────────────────────────────────────────────┐
 │  Index  │        Value (Hash)                  │
 ├────────────────────────────────────────────────┤
-│    0    │  Poseidon([c1_rerand, c2_rerand])    │
-│    1    │  Poseidon([c1_rerand, c2_rerand])    │
+│    0    │  Poseidon([c1[0], c1[1], c2[0],     │
+│         │            c2[1], sharedKeyHash])    │
+│    1    │  Poseidon([c1, c2, sharedKeyHash])  │
 │   ...   │              ...                     │
 └────────────────────────────────────────────────┘
 
 数据来源:
   用户发送 deactivate 消息后，operator 进行:
   1. 验证签名
-  2. 如果有效: 生成偶数加密 (even) - 为 AddNewKey 准备
-  3. 如果无效: 生成奇数加密 (odd) - 防止恶意使用
-  4. 重随机化加密数据
-  5. 存入 DeactivateTree
+  2. 生成 c1/c2 加密数据（使用确定性随机密钥）
+     - 如果消息有效: 生成偶数加密 (even)
+     - 如果消息无效: 生成奇数加密 (odd)
+  3. 存入 DeactivateTree: poseidon([c1, c2, sharedKeyHash])
   
 AddNewKey 使用:
-  用户提交包含以下内容的 proof:
-  - deactivateLeaf (从 DeactivateTree)
-  - Merkle proof (证明 leaf 存在)
-  - Nullifier (防止重复使用)
-  - ECDH sharedKey (绑定到用户)
+  用户从 DeactivateTree 获取 c1/c2 后:
+  1. 调用 rerandomize(coordPubKey, {c1, c2}, randomVal)
+     代码: const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
+  2. 生成重随机化的 d1/d2
+  3. d1/d2 存入新的 StateTree leaf 中
+  4. 提交 ZK proof:
+     - deactivateLeaf (从 DeactivateTree)
+     - Merkle proof (证明 leaf 存在)
+     - Nullifier (防止重复使用)
+     - ECDH sharedKey (绑定到用户)
+     - d1/d2 (重随机化后的数据)
 ```
 
 ### 4. 双层验证机制
@@ -364,15 +389,18 @@ Layer 2: d1/d2 Decrypt Check (静态，防御)
 │ Operator: processDeactivateMessages()               │
 │   → 解密消息                                         │
 │   → 验证签名                                         │
+│   → 生成确定性随机密钥:                              │
+│      randomKey = genStaticRandomKey(privKey,        │
+│                    20040n, newActiveState[i])       │
 │   → 如果签名有效:                                    │
-│       • 生成 even 加密 (偶数)                        │
-│       • 重随机化                                     │
+│       • 生成 even 加密 c1/c2 (偶数)                  │
 │       • 存入 DeactivateTree                          │
 │       • 更新 ActiveStateTree[idx] = hash(data)  ✗  │
 │   → 如果签名无效:                                    │
-│       • 生成 odd 加密 (奇数)                         │
+│       • 生成 odd 加密 c1/c2 (奇数)                   │
 │       • 存入 DeactivateTree (但不可用)              │
 │       • ActiveStateTree 保持不变                    │
+└─────────────────────────────────────────────────────┘
 └─────────────────────────────────────────────────────┘
 
 第四阶段: 添加新密钥
@@ -385,21 +413,22 @@ Layer 2: d1/d2 Decrypt Check (静态，防御)
 ┌─────────────────────────────────────────────────────┐
 │ User: 生成 AddNewKey Proof                          │
 │   → 新密钥对 (newPubKey, newPrivKey)                │
-│   → 从 DeactivateTree 获取 deactivate data          │
-│   → Merkle proof (证明 data 存在)                   │
+│   → 从 DeactivateTree 获取 c1/c2                    │
+│   → 重随机化: d1/d2 = rerandomize(coordPubKey,     │
+│                         {c1, c2}, randomVal)        │
+│   → Merkle proof (证明 c1/c2 存在)                  │
 │   → Nullifier = Poseidon([privKey, SALT])          │
 │   → ECDH sharedKey (绑定用户身份)                   │
-│   → 重随机化 deactivate data                        │
 └─────┬───────────────────────────────────────────────┘
       │
       ▼
 ┌─────────────────────────────────────────────────────┐
 │ Circuit: AddNewKey Verification                     │
 │   ✓ Nullifier 未使用过                              │
-│   ✓ deactivateLeaf 在 DeactivateTree 中            │
+│   ✓ c1/c2 在 DeactivateTree 中                      │
 │   ✓ Merkle proof 有效                               │
 │   ✓ ECDH sharedKey 正确                             │
-│   ✓ 重随机化计算正确                                 │
+│   ✓ d1/d2 重随机化计算正确                          │
 │   ✗ 不检查 d1/d2 的奇偶性!                          │
 └─────┬───────────────────────────────────────────────┘
       │
@@ -411,7 +440,7 @@ Layer 2: d1/d2 Decrypt Check (静态，防御)
 │   → 创建新 StateLeaf:                                │
 │       • pubKey = newPubKey                          │
 │       • balance = old balance                       │
-│       • d1, d2 = 继承 deactivate data              │
+│       • d1, d2 = 重随机化后的数据（从 proof）       │
 │   → ActiveStateTree[new_idx] = 0 (active)  ✓      │
 └─────────────────────────────────────────────────────┘
 
@@ -430,20 +459,39 @@ Layer 2: d1/d2 Decrypt Check (静态，防御)
 └─────────────────────────────────────────────────────┘
 ```
 
-### 关键时刻状态快照
+### 关键时刻状态快照（带具体数值）
 
 ```
 ══════════════════════════════════════════════════════════════
 时刻 T1: SignUp 后
 ══════════════════════════════════════════════════════════════
+
+用户信息:
+  privKey: 12345n
+  pubKey: [
+    10457101036533406547632367118273992368554162664806683215399215148255484599592n,
+    12345678901234567890123456789012345678901234567890123456789012345678n
+  ]
+
 StateTree[0]:
-  pubKey: [x0, y0]
+  pubKey: [
+    10457101036533406547632367118273992368554162664806683215399215148255484599592n,
+    12345678901234567890123456789012345678901234567890123456789012345678n
+  ]
   balance: 100
   voTreeRoot: 0
   nonce: 0
   d1: [0, 0]        ← 代表 active (偶数)
   d2: [0, 0]        ← 代表 active (偶数)
   xIncrement: 0
+
+StateLeaf Hash 计算:
+  layer1 = poseidon5([pubKey[0], pubKey[1], 100, 0, 0])
+         = 567891234...n
+  layer2 = poseidon5([0, 0, 0, 0, 0])
+         = 14655542659562014735865511769057053982292279840403315552050801315682099828156n
+  stateLeafHash = poseidon2([layer1, layer2])
+                = 890123456...n
 
 ActiveStateTree[0]: 0  ← active ✓
 
@@ -472,8 +520,37 @@ DeactivateTree[0]: 0   ← 不变
 ══════════════════════════════════════════════════════════════
 时刻 T3: Deactivate 后
 ══════════════════════════════════════════════════════════════
+
+Operator 处理:
+  processedDMsgCount: 0
+  batchSize: 5
+  deactivateIndex0: 0
+  
+  newActiveState[0] = 0 + 0 + 1 = 1
+
+  randomKey = genStaticRandomKey(coordPrivKey, 20040, 1)
+            = poseidon([coordPrivKey, 20040n, 1n])
+            = 18273645192837465928374659283746592837465928374659283746592837465n
+
+  deactivate = encryptOdevity(false, coordPubKey, randomKey)
+  // false 表示生成偶数（active）的加密，为 AddNewKey 准备
+
+  deactivate.c1: [
+    7234567890123456789012345678901234567890123456789012345678901234n,
+    9876543210987654321098765432109876543210987654321098765432109876n
+  ]
+  deactivate.c2: [
+    5555555555555555555555555555555555555555555555555555555555555554n,  ← 偶数
+    6666666666666666666666666666666666666666666666666666666666666666n   ← 偶数
+  ]
+  deactivate.xIncrement: 18273645192837465928374659283746592837465928374659283746592837465n
+
+  dLeaf = [c1[0], c1[1], c2[0], c2[1], poseidon(sharedKey)]
+  dLeafHash = poseidon(dLeaf)
+            = 12345678901234567890123456789012345678901234567890123456789012345n
+
 StateTree[0]:
-  pubKey: [x0, y0]
+  pubKey: [10457...592n, 12345...678n]
   balance: 90        ← 不变
   voTreeRoot: 0x...  ← 不变
   nonce: 1           ← 不变
@@ -481,36 +558,79 @@ StateTree[0]:
   d2: [0, 0]         ← 不变 (重要!)
   xIncrement: 0
 
-ActiveStateTree[0]: 0x1234...  ← inactive ✗
+ActiveStateTree[0]: 1  ← inactive ✗ (newActiveState[0])
 
-DeactivateTree[0]: 0x5678...   ← 存入重随机化的数据
+DeactivateTree[0]: 12345678901234567890123456789012345678901234567890123456789012345n
+                   ↑ 存入 Operator 生成的偶数 c1/c2（可用于 AddNewKey 重随机化）
 
 用户可以投票: ✗ (ActiveStateTree check 失败)
+
+解密验证 deactivate 数据:
+  decrypt(coordPrivKey, deactivate.c1, deactivate.c2, xIncrement)
+  = 0 (偶数) ← 可用于 AddNewKey ✓
 
 ══════════════════════════════════════════════════════════════
 时刻 T4: AddNewKey 后
 ══════════════════════════════════════════════════════════════
-StateTree[0]: (旧账户)
-  [状态同 T3，未变化]
+
+新密钥对:
+  newPrivKey: 99999n
+  newPubKey: [
+    8765432109876543210987654321098765432109876543210987654321098765n,
+    1111111111111111111111111111111111111111111111111111111111111111n
+  ]
+
+AddNewKey 电路验证:
+  nullifier = poseidon([oldPrivKey, 1444992409218394441042n])
+            = poseidon([12345n, 1444992409218394441042n])
+            = 9876543210123456789012345678901234567890123456789012345678901234n
+  
+  sharedKey = ECDH(oldPrivKey, coordPubKey)
+            = 4444444444444444444444444444444444444444444444444444444444444444n
+  
+  deactivateLeaf 在 DeactivateTree[0] 中 ✓
+  Merkle proof 有效 ✓
+  nullifier 未使用过 ✓
+
+StateTree[0]: (旧账户，状态同 T3)
+  [状态未变化]
 
 StateTree[3]: (新账户)
-  pubKey: [x_new, y_new]  ← 新密钥!
+  pubKey: [
+    8765432109876543210987654321098765432109876543210987654321098765n,
+    1111111111111111111111111111111111111111111111111111111111111111n
+  ]
   balance: 90             ← 继承余额
   voTreeRoot: 0x...       ← 继承投票树
   nonce: 1                ← 继承 nonce
-  d1: [c1x, c1y]          ← 继承 deactivate data (偶数)
-  d2: [c2x, c2y]          ← 继承 deactivate data (偶数)
-  xIncrement: 123
+  d1: [
+    7234567890123456789012345678901234567890123456789012345678901234n,
+    9876543210987654321098765432109876543210987654321098765432109876n
+  ]  ← 从 c1 重随机化而来，保持偶数
+  d2: [
+    5555555555555555555555555555555555555555555555555555555555555554n,
+    6666666666666666666666666666666666666666666666666666666666666666n
+  ]  ← 从 c2 重随机化而来，保持偶数
+  xIncrement: 18273645192837465928374659283746592837465928374659283746592837465n
 
-ActiveStateTree[0]: 0x1234...  ← 旧账户仍 inactive ✗
+ActiveStateTree[0]: 1          ← 旧账户仍 inactive ✗
 ActiveStateTree[3]: 0          ← 新账户 active ✓
 
-DeactivateTree[0]: 0x5678...   ← 已使用
+DeactivateTree[0]: 12345...345n  ← 已使用
 
-Nullifiers: [0x9abc...]        ← 记录 nullifier
+Nullifiers: [9876543210123456789012345678901234567890123456789012345678901234n]
+            ↑ 记录 nullifier，防止重复使用
 
-新用户可以投票: ✓
-旧用户不能投票: ✗
+验证新账户的 d1/d2:
+  decrypt(coordPrivKey, d1, d2, xIncrement)
+  = 0 (偶数) ← 可以投票 ✓
+
+双层检查:
+  Layer 1: ActiveStateTree[3] === 0 ✓
+  Layer 2: decrypt(d1, d2) % 2 === 0 ✓
+  
+  ➜ 新用户可以投票: ✓
+  ➜ 旧用户不能投票: ✗ (ActiveStateTree[0] = 1)
 ```
 
 ---
@@ -570,6 +690,152 @@ Nullifiers: [0x9abc...]        ← 记录 nullifier
   • 两个账户独立存在，余额和投票历史被继承
 ```
 
+### 三棵树的完整视图（带具体数值）
+
+```
+═══════════════════════════════════════════════════════════════════════
+                        时刻 T1: SignUp 后
+═══════════════════════════════════════════════════════════════════════
+
+StateTree (10字段完整状态):
+┌─────┬────────────────────────────────────────────────────────┐
+│ Idx │                      StateLeaf                         │
+├─────┼────────────────────────────────────────────────────────┤
+│  0  │ pubKey: [10457...592n, 12345...678n]                   │
+│     │ balance: 100                                           │
+│     │ voTreeRoot: 0                                          │
+│     │ nonce: 0                                               │
+│     │ d1: [0, 0]  ← active (偶数)                            │
+│     │ d2: [0, 0]  ← active (偶数)                            │
+│     │ xIncrement: 0                                          │
+│     │ Hash: 890123456...n                                    │
+├─────┼────────────────────────────────────────────────────────┤
+│  1  │ [空]                                                    │
+│  2  │ [空]                                                    │
+│  3  │ [空]                                                    │
+│ ... │ ...                                                     │
+└─────┴────────────────────────────────────────────────────────┘
+Root: 123456789...n
+
+ActiveStateTree (单值快速查询):
+┌─────┬───────────┬─────────────────────────────────────────┐
+│ Idx │   Value   │              含义                        │
+├─────┼───────────┼─────────────────────────────────────────┤
+│  0  │     0     │ Active ✓ (可投票)                       │
+│  1  │     0     │ Active ✓                                │
+│  2  │     0     │ Active ✓                                │
+│  3  │     0     │ Active ✓                                │
+│ ... │    ...    │ ...                                      │
+└─────┴───────────┴─────────────────────────────────────────┘
+Root: 14655542659562014735865511769057053982292279840403315552050801315682099828156n
+
+DeactivateTree (Operator 生成的 c1/c2):
+┌─────┬───────────┬─────────────────────────────────────────┐
+│ Idx │   Hash    │              含义                        │
+├─────┼───────────┼─────────────────────────────────────────┤
+│  0  │     0     │ 空                                       │
+│  1  │     0     │ 空                                       │
+│  2  │     0     │ 空                                       │
+│ ... │    ...    │ ...                                      │
+└─────┴───────────┴─────────────────────────────────────────┘
+Root: 14655542659562014735865511769057053982292279840403315552050801315682099828156n
+
+═══════════════════════════════════════════════════════════════════════
+                     时刻 T3: Deactivate 后
+═══════════════════════════════════════════════════════════════════════
+
+StateTree (状态未变):
+┌─────┬────────────────────────────────────────────────────────┐
+│ Idx │                      StateLeaf                         │
+├─────┼────────────────────────────────────────────────────────┤
+│  0  │ pubKey: [10457...592n, 12345...678n]                   │
+│     │ balance: 90  ← 投票后减少                              │
+│     │ voTreeRoot: 0x...                                      │
+│     │ nonce: 1  ← 增加                                       │
+│     │ d1: [0, 0]  ← 不变！                                   │
+│     │ d2: [0, 0]  ← 不变！                                   │
+│     │ xIncrement: 0                                          │
+└─────┴────────────────────────────────────────────────────────┘
+Root: 234567890...n  (因 balance/nonce 改变而变化)
+
+ActiveStateTree (账户0被标记为 inactive):
+┌─────┬───────────┬─────────────────────────────────────────┐
+│ Idx │   Value   │              含义                        │
+├─────┼───────────┼─────────────────────────────────────────┤
+│  0  │     1     │ Inactive ✗ (不可投票) ← 改变！          │
+│  1  │     0     │ Active ✓                                │
+│  2  │     0     │ Active ✓                                │
+│  3  │     0     │ Active ✓                                │
+│ ... │    ...    │ ...                                      │
+└─────┴───────────┴─────────────────────────────────────────┘
+Root: 98765432...n  (因账户0改变而变化)
+
+DeactivateTree (存入偶数数据):
+┌─────┬─────────────────────────┬───────────────────────────┐
+│ Idx │         Hash            │         原始数据          │
+├─────┼─────────────────────────┼───────────────────────────┤
+│  0  │ 12345678901234...345n   │ c1: [7234...234n,         │
+│     │                         │      9876...876n]         │
+│     │                         │ c2: [5555...554n, ← 偶数  │
+│     │                         │      6666...666n]  ← 偶数 │
+│     │                         │ sharedKey: 4444...444n    │
+│     │                         │ ➜ 可用于 AddNewKey ✓     │
+├─────┼─────────────────────────┼───────────────────────────┤
+│  1  │     0                   │ 空                         │
+│  2  │     0                   │ 空                         │
+│ ... │    ...                  │ ...                        │
+└─────┴─────────────────────────┴───────────────────────────┘
+Root: 45678901...n  (因索引0改变而变化)
+
+═══════════════════════════════════════════════════════════════════════
+                      时刻 T4: AddNewKey 后
+═══════════════════════════════════════════════════════════════════════
+
+StateTree (添加新账户):
+┌─────┬────────────────────────────────────────────────────────┐
+│ Idx │                      StateLeaf                         │
+├─────┼────────────────────────────────────────────────────────┤
+│  0  │ [旧账户，状态同 T3]                                    │
+├─────┼────────────────────────────────────────────────────────┤
+│  3  │ pubKey: [8765...765n, 1111...111n]  ← 新密钥！         │
+│     │ balance: 90  ← 继承                                    │
+│     │ voTreeRoot: 0x...  ← 继承                              │
+│     │ nonce: 1  ← 继承                                       │
+│     │ d1: [7234...234n, 9876...876n]  ← 继承（偶数）        │
+│     │ d2: [5555...554n, 6666...666n]  ← 继承（偶数）        │
+│     │ xIncrement: 18273...465n                               │
+│     │ Hash: 567890123...n                                    │
+└─────┴────────────────────────────────────────────────────────┘
+Root: 678901234...n  (因添加账户3而变化)
+
+ActiveStateTree (新账户标记为 active):
+┌─────┬───────────┬─────────────────────────────────────────┐
+│ Idx │   Value   │              含义                        │
+├─────┼───────────┼─────────────────────────────────────────┤
+│  0  │     1     │ Inactive ✗ (旧账户)                     │
+│  1  │     0     │ Active ✓                                │
+│  2  │     0     │ Active ✓                                │
+│  3  │     0     │ Active ✓ (新账户) ← 新增！              │
+│ ... │    ...    │ ...                                      │
+└─────┴───────────┴─────────────────────────────────────────┘
+Root: 789012345...n  (因账户3改变而变化)
+
+DeactivateTree (状态未变):
+┌─────┬─────────────────────────┬───────────────────────────┐
+│ Idx │         Hash            │         说明              │
+├─────┼─────────────────────────┼───────────────────────────┤
+│  0  │ 12345678901234...345n   │ 已使用 (nullifier 记录)   │
+│  1  │     0                   │ 空                         │
+│ ... │    ...                  │ ...                        │
+└─────┴─────────────────────────┴───────────────────────────┘
+Root: 45678901...n  (未变化)
+
+Nullifiers (防重放):
+┌────────────────────────────────────────┐
+│ 9876543210123456...234n  ← 已使用       │
+└────────────────────────────────────────┘
+```
+
 ### ActiveStateTree 更新时序图
 
 ```
@@ -582,13 +848,614 @@ Nullifiers: [0x9abc...]        ← 记录 nullifier
 Active  ┌─────────────────┐            ┌────────────────────
 State   │    账户0         │            │  账户3
 Tree    │                  │            │
-        │  0 (active)      │  非0       │  0 (active)
+        │  0 (active)      │  1         │  0 (active)
         │        ●─────────●────●       │  ●─────────●
         │                  inactive     │  active
         └──────────────────┘            └────────────────────
 
         ├─ 可投票 ──┼─ 可投票 ─┼ 不可投票 ┼──── 可投票 ────────▶
                                            (新密钥)
+```
+
+---
+
+## 状态组合详解
+
+### 四种 d1/d2 与 ActiveStateTree 组合
+
+AMACI 系统中，用户状态由两个关键因素决定：
+1. **d1/d2 的奇偶性** - 存储在 StateTree 中，通过解密判断
+2. **ActiveStateTree 的值** - 独立的树，0表示active，非0表示inactive
+
+这两个因素组合产生 **4 种可能的状态**，每种状态都有其特定的产生方式和含义：
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│          状态组合 与 投票能力 对照表                         │
+├────────┬──────────────┬────────────────┬──────────┬──────────┤
+│ 状态   │ d1/d2 奇偶性 │ ActiveStateTree│ 能投票   │ 含义     │
+├────────┼──────────────┼────────────────┼──────────┼──────────┤
+│ 状态1  │ 偶数 (✓)     │ 0 (active)     │ ✅ 能    │ 正常可用 │
+│ 状态2  │ 偶数 (✓)     │ 非0 (inactive) │ ❌ 不能  │ 已停用   │
+│ 状态3  │ 奇数 (✗)     │ 0 (active)     │ ❌ 不能  │ 异常账户 │
+│ 状态4  │ 奇数 (✗)     │ 非0 (inactive) │ ❌ 不能  │ 双重停用 │
+└────────┴──────────────┴────────────────┴──────────┴──────────┘
+
+注: 只有状态1可以投票，需要双层检查都通过
+```
+
+### 状态1: d1/d2偶数 + ActiveStateTree=0 ✅
+
+**含义**: 正常可投票状态
+
+> **用户 signup 和使用正确的 deactivate leaf 进行 addNewKey，以及错误的 deactivate（旧账户状态）**
+
+**产生方式**:
+
+```
+方式 A: 初始 SignUp
+═══════════════════════════════════════════════════════════
+┌─────────────────────────────────────────────────────────┐
+│ 合约调用: signup(pubKey, balance)                      │
+│   → d1/d2 设置为 [0, 0, 0, 0] (代表偶数/active)       │
+│   → ActiveStateTree[idx] = 0                           │
+│   → 结果: 用户可以正常投票 ✅                          │
+└─────────────────────────────────────────────────────────┘
+
+代码位置: operator.ts updateStateTree()
+  updateStateTree(leafIdx, pubKey, balance, [0n, 0n, 0n, 0n])
+  // c = [0,0,0,0] 时，d1=[0,0], d2=[0,0]
+
+方式 B: 成功的 AddNewKey（使用正确的 deactivate 数据）
+═══════════════════════════════════════════════════════════
+┌─────────────────────────────────────────────────────────┐
+│ 前提条件:                                               │
+│   - 旧账户成功 deactivate（生成了偶数 c1/c2）         │
+│   - DeactivateTree 中存储了偶数数据                    │
+│                                                         │
+│ 流程:                                                   │
+│   1. 从 DeactivateTree 获取偶数 c1/c2                  │
+│   2. 重随机化: d1/d2 = rerandomize(coordPubKey,        │
+│                        {c1, c2}, randomVal)            │
+│      └─ 重随机化保持奇偶性: 偶数 → 偶数               │
+│   3. 合约设置 ActiveStateTree[new_idx] = 0            │
+│   4. 新账户 d1/d2 = 偶数（继承自 c1/c2）              │
+│   → 结果: 新账户可以正常投票 ✅                        │
+└─────────────────────────────────────────────────────────┘
+
+方式 C: 错误的 Deactivate 被系统拒绝
+═══════════════════════════════════════════════════════════
+┌─────────────────────────────────────────────────────────┐
+│ 场景: 用户发送签名错误/已deactivate的消息              │
+│                                                         │
+│ 流程:                                                   │
+│   1. checkDeactivateCommand() 检测到错误               │
+│      └─ 返回 'signature error' / 'deactivated'        │
+│   2. processDeactivateMessages() 处理:                 │
+│      • d1/d2 保持不变 (仍是偶数) ⭐                    │
+│      • ActiveStateTree 不更新 (仍是 0) ⭐             │
+│      • DeactivateTree 存入奇数 c1/c2 (不可用)         │
+│   → 结果: 原账户受保护，仍可投票 ✅                    │
+└─────────────────────────────────────────────────────────┘
+
+关键代码: operator.ts processDeactivateMessages()
+  if (!error) {
+    // 只有正确的消息才更新 ActiveStateTree
+    this.activeStateTree.updateLeaf(stateIdx, newActiveState[i]);
+  }
+  // 错误消息不更新 → 保护原账户
+```
+
+### 状态2: d1/d2偶数 + ActiveStateTree=非0 ✗
+
+**含义**: 已停用但数据正常（不能投票，但可以 AddNewKey）
+
+> **成功的 Deactivate**
+
+**产生方式**:
+
+```
+唯一方式: 成功的 Deactivate
+═══════════════════════════════════════════════════════════
+┌─────────────────────────────────────────────────────────┐
+│ 用户操作:                                               │
+│   - 发送 deactivate 消息 (vc=0)                        │
+│   - 签名正确，nonce 正确                                │
+│                                                         │
+│ Operator 处理: processDeactivateMessages()              │
+│   1. 验证签名通过 ✓                                     │
+│   2. 生成偶数的 c1/c2                                   │
+│      deactivate = encryptOdevity(                       │
+│        false,  // false = 生成偶数                     │
+│        coordPubKey,                                     │
+│        randomKey                                        │
+│      )                                                  │
+│   3. 更新 ActiveStateTree[idx] = newActiveState[i]     │
+│      └─ newActiveState[i] = processedDMsgCount+i+1     │
+│      └─ 非0值，标记为 inactive ⭐                      │
+│   4. d1/d2 不变（仍是偶数）⭐⭐ 关键点                  │
+│   5. 存入 DeactivateTree:                              │
+│      hash([c1[0], c1[1], c2[0], c2[1], sharedKeyHash]) │
+│                                                         │
+│ 结果:                                                   │
+│   ❌ 用户不能投票 (ActiveStateTree check 失败)         │
+│   ✅ 但可以用偶数 c1/c2 进行 AddNewKey                 │
+└─────────────────────────────────────────────────────────┘
+
+关键代码: operator.ts 第1080-1142行
+  const error = this.checkDeactivateCommand(cmd, subStateTreeLength);
+  
+  const randomKey = this.genStaticRandomKey(
+    coordPrivKey, 20040n, newActiveState[i]
+  );
+  
+  const deactivate = this.encryptOdevity(
+    !!error,  // error=null → false → 偶数
+    coordPubKey,
+    randomKey
+  );
+  
+  if (!error) {
+    // 正确消息：更新 ActiveStateTree
+    this.activeStateTree.updateLeaf(stateIdx, newActiveState[i]);
+    this.deactivateTree.updateLeaf(deactivateIndex0 + i, poseidon(dLeaf));
+    newDeactivate.push(dLeaf);
+  }
+  // 注意：d1/d2 完全不更新！
+
+重要说明:
+  • d1/d2 是 StateLeaf 的永久字段，只在 SignUp/AddNewKey 时设置
+  • Deactivate 操作不改变 StateLeaf，只更新 ActiveStateTree
+  • 这种设计保证了数据的不可变性和可追溯性
+```
+
+### 状态3: d1/d2奇数 + ActiveStateTree=0 ⚠️
+
+**含义**: 异常状态（账户表面活跃，但实际不可用）
+
+> **用户在 deactivate 的时候，上传了错误的 deactivate message，导致 operator 在 process deactivate message 的时候，提供了奇数的deactivate c1/c2 并且不更新 active state tree，然后用户使用了这个奇数的deactivate 进行了 addNewKey。（新用户的状态会变成这样子，老账户的状态会保持状态1的情况。）**
+
+**产生方式**:
+
+```
+方式: AddNewKey 使用了错误 deactivate 的奇数数据
+═══════════════════════════════════════════════════════════
+┌─────────────────────────────────────────────────────────┐
+│ 前提条件:                                               │
+│   - 旧账户 deactivate 失败（例如签名错误）             │
+│   - DeactivateTree 中存储了奇数 c1/c2                  │
+│   - 用户不知情，用这个数据进行 AddNewKey               │
+│                                                         │
+│ 流程:                                                   │
+│   1. 从 DeactivateTree 获取奇数 c1/c2 ⚠️               │
+│   2. 重随机化: d1/d2 = rerandomize(coordPubKey,        │
+│                        {奇数c1, 奇数c2}, randomVal)    │
+│      └─ 重随机化保持奇偶性: 奇数 → 奇数 ⚠️            │
+│   3. 合约设置 ActiveStateTree[new_idx] = 0 ✓          │
+│   4. 新账户 d1/d2 = 奇数（继承自奇数 c1/c2）❌        │
+│                                                         │
+│ 结果状态:                                               │
+│   - ActiveStateTree[new_idx] = 0 (看起来 active)       │
+│   - d1/d2 = 奇数 (实际 deactivated)                    │
+│                                                         │
+│ 投票时的双重检查:                                       │
+│   Layer 1: ActiveStateTree check                       │
+│     ✓ as = activeStateTree.leaf(idx) = 0              │
+│     ✓ isActive1 = (as === 0) = true → 通过            │
+│                                                         │
+│   Layer 2: d1/d2 decrypt check (StateLeafTransformer) │
+│     ✗ result = decrypt(d1, d2)                         │
+│     ✗ isActive2 = (result % 2 === 0) = false          │
+│     ✗ 因为 result = 1 (奇数)                           │
+│                                                         │
+│   Final: isValid = isActive1 AND isActive2 = false    │
+│   → 投票被拒绝 ❌❌                                     │
+└─────────────────────────────────────────────────────────┘
+
+关键代码: operator.ts checkCommandNow() 第1517-1530行
+  // Layer 1: ActiveStateTree 检查
+  const as = this.activeStateTree!.leaf(stateIdx) || 0n;
+  if (as !== 0n) {
+    return 'inactive';
+  }
+  
+  // Layer 2: d1/d2 解密检查
+  const deactivate = decrypt(signer.getFormatedPrivKey(), {
+    c1: { x: s.d1[0], y: s.d1[1] },
+    c2: { x: s.d2[0], y: s.d2[1] },
+    xIncrement: 0n
+  });
+  if (deactivate % 2n === 1n) {
+    return 'deactivated';  // ← 这里会拒绝 ⭐
+  }
+
+安全保障:
+  ✅ 虽然 ActiveStateTree 显示 active
+  ✅ 但 d1/d2 检查会捕获异常
+  ✅ 防止异常账户参与投票
+  ✅ 双层验证的防御纵深体现
+```
+
+### 状态4: d1/d2奇数 + ActiveStateTree=非0 ❌
+
+**含义**: 理论上不应该出现（双重停用状态）
+
+**产生方式**:
+
+```
+理论方式（实际不会发生）: 奇数账户尝试再次 deactivate
+═══════════════════════════════════════════════════════════
+┌─────────────────────────────────────────────────────────┐
+│ 前提条件:                                               │
+│   - 账户处于状态3 (d1/d2奇数 + AS=0)                   │
+│   - 用户尝试发送 deactivate 消息                        │
+│                                                         │
+│ 流程:                                                   │
+│   1. checkDeactivateCommand() 检查                     │
+│      const deactivate = decrypt(coordPrivKey, {        │
+│        c1: { x: s.d1[0], y: s.d1[1] },                │
+│        c2: { x: s.d2[0], y: s.d2[1] }                 │
+│      });                                               │
+│                                                         │
+│      if (deactivate % 2n === 1n) {                     │
+│        return 'deactivated';  // ← 被拒绝 ⭐           │
+│      }                                                  │
+│                                                         │
+│   2. processDeactivateMessages() 检测到 error          │
+│      • 生成新的奇数 c1/c2 (encryptOdevity(true, ...)) │
+│      • 不更新 ActiveStateTree (因为有error) ⭐         │
+│      • 只更新 DeactivateTree (又是奇数)                │
+│                                                         │
+│ 结果:                                                   │
+│   - ActiveStateTree 保持 0 (不变)                      │
+│   - d1/d2 保持奇数 (不变)                              │
+│   - 仍是状态3，不是状态4                               │
+│   → 状态4 实际不会出现 ✅                              │
+└─────────────────────────────────────────────────────────┘
+
+为什么状态4不会发生:
+═══════════════════════════════════════════════════════════
+  原因 1: checkDeactivateCommand 的奇数检测
+    • 在处理 deactivate 消息前就检测 d1/d2
+    • 奇数账户会被标记为 'deactivated' 错误
+    
+  原因 2: 有 error 时不更新 ActiveStateTree
+    • if (!error) { 更新 ActiveStateTree }
+    • 有 error 时跳过更新
+    • 保持 ActiveStateTree = 0
+  
+  原因 3: 奇偶性无限循环
+    • 奇数 d1/d2 → deactivate 被拒绝 → 生成奇数 c1/c2
+    • 奇数 c1/c2 → AddNewKey → 奇数 d1/d2
+    • 无法逃脱奇数状态
+    
+  结论: 状态4 是理论上的组合，但系统设计确保它不会发生
+
+安全意义:
+  ✅ 防止创建多个可用账户
+  ✅ 奇数账户永久不可用
+  ✅ 无法通过任何方式绕过检查
+```
+
+### 完整状态转换图（带所有状态）
+
+```
+                  ┌─────────────────────┐
+                  │   SignUp / 初始化   │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────────┐
+              │  状态1: d1/d2偶数 + AS=0         │
+              │         ✅ 可投票                │
+              │  产生: SignUp, AddNewKey(偶数)   │
+              └────┬──────────────────┬──────────┘
+                   │                  │
+    正确deactivate │                  │ 错误deactivate
+    (签名正确)     │                  │ (被拒绝，状态不变)
+                   │                  │
+                   ▼                  │
+    ┌──────────────────────────────┐  │
+    │ 状态2: d1/d2偶数 + AS≠0     │  │
+    │       ✗ 已停用              │  │
+    │ 产生: Deactivate 成功        │  │
+    └────┬─────────────────────────┘  │
+         │                            │
+         │ AddNewKey                  │
+         │ (使用偶数c1/c2) ✓          │
+         ▼                            │
+    ┌──────────────────────────────┐  │
+    │ 状态1: d1/d2偶数 + AS=0     │◄─┘
+    │      ✅ 新账户可投票         │
+    └──────────────────────────────┘
+    
+         ╔═══════════════════════════════════╗
+         ║   错误路径（应避免，但系统能处理）║
+         ╚═══════════════════════════════════╝
+              
+    ┌──────────────────────────────┐
+    │ 状态1或2 (任意正常状态)      │
+    └────┬─────────────────────────┘
+         │
+         │ Deactivate 失败
+         │ (签名错误/已deactivate)
+         ▼
+    ┌──────────────────────────────┐
+    │ DeactivateTree 存入奇数c1/c2 │
+    │ (原账户状态不变)             │
+    └────┬─────────────────────────┘
+         │
+         │ 用户不知情
+         │ AddNewKey(使用奇数c1/c2) ⚠️
+         ▼
+    ┌──────────────────────────────┐
+    │ 状态3: d1/d2奇数 + AS=0     │
+    │       ⚠️ 异常不可用          │
+    │ 产生: AddNewKey(奇数数据)    │
+    └────┬─────────────────────────┘
+         │
+         │ 尝试投票 → 被Layer2拒绝 ❌
+         │ 尝试deactivate → 被检测为奇数 ❌
+         │
+         ▼
+    ┌──────────────────────────────┐
+    │ 状态3: 永久不可用            │
+    │ (无限循环，无法逃脱)         │
+    │                              │
+    │ 注: 状态4不会出现            │
+    │ (系统设计保证)               │
+    └──────────────────────────────┘
+
+图例:
+  ✅ = 可以投票
+  ✗ = 不能投票（正常停用）
+  ⚠️ = 不能投票（异常状态）
+  ❌ = 双重停用（理论不存在）
+```
+
+### 关键交互总结表
+
+```typescript
+// ═══════════════════════════════════════════════════════════
+// 交互 1: SignUp
+// ═══════════════════════════════════════════════════════════
+// 输入: 无（新用户）
+// 输出: 状态1 (d1/d2偶数 + AS=0)
+// ═══════════════════════════════════════════════════════════
+operator.updateStateTree(idx, pubKey, balance, [0n, 0n, 0n, 0n]);
+
+// ═══════════════════════════════════════════════════════════
+// 交互 2: 正确的 Deactivate
+// ═══════════════════════════════════════════════════════════
+// 输入: 状态1 (d1/d2偶数 + AS=0)
+// 输出: 状态2 (d1/d2偶数 + AS≠0)
+// 改变: ActiveStateTree[idx]: 0 → 非0
+//      d1/d2: 保持不变
+//      DeactivateTree: 存入偶数 c1/c2
+// ═══════════════════════════════════════════════════════════
+operator.pushDeactivateMessage(ciphertext, encPubKey);
+await operator.processDeactivateMessages({
+  inputSize: 1,
+  subStateTreeLength: 5 ** stateTreeDepth
+});
+
+// ═══════════════════════════════════════════════════════════
+// 交互 3: 错误的 Deactivate（系统拒绝，保护用户）
+// ═══════════════════════════════════════════════════════════
+// 输入: 状态1 (d1/d2偶数 + AS=0)
+// 输出: 状态1 (保持不变) ← 系统保护
+// 改变: ActiveStateTree: 不变（仍是0）
+//      d1/d2: 不变（仍是偶数）
+//      DeactivateTree: 存入奇数 c1/c2（标记为不可用）
+// ═══════════════════════════════════════════════════════════
+operator.pushDeactivateMessage(错误的消息, encPubKey);
+await operator.processDeactivateMessages({...});
+// checkDeactivateCommand() 返回 error
+// → 不更新 ActiveStateTree
+// → 原账户受保护 ✅
+
+// ═══════════════════════════════════════════════════════════
+// 交互 4: AddNewKey（使用偶数数据）✅ 推荐
+// ═══════════════════════════════════════════════════════════
+// 输入: 旧账户状态2 (d1/d2偶数 + AS≠0)
+// 输出: 新账户状态1 (d1/d2偶数 + AS=0)
+// 继承: balance, voTree, nonce
+// 新增: pubKey (新密钥), d1/d2 (从偶数c1/c2重随机化)
+// ═══════════════════════════════════════════════════════════
+const payload = await operator.buildAddNewKeyPayload({
+  stateTreeDepth: 2,
+  operatorPubkey: coordPubKey,
+  deactivates: [偶数数据],  // 从 DeactivateTree 获取
+  wasmFile,
+  zkeyFile
+});
+contract.add_new_key({
+  proof: payload.proof,
+  d: payload.d,  // [d1[0], d1[1], d2[0], d2[1]] - 偶数
+  nullifier: payload.nullifier
+});
+// → 新账户 d1/d2 = 偶数（继承奇偶性）
+// → 新账户 ActiveStateTree = 0
+// → 可以正常投票 ✅
+
+// ═══════════════════════════════════════════════════════════
+// 交互 5: AddNewKey（使用奇数数据）⚠️ 不推荐（会失败）
+// ═══════════════════════════════════════════════════════════
+// 输入: 旧账户状态1 (d1/d2偶数 + AS=0，但deactivate失败)
+// 输出: 新账户状态3 (d1/d2奇数 + AS=0) ⚠️ 不可用
+// ═══════════════════════════════════════════════════════════
+const payload = await operator.buildAddNewKeyPayload({
+  stateTreeDepth: 2,
+  operatorPubkey: coordPubKey,
+  deactivates: [奇数数据],  // 从失败的 deactivate 获取
+  wasmFile,
+  zkeyFile
+});
+contract.add_new_key({
+  proof: payload.proof,
+  d: payload.d,  // [d1[0], d1[1], d2[0], d2[1]] - 奇数 ⚠️
+  nullifier: payload.nullifier
+});
+// → 新账户 d1/d2 = 奇数（继承奇数特性）
+// → 新账户 ActiveStateTree = 0
+// → 看起来 active，但投票时被 Layer2 拒绝 ❌
+// → 无法通过任何方式修复 ❌
+
+// ═══════════════════════════════════════════════════════════
+// 投票验证: 双层检查
+// ═══════════════════════════════════════════════════════════
+// 只有状态1可以通过
+// ═══════════════════════════════════════════════════════════
+const error = operator.checkCommandNow(cmd);
+// Layer 1: ActiveStateTree check
+//   if (activeStateTree.leaf(idx) !== 0) return 'inactive';
+// Layer 2: d1/d2 decrypt check
+//   if (decrypt(d1, d2) % 2 === 1) return 'deactivated';
+// 
+// 状态1: Layer1✓ + Layer2✓ → 投票成功
+// 状态2: Layer1✗ → 投票失败（已停用）
+// 状态3: Layer1✓ + Layer2✗ → 投票失败（异常账户）
+// 状态4: (不存在)
+```
+
+### 状态安全性分析
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    双层检查机制                             │
+└─────────────────────────────────────────────────────────────┘
+
+Layer 1: ActiveStateTree 检查（动态，快速）
+─────────────────────────────────────────────
+作用: 快速识别已 deactivate 的用户
+检查: activeStateTree.leaf(stateIdx) === 0?
+更新: processDeactivateMessages() 成功时更新为非0
+
+覆盖状态:
+  状态1 (偶数+0):   ✓ 通过
+  状态2 (偶数+非0): ✗ 拒绝
+  状态3 (奇数+0):   ✓ 通过（需Layer2拦截）
+  状态4 (奇数+非0): ✗ 拒绝（理论不存在）
+
+Layer 2: d1/d2 解密检查（静态，防御）
+─────────────────────────────────────────────
+作用: 验证账户数据完整性，防御异常
+检查: decrypt(d1, d2) % 2 === 0?
+更新: 仅在 SignUp 和 AddNewKey 时设置
+
+覆盖状态:
+  状态1 (偶数+0):   ✓ 通过
+  状态2 (偶数+非0): ✓ 通过（但Layer1已拒绝）
+  状态3 (奇数+0):   ✗ 拒绝 ⭐ 关键保护
+  状态4 (奇数+非0): ✗ 拒绝
+
+最终判断: isValid = Layer1 AND Layer2
+─────────────────────────────────────────────
+只有两层都通过，投票才被接受
+
+┌────────┬─────────┬─────────┬─────────┬──────────────┐
+│ 状态   │ Layer1  │ Layer2  │ 最终    │ 说明         │
+├────────┼─────────┼─────────┼─────────┼──────────────┤
+│ 状态1  │ ✓ 通过  │ ✓ 通过  │ ✅ 通过 │ 唯一可投票   │
+│ 状态2  │ ✗ 拒绝  │ ✓ 通过  │ ❌ 拒绝 │ 已正常停用   │
+│ 状态3  │ ✓ 通过  │ ✗ 拒绝  │ ❌ 拒绝 │ 异常被捕获   │
+│ 状态4  │ ✗ 拒绝  │ ✗ 拒绝  │ ❌ 拒绝 │ 理论不存在   │
+└────────┴─────────┴─────────┴─────────┴──────────────┘
+
+安全保障:
+═══════════════════════════════════════════════════════════
+✅ 错误消息不会破坏原账户
+   • 状态1 + 错误deactivate → 状态1（保持不变）
+   • 系统自动保护用户
+
+✅ 异常账户无法投票
+   • 状态3 虽然 AS=0，但被 Layer2 拦截
+   • 双层验证的防御纵深
+
+✅ 不可能同时拥有两个可用账户
+   • 正确deactivate: 状态1→状态2, 新账户状态1 (老不能新能)
+   • 错误deactivate: 保持状态1, 新账户状态3 (老能新不能)
+   • 数学证明: 最多一个可用
+
+✅ 奇数账户永久不可用
+   • 无法投票（Layer2 拒绝）
+   • 无法deactivate（checkDeactivateCommand 拒绝）
+   • 无法创建可用后代（奇偶性传递）
+   • 防止 Sybil 攻击
+```
+
+### 最佳实践建议
+
+```typescript
+// ✅ 推荐做法: 在 AddNewKey 前验证 deactivate 是否成功
+// ═══════════════════════════════════════════════════════════
+
+async function safeAddNewKey(operator, oldStateIdx, newKeypair) {
+  // 步骤 1: 发送 deactivate
+  const deactivatePayload = buildDeactivatePayload({
+    stateIdx: oldStateIdx,
+    operatorPubkey: coordPubKey
+  });
+  
+  await contract.publishDeactivateMessage(deactivatePayload);
+  
+  // 步骤 2: 等待 operator 处理
+  await operator.processDeactivateMessages({...});
+  
+  // 步骤 3: 验证 ActiveStateTree 是否更新 ⭐ 关键
+  const activeState = operator.activeStateTree!.leaf(oldStateIdx);
+  
+  if (activeState === 0n) {
+    console.error('❌ Deactivate 失败，请检查消息是否正确');
+    console.log('提示: 可能的原因:');
+    console.log('  - 签名错误');
+    console.log('  - Nonce 不匹配');
+    console.log('  - 账户已经 deactivated');
+    return null;
+  }
+  
+  console.log('✅ Deactivate 成功，ActiveStateTree 已更新');
+  
+  // 步骤 4: 获取 deactivate 数据
+  const deactivateData = await getDeactivateData(oldStateIdx);
+  
+  // 步骤 5: 验证数据奇偶性（可选，额外保护）
+  const coordPrivKey = operator.getSigner().getFormatedPrivKey();
+  const decrypted = decrypt(coordPrivKey, {
+    c1: { x: deactivateData[0], y: deactivateData[1] },
+    c2: { x: deactivateData[2], y: deactivateData[3] },
+    xIncrement: 0n
+  });
+  
+  if (decrypted % 2n !== 0n) {
+    console.error('❌ 警告: deactivate 数据是奇数，AddNewKey 会失败');
+    return null;
+  }
+  
+  console.log('✅ 数据验证通过，是偶数，可以安全使用');
+  
+  // 步骤 6: 进行 AddNewKey
+  const payload = await operator.buildAddNewKeyPayload({
+    stateTreeDepth: 2,
+    operatorPubkey: coordPubKey,
+    deactivates: [deactivateData],
+    wasmFile,
+    zkeyFile
+  });
+  
+  const result = await contract.add_new_key(payload);
+  
+  console.log('✅ AddNewKey 成功');
+  return result;
+}
+
+// ❌ 错误做法: 不验证就 AddNewKey
+// ═══════════════════════════════════════════════════════════
+
+// 不推荐！可能使用到错误的奇数数据
+const deactivateData = await getDeactivateData(oldStateIdx);
+await contract.add_new_key({...});
+// → 如果数据是奇数，新账户将不可用
 ```
 
 ---
@@ -661,10 +1528,10 @@ function calcDeactivateCommitment(
 }
 ```
 
-### genStaticRandomKey
+### genStaticRandomKey 和 newActiveState
 
 ```typescript
-// 用于生成 AddNewKey 时的随机数
+// 用于生成确定性的随机密钥
 function genStaticRandomKey(
   privKey: bigint,
   salt: bigint,  // 固定值: 20040n
@@ -673,18 +1540,242 @@ function genStaticRandomKey(
   return poseidon([privKey, salt, index]);
 }
 
-// 使用场景
-const newActiveState = []; // 存储新的 active 状态
-for (let i = 0; i < validMessages; i++) {
+// processDeactivateMessages 中的实际使用
+const newActiveState = [];
+
+// 第一步：初始化 newActiveState 为递增的计数器
+for (let i = 0; i < batchSize; i++) {
+  newActiveState[i] = BigInt(processedDMsgCount + i + 1);
+}
+
+// 第二步：处理每个 deactivate 消息
+for (let i = 0; i < batchSize; i++) {
+  const cmd = commands[i];
+  const error = checkDeactivateCommand(cmd, subStateTreeLength);
+  
+  // 使用 newActiveState[i] 作为索引生成确定性随机密钥
   const randomKey = genStaticRandomKey(
     coordPrivKey,
-    20040n,  // 固定 salt
-    BigInt(i)  // 递增 index
+    20040n,           // 固定 salt
+    newActiveState[i] // 使用计数器作为索引
   );
   
-  // 用这个随机数重随机化 deactivate data
-  newActiveState[i] = poseidon([randomKey, oldData]);
+  // 用这个随机密钥生成 c1/c2 加密数据
+  const deactivate = encryptOdevity(
+    !!error,        // 有错误 -> 奇数，无错误 -> 偶数
+    coordPubKey,
+    randomKey       // 确定性的随机密钥
+  );
+  
+  if (!error) {
+    // 正确的消息：更新 ActiveStateTree（标记为 inactive）
+    activeStateTree.updateLeaf(stateIdx, newActiveState[i]);
+    deactivateTree.updateLeaf(deactivateIndex + i, poseidon(dLeaf));
+  } else {
+    // 错误的消息：不更新 ActiveStateTree（保护原账户）
+    // 只存入奇数的 c1c2 到 DeactivateTree
+    deactivateTree.updateLeaf(deactivateIndex + i, poseidon(dLeaf));
+  }
 }
+```
+
+**关键点**：
+- `newActiveState[i]` 是**递增的计数器**，不是 hash 结果
+- 它有两个作用：
+  1. 作为 ActiveStateTree 的新值（非零，表示 inactive）
+  2. 作为 `genStaticRandomKey` 的索引参数（确保每次生成不同的随机密钥）
+
+### ⚠️ 常见误解 vs 正确理解
+
+```
+❌ 错误理解（之前文档的描述）:
+═══════════════════════════════════════════════════════════
+newActiveState[i] = poseidon([randomKey, oldData])
+
+问题:
+  - newActiveState 不是 hash 的结果
+  - 这样会导致循环依赖（randomKey 依赖 newActiveState）
+  - 无法生成确定性的随机密钥
+
+✓ 正确理解（实际代码实现）:
+═══════════════════════════════════════════════════════════
+// 步骤 1: 初始化为递增计数器
+newActiveState[i] = BigInt(processedDMsgCount + i + 1)
+
+// 步骤 2: 使用计数器作为索引生成随机密钥
+randomKey = genStaticRandomKey(coordPrivKey, 20040, newActiveState[i])
+
+// 步骤 3: 使用随机密钥加密
+deactivate = encryptOdevity(!!error, coordPubKey, randomKey)
+
+数据流:
+  processedDMsgCount → newActiveState → randomKey → deactivate
+         │                                              │
+         └─────── 递增计数 ──────┐                    │
+                                  │                    │
+         ┌────────────────────────┘                    │
+         ▼                                              ▼
+  ActiveStateTree[stateIdx] = newActiveState[i]   DeactivateTree
+  (标记为 inactive)                              (存储 c1/c2)
+
+优势:
+  ✓ 简单明了的递增计数器
+  ✓ 确保每个消息使用不同的随机密钥
+  ✓ 便于跟踪处理进度
+  ✓ 提供确定性的随机数生成
+```
+
+### processDeactivateMessages 完整流程图
+
+```
+════════════════════════════════════════════════════════════════
+              processDeactivateMessages 完整流程
+════════════════════════════════════════════════════════════════
+
+输入:
+  - messages: deactivate 消息批次
+  - batchSize: 批次大小 (如 5)
+  - processedDMsgCount: 已处理的消息数 (如 100)
+
+┌──────────────────────────────────────────────────────────────┐
+│ 阶段 1: 初始化 newActiveState 计数器                         │
+└──────────────────────────────────────────────────────────────┘
+for (let i = 0; i < batchSize; i++) {
+  newActiveState[i] = processedDMsgCount + i + 1;
+}
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│ newActiveState = [101, 102, 103, 104, 105]             │
+│                   ↑    ↑    ↑    ↑    ↑                │
+│                   递增的计数器序列                       │
+└─────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│ 阶段 2: 处理每个消息 (循环 batchSize 次)                    │
+└──────────────────────────────────────────────────────────────┘
+for (let i = 0; i < batchSize; i++) {
+
+  ┌─────────────────────────────────────────────────────┐
+  │ 步骤 2.1: 验证消息                                   │
+  └─────────────────────────────────────────────────────┘
+  error = checkDeactivateCommand(commands[i]);
+  // 检查: 签名、索引、是否已 deactivate 等
+  
+  ┌─────────────────────────────────────────────────────┐
+  │ 步骤 2.2: 生成确定性随机密钥                        │
+  └─────────────────────────────────────────────────────┘
+  randomKey = genStaticRandomKey(
+    coordPrivKey,
+    20040n,
+    newActiveState[i]  ← 使用计数器作为索引
+  );
+  // randomKey = poseidon([coordPrivKey, 20040n, newActiveState[i]])
+  
+  ┌─────────────────────────────────────────────────────┐
+  │ 步骤 2.3: 加密 deactivate 标志                      │
+  └─────────────────────────────────────────────────────┘
+  deactivate = encryptOdevity(
+    !!error,      ← 有错误: true (奇数), 无错误: false (偶数)
+    coordPubKey,
+    randomKey
+  );
+  
+  ┌─────────────────────────────────────────────────────┐
+  │ 步骤 2.4: 根据验证结果更新树                        │
+  └─────────────────────────────────────────────────────┘
+  if (!error) {
+    // 正确消息 → 更新两棵树
+    activeStateTree.updateLeaf(stateIdx, newActiveState[i]);
+    deactivateTree.updateLeaf(deactivateIndex + i, hash(dLeaf));
+  } else {
+    // 错误消息 → 只更新 DeactivateTree
+    deactivateTree.updateLeaf(deactivateIndex + i, hash(dLeaf));
+  }
+}
+
+┌──────────────────────────────────────────────────────────────┐
+│ 阶段 3: 输出结果                                              │
+└──────────────────────────────────────────────────────────────┘
+返回:
+  - newDeactivateRoot: 新的 DeactivateTree 根
+  - newActiveStateRoot: 新的 ActiveStateTree 根
+  - deactivateCommitment: poseidon([activeRoot, deactivateRoot])
+  - proof: ZK proof
+```
+
+### 数据流图示（带具体示例）
+
+```
+processDeactivateMessages 数据流:
+════════════════════════════════════════════════════════════════
+
+输入: deactivate 消息批次 (batchSize = 5)
+processedDMsgCount = 100
+
+┌─────────────────────────────────────────────────────────────┐
+│ Step 1: 初始化 newActiveState                                │
+└─────────────────────────────────────────────────────────────┘
+newActiveState[0] = 100 + 0 + 1 = 101
+newActiveState[1] = 100 + 1 + 1 = 102
+newActiveState[2] = 100 + 2 + 1 = 103
+newActiveState[3] = 100 + 3 + 1 = 104
+newActiveState[4] = 100 + 4 + 1 = 105
+
+┌─────────────────────────────────────────────────────────────┐
+│ Step 2: 处理消息 i=0 (假设签名正确)                         │
+└─────────────────────────────────────────────────────────────┘
+stateIdx = 5  // 用户在 StateTree 中的位置
+error = null  // 签名验证通过
+
+randomKey = genStaticRandomKey(coordPrivKey, 20040, 101)
+          = poseidon([coordPrivKey, 20040n, 101n])
+          = 12345678901234567890n  // 示例值
+
+deactivate = encryptOdevity(false, coordPubKey, randomKey)
+           = {
+               c1: [c1x, c1y],  // 偶数点
+               c2: [c2x, c2y],  // 偶数点
+               xIncrement: randomKey
+             }
+
+dLeaf = [c1x, c1y, c2x, c2y, poseidon(sharedKey)]
+
+更新树:
+  activeStateTree[5] = 101  ← 标记为 inactive
+  deactivateTree[0] = poseidon(dLeaf)  ← 存入偶数 c1/c2
+
+┌─────────────────────────────────────────────────────────────┐
+│ Step 3: 处理消息 i=1 (假设签名错误)                         │
+└─────────────────────────────────────────────────────────────┘
+stateIdx = 5^2 - 1 = 24  // 错误时使用最大索引
+error = 'signature error'
+
+randomKey = genStaticRandomKey(coordPrivKey, 20040, 102)
+          = poseidon([coordPrivKey, 20040n, 102n])
+          = 98765432109876543210n  // 示例值
+
+deactivate = encryptOdevity(true, coordPubKey, randomKey)
+           = {
+               c1: [c1x, c1y],  // 奇数点
+               c2: [c2x, c2y],  // 奇数点
+               xIncrement: randomKey
+             }
+
+dLeaf = [c1x, c1y, c2x, c2y, poseidon(sharedKey)]
+
+更新树:
+  activeStateTree[?] = 不更新  ← 保护原账户
+  deactivateTree[1] = poseidon(dLeaf)  ← 存入奇数 c1/c2（不可用）
+
+┌─────────────────────────────────────────────────────────────┐
+│ 结果: DeactivateTree 状态                                    │
+└─────────────────────────────────────────────────────────────┘
+DeactivateTree:
+  [0]: hash(偶数 c1c2) ← 可用于 AddNewKey 重随机化为 d1/d2 ✓
+  [1]: hash(奇数 c1c2) ← 不可用（重随机化后仍是奇数 d1/d2）✗
+  [2]: hash(...)
+  [3]: hash(...)
+  [4]: hash(...)
 ```
 
 ---
@@ -808,15 +1899,17 @@ AddNewKey 电路约束:
 │    ✓ nullifier = Poseidon([privKey, SALT])  │
 │    ✓ (合约层检查未使用过)                    │
 │                                              │
-│ 2. DeactivateLeaf 存在性                     │
-│    ✓ deactivateLeaf 在 DeactivateTree 中    │
+│ 2. DeactivateLeaf (c1/c2) 存在性             │
+│    ✓ c1/c2 在 DeactivateTree 中              │
 │    ✓ Merkle proof 有效                       │
 │                                              │
 │ 3. ECDH 绑定                                 │
 │    ✓ sharedKey = ECDH(oldPrivKey, coordPub)  │
 │                                              │
 │ 4. 重随机化正确性                            │
-│    ✓ new_c1, new_c2 计算正确                │
+│    ✓ d1/d2 = rerandomize(coordPubKey,        │
+│              {c1, c2}, randomVal)            │
+│    ✓ 重随机化计算正确                        │
 │                                              │
 │ 5. 注意: 不验证 d1/d2 奇偶性!                │
 │    (在 ProcessMessages 中验证)               │
@@ -831,9 +1924,22 @@ AddNewKey 电路约束:
 
 processDeactivateMessages 的容错设计:
 ┌────────────────────────────────────────────────────┐
+│ // 步骤 1: 初始化 newActiveState 计数器            │
+│ for (let i = 0; i < batchSize; i++) {              │
+│   newActiveState[i] = processedDMsgCount + i + 1; │
+│ }                                                  │
+│                                                    │
+│ // 步骤 2: 处理每个 deactivate 消息                │
 │ for (let i = 0; i < batchSize; i++) {              │
 │   const cmd = commands[i];                         │
 │   const error = checkDeactivateCommand(cmd);       │
+│                                                    │
+│   // 生成确定性随机密钥                            │
+│   const randomKey = genStaticRandomKey(           │
+│     coordPrivKey,                                  │
+│     20040n,                                        │
+│     newActiveState[i]  // 使用计数器作为索引      │
+│   );                                               │
 │                                                    │
 │   if (!error) {                                    │
 │     // 正确的消息: 生成偶数 c1c2                   │
@@ -844,14 +1950,17 @@ processDeactivateMessages 的容错设计:
 │     );                                             │
 │                                                    │
 │     // 更新 ActiveStateTree (标记为 inactive)      │
-│     activeStateTree.updateLeaf(stateIdx, newVal); │
+│     activeStateTree.updateLeaf(                   │
+│       stateIdx,                                    │
+│       newActiveState[i]  // 使用计数器值          │
+│     );                                             │
 │     deactivateTree.updateLeaf(idx, hash(dLeaf));  │
 │   } else {                                         │
 │     // 错误的消息: 生成奇数 c1c2                   │
 │     const deactivate = encryptOdevity(            │
 │       true,   // 奇数 → deactivated               │
 │       coordPubKey,                                 │
-│       randomKey                                    │
+│       randomKey  // 相同的确定性随机密钥          │
 │     );                                             │
 │                                                    │
 │     // 不更新 ActiveStateTree (保护原账户)        │
@@ -1474,26 +2583,73 @@ packages/circuits/ts/__tests__/
 场景: 用户上传签名错误/nonce 错误/已 deactivate 的消息
 ═══════════════════════════════════════════════════════════
 
+初始状态:
+  Old Voter (stateIdx=5):
+    pubKey: [10457...592n, 12345...678n]
+    balance: 100
+    ActiveStateTree[5] = 0 (active) ✓
+    d1/d2 = [0, 0] (active) ✓
+
 步骤 1: Operator 处理错误消息
 ─────────────────────────────────────────────
+processedDMsgCount = 10
+newActiveState[0] = 10 + 0 + 1 = 11
+
 const error = checkDeactivateCommand(cmd);
 // error = 'signature error' / 'deactivated' / etc.
 
 if (error) {
+  // 生成确定性随机密钥（使用相同的计数器）
+  randomKey = genStaticRandomKey(coordPrivKey, 20040, 11)
+            = poseidon([coordPrivKey, 20040n, 11n])
+            = 55555555555555555555555555555555555555555555555555555555555555n
+  
   // 生成奇数的 c1c2（标记为 deactivated）
   const deactivate = encryptOdevity(true, coordPubKey, randomKey);
+  //                                 ↑ true 表示生成奇数
+  
+  deactivate.c1: [
+    1234567890123456789012345678901234567890123456789012345678901234n,
+    2345678901234567890123456789012345678901234567890123456789012345n
+  ]
+  deactivate.c2: [
+    3333333333333333333333333333333333333333333333333333333333333333n,  ← 奇数
+    4444444444444444444444444444444444444444444444444444444444444445n   ← 奇数
+  ]
+  deactivate.xIncrement: 55555...555n
+  
+  dLeaf = [c1[0], c1[1], c2[0], c2[1], poseidon(sharedKey)]
+  dLeafHash = poseidon(dLeaf)
+            = 98765432109876543210987654321098765432109876543210987654321098n
   
   // 关键：不更新 ActiveStateTree
-  // ActiveStateTree[stateIdx] 保持原值（0 = active）
+  // ActiveStateTree[5] 保持原值（0 = active）
   
   // 只更新 DeactivateTree（存入奇数 c1c2）
-  deactivateTree.updateLeaf(index, poseidon(dLeaf));
+  deactivateTree.updateLeaf(0, dLeafHash);
 }
 
-结果:
+结果 - 三棵树的状态:
+─────────────────────────────────────────────
+StateTree[5]: (未变化)
+  pubKey: [10457...592n, 12345...678n]
+  balance: 100
+  d1: [0, 0]  ← 不变
+  d2: [0, 0]  ← 不变
+
+ActiveStateTree[5]: 0  ← 不变！仍然 active ✓
+
+DeactivateTree[0]: 98765432109876543210987654321098765432109876543210987654321098n
+                   ↑ 存入奇数数据
+
+验证:
+  decrypt(coordPrivKey, deactivate.c1, deactivate.c2, xIncrement)
+  = 1 (奇数) ← 标记为 deactivated ✗
+
+结论:
   ✅ Old Voter 账户未受影响
      - ActiveStateTree[5] = 0 (仍然 active)
-     - StateTree[5].d1/d2 = 偶数 (仍然 active)
+     - StateTree[5].d1/d2 = [0,0] (仍然 active)
      - ➜ 可以继续投票 ✅
      
   ❌ DeactivateTree 中存入了奇数 c1c2
@@ -1503,15 +2659,68 @@ if (error) {
 
 步骤 2: 如果用户用奇数 c1c2 进行 AddNewKey
 ─────────────────────────────────────────────
-New Voter (stateIdx=10):
-  ActiveStateTree[10] = 0        // 新账户默认 active ✅
-  StateTree[10].d1/d2 = 奇数     // 继承了错误数据 ❌
+假设用户不知道错误，用 DeactivateTree[0] 的数据进行 AddNewKey
 
-当 New Voter 尝试投票时:
-  ✓ 检查 1: ActiveStateTree[10] === 0  → 通过
-  ✗ 检查 2: decrypt(d1,d2) % 2 === 0   → 失败（奇数）
+New Voter 密钥:
+  newPrivKey: 77777n
+  newPubKey: [
+    6789012345678901234567890123456789012345678901234567890123456789n,
+    7890123456789012345678901234567890123456789012345678901234567890n
+  ]
+
+AddNewKey 创建新账户:
+  StateTree[10]:
+    pubKey: [6789...789n, 7890...890n]
+    balance: 100  ← 继承
+    voTreeRoot: 0
+    nonce: 0
+    d1: [1234...234n, 2345...345n]  ← 继承奇数 c1 ❌
+    d2: [3333...333n, 4444...445n]  ← 继承奇数 c2 ❌
+    xIncrement: 55555...555n
+
+  ActiveStateTree[10] = 0  ← 新账户默认 active ✅
+
+验证 d1/d2:
+  decrypt(coordPrivKey, d1, d2, xIncrement)
+  = 1 (奇数) ← deactivated ❌
+
+当 New Voter 尝试投票时（ProcessMessages 电路）:
+─────────────────────────────────────────────
+输入:
+  stateIdx: 10
+  message: vote for option 0, vc: 10
+
+电路检查:
+  1. ActiveStateTree 检查:
+     activeStateLeaf = activeStateLeaves[10] = 0
+     isActive = IsZero()(0) = 1  ← 通过 ✓
   
+  2. d1/d2 解密检查 (StateLeafTransformer):
+     decrypt(coordPrivKey, d1, d2, xIncrement)
+     result = 1
+     isActive2 = IsZero()(result % 2) = IsZero(1) = 0  ← 失败 ✗
+  
+  3. 最终检查:
+     isValid = isActive AND isActive2 = 1 AND 0 = 0  ← 失败 ✗
+
+结果:
   ➜ 投票被拒绝 ❌
+  ➜ 新账户无法使用 ❌
+
+三棵树的最终状态:
+─────────────────────────────────────────────
+StateTree:
+  [5]: Old Voter (d1/d2 偶数) ✓
+  [10]: New Voter (d1/d2 奇数) ✗
+
+ActiveStateTree:
+  [5]: 0 (active) ✓
+  [10]: 0 (active) ✓  ← 虽然是 0，但 d1/d2 检查会失败
+
+系统保障:
+  ✅ Old Voter [5]: 可投票
+  ✅ New Voter [10]: 不可投票（双重检查机制）
+  ✅ 系统中只有一个可用账户
 
 安全保障:
   ✅ 错误消息不会破坏 Old Voter 账户
@@ -1751,9 +2960,26 @@ Layer 4: Circuit 约束
 
 ---
 
-**文档版本**: v1.1  
-**最后更新**: 2024-12-21  
-**更新内容**: 添加错误消息处理和安全分析 (Q7, Q8, 安全机制第5节)  
+**文档版本**: v1.4  
+**最后更新**: 2024-12-23  
+**更新内容**: 
+  - v1.4 (2024-12-23): 添加"状态组合详解"章节 ⭐ 重要
+    * 详细分析四种 d1/d2 与 ActiveStateTree 的组合状态
+    * 说明每种状态的产生方式、交互流程和安全含义
+    * 添加完整的状态转换图（包含所有4种状态）
+    * 提供代码示例和最佳实践建议
+    * 阐述双层检查机制如何保护系统安全
+  - v1.3 (2024-12-22): 修复 DeactivateTree 的描述错误 ⭐ 重要
+    * 澄清 DeactivateTree 存储的是 Operator 生成的 c1/c2（第一次加密）
+    * 明确重随机化发生在 AddNewKey 时（用户侧），不是 processDeactivateMessages
+    * 说明 d1/d2 是重随机化的结果，存在 StateTree leaf 中
+    * 添加完整的数据流程说明
+  - v1.2 (2024-12-22): 修复 genStaticRandomKey 和 newActiveState 的描述错误
+    * 修正 newActiveState 的实际含义（递增计数器，非 hash 结果）
+    * 添加完整的数值示例和三棵树的可视化
+    * 添加详细的数据流图示
+    * 补充错误消息处理的完整示例
+  - v1.1 (2024-12-21): 添加错误消息处理和安全分析 (Q7, Q8, 安全机制第5节)
 **作者**: AMACI Team  
 **许可**: MIT
 
