@@ -1,0 +1,60 @@
+[package]
+name = "maci-crypto"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# ============ Arkworks Ecosystem (Production-grade) ============
+# Core Algebra
+ark-ff = "0.5"                    # Finite field arithmetic
+ark-ec = "0.5"                    # Elliptic curves
+ark-serialize = "0.5"             # Serialization support
+ark-std = "0.5"                   # Standard library wrapper
+
+# Curve Implementations
+ark-bn254 = "0.5"                 # BN254/BN128 curve (primarily used by MACI)
+ark-ed-on-bn254 = "0.5"           # Baby Jubjub (Edwards on BN254)
+
+# Poseidon Hashing (Production-grade implementation compatible with Circom)
+light-poseidon = "0.4"            # Fully compatible with circuits
+
+# ============ Utility Libraries ============
+# Big Number Arithmetic (kept for compatibility)
+num-bigint = { version = "0.4", features = ["serde"] }
+num-traits = "0.2"
+
+# Random Number Generation
+rand = "0.8"
+getrandom = "0.2"
+
+# Blake (for key derivation)
+blake = "2.0"
+# Blake2 (kept for other purposes)
+blake2 = "0.10"
+
+# SHA256 and Keccak
+sha2 = "0.10"
+tiny-keccak = { version = "2.0", features = ["keccak"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Hexadecimal Encoding
+hex = "0.4"
+
+# Error Handling
+thiserror = "1.0"
+
+# Lazy Initialization
+once_cell = "1.19"
+
+# zkkit IMT (Incremental Merkle Tree with N-ary support)
+zk-kit-imt = "0.0.7"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bin]]
+name = "generate_crypto_test_vectors"
+path = "src/bin/generate_crypto_test_vectors.rs"

@@ -1,0 +1,442 @@
+[
+  {
+    "name": "keypair_deterministic_seed_12345",
+    "description": "Keypair generated from seed 12345",
+    "test_type": "keypair",
+    "data": {
+      "formatted_priv_key": "0x0e898721f851f232c2fe685ae0ceb010908ecce3f3021e0af2b55ac602f66a89",
+      "packed_pub_key": "0x0961df1a7a723be8374be76efc35d275001271866d2ec647a8ca84d8764a1e74",
+      "priv_key": "0x3039",
+      "pub_key": {
+        "x": "0x237824041f980332a623ac82e98f443cb99b8887dd4b41e23cd3bac2c3b14132",
+        "y": "0x0961df1a7a723be8374be76efc35d275001271866d2ec647a8ca84d8764a1e74"
+      },
+      "seed": "0x3039"
+    }
+  },
+  {
+    "name": "keypair_deterministic_seed_67890",
+    "description": "Keypair generated from seed 67890",
+    "test_type": "keypair",
+    "data": {
+      "formatted_priv_key": "0x0cece0b8bbd779f29d3a4e627f82bb6f1b8282dbd3de26a1fa17c9805f546db8",
+      "packed_pub_key": "0x174e228c2893dad420a2562a45f648b1000a45acf17e0d464f33f3021e440882",
+      "priv_key": "0x010932",
+      "pub_key": {
+        "x": "0x1674e10920424bde8846f30a75683ffb4ff119ebc5489fffb38989eaf68d4030",
+        "y": "0x174e228c2893dad420a2562a45f648b1000a45acf17e0d464f33f3021e440882"
+      },
+      "seed": "0x010932"
+    }
+  },
+  {
+    "name": "pubkey_from_privkey_11111",
+    "description": "Public key derived from private key 11111",
+    "test_type": "keypair",
+    "data": {
+      "packed_pub_key": "0x87b7dae92bf489b6ce781bbc7a6b23f69492a7c1c76ab15d584ceb77760a84d1",
+      "priv_key": "0x2b67",
+      "pub_key": {
+        "x": "0x1d528df39f9128ef5f0a69d1351f529a3e0a715da079c4e654af324eb06d1a97",
+        "y": "0x07b7dae92bf489b6ce781bbc7a6b23f69492a7c1c76ab15d584ceb77760a84d1"
+      }
+    }
+  },
+  {
+    "name": "keypair_deterministic_seed_111111",
+    "description": "Keypair generated from seed 111111",
+    "test_type": "keypair",
+    "data": {
+      "formatted_priv_key": "0x0f63fca74a0a85a37b39746b13932618e88e9eaf310cf73c82a9802eb52ad65c",
+      "packed_pub_key": "0xaaba763d4094700c490df6c6b1eedd3a92ccac957b848193c7e056213871fb1a",
+      "priv_key": "0x01b207",
+      "pub_key": {
+        "x": "0x2c27b8c139c48023db7fa719a177b78bbea5cb8f0153ac9753694de4e7c538d3",
+        "y": "0x2aba763d4094700c490df6c6b1eedd3a92ccac957b848193c7e056213871fb1a"
+      },
+      "seed": "0x01b207"
+    }
+  },
+  {
+    "name": "keypair_comparison_seed_12345",
+    "description": "Comparison between keys::Keypair and keypair::Keypair with seed 12345",
+    "test_type": "keypair_comparison",
+    "data": {
+      "comparison": {
+        "formatted_priv_key_match": false,
+        "priv_key_match": true,
+        "pub_key_match": true
+      },
+      "keys_keypair": {
+        "formatted_priv_key": "0x0e898721f851f232c2fe685ae0ceb010908ecce3f3021e0af2b55ac602f66a89",
+        "priv_key": "0x3039",
+        "pub_key": {
+          "x": "0x237824041f980332a623ac82e98f443cb99b8887dd4b41e23cd3bac2c3b14132",
+          "y": "0x0961df1a7a723be8374be76efc35d275001271866d2ec647a8ca84d8764a1e74"
+        }
+      },
+      "seed": "0x3039",
+      "keypair": {
+        "commitment": "0x3796d4ea37edb1d2518456f6f13846f69f34718a3d0717258d661dd653f22d0e",
+        "formatted_priv_key": "0x0270738540058a2854ea56ed406e59f93a10f17380c041f623d02b0d90b41ca7",
+        "priv_key": "0x3039",
+        "pub_key": {
+          "x": "0x237824041f980332a623ac82e98f443cb99b8887dd4b41e23cd3bac2c3b14132",
+          "y": "0x0961df1a7a723be8374be76efc35d275001271866d2ec647a8ca84d8764a1e74"
+        }
+      }
+    }
+  },
+  {
+    "name": "keypair_comparison_seed_67890",
+    "description": "Comparison between keys::Keypair and keypair::Keypair with seed 67890",
+    "test_type": "keypair_comparison",
+    "data": {
+      "comparison": {
+        "formatted_priv_key_match": false,
+        "priv_key_match": true,
+        "pub_key_match": true
+      },
+      "keys_keypair": {
+        "formatted_priv_key": "0x0cece0b8bbd779f29d3a4e627f82bb6f1b8282dbd3de26a1fa17c9805f546db8",
+        "priv_key": "0x010932",
+        "pub_key": {
+          "x": "0x1674e10920424bde8846f30a75683ffb4ff119ebc5489fffb38989eaf68d4030",
+          "y": "0x174e228c2893dad420a2562a45f648b1000a45acf17e0d464f33f3021e440882"
+        }
+      },
+      "seed": "0x010932",
+      "keypair": {
+        "commitment": "0xab7fd0e58161cf854c92b2249df1ad6d8e1dc9cef5632334d8c22dd958e5682c",
+        "formatted_priv_key": "0xd3cd1c038b11e82f263cf4df226557c504a76b619c4a8d2b3299c7ed121fd6",
+        "priv_key": "0x010932",
+        "pub_key": {
+          "x": "0x1674e10920424bde8846f30a75683ffb4ff119ebc5489fffb38989eaf68d4030",
+          "y": "0x174e228c2893dad420a2562a45f648b1000a45acf17e0d464f33f3021e440882"
+        }
+      }
+    }
+  },
+  {
+    "name": "keypair_comparison_seed_999999",
+    "description": "Comparison between keys::Keypair and keypair::Keypair with seed 999999",
+    "test_type": "keypair_comparison",
+    "data": {
+      "comparison": {
+        "formatted_priv_key_match": false,
+        "priv_key_match": true,
+        "pub_key_match": true
+      },
+      "keys_keypair": {
+        "formatted_priv_key": "0x081134da064404188a5f16494a035f4c4e72e97a3fe3c5f480f7d20cf5e0b04d",
+        "priv_key": "0x0f423f",
+        "pub_key": {
+          "x": "0x2ac57e86225cbb7d007379f3048e2f9b7bb4095e1dd48bb39881167e926d5846",
+          "y": "0x290d4a20daabd984e3ac070e855b4ab28d33a9f82d43791961e58b60023669a3"
+        }
+      },
+      "seed": "0x0f423f",
+      "keypair": {
+        "commitment": "0x25b9b1fd0c3402a867f990df6c9f86b694cb54c07ea0a09fe87245a8d92e8708",
+        "formatted_priv_key": "0x0204ab0baa1dd01353550d9279d33440a333fbc206c2d7ea19853a30bcbf895c",
+        "priv_key": "0x0f423f",
+        "pub_key": {
+          "x": "0x2ac57e86225cbb7d007379f3048e2f9b7bb4095e1dd48bb39881167e926d5846",
+          "y": "0x290d4a20daabd984e3ac070e855b4ab28d33a9f82d43791961e58b60023669a3"
+        }
+      }
+    }
+  },
+  {
+    "name": "keypair_comparison_seed_111111",
+    "description": "Comparison between keys::Keypair and keypair::Keypair with seed 111111",
+    "test_type": "keypair_comparison",
+    "data": {
+      "comparison": {
+        "formatted_priv_key_match": false,
+        "priv_key_match": true,
+        "pub_key_match": true
+      },
+      "keys_keypair": {
+        "formatted_priv_key": "0x0f63fca74a0a85a37b39746b13932618e88e9eaf310cf73c82a9802eb52ad65c",
+        "priv_key": "0x01b207",
+        "pub_key": {
+          "x": "0x2c27b8c139c48023db7fa719a177b78bbea5cb8f0153ac9753694de4e7c538d3",
+          "y": "0x2aba763d4094700c490df6c6b1eedd3a92ccac957b848193c7e056213871fb1a"
+        }
+      },
+      "seed": "0x01b207",
+      "keypair": {
+        "commitment": "0x4f8604a27aca73534bc11409c1f876c81193ebb5f669b4d8257dd95adacbc40c",
+        "formatted_priv_key": "0x034ae90a91be1d990d2562fd7332d0019210c33ebecb1b27b3c4507642e8887a",
+        "priv_key": "0x01b207",
+        "pub_key": {
+          "x": "0x2c27b8c139c48023db7fa719a177b78bbea5cb8f0153ac9753694de4e7c538d3",
+          "y": "0x2aba763d4094700c490df6c6b1eedd3a92ccac957b848193c7e056213871fb1a"
+        }
+      }
+    }
+  },
+  {
+    "name": "keypair_comparison_byte_array",
+    "description": "Comparison using byte array input for keypair::Keypair::new",
+    "test_type": "keypair_comparison",
+    "data": {
+      "comparison": {
+        "formatted_priv_key_match": false,
+        "priv_key_match": true,
+        "pub_key_match": true
+      },
+      "input_bytes": "1234560000000000000000000000000000000000000000000000000000000000",
+      "keys_keypair": {
+        "formatted_priv_key": "0x0c7018d7f8dfdb9d486e653e1271227d2c4f23bc6cbd2ddf74617d7155ea2807",
+        "priv_key": "0x563412",
+        "pub_key": {
+          "x": "0x1b8c9a62a4b0afaa57d4557810632863f1d0608a64b75c2a04d08c493e570d60",
+          "y": "0x242c2d2345d620dc762118eb048c598177b0b5360ff825edff76a3006e8295cc"
+        }
+      },
+      "priv_key_from_bytes": "0x563412",
+      "keypair": {
+        "commitment": "0xf3c71f2a741997eacfb9ef4d2b2ecb9419014abe448347cf43441fa0a8586e20",
+        "formatted_priv_key": "0x57053b40937392da5a53d07210cc65d5d1484bfa7b51caa57c4db8e3a7da25",
+        "priv_key": "0x563412",
+        "pub_key": {
+          "x": "0x1b8c9a62a4b0afaa57d4557810632863f1d0608a64b75c2a04d08c493e570d60",
+          "y": "0x242c2d2345d620dc762118eb048c598177b0b5360ff825edff76a3006e8295cc"
+        }
+      }
+    }
+  },
+  {
+    "name": "ecdh_keypair_100_200",
+    "description": "ECDH shared key between keypairs from seeds 100 and 200",
+    "test_type": "ecdh",
+    "data": {
+      "keypair1": {
+        "priv_key": "0x64",
+        "pub_key": {
+          "x": "0x1f823bb4b980f4d73ade924055723b2eca57e4ddb2b11c4003b30227bf209452",
+          "y": "0x1a96a7d38eae3f9718732c03dde5f9eeaa77622b2e702ac9040a83273c102315"
+        }
+      },
+      "keypair2": {
+        "priv_key": "0xc8",
+        "pub_key": {
+          "x": "0x0eda6644f6665b1c890ddae90f8b01e5888bbb8e8774ccee01a34cf699742f51",
+          "y": "0xe9e371dbf2997d5cb218c99de68e3f8588de44e65c4967672cb9b9ed80bcc9"
+        }
+      },
+      "shared_key": {
+        "x": "0x1323ed0d81751e5e2f494eb1322ed866e1ae90f5ce626dabc541e2d1ac3acee4",
+        "y": "0x2e8748e1b4d1e21c795154bc94c1c9509119fad74c08164f689321ac9605ba18"
+      },
+      "shared_key_reciprocal": {
+        "x": "0x1323ed0d81751e5e2f494eb1322ed866e1ae90f5ce626dabc541e2d1ac3acee4",
+        "y": "0x2e8748e1b4d1e21c795154bc94c1c9509119fad74c08164f689321ac9605ba18"
+      }
+    }
+  },
+  {
+    "name": "ecdh_keypair_300_400",
+    "description": "ECDH shared key between keypairs from seeds 300 and 400",
+    "test_type": "ecdh",
+    "data": {
+      "keypair1": {
+        "priv_key": "0x012c",
+        "pub_key": {
+          "x": "0x04af766cfd4504d00f5aa32ed041ced16d2156e42cae08ff6a611f250bf82ac3",
+          "y": "0x15e7d235c851950b4df1ca61f9b9c60c5c558ca2b50bdb946b5225abdca12a1e"
+        }
+      },
+      "keypair2": {
+        "priv_key": "0x0190",
+        "pub_key": {
+          "x": "0x17fa7e18a2d0a5b045d89d6fbdd3314513ec06d70017766bcb60e1cd5e99ec6e",
+          "y": "0x303a84533b119affe26f056129c4bbe80ed29cec997be09ed7e7c80f6b8ab6df"
+        }
+      },
+      "shared_key": {
+        "x": "0x13d54f82ce9352784b65be9e6f1d57e0ce7eb8f6e957ccc6e440212bc381e460",
+        "y": "0x25c8522668c69ab8c6f82e10024a90c735c1e5a7611fd7d61b626d028ba0950f"
+      }
+    }
+  },
+  {
+    "name": "pack_basic",
+    "description": "Basic message packing with all fields",
+    "test_type": "pack",
+    "data": {
+      "input": {
+        "new_votes": "0x64",
+        "nonce": "0x01",
+        "salt": "0x03e7",
+        "state_idx": "0x05",
+        "vo_idx": "0x0a"
+      },
+      "packed": "0x03e70000000000000000000000640000000a0000000500000001",
+      "unpacked": {
+        "new_votes": "0x64",
+        "nonce": "0x01",
+        "state_idx": "0x05",
+        "vo_idx": "0x0a"
+      }
+    }
+  },
+  {
+    "name": "pack_zero_values",
+    "description": "Packing with all zero values",
+    "test_type": "pack",
+    "data": {
+      "input": {
+        "new_votes": "0x00",
+        "nonce": "0x00",
+        "salt": "0x00",
+        "state_idx": "0x00",
+        "vo_idx": "0x00"
+      },
+      "packed": "0x00",
+      "unpacked": {
+        "new_votes": "0x00",
+        "nonce": "0x00",
+        "state_idx": "0x00",
+        "vo_idx": "0x00"
+      }
+    }
+  },
+  {
+    "name": "pack_max_values",
+    "description": "Packing with maximum field values",
+    "test_type": "pack",
+    "data": {
+      "input": {
+        "new_votes": "0xffffffffffffffffffffffff",
+        "nonce": "0xffffffff",
+        "salt": "0xffffffffffffff",
+        "state_idx": "0xffffffff",
+        "vo_idx": "0xffffffff"
+      },
+      "packed": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "unpacked": {
+        "new_votes": "0xffffffffffffffffffffffff",
+        "nonce": "0xffffffff",
+        "state_idx": "0xffffffff",
+        "vo_idx": "0xffffffff"
+      }
+    }
+  },
+  {
+    "name": "tree_5ary_depth2_2leaves",
+    "description": "5-ary tree with depth 2, 2 leaves",
+    "test_type": "tree",
+    "data": {
+      "degree": 5,
+      "depth": 2,
+      "leaves": [
+        "1",
+        "2"
+      ],
+      "root": "12519133370085524474098600856058927566256794466655166046468170295153698972037",
+      "zero": "0"
+    }
+  },
+  {
+    "name": "tree_5ary_depth2_5leaves",
+    "description": "5-ary tree with depth 2, 5 leaves",
+    "test_type": "tree",
+    "data": {
+      "degree": 5,
+      "depth": 2,
+      "leaves": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "root": "5011391315159480028954485893196992366931448172254796512390274608490614095810",
+      "zero": "0"
+    }
+  },
+  {
+    "name": "tree_2ary_depth3_4leaves",
+    "description": "Binary tree with depth 3, 4 leaves",
+    "test_type": "tree",
+    "data": {
+      "degree": 2,
+      "depth": 3,
+      "leaves": [
+        "10",
+        "20",
+        "30",
+        "40"
+      ],
+      "root": "18229566074213377885295282144418687247754819688826517788516756787259093959729",
+      "zero": "0"
+    }
+  },
+  {
+    "name": "rerandomize_deterministic",
+    "description": "Rerandomize ciphertext with deterministic random value",
+    "test_type": "rerandomize",
+    "data": {
+      "ciphertext": {
+        "c1": {
+          "x": "0x11356733aff3ace469bb6c595b57529bef54181410246bed14fcbc156b3b38da",
+          "y": "0x091b1cffeaef96c6b4f64049097ec7466d142781eb84a241612c057d7a972d40"
+        },
+        "c2": {
+          "x": "0x11356733aff3ace469bb6c595b57529bef54181410246bed14fcbc156b3b38da",
+          "y": "0x091b1cffeaef96c6b4f64049097ec7466d142781eb84a241612c057d7a972d40"
+        }
+      },
+      "pub_key": {
+        "x": "0x11356733aff3ace469bb6c595b57529bef54181410246bed14fcbc156b3b38da",
+        "y": "0x091b1cffeaef96c6b4f64049097ec7466d142781eb84a241612c057d7a972d40"
+      },
+      "random_val": "0x3039",
+      "rerandomized": {
+        "d1": {
+          "x": "0x10b93c4aa959688ed64bdfab52255c357bf84367ce856b9fc594a2f089418154",
+          "y": "0x01536c51459a7d52509b97480d5b8341ccff4e1777aea6aad8462da7e8f70346"
+        },
+        "d2": {
+          "x": "0x0bcc5193751d05664d255018e8cef96624dbd407c833b9f5a39b9759f339bf02",
+          "y": "0x223bd087f787578c8fd2ffb3619a611f78c476c0128e5c2bd60bf5ba63375f94"
+        }
+      }
+    }
+  },
+  {
+    "name": "rerandomize_deterministic_2",
+    "description": "Another rerandomize test with different values",
+    "test_type": "rerandomize",
+    "data": {
+      "ciphertext": {
+        "c1": {
+          "x": "0x1858b8fd494c14adbc913b9cb347be82d9127f4c99dd082044028f846b9b79ec",
+          "y": "0x1c63599b35b2768687bb976ba246bbb00da3a06e0999d8a6a4c01a8cedb7e304"
+        },
+        "c2": {
+          "x": "0x1858b8fd494c14adbc913b9cb347be82d9127f4c99dd082044028f846b9b79ec",
+          "y": "0x1c63599b35b2768687bb976ba246bbb00da3a06e0999d8a6a4c01a8cedb7e304"
+        }
+      },
+      "pub_key": {
+        "x": "0x1858b8fd494c14adbc913b9cb347be82d9127f4c99dd082044028f846b9b79ec",
+        "y": "0x1c63599b35b2768687bb976ba246bbb00da3a06e0999d8a6a4c01a8cedb7e304"
+      },
+      "random_val": "0x010932",
+      "rerandomized": {
+        "d1": {
+          "x": "0x256ede3e6567e45579d7555aa4707440d48904d0494aed8c9ba81aa70199f266",
+          "y": "0x27455ab229a4cc372dd93bc28b03cfeb0b17b4371e9d62b3b2270705800daabd"
+        },
+        "d2": {
+          "x": "0x252383cf60791a6b0a49d8a8ad3102e49654cc94099a8b3531d8f8285c11e5c8",
+          "y": "0x0f2e152a5e0ef53accad7bdd8e47b745716ba296bfee189589c04719bcf153cf"
+        }
+      }
+    }
+  }
+]

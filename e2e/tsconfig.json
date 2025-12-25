@@ -25,6 +25,6 @@
       "@types/*": ["src/types/*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "poseidon-test/**/*"],
+  "include": ["src/**/*", "tests/**/*", "poseidon-test/**/*", "crypto-test/**/*"],
   "exclude": ["node_modules", "dist"]
 }
