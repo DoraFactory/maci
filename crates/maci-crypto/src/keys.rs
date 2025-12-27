@@ -47,23 +47,17 @@ pub fn gen_random_salt() -> BigUint {
 /// This matches TypeScript's formatPrivKeyForBabyJub:
 /// `BigInt(deriveSecretScalar(bigInt2Buffer(privKey)))`
 ///
-/// Note: TypeScript's bigInt2Buffer uses big-endian byte order
+/// Note: TypeScript's bigInt2Buffer converts to hex string then Buffer,
+/// producing big-endian bytes WITHOUT padding to 32 bytes
 pub fn format_priv_key_for_babyjub(priv_key: &PrivKey) -> BigUint {
     // Convert private key to bytes (big-endian to match TypeScript bigInt2Buffer)
     // bigInt2Buffer: i.toString(16) -> Buffer.from(hex, 'hex') is big-endian
+    // Important: DO NOT pad to 32 bytes - bigInt2Buffer doesn't pad
     let priv_key_bytes = priv_key.to_bytes_be();
-
-    // Pad to 32 bytes (prepend zeros for big-endian)
-    let mut padded_key = vec![0u8; 32];
-    let len = priv_key_bytes.len().min(32);
-    if len > 0 {
-        let offset = 32 - len;
-        padded_key[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
-    }
 
     // Use eddsa-poseidon's derive_secret_scalar with Blake512
     // This matches zk-kit's default Blake-1 (Blake512) implementation
-    derive_secret_scalar(&padded_key, HashingAlgorithm::Blake512)
+    derive_secret_scalar(&priv_key_bytes, HashingAlgorithm::Blake512)
         .expect("Failed to derive secret scalar")
 }
 
@@ -75,22 +69,16 @@ pub fn format_priv_key_for_babyjub(priv_key: &PrivKey) -> BigUint {
 /// return [BigInt(key[0]), BigInt(key[1])];
 /// ```
 ///
-/// Note: TypeScript's bigInt2Buffer uses big-endian byte order
+/// Note: TypeScript's bigInt2Buffer converts to hex string then Buffer,
+/// producing big-endian bytes WITHOUT padding to 32 bytes
 pub fn gen_pub_key(priv_key: &PrivKey) -> PubKey {
     // Convert private key to bytes (big-endian to match TypeScript bigInt2Buffer)
+    // Important: DO NOT pad to 32 bytes - bigInt2Buffer doesn't pad
     let priv_key_bytes = priv_key.to_bytes_be();
-
-    // Pad to 32 bytes (prepend zeros for big-endian)
-    let mut padded_key = vec![0u8; 32];
-    let len = priv_key_bytes.len().min(32);
-    if len > 0 {
-        let offset = 32 - len;
-        padded_key[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
-    }
 
     // Use eddsa-poseidon's derive_public_key with Blake512
     // This matches zk-kit's default Blake-1 (Blake512) implementation
-    let public_point = derive_public_key(&padded_key, HashingAlgorithm::Blake512)
+    let public_point = derive_public_key(&priv_key_bytes, HashingAlgorithm::Blake512)
         .expect("Failed to derive public key");
 
     // Extract x and y coordinates and convert to BigUint
@@ -231,22 +219,16 @@ pub fn gen_ecdh_shared_key(priv_key: &PrivKey, pub_key: &PubKey) -> EcdhSharedKe
 /// This matches TypeScript's signMessage from @zk-kit/eddsa-poseidon:
 /// `const signature = signMessage(bigInt2Buffer(signPriKey), hash);`
 ///
-/// Note: TypeScript's bigInt2Buffer uses big-endian byte order
+/// Note: TypeScript's bigInt2Buffer converts to hex string then Buffer,
+/// producing big-endian bytes WITHOUT padding to 32 bytes
 pub fn sign_message_eddsa(priv_key: &PrivKey, message: &BigUint) -> Result<Signature> {
     // Convert private key to bytes (big-endian to match TypeScript bigInt2Buffer)
+    // Important: DO NOT pad to 32 bytes - bigInt2Buffer doesn't pad
     let priv_key_bytes = priv_key.to_bytes_be();
-
-    // Pad to 32 bytes (prepend zeros for big-endian)
-    let mut padded_key = vec![0u8; 32];
-    let len = priv_key_bytes.len().min(32);
-    if len > 0 {
-        let offset = 32 - len;
-        padded_key[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
-    }
 
     // Use eddsa-poseidon's sign_message with Blake512
     // This matches zk-kit's default Blake-1 (Blake512) implementation
-    sign_message(&padded_key, message, HashingAlgorithm::Blake512)
+    sign_message(&priv_key_bytes, message, HashingAlgorithm::Blake512)
         .map_err(|e| CryptoError::Generic(format!("Failed to sign message: {}", e)))
 }
 
@@ -414,16 +396,10 @@ mod tests {
         let priv_key = BigUint::from(54321u64);
         let keypair = gen_keypair(Some(priv_key.clone()));
 
-        // Convert to bytes for eddsa-poseidon (big-endian to match TypeScript bigInt2Buffer)
+        // Convert to bytes for eddsa-poseidon (big-endian, no padding - matches bigInt2Buffer)
         let priv_key_bytes = priv_key.to_bytes_be();
-        let mut padded_key = vec![0u8; 32];
-        let len = priv_key_bytes.len().min(32);
-        if len > 0 {
-            let offset = 32 - len;
-            padded_key[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
-        }
 
-        let eddsa_pub_key = derive_public_key(&padded_key, HashingAlgorithm::Blake512).unwrap();
+        let eddsa_pub_key = derive_public_key(&priv_key_bytes, HashingAlgorithm::Blake512).unwrap();
 
         // Extract coordinates
         let eddsa_x = BigUint::from_bytes_le(&eddsa_pub_key.x.into_bigint().to_bytes_le());

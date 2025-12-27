@@ -772,10 +772,12 @@ name = "crypto-test-gen"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ark-bn254",
  "ark-ec",
  "ark-ff",
  "baby-jubjub",
  "eddsa-poseidon",
+ "light-poseidon",
  "num-bigint",
  "num-traits",
  "serde",

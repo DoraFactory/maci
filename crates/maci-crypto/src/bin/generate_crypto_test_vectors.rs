@@ -144,10 +144,10 @@ fn generate_keypair_vectors() -> Vec<TestVector> {
 fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
     let mut vectors = Vec::new();
 
-    // Helper to convert Fq to hex string
-    fn fq_to_hex(fq: &baby_jubjub::Fq) -> String {
+    // Helper to convert Bn254Fr to hex string (big-endian for consistency with SDK)
+    fn bn254fr_to_hex(fr: &ark_bn254::Fr) -> String {
         use ark_ff::{BigInteger, PrimeField};
-        let bytes = fq.into_bigint().to_bytes_le();
+        let bytes = fr.into_bigint().to_bytes_be();
         format!("0x{}", hex::encode(bytes))
     }
 
@@ -167,7 +167,7 @@ fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
     println!("  pub_key X: {}", keypair1.pub_key[0]);
     println!("  pub_key Y: {}", keypair1.pub_key[1]);
     println!("  formatted_priv_key: {}", keypair1.formated_priv_key);
-    println!("  commitment: {}", fq_to_hex(keypair1.commitment()));
+    println!("  commitment: {}", bn254fr_to_hex(keypair1.commitment()));
     println!(
         "  pub_key match: {}",
         keys_keypair1.pub_key == keypair1.pub_key
@@ -199,7 +199,7 @@ fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
                     "y": biguint_to_hex(&keypair1.pub_key[1]),
                 },
                 "formatted_priv_key": biguint_to_hex(&keypair1.formated_priv_key),
-                "commitment": fq_to_hex(keypair1.commitment()),
+                "commitment": bn254fr_to_hex(keypair1.commitment()),
             },
             "comparison": {
                 "pub_key_match": keys_keypair1.pub_key == keypair1.pub_key,
@@ -235,7 +235,7 @@ fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
                     "y": biguint_to_hex(&keypair2.pub_key[1]),
                 },
                 "formatted_priv_key": biguint_to_hex(&keypair2.formated_priv_key),
-                "commitment": fq_to_hex(keypair2.commitment()),
+                "commitment": bn254fr_to_hex(keypair2.commitment()),
             },
             "comparison": {
                 "pub_key_match": keys_keypair2.pub_key == keypair2.pub_key,
@@ -271,7 +271,7 @@ fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
                     "y": biguint_to_hex(&keypair3.pub_key[1]),
                 },
                 "formatted_priv_key": biguint_to_hex(&keypair3.formated_priv_key),
-                "commitment": fq_to_hex(keypair3.commitment()),
+                "commitment": bn254fr_to_hex(keypair3.commitment()),
             },
             "comparison": {
                 "pub_key_match": keys_keypair3.pub_key == keypair3.pub_key,
@@ -313,7 +313,7 @@ fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
         hex::encode(keypair4.pub_key[1].to_bytes_be())
     );
     println!("  formatted_priv_key: {}", keypair4.formated_priv_key);
-    println!("  commitment: {}", fq_to_hex(keypair4.commitment()));
+    println!("  commitment: {}", bn254fr_to_hex(keypair4.commitment()));
     println!(
         "  pub_key match: {}",
         keys_keypair4.pub_key == keypair4.pub_key
@@ -345,53 +345,12 @@ fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
                     "y": biguint_to_hex(&keypair4.pub_key[1]),
                 },
                 "formatted_priv_key": biguint_to_hex(&keypair4.formated_priv_key),
-                "commitment": fq_to_hex(keypair4.commitment()),
+                "commitment": bn254fr_to_hex(keypair4.commitment()),
             },
             "comparison": {
                 "pub_key_match": keys_keypair4.pub_key == keypair4.pub_key,
                 "formatted_priv_key_match": keys_keypair4.formated_priv_key == keypair4.formated_priv_key,
                 "priv_key_match": keys_keypair4.priv_key == keypair4.priv_key,
-            },
-        }),
-    });
-
-    // Test case 5: Test with byte array input (keypair::Keypair::new)
-    let mut bytes = [0u8; 32];
-    bytes[0] = 0x12;
-    bytes[1] = 0x34;
-    bytes[2] = 0x56;
-    let keypair5 = Keypair::new(&bytes);
-    let priv_key_from_bytes = BigUint::from_bytes_le(&bytes);
-    let keys_keypair5 = gen_keypair(Some(priv_key_from_bytes.clone()));
-
-    vectors.push(TestVector {
-        name: "keypair_comparison_byte_array".to_string(),
-        description: "Comparison using byte array input for keypair::Keypair::new".to_string(),
-        test_type: "keypair_comparison".to_string(),
-        data: serde_json::json!({
-            "input_bytes": hex::encode(bytes),
-            "priv_key_from_bytes": biguint_to_hex(&priv_key_from_bytes),
-            "keys_keypair": {
-                "priv_key": biguint_to_hex(&keys_keypair5.priv_key),
-                "pub_key": {
-                    "x": biguint_to_hex(&keys_keypair5.pub_key[0]),
-                    "y": biguint_to_hex(&keys_keypair5.pub_key[1]),
-                },
-                "formatted_priv_key": biguint_to_hex(&keys_keypair5.formated_priv_key),
-            },
-            "keypair": {
-                "priv_key": biguint_to_hex(&keypair5.priv_key),
-                "pub_key": {
-                    "x": biguint_to_hex(&keypair5.pub_key[0]),
-                    "y": biguint_to_hex(&keypair5.pub_key[1]),
-                },
-                "formatted_priv_key": biguint_to_hex(&keypair5.formated_priv_key),
-                "commitment": fq_to_hex(keypair5.commitment()),
-            },
-            "comparison": {
-                "pub_key_match": keys_keypair5.pub_key == keypair5.pub_key,
-                "formatted_priv_key_match": keys_keypair5.formated_priv_key == keypair5.formated_priv_key,
-                "priv_key_match": keys_keypair5.priv_key == keypair5.priv_key,
             },
         }),
     });

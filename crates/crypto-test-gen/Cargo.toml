@@ -12,6 +12,10 @@ eddsa-poseidon = { path = "../eddsa-poseidon" }
 # Arkworks Ecosystem
 ark-ff = "0.5"
 ark-ec = "0.5"
+ark-bn254 = "0.5"
+
+# Poseidon Hashing
+light-poseidon = "0.4"
 
 # Big Number Arithmetic
 num-bigint = { version = "0.4", features = ["serde"] }

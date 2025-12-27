@@ -28,6 +28,15 @@ import type { Signature } from '@zk-kit/eddsa-poseidon';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Import SDK functions for keys.ts testing
+import {
+  formatPrivKeyForBabyJub,
+  genPubKey,
+  genKeypair,
+  packPubKey,
+  poseidon
+} from '@dorafactory/maci-sdk';
+
 // Types matching the Rust test vector format
 interface PointJson {
   x: string;
@@ -60,7 +69,28 @@ interface PackSignatureData {
   packed: string;
 }
 
-type EdDSAData = DerivePublicKeyData | SignVerifyData | PackSignatureData;
+interface SdkKeysData {
+  priv_key: string;
+  priv_key_mod_snark: string;
+  formatted_priv_key: string;
+  pub_key: PointJson;
+  packed_pub_key: string;
+}
+
+interface KeypairModuleData {
+  priv_key: string;
+  priv_key_mod_snark: string;
+  secret_scalar: string;
+  pub_key: PointJson;
+  commitment: string;
+}
+
+type EdDSAData =
+  | DerivePublicKeyData
+  | SignVerifyData
+  | PackSignatureData
+  | SdkKeysData
+  | KeypairModuleData;
 
 interface EdDSAPoseidonTestVector {
   name: string;
@@ -307,6 +337,239 @@ describe('EdDSA-Poseidon E2E Tests', function () {
       const unpacked = unpackPublicKey(packed);
       expect(pointsEqual(unpacked, publicKey)).to.be.true;
       console.log('  ✓ Pack/unpack public key: MATCH');
+    });
+  });
+
+  describe('6. SDK keys.ts Functions Compatibility', function () {
+    it('should match Rust implementation for formatPrivKeyForBabyJub', function () {
+      const sdkKeysVectors = testVectors.filter((v) => v.vector_type === 'sdkKeys');
+
+      sdkKeysVectors.forEach((vector) => {
+        const data = vector.data as SdkKeysData;
+        console.log(`\n  Testing: ${vector.name}`);
+        console.log(`  ${vector.description}`);
+
+        const privKey = BigInt(data.priv_key.startsWith('0x') ? data.priv_key : data.priv_key);
+        const SNARK_FIELD_SIZE = BigInt(
+          '21888242871839275222246405745257275088548364400416034343698204186575808495617'
+        );
+        const privKeyModSnark = privKey % SNARK_FIELD_SIZE;
+
+        // Test: privKey % SNARK_FIELD_SIZE
+        const expectedPrivKeyModSnark = BigInt(data.priv_key_mod_snark);
+        expect(privKeyModSnark).to.equal(expectedPrivKeyModSnark);
+        console.log('  ✓ privKey % SNARK_FIELD_SIZE: MATCH');
+
+        // Test: formatPrivKeyForBabyJub(privKey)
+        const formattedPrivKey = formatPrivKeyForBabyJub(privKeyModSnark);
+        const expectedFormattedPrivKey = BigInt(data.formatted_priv_key);
+        expect(formattedPrivKey).to.equal(expectedFormattedPrivKey);
+        console.log('  ✓ formatPrivKeyForBabyJub: MATCH');
+      });
+    });
+
+    it('should match Rust implementation for genPubKey', function () {
+      const sdkKeysVectors = testVectors.filter((v) => v.vector_type === 'sdkKeys');
+
+      sdkKeysVectors.forEach((vector) => {
+        const data = vector.data as SdkKeysData;
+        console.log(`\n  Testing genPubKey for: ${vector.name}`);
+
+        const privKey = BigInt(data.priv_key.startsWith('0x') ? data.priv_key : data.priv_key);
+        const SNARK_FIELD_SIZE = BigInt(
+          '21888242871839275222246405745257275088548364400416034343698204186575808495617'
+        );
+        const privKeyModSnark = privKey % SNARK_FIELD_SIZE;
+
+        // Test: genPubKey(privKey)
+        const pubKey = genPubKey(privKeyModSnark);
+        const expectedPubKey = jsonToPoint(data.pub_key);
+
+        expect(pointsEqual(pubKey, expectedPubKey)).to.be.true;
+        console.log('  ✓ genPubKey: MATCH');
+
+        // Test: packPubKey(pubKey)
+        const packedPubKey = packPubKey(pubKey);
+        const expectedPackedPubKey = BigInt(data.packed_pub_key);
+        expect(packedPubKey).to.equal(expectedPackedPubKey);
+        console.log('  ✓ packPubKey: MATCH');
+      });
+    });
+
+    it('should match Rust implementation for genKeypair', function () {
+      const sdkKeysVectors = testVectors.filter((v) => v.vector_type === 'sdkKeys');
+
+      sdkKeysVectors.forEach((vector) => {
+        const data = vector.data as SdkKeysData;
+        console.log(`\n  Testing genKeypair for: ${vector.name}`);
+
+        const privKey = BigInt(data.priv_key.startsWith('0x') ? data.priv_key : data.priv_key);
+
+        // Test: genKeypair(privKey) - full flow
+        const keypair = genKeypair(privKey);
+
+        const SNARK_FIELD_SIZE = BigInt(
+          '21888242871839275222246405745257275088548364400416034343698204186575808495617'
+        );
+        const expectedPrivKey = privKey % SNARK_FIELD_SIZE;
+        const expectedFormattedPrivKey = BigInt(data.formatted_priv_key);
+        const expectedPubKey = jsonToPoint(data.pub_key);
+
+        // Verify privKey
+        expect(keypair.privKey).to.equal(expectedPrivKey);
+        console.log('  ✓ keypair.privKey: MATCH');
+
+        // Verify formatedPrivKey
+        expect(keypair.formatedPrivKey).to.equal(expectedFormattedPrivKey);
+        console.log('  ✓ keypair.formatedPrivKey: MATCH');
+
+        // Verify pubKey
+        expect(pointsEqual(keypair.pubKey, expectedPubKey)).to.be.true;
+        console.log('  ✓ keypair.pubKey: MATCH');
+
+        console.log('  ✓ genKeypair full flow: MATCH');
+      });
+    });
+
+    it('should test detailed case: genKeypair(111111)', function () {
+      const vector = testVectors.find((v) => v.name === 'sdkKeys_genKeypair_111111');
+      if (!vector) {
+        console.log('  ⚠️ Test vector not found, skipping');
+        return;
+      }
+
+      const data = vector.data as SdkKeysData;
+
+      console.log('\n  ═══════════════════════════════════════════════════════');
+      console.log('  Detailed Test: genKeypair(111111)');
+      console.log('  ═══════════════════════════════════════════════════════\n');
+
+      const privKey = BigInt(111111);
+      const keypair = genKeypair(privKey);
+
+      const SNARK_FIELD_SIZE = BigInt(
+        '21888242871839275222246405745257275088548364400416034343698204186575808495617'
+      );
+
+      console.log('Input:');
+      console.log(`  privKey (raw): ${privKey}`);
+      console.log();
+
+      console.log('SDK Results:');
+      console.log(`  privKey (after % SNARK_FIELD_SIZE): ${keypair.privKey}`);
+      console.log(`  formatedPrivKey: ${keypair.formatedPrivKey}`);
+      console.log(`  pubKey.x: ${keypair.pubKey[0]}`);
+      console.log(`  pubKey.y: ${keypair.pubKey[1]}`);
+      console.log();
+
+      console.log('Rust Results:');
+      console.log(`  privKey % SNARK_FIELD_SIZE: ${data.priv_key_mod_snark}`);
+      console.log(`  formatted_priv_key: ${data.formatted_priv_key}`);
+      console.log(`  pub_key.x: ${data.pub_key.x}`);
+      console.log(`  pub_key.y: ${data.pub_key.y}`);
+      console.log(`  packed_pub_key: ${data.packed_pub_key}`);
+      console.log();
+
+      // Verify all fields
+      expect(keypair.privKey).to.equal(BigInt(data.priv_key_mod_snark));
+      expect(keypair.formatedPrivKey).to.equal(BigInt(data.formatted_priv_key));
+      expect(keypair.pubKey[0]).to.equal(BigInt(data.pub_key.x));
+      expect(keypair.pubKey[1]).to.equal(BigInt(data.pub_key.y));
+
+      const sdkPackedPubKey = packPubKey(keypair.pubKey);
+      expect(sdkPackedPubKey).to.equal(BigInt(data.packed_pub_key));
+
+      console.log('  ✓ All fields match between SDK and Rust');
+      console.log('  ✓ Keypair generation: IDENTICAL\n');
+    });
+  });
+
+  describe('7. keypair Module Compatibility', function () {
+    it('should match Rust keypair::Keypair implementation', function () {
+      const keypairVectors = testVectors.filter((v) => v.vector_type === 'keypairModule');
+
+      keypairVectors.forEach((vector) => {
+        const data = vector.data as KeypairModuleData;
+        console.log(`\n  Testing: ${vector.name}`);
+        console.log(`  ${vector.description}`);
+
+        const privKey = BigInt(data.priv_key);
+        const SNARK_FIELD_SIZE = BigInt(
+          '21888242871839275222246405745257275088548364400416034343698204186575808495617'
+        );
+
+        // Verify privKey % SNARK_FIELD_SIZE
+        const privKeyModSnark = privKey % SNARK_FIELD_SIZE;
+        expect(privKeyModSnark).to.equal(BigInt(data.priv_key_mod_snark));
+        console.log('  ✓ privKey % SNARK_FIELD_SIZE: MATCH');
+
+        // Verify secret_scalar (using formatPrivKeyForBabyJub)
+        const secretScalar = formatPrivKeyForBabyJub(privKeyModSnark);
+        expect(secretScalar).to.equal(BigInt(data.secret_scalar));
+        console.log('  ✓ secret_scalar: MATCH');
+
+        // Verify public key
+        const pubKey = genPubKey(privKeyModSnark);
+        const expectedPubKey = jsonToPoint(data.pub_key);
+        expect(pointsEqual(pubKey, expectedPubKey)).to.be.true;
+        console.log('  ✓ pub_key: MATCH');
+
+        // Verify commitment (Poseidon hash of public key)
+        const commitment = poseidon([pubKey[0], pubKey[1]]);
+        const expectedCommitment = BigInt(data.commitment);
+        expect(commitment).to.equal(expectedCommitment);
+        console.log('  ✓ commitment: MATCH');
+      });
+    });
+
+    it('should test detailed case: keypair::Keypair(111111)', function () {
+      const vector = testVectors.find((v) => v.name === 'keypairModule_111111');
+      if (!vector) {
+        console.log('  ⚠️ Test vector not found, skipping');
+        return;
+      }
+
+      const data = vector.data as KeypairModuleData;
+
+      console.log('\n  ═══════════════════════════════════════════════════════');
+      console.log('  Detailed Test: keypair::Keypair(111111)');
+      console.log('  ═══════════════════════════════════════════════════════\n');
+
+      const privKey = BigInt(111111);
+      const SNARK_FIELD_SIZE = BigInt(
+        '21888242871839275222246405745257275088548364400416034343698204186575808495617'
+      );
+      const privKeyModSnark = privKey % SNARK_FIELD_SIZE;
+
+      console.log('TypeScript SDK Results:');
+      const secretScalar = formatPrivKeyForBabyJub(privKeyModSnark);
+      const pubKey = genPubKey(privKeyModSnark);
+      const commitment = poseidon([pubKey[0], pubKey[1]]);
+
+      console.log(`  privKey % SNARK_FIELD_SIZE: ${privKeyModSnark}`);
+      console.log(`  secret_scalar: ${secretScalar}`);
+      console.log(`  pub_key.x: ${pubKey[0]}`);
+      console.log(`  pub_key.y: ${pubKey[1]}`);
+      console.log(`  commitment: ${commitment}`);
+      console.log();
+
+      console.log('Rust keypair Module Results:');
+      console.log(`  priv_key % SNARK_FIELD_SIZE: ${data.priv_key_mod_snark}`);
+      console.log(`  secret_scalar: ${data.secret_scalar}`);
+      console.log(`  pub_key.x: ${data.pub_key.x}`);
+      console.log(`  pub_key.y: ${data.pub_key.y}`);
+      console.log(`  commitment: ${data.commitment}`);
+      console.log();
+
+      // Verify all fields
+      expect(privKeyModSnark).to.equal(BigInt(data.priv_key_mod_snark));
+      expect(secretScalar).to.equal(BigInt(data.secret_scalar));
+      expect(pubKey[0]).to.equal(BigInt(data.pub_key.x));
+      expect(pubKey[1]).to.equal(BigInt(data.pub_key.y));
+      expect(commitment).to.equal(BigInt(data.commitment));
+
+      console.log('  ✓ All fields match between SDK and Rust keypair module');
+      console.log('  ✓ keypair::Keypair: IDENTICAL\n');
     });
   });
 

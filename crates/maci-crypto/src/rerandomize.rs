@@ -1,10 +1,8 @@
 use crate::error::Result;
 use crate::keys::PubKey;
-use ark_ec::{twisted_edwards::TECurveConfig, CurveGroup};
+use ark_ec::CurveGroup;
 use ark_ff::{BigInteger, PrimeField};
-use baby_jubjub::{
-    gen_random_babyjub_value, BabyJubjubConfig, EdFr, EdwardsAffine, EdwardsProjective, Fq,
-};
+use baby_jubjub::{gen_random_babyjub_value, EdFr, EdwardsAffine, EdwardsProjective, Fq};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 
@@ -57,11 +55,10 @@ fn edwards_point_to_biguint(point: &EdwardsProjective) -> [BigUint; 2] {
 }
 
 /// Get the Base8 generator point for Baby Jubjub
-/// Base8 = 8 * generator
+/// Base8 is the standard base point (already 8 * generator)
+/// Use the base8() function from baby_jubjub to match SDK behavior
 fn get_base8() -> EdwardsProjective {
-    let generator = EdwardsProjective::from(BabyJubjubConfig::GENERATOR);
-    let scalar_8 = EdFr::from(8u32);
-    generator * scalar_8
+    EdwardsProjective::from(baby_jubjub::base8())
 }
 
 /// Rerandomize a ciphertext

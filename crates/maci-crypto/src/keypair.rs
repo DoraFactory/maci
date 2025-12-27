@@ -4,6 +4,7 @@
 //! Uses eddsa-poseidon for key derivation and signing
 
 use crate::keys::{PrivKey, PubKey};
+use ark_bn254::Fr as Bn254Fr;
 use ark_ff::{BigInteger, PrimeField};
 use baby_jubjub::{base8, mul_point_escalar, EdFr, EdwardsAffine, Fq};
 use eddsa_poseidon::{derive_secret_scalar, HashingAlgorithm};
@@ -20,8 +21,8 @@ pub struct Keypair {
     secret_scalar: EdFr,
     /// Public key point
     public_key: PublicKey,
-    /// Identity commitment (Poseidon hash of public key)
-    commitment: Fq,
+    /// Identity commitment (Poseidon hash of public key) using BN254 Fr field
+    commitment: Bn254Fr,
     /// Legacy fields for backward compatibility
     pub priv_key: PrivKey,
     pub pub_key: PubKey,
@@ -102,15 +103,12 @@ impl Keypair {
 
     /// Creates a new keypair from a BigUint private key (for backward compatibility)
     /// Note: Converts to big-endian to match TypeScript bigInt2Buffer behavior
+    /// TypeScript's bigInt2Buffer does NOT pad to 32 bytes
     pub fn from_priv_key(priv_key: &PrivKey) -> Self {
+        // Convert to big-endian bytes (matching TypeScript bigInt2Buffer)
+        // Important: DO NOT pad to 32 bytes - bigInt2Buffer doesn't pad
         let priv_key_bytes = priv_key.to_bytes_be();
-        let mut padded = vec![0u8; 32];
-        let len = priv_key_bytes.len().min(32);
-        if len > 0 {
-            let offset = 32 - len;
-            padded[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
-        }
-        Self::new(&padded)
+        Self::new(&priv_key_bytes)
     }
 
     /// Returns the private key bytes
@@ -129,7 +127,7 @@ impl Keypair {
     }
 
     /// Returns the identity commitment
-    pub fn commitment(&self) -> &Fq {
+    pub fn commitment(&self) -> &Bn254Fr {
         &self.commitment
     }
 
@@ -169,10 +167,17 @@ impl PublicKey {
     }
 
     /// Generates an identity commitment
-    pub fn commitment(&self) -> Fq {
-        Poseidon::<Fq>::new_circom(2)
+    /// Uses BN254 Fr field to match SDK behavior (poseidonPerm uses BN254 scalar field)
+    pub fn commitment(&self) -> Bn254Fr {
+        // Convert Baby Jubjub Fq coordinates to BN254 Fr for Poseidon hash
+        let x_bytes = self.point.x.into_bigint().to_bytes_le();
+        let y_bytes = self.point.y.into_bigint().to_bytes_le();
+        let x_fr = Bn254Fr::from_le_bytes_mod_order(&x_bytes);
+        let y_fr = Bn254Fr::from_le_bytes_mod_order(&y_bytes);
+
+        Poseidon::<Bn254Fr>::new_circom(2)
             .unwrap()
-            .hash(&[self.point.x, self.point.y])
+            .hash(&[x_fr, y_fr])
             .unwrap()
     }
 

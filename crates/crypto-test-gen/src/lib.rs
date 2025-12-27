@@ -75,6 +75,20 @@ pub enum EdDSAData {
         signature: SignatureJson,
         packed: String,
     },
+    SdkKeys {
+        priv_key: String,
+        priv_key_mod_snark: String,
+        formatted_priv_key: String,
+        pub_key: PointJson,
+        packed_pub_key: String,
+    },
+    KeypairModule {
+        priv_key: String,
+        priv_key_mod_snark: String,
+        secret_scalar: String,
+        pub_key: PointJson,
+        commitment: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

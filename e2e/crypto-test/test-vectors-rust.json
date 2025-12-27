@@ -4,12 +4,12 @@
     "description": "Keypair generated from seed 12345",
     "test_type": "keypair",
     "data": {
-      "formatted_priv_key": "0x02e6392baa5796aac4a3ad3a1de11f53e050ab618fe07fe0cc8b9f168892d9c3",
-      "packed_pub_key": "0x2c596d90010a4be60866ce3f8d78c14bfe5860027f173dc21fdd5327af90dda8",
+      "formatted_priv_key": "0x02095094e9c12c99ab30119242d467b9a65394674f532ae53c00f141c73c8396",
+      "packed_pub_key": "0x8253370b9ad6b456fe2584b32e6a7e1f96d1083e6b0d1147a6db6accdbe7171c",
       "priv_key": "0x3039",
       "pub_key": {
-        "x": "0x08474aa7b3020366e21110b4b36243cc31114fec8b4638d321d713e9d12986b0",
-        "y": "0x2c596d90010a4be60866ce3f8d78c14bfe5860027f173dc21fdd5327af90dda8"
+        "x": "0x1f7ce91206c117dc38a4c88798eaf2186ae6ccdfa43a98b7c155b6d4b9e71682",
+        "y": "0x0253370b9ad6b456fe2584b32e6a7e1f96d1083e6b0d1147a6db6accdbe7171c"
       },
       "seed": "0x3039"
     }
@@ -19,12 +19,12 @@
     "description": "Keypair generated from seed 67890",
     "test_type": "keypair",
     "data": {
-      "formatted_priv_key": "0x0352a90905a524a636f86ec09dbbd5d1a8867aa25d0401366f1785e255a78a8f",
-      "packed_pub_key": "0x0705aa8072180115aa8d9bdfc1cccd2b5267d6deae071307854df03fa01d1cf5",
+      "formatted_priv_key": "0x0362ebf4810e93ab3c3c19f39a57503234b1a6bf0a29fb017154c0cd83ba8aab",
+      "packed_pub_key": "0x82504efbdb77bfe0d06e5378101afd36ceac049a33902a7ac35a63fbbad951c1",
       "priv_key": "0x010932",
       "pub_key": {
-        "x": "0x099676f31c8bda2d71a073cfa58a20e3df4b374d7dfc60ed2263dadf14430658",
-        "y": "0x0705aa8072180115aa8d9bdfc1cccd2b5267d6deae071307854df03fa01d1cf5"
+        "x": "0x26e1e9bdb8c82dcd6437754f8583ff03ea4d6472892c22aac8910630eef1b752",
+        "y": "0x02504efbdb77bfe0d06e5378101afd36ceac049a33902a7ac35a63fbbad951c1"
       },
       "seed": "0x010932"
     }
@@ -34,11 +34,11 @@
     "description": "Public key derived from private key 11111",
     "test_type": "keypair",
     "data": {
-      "packed_pub_key": "0x29edc435ce9f7c9074afa89f6acd70ab9c6a6445519899be482ad40e2d079518",
+      "packed_pub_key": "0x856f7ac1270d501235231f5b94bcb1578da0f037ca42b12609a3b2634d41414a",
       "priv_key": "0x2b67",
       "pub_key": {
-        "x": "0x055aba5eba2066fbed5894a235863a68c297599e64c140da0604e6be87f7d1f5",
-        "y": "0x29edc435ce9f7c9074afa89f6acd70ab9c6a6445519899be482ad40e2d079518"
+        "x": "0x2dffbe7569a8aa8c18585946381b5735546a73800c0162c3c648cafed014b23f",
+        "y": "0x056f7ac1270d501235231f5b94bcb1578da0f037ca42b12609a3b2634d41414a"
       }
     }
   },
@@ -47,12 +47,12 @@
     "description": "Keypair generated from seed 111111",
     "test_type": "keypair",
     "data": {
-      "formatted_priv_key": "0x041f2b553ed15a54886e2c195a0d949a008491e8460d1f389fc5b7f5c031b8d0",
-      "packed_pub_key": "0x1e6b390cac2c5ca38e6acea886a9e57c3173ed8d809ff285b3c1f74d85b9f07d",
+      "formatted_priv_key": "0x051359c8d9f693d1e71213f8a7f42f0ab6baa2dac944b7f0f4f3807bc30509d5",
+      "packed_pub_key": "0x0ceba405c6b2c3eda9c20e68ba2dab5fa541a73388059a56a6781047a05ed3ec",
       "priv_key": "0x01b207",
       "pub_key": {
-        "x": "0x065018ba58bf015d469dbb790c9df8bf02ecfd9bde2d534652a7d540c2e23932",
-        "y": "0x1e6b390cac2c5ca38e6acea886a9e57c3173ed8d809ff285b3c1f74d85b9f07d"
+        "x": "0x032490a0987d79010a326c8cb53ec5d4165af73c3e92fda370ff57a1f626e172",
+        "y": "0x0ceba405c6b2c3eda9c20e68ba2dab5fa541a73388059a56a6781047a05ed3ec"
       },
       "seed": "0x01b207"
     }
@@ -68,20 +68,20 @@
         "pub_key_match": true
       },
       "keypair": {
-        "commitment": "0x132d9831e2d65306385841fbdd7969fa0951531706b81b5b377d7005e0a51a11",
-        "formatted_priv_key": "0x02e6392baa5796aac4a3ad3a1de11f53e050ab618fe07fe0cc8b9f168892d9c3",
+        "commitment": "0x1eb25916d4a9eb677dbaf42adcbe893f659ecf366e835b2fedbc2f155b22a3c0",
+        "formatted_priv_key": "0x02095094e9c12c99ab30119242d467b9a65394674f532ae53c00f141c73c8396",
         "priv_key": "0x3039",
         "pub_key": {
-          "x": "0x08474aa7b3020366e21110b4b36243cc31114fec8b4638d321d713e9d12986b0",
-          "y": "0x2c596d90010a4be60866ce3f8d78c14bfe5860027f173dc21fdd5327af90dda8"
+          "x": "0x1f7ce91206c117dc38a4c88798eaf2186ae6ccdfa43a98b7c155b6d4b9e71682",
+          "y": "0x0253370b9ad6b456fe2584b32e6a7e1f96d1083e6b0d1147a6db6accdbe7171c"
         }
       },
       "keys_keypair": {
-        "formatted_priv_key": "0x02e6392baa5796aac4a3ad3a1de11f53e050ab618fe07fe0cc8b9f168892d9c3",
+        "formatted_priv_key": "0x02095094e9c12c99ab30119242d467b9a65394674f532ae53c00f141c73c8396",
         "priv_key": "0x3039",
         "pub_key": {
-          "x": "0x08474aa7b3020366e21110b4b36243cc31114fec8b4638d321d713e9d12986b0",
-          "y": "0x2c596d90010a4be60866ce3f8d78c14bfe5860027f173dc21fdd5327af90dda8"
+          "x": "0x1f7ce91206c117dc38a4c88798eaf2186ae6ccdfa43a98b7c155b6d4b9e71682",
+          "y": "0x0253370b9ad6b456fe2584b32e6a7e1f96d1083e6b0d1147a6db6accdbe7171c"
         }
       },
       "seed": "0x3039"
@@ -98,20 +98,20 @@
         "pub_key_match": true
       },
       "keypair": {
-        "commitment": "0x4f108a1a860c7d6efeb37297e6607958765e1b969155df003ef109302ea1e914",
-        "formatted_priv_key": "0x0352a90905a524a636f86ec09dbbd5d1a8867aa25d0401366f1785e255a78a8f",
+        "commitment": "0x287e34971408281380361d53a563e5cd5311ec327c5b9ec0bc6287c1ead74d56",
+        "formatted_priv_key": "0x0362ebf4810e93ab3c3c19f39a57503234b1a6bf0a29fb017154c0cd83ba8aab",
         "priv_key": "0x010932",
         "pub_key": {
-          "x": "0x099676f31c8bda2d71a073cfa58a20e3df4b374d7dfc60ed2263dadf14430658",
-          "y": "0x0705aa8072180115aa8d9bdfc1cccd2b5267d6deae071307854df03fa01d1cf5"
+          "x": "0x26e1e9bdb8c82dcd6437754f8583ff03ea4d6472892c22aac8910630eef1b752",
+          "y": "0x02504efbdb77bfe0d06e5378101afd36ceac049a33902a7ac35a63fbbad951c1"
         }
       },
       "keys_keypair": {
-        "formatted_priv_key": "0x0352a90905a524a636f86ec09dbbd5d1a8867aa25d0401366f1785e255a78a8f",
+        "formatted_priv_key": "0x0362ebf4810e93ab3c3c19f39a57503234b1a6bf0a29fb017154c0cd83ba8aab",
         "priv_key": "0x010932",
         "pub_key": {
-          "x": "0x099676f31c8bda2d71a073cfa58a20e3df4b374d7dfc60ed2263dadf14430658",
-          "y": "0x0705aa8072180115aa8d9bdfc1cccd2b5267d6deae071307854df03fa01d1cf5"
+          "x": "0x26e1e9bdb8c82dcd6437754f8583ff03ea4d6472892c22aac8910630eef1b752",
+          "y": "0x02504efbdb77bfe0d06e5378101afd36ceac049a33902a7ac35a63fbbad951c1"
         }
       },
       "seed": "0x010932"
@@ -128,20 +128,20 @@
         "pub_key_match": true
       },
       "keypair": {
-        "commitment": "0x2121babaa8971c545a34f0143ef50a1f49a10fbd8b730a64f53075f7922a8306",
-        "formatted_priv_key": "0x05e84839d52bd0c6b102289dbc946e6ae9ed383efbb8c0254e71ec61f8ddc190",
+        "commitment": "0x025cab77095a54cadbffe7f4ad3e46caaf27ef30cead2f460eb925babfe65559",
+        "formatted_priv_key": "0x01d73a9aee80a14696f7b0707f9bce1b23c74d764b4fc3740a0162808b284bec",
         "priv_key": "0x0f423f",
         "pub_key": {
-          "x": "0x27e6b2b094e7499134cfb2cd56c12a8fd029ea79f2892fe0015c7cf0177cfaca",
-          "y": "0x01b6032e7cd7b61bc463ea91a024ae7fe0c1362a0d1ba6b4042635ab9800e763"
+          "x": "0x1d745850e20f530cf89d8996a29e5ff3054ac6366c42024f42ebcc6bd7a99edb",
+          "y": "0x173c69e5144432717ff8e6b4f6f33af9a45f9f2ee6c8c5f3d8a8aca97a96b195"
         }
       },
       "keys_keypair": {
-        "formatted_priv_key": "0x05e84839d52bd0c6b102289dbc946e6ae9ed383efbb8c0254e71ec61f8ddc190",
+        "formatted_priv_key": "0x01d73a9aee80a14696f7b0707f9bce1b23c74d764b4fc3740a0162808b284bec",
         "priv_key": "0x0f423f",
         "pub_key": {
-          "x": "0x27e6b2b094e7499134cfb2cd56c12a8fd029ea79f2892fe0015c7cf0177cfaca",
-          "y": "0x01b6032e7cd7b61bc463ea91a024ae7fe0c1362a0d1ba6b4042635ab9800e763"
+          "x": "0x1d745850e20f530cf89d8996a29e5ff3054ac6366c42024f42ebcc6bd7a99edb",
+          "y": "0x173c69e5144432717ff8e6b4f6f33af9a45f9f2ee6c8c5f3d8a8aca97a96b195"
         }
       },
       "seed": "0x0f423f"
@@ -158,54 +158,23 @@
         "pub_key_match": true
       },
       "keypair": {
-        "commitment": "0x010a20d455b002a593adcf8a9cc8eee356a4317f043ea3817fff7dec790bb717",
-        "formatted_priv_key": "0x041f2b553ed15a54886e2c195a0d949a008491e8460d1f389fc5b7f5c031b8d0",
+        "commitment": "0x0e491faed82adfc7fc8d1f64f8c8bb8b715fc38e8146db45d05c9c2fc87f23a5",
+        "formatted_priv_key": "0x051359c8d9f693d1e71213f8a7f42f0ab6baa2dac944b7f0f4f3807bc30509d5",
         "priv_key": "0x01b207",
         "pub_key": {
-          "x": "0x065018ba58bf015d469dbb790c9df8bf02ecfd9bde2d534652a7d540c2e23932",
-          "y": "0x1e6b390cac2c5ca38e6acea886a9e57c3173ed8d809ff285b3c1f74d85b9f07d"
+          "x": "0x032490a0987d79010a326c8cb53ec5d4165af73c3e92fda370ff57a1f626e172",
+          "y": "0x0ceba405c6b2c3eda9c20e68ba2dab5fa541a73388059a56a6781047a05ed3ec"
         }
       },
       "keys_keypair": {
-        "formatted_priv_key": "0x041f2b553ed15a54886e2c195a0d949a008491e8460d1f389fc5b7f5c031b8d0",
+        "formatted_priv_key": "0x051359c8d9f693d1e71213f8a7f42f0ab6baa2dac944b7f0f4f3807bc30509d5",
         "priv_key": "0x01b207",
         "pub_key": {
-          "x": "0x065018ba58bf015d469dbb790c9df8bf02ecfd9bde2d534652a7d540c2e23932",
-          "y": "0x1e6b390cac2c5ca38e6acea886a9e57c3173ed8d809ff285b3c1f74d85b9f07d"
+          "x": "0x032490a0987d79010a326c8cb53ec5d4165af73c3e92fda370ff57a1f626e172",
+          "y": "0x0ceba405c6b2c3eda9c20e68ba2dab5fa541a73388059a56a6781047a05ed3ec"
         }
       },
       "seed": "0x01b207"
-    }
-  },
-  {
-    "name": "keypair_comparison_byte_array",
-    "description": "Comparison using byte array input for keypair::Keypair::new",
-    "test_type": "keypair_comparison",
-    "data": {
-      "comparison": {
-        "formatted_priv_key_match": false,
-        "priv_key_match": false,
-        "pub_key_match": false
-      },
-      "input_bytes": "1234560000000000000000000000000000000000000000000000000000000000",
-      "keypair": {
-        "commitment": "0xbcb4b916952a2873b94eee56d5afe64fc921ac89658c7f4a7a91503a899c470d",
-        "formatted_priv_key": "0x03c4885f70c4eb87bfac8f1fd41af3d66313394dfa5d34711317b05f70665013",
-        "priv_key": "0x1234560000000000000000000000000000000000000000000000000000000000",
-        "pub_key": {
-          "x": "0x23a44e44c69381f40d6af8403eecea857a19f7cc705d6ad12a92616adda7338f",
-          "y": "0x2bf19148c1ce6b55e685794169777496c26d54246d05becc9b760341b51c1d05"
-        }
-      },
-      "keys_keypair": {
-        "formatted_priv_key": "0x01eaa05e2aa038acb2be296292dbcc30e93871854aca1b89413f0cbd9a8b269e",
-        "priv_key": "0x563412",
-        "pub_key": {
-          "x": "0x14d76c49d23b37b67ee4a2e1f41cc3966e2e96ce070dea57320c81d88edc7446",
-          "y": "0x0809c9adc3d81d65bee16b538dd27dddbcd510a81afd0e4daad42eb03b997e1e"
-        }
-      },
-      "priv_key_from_bytes": "0x563412"
     }
   },
   {
@@ -216,24 +185,24 @@
       "keypair1": {
         "priv_key": "0x64",
         "pub_key": {
-          "x": "0x08d9a356d5c3c012661b54f4876098fe54ff8646312aa5fc009512dc63217c34",
-          "y": "0x17119dec7a86bc9b28ba453e939d75092866d96c49a00d65fe2205bc7cceec0d"
+          "x": "0x0c8de9d48d6424ac7f89447b6bfec83ef81a5ac8a42b6075a0f119fd2af881c8",
+          "y": "0x424c5e61ae41fb7f4ff33c9f714c91ff6c7fc21c6505f1cea7f2c9937b283a"
         }
       },
       "keypair2": {
         "priv_key": "0xc8",
         "pub_key": {
-          "x": "0x1ecc94ac588eecbd8ae147b364a5d1a22c8196fd7dbf69d11e6c1e6985ef57b1",
-          "y": "0x1834d85a7e1d84d4687c09e69b59c24d031b567ac9de9c0b3bbb0d91c1b7159a"
+          "x": "0x1899c8ed30cae2b69ff10bcf070f075eb9f8f335c705ef451177af8512af9805",
+          "y": "0x0adc35f4526218f3c138a12795ac034891ef4b99541460bcf40bd4488b2ebb5d"
         }
       },
       "shared_key": {
-        "x": "0x0f1c4f4df680c9fda53221560b7260119326910ebe1cbb56282bb8c9d186d714",
-        "y": "0x28999e7c7731cbc5e11cb69a9fc34ad5bd232b8fdbca8a3910ad745003fe2c00"
+        "x": "0x1aa1beb99f67d8108640c77ba16311427f82f0deb050cb6660322f213db821ba",
+        "y": "0x13ffb78b7c1c5630463ca686b7604436bf4e3d9b3f4ccd371dc238a4a8a28cb5"
       },
       "shared_key_reciprocal": {
-        "x": "0x0f1c4f4df680c9fda53221560b7260119326910ebe1cbb56282bb8c9d186d714",
-        "y": "0x28999e7c7731cbc5e11cb69a9fc34ad5bd232b8fdbca8a3910ad745003fe2c00"
+        "x": "0x1aa1beb99f67d8108640c77ba16311427f82f0deb050cb6660322f213db821ba",
+        "y": "0x13ffb78b7c1c5630463ca686b7604436bf4e3d9b3f4ccd371dc238a4a8a28cb5"
       }
     }
   },
@@ -245,20 +214,20 @@
       "keypair1": {
         "priv_key": "0x012c",
         "pub_key": {
-          "x": "0x1bca873e1aded03d28c34f84f31bb1d1209460e2994ea0fe0f5d6d411f7fb252",
-          "y": "0x15edbc4ef084a713ac5381b4f8d1fe28ab64f0217f045d1cd54aacf83f7226b0"
+          "x": "0x25b97a26e8a4a7ac38ad6b51f2a1e8271cf81f14b67512eeca7db46e3c094ed7",
+          "y": "0x2e81b2aaae827b61071114518adc9d43991147f1223e9f41774e3b2ccb74972f"
         }
       },
       "keypair2": {
         "priv_key": "0x0190",
         "pub_key": {
-          "x": "0x0414a8a3c7c3394360308bf5cff1de4458c276357127c79c27eb16b9bb99ec29",
-          "y": "0x09fc91e6de33f9b6dab567bc8f985887ba8e1b1ce653a5173a6a96bc765fbeb5"
+          "x": "0x2257ab759f0e0b4a66326bcd3e6284ccb350503a29496a5556266a5aa62848eb",
+          "y": "0x2fcf5ee9c86163224c990497656d234d703a6665e04172b5e5b8d0039a6dce59"
         }
       },
       "shared_key": {
-        "x": "0x0a1fafa5e43f3f9b07a5355b58befe614bc10e914c7436860200d6501bb302de",
-        "y": "0x2545022a7b6620306edf753e776d6d734c69c51a2706ec42fd5bef167a33dd48"
+        "x": "0x108a55cbb495a9dde82267d90b3d8cdb8a5b76faec8bf0100361664492629cba",
+        "y": "0x293b69fe124f0faee1c4a46d00b6df363faed1cac281cc60f01d7c3ad97475be"
       }
     }
   },
@@ -382,27 +351,27 @@
     "data": {
       "ciphertext": {
         "c1": {
-          "x": "0x0cd5c85e29510cef77aa964979def5ae5eed899e047fd77e1ae55088466053e3",
-          "y": "0x29e59dab69a465fe4023347801a7834d9add5ae810858ad967f22db208ef43dd"
+          "x": "0x276b49d91f1e5356f10b59459dfdb9842d9db17395d55fce51f7d689e180732d",
+          "y": "0x114c5b7bc5781ceb90ccf62447551b4ca6d0d60915ccdf8c354ed9d5d8d53286"
         },
         "c2": {
-          "x": "0x0cd5c85e29510cef77aa964979def5ae5eed899e047fd77e1ae55088466053e3",
-          "y": "0x29e59dab69a465fe4023347801a7834d9add5ae810858ad967f22db208ef43dd"
+          "x": "0x276b49d91f1e5356f10b59459dfdb9842d9db17395d55fce51f7d689e180732d",
+          "y": "0x114c5b7bc5781ceb90ccf62447551b4ca6d0d60915ccdf8c354ed9d5d8d53286"
         }
       },
       "pub_key": {
-        "x": "0x0cd5c85e29510cef77aa964979def5ae5eed899e047fd77e1ae55088466053e3",
-        "y": "0x29e59dab69a465fe4023347801a7834d9add5ae810858ad967f22db208ef43dd"
+        "x": "0x276b49d91f1e5356f10b59459dfdb9842d9db17395d55fce51f7d689e180732d",
+        "y": "0x114c5b7bc5781ceb90ccf62447551b4ca6d0d60915ccdf8c354ed9d5d8d53286"
       },
       "random_val": "0x3039",
       "rerandomized": {
         "d1": {
-          "x": "0x267a5f5e1ad6e613f15a59d78b051388a74966c430cb667700eb2bc1e7e5645f",
-          "y": "0x119c3c3925a89133b6d2e720a75ad509ccf5f95504777bda8b5378e8ced6e1be"
+          "x": "0x1fcd12d5b4d4326cf474f8744962af8467199d9efa4b7e81a1ca809fb44475c4",
+          "y": "0xb0f94cad714b224f6a12e65e478af54d9e3fea77817f0716b351c8a61b4205"
         },
         "d2": {
-          "x": "0x0dd078fee5f496295396a1bb16098b73f9244eb073874c501e54075e5726c009",
-          "y": "0x18e53e810bb22d8ad0a14315e16c0953cf5ec555efa4b53363d638052054a6a1"
+          "x": "0x0889b02d228bf698aabe5088731abe39b3f95565b50209738d797229d9b32404",
+          "y": "0x1cc58de3f0b068d7e624222e94828ff69377dfc53ed5f256464b36c24f220ee4"
         }
       }
     }
@@ -414,27 +383,27 @@
     "data": {
       "ciphertext": {
         "c1": {
-          "x": "0x26a162cf4b81b350d7fd4de7bf53905d9eb082f1f5b9f74500ab3f0007cbead1",
-          "y": "0x29adbd77ea2343abb8b4affab2840aef956229302a07f59709c8d2f18adfdcbd"
+          "x": "0x303d6fc84a0672f47e173ee603efb672c87f1e28fc9ef6dc9d3cb3de92ae0eed",
+          "y": "0x22a284c014e3c0ff2d9b3b84c55cfdb190c5fcd8aa370448dba5ed20173cdaa9"
         },
         "c2": {
-          "x": "0x26a162cf4b81b350d7fd4de7bf53905d9eb082f1f5b9f74500ab3f0007cbead1",
-          "y": "0x29adbd77ea2343abb8b4affab2840aef956229302a07f59709c8d2f18adfdcbd"
+          "x": "0x303d6fc84a0672f47e173ee603efb672c87f1e28fc9ef6dc9d3cb3de92ae0eed",
+          "y": "0x22a284c014e3c0ff2d9b3b84c55cfdb190c5fcd8aa370448dba5ed20173cdaa9"
         }
       },
       "pub_key": {
-        "x": "0x26a162cf4b81b350d7fd4de7bf53905d9eb082f1f5b9f74500ab3f0007cbead1",
-        "y": "0x29adbd77ea2343abb8b4affab2840aef956229302a07f59709c8d2f18adfdcbd"
+        "x": "0x303d6fc84a0672f47e173ee603efb672c87f1e28fc9ef6dc9d3cb3de92ae0eed",
+        "y": "0x22a284c014e3c0ff2d9b3b84c55cfdb190c5fcd8aa370448dba5ed20173cdaa9"
       },
       "random_val": "0x010932",
       "rerandomized": {
         "d1": {
-          "x": "0x9bd9865d25919b484d683029cf5686ab795c44a0fc09b090a14b6bb81a3a57",
-          "y": "0x0279d3416576e757686bb9473460c5e4804d458bfc48609c3b525953007d0d75"
+          "x": "0x2f346fae6572905a950989e410437437f7aece3330fae3445d8fc41f26cc76f1",
+          "y": "0x1fdd68f56accd7cfa5446731e1f020552470aaaf6aa9dea367ace381b4ad1811"
         },
         "d2": {
-          "x": "0x06e261e84a63824cab359638e0629a4e326b2d006525b6ce617f08908c1fd582",
-          "y": "0x14918ba011af9c66ae15c2b8f46c9a29cd7f71bea14ba3cdd09422770e2df98e"
+          "x": "0x28833e1abb52233970dd614260c145778d08462497ddf69583187101b2768b4a",
+          "y": "0x079b7417c2fb1177bcb9f11cc0ba042c7b420c3667286e4b3f87f969f755c7ae"
         }
       }
     }
