@@ -1,11 +1,10 @@
-use crate::baby_jubjub::{
-    gen_random_babyjub_value, BabyJubjubConfig, EdwardsAffine, EdwardsProjective,
-};
 use crate::error::Result;
 use crate::keys::PubKey;
 use ark_ec::{twisted_edwards::TECurveConfig, CurveGroup};
-use ark_ed_on_bn254::{Fq, Fr as EdFr};
 use ark_ff::{BigInteger, PrimeField};
+use baby_jubjub::{
+    gen_random_babyjub_value, BabyJubjubConfig, EdFr, EdwardsAffine, EdwardsProjective, Fq,
+};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 

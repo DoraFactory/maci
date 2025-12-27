@@ -225,6 +225,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "baby-jubjub"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ed-on-bn254",
+ "ark-ff",
+ "num-bigint",
+ "num-traits",
+ "once_cell",
+ "rand 0.8.5",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -752,6 +768,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto-test-gen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ark-ec",
+ "ark-ff",
+ "baby-jubjub",
+ "eddsa-poseidon",
+ "num-bigint",
+ "num-traits",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "curve25519-dalek"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1075,6 +1106,25 @@ dependencies = [
  "serde",
  "sha2 0.9.9",
  "zeroize",
+]
+
+[[package]]
+name = "eddsa-poseidon"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "baby-jubjub",
+ "blake",
+ "blake2",
+ "hex",
+ "light-poseidon",
+ "num-bigint",
+ "num-traits",
+ "rand 0.8.5",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -1498,13 +1548,14 @@ version = "0.1.0"
 dependencies = [
  "ark-bn254",
  "ark-ec",
- "ark-ed-on-bn254",
  "ark-ff",
  "ark-serialize",
  "ark-std",
+ "baby-jubjub",
  "blake",
  "blake2",
  "criterion",
+ "eddsa-poseidon",
  "getrandom",
  "hex",
  "light-poseidon",

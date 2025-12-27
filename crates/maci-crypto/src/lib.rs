@@ -30,7 +30,6 @@
 //! ```
 
 // Module declarations
-pub mod baby_jubjub;
 pub mod constants;
 pub mod error;
 pub mod hashing;
@@ -41,7 +40,7 @@ pub mod rerandomize;
 pub mod tree;
 pub mod utils;
 
-// Re-export commonly used types and functions
+// Re-export commonly used types and functions from baby-jubjub crate
 pub use baby_jubjub::{
     add_point, base8, gen_random_babyjub_value, in_curve, mul_point_escalar, pack_point,
     unpack_point, BabyJubjubConfig, EdwardsAffine, EdwardsProjective,

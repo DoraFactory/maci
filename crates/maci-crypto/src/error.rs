@@ -95,6 +95,21 @@ impl From<hex::FromHexError> for CryptoError {
     }
 }
 
+impl From<baby_jubjub::BabyJubjubError> for CryptoError {
+    fn from(err: baby_jubjub::BabyJubjubError) -> Self {
+        match err {
+            baby_jubjub::BabyJubjubError::PackedPointTooLarge => CryptoError::PackedPointTooLarge,
+            baby_jubjub::BabyJubjubError::YCoordinateOutOfRange => {
+                CryptoError::YCoordinateOutOfRange
+            }
+            baby_jubjub::BabyJubjubError::DenominatorZero => CryptoError::DenominatorZero,
+            baby_jubjub::BabyJubjubError::DenominatorNoInverse => CryptoError::DenominatorNoInverse,
+            baby_jubjub::BabyJubjubError::PointNotOnCurve => CryptoError::PointNotOnCurve,
+            baby_jubjub::BabyJubjubError::SquareRootError(msg) => CryptoError::SquareRootError(msg),
+        }
+    }
+}
+
 /// Result type alias for convenience
 pub type Result<T> = std::result::Result<T, CryptoError>;
 

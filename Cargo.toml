@@ -6,8 +6,11 @@ members = [
     "contracts/api-saas",
     "contracts/test",
 
+    "crates/baby-jubjub",
     "crates/maci-utils",
     "crates/maci-crypto",
+    "crates/eddsa-poseidon",
+    "crates/crypto-test-gen",
 ]
 resolver = "2"
 

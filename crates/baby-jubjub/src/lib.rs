@@ -1,20 +1,26 @@
-//! Baby Jubjub Curve Configuration
+//! Baby Jubjub Elliptic Curve
 //!
-//! This module provides Baby Jubjub curve configuration compatible with EIP-2494
+//! This library provides Baby Jubjub curve operations compatible with EIP-2494.
+//! Baby Jubjub is a twisted Edwards elliptic curve defined over the BN254 scalar field.
 
-use crate::constants::{biguint_to_fr, fr_to_biguint, SNARK_FIELD_SIZE};
-use crate::error::{CryptoError, Result};
+mod constants;
+mod error;
+
+pub use constants::{biguint_to_fr, fr_to_biguint, SNARK_FIELD_SIZE};
+pub use error::{BabyJubjubError, Result};
+
 use ark_bn254::Fr;
 use ark_ec::{
     models::CurveConfig,
     twisted_edwards::{Affine, MontCurveConfig, Projective, TECurveConfig},
     CurveGroup,
 };
-use ark_ed_on_bn254::{Fq, Fr as EdFr};
 use ark_ff::{BigInteger, Field, MontFp, PrimeField, Zero};
 use num_bigint::BigUint;
 use rand::Rng;
-use serde::{Deserialize, Serialize};
+
+// Re-export ark_ed_on_bn254 types for convenience
+pub use ark_ed_on_bn254::{Fq, Fr as EdFr};
 
 /// Type aliases for Edwards curve points
 pub type EdwardsAffine = Affine<BabyJubjubConfig>;
@@ -208,7 +214,7 @@ pub fn unpack_point(packed: &BigUint) -> Result<EdwardsAffine> {
     // Packed point should be exactly 32 bytes (256 bits)
     // If it's longer, it's invalid (matches TS behavior where leBigIntToBuffer ensures 32 bytes)
     if packed_bytes.len() > 32 {
-        return Err(CryptoError::PackedPointTooLarge);
+        return Err(BabyJubjubError::PackedPointTooLarge);
     }
 
     // Pad to 32 bytes if necessary (little-endian, so pad at the end)
@@ -231,7 +237,7 @@ pub fn unpack_point(packed: &BigUint) -> Result<EdwardsAffine> {
     // We use >= to be more strict (y should be < r, not <= r)
     let y_biguint = BigUint::from_bytes_le(&y_bytes);
     if y_biguint > *SNARK_FIELD_SIZE {
-        return Err(CryptoError::YCoordinateOutOfRange);
+        return Err(BabyJubjubError::YCoordinateOutOfRange);
     }
 
     // Recover x coordinate using curve equation: ax² + y² = 1 + dx²y²
@@ -246,13 +252,13 @@ pub fn unpack_point(packed: &BigUint) -> Result<EdwardsAffine> {
     let denominator = a - d * y2;
 
     if denominator.is_zero() {
-        return Err(CryptoError::DenominatorZero);
+        return Err(BabyJubjubError::DenominatorZero);
     }
 
     let x2 = numerator
         * denominator
             .inverse()
-            .ok_or(CryptoError::DenominatorNoInverse)?;
+            .ok_or(BabyJubjubError::DenominatorNoInverse)?;
 
     // Compute square root using Tonelli-Shanks algorithm
     let x = tonelli_shanks(x2, x_sign)?;
@@ -261,7 +267,7 @@ pub fn unpack_point(packed: &BigUint) -> Result<EdwardsAffine> {
 
     // Verify the point is on the curve
     if !point.is_on_curve() {
-        return Err(CryptoError::PointNotOnCurve);
+        return Err(BabyJubjubError::PointNotOnCurve);
     }
 
     Ok(point)
@@ -299,7 +305,7 @@ fn tonelli_shanks(n: Fq, x_sign: bool) -> Result<Fq> {
         // 1. n is not a quadratic residue
         // 2. sqrt() is not implemented for this field
         // TS returns null in this case
-        Err(CryptoError::SquareRootError(format!(
+        Err(BabyJubjubError::SquareRootError(format!(
             "Cannot compute square root - value is either not a quadratic residue or sqrt() is not implemented for this field: {}",
             n
         )))
@@ -334,10 +340,6 @@ mod tests {
         assert_ne!(format!("{:?}", fr1), format!("{:?}", fr2));
     }
 
-    // Tests for BabyJubjubConfig
-    use ark_ec::CurveGroup;
-    use ark_ff::{PrimeField, Zero};
-
     #[test]
     fn test_base_point_choice() {
         let g = EdwardsAffine::new_unchecked(GENERATOR_X, GENERATOR_Y);
@@ -359,7 +361,6 @@ mod tests {
         assert_eq!(result, identity);
     }
 
-    // Tests for new functions matching TypeScript implementation
     #[test]
     fn test_base8() {
         let base8_point = base8();
@@ -454,5 +455,64 @@ mod tests {
             assert_eq!(point, unpacked, "Failed for scalar {}", scalar_val);
             assert!(unpacked.is_on_curve());
         }
+    }
+
+    #[test]
+    fn test_fixed_scalar_111111() {
+        // Fixed test case matching the basic_operations example
+        // This test verifies the exact output for scalar 111111
+        let secret_scalar = EdFr::from(111111u64);
+        let base8_point = base8();
+
+        // Multiply Base8 by secret scalar to get public key
+        let public_key = mul_point_escalar(&base8_point, secret_scalar);
+
+        // Expected values from the example output
+        let expected_x = BigUint::parse_bytes(
+            b"9221645876368174110961758157755419489792970878899130950662684756868821534630",
+            10,
+        )
+        .unwrap();
+        let expected_y = BigUint::parse_bytes(
+            b"21677522106472114192907581749333412416696788200272735806441075884691267290092",
+            10,
+        )
+        .unwrap();
+
+        // Convert point coordinates to BigUint for comparison
+        let actual_x = BigUint::from_bytes_le(&public_key.x.into_bigint().to_bytes_le());
+        let actual_y = BigUint::from_bytes_le(&public_key.y.into_bigint().to_bytes_le());
+
+        assert_eq!(
+            actual_x, expected_x,
+            "X coordinate mismatch for scalar 111111"
+        );
+        assert_eq!(
+            actual_y, expected_y,
+            "Y coordinate mismatch for scalar 111111"
+        );
+
+        // Pack the point
+        let packed_point = pack_point(&public_key);
+        let expected_packed = BigUint::parse_bytes(
+            b"21677522106472114192907581749333412416696788200272735806441075884691267290092",
+            10,
+        )
+        .unwrap();
+
+        assert_eq!(
+            packed_point, expected_packed,
+            "Packed point mismatch for scalar 111111"
+        );
+
+        // Unpack the point and verify it matches
+        let unpacked_point = unpack_point(&packed_point).expect("Failed to unpack point");
+        assert_eq!(
+            public_key, unpacked_point,
+            "Unpacked point should match original"
+        );
+
+        // Verify point is on curve
+        assert!(in_curve(&public_key), "Point should be on curve");
     }
 }

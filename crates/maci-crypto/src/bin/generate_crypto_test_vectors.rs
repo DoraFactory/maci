@@ -145,7 +145,7 @@ fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
     let mut vectors = Vec::new();
 
     // Helper to convert Fq to hex string
-    fn fq_to_hex(fq: &ark_ed_on_bn254::Fq) -> String {
+    fn fq_to_hex(fq: &baby_jubjub::Fq) -> String {
         use ark_ff::{BigInteger, PrimeField};
         let bytes = fq.into_bigint().to_bytes_le();
         format!("0x{}", hex::encode(bytes))

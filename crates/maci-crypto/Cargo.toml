@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# ============ Baby Jubjub ============
+baby-jubjub = { path = "../baby-jubjub" }
+
+# ============ EdDSA-Poseidon ============
+eddsa-poseidon = { path = "../eddsa-poseidon" }
+
 # ============ Arkworks Ecosystem (Production-grade) ============
 # Core Algebra
 ark-ff = "0.5"                    # Finite field arithmetic
@@ -13,7 +19,6 @@ ark-std = "0.5"                   # Standard library wrapper
 
 # Curve Implementations
 ark-bn254 = "0.5"                 # BN254/BN128 curve (primarily used by MACI)
-ark-ed-on-bn254 = "0.5"           # Baby Jubjub (Edwards on BN254)
 
 # Poseidon Hashing (Production-grade implementation compatible with Circom)
 light-poseidon = "0.4"            # Fully compatible with circuits

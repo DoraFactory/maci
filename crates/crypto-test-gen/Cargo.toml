@@ -1,0 +1,34 @@
+[package]
+name = "crypto-test-gen"
+version = "0.1.0"
+edition = "2021"
+description = "Test vector generator for crypto primitives (Baby Jubjub, EdDSA-Poseidon)"
+
+[dependencies]
+# Baby Jubjub and EdDSA-Poseidon
+baby-jubjub = { path = "../baby-jubjub" }
+eddsa-poseidon = { path = "../eddsa-poseidon" }
+
+# Arkworks Ecosystem
+ark-ff = "0.5"
+ark-ec = "0.5"
+
+# Big Number Arithmetic
+num-bigint = { version = "0.4", features = ["serde"] }
+num-traits = "0.2"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error Handling
+anyhow = "1.0"
+
+[[bin]]
+name = "generate-baby-jubjub-vectors"
+path = "src/bin/generate_baby_jubjub_vectors.rs"
+
+[[bin]]
+name = "generate-eddsa-poseidon-vectors"
+path = "src/bin/generate_eddsa_poseidon_vectors.rs"
+

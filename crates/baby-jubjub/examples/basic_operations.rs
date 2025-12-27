@@ -8,13 +8,12 @@
 //! - Point packing/unpacking
 //! - Curve membership verification
 //!
-//! Run with: cargo run --example baby_jubjub
+//! Run with: cargo run --example basic_operations
 
-use ark_ed_on_bn254::Fr as EdFr;
-use maci_crypto::{base8, in_curve, mul_point_escalar, pack_point, unpack_point};
+use baby_jubjub::{base8, in_curve, mul_point_escalar, pack_point, unpack_point, EdFr};
 
 fn main() {
-    // Create secret scalar (324 in decimal) - matching TypeScript example
+    // Create secret scalar (111111 in decimal) - matching TypeScript example
     let secret_scalar = EdFr::from(111111u64);
 
     // Get Base8 point
@@ -53,3 +52,4 @@ fn main() {
     // Check if point is on curve
     println!("inCurve: {}", in_curve(&public_key));
 }
+

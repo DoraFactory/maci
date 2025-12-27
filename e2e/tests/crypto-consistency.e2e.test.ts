@@ -33,7 +33,7 @@ import {
 } from '../crypto-test/load-vectors';
 import type { CryptoTestVector } from '../crypto-test/test-vectors';
 
-describe.skip('Crypto Consistency E2E Tests', function () {
+describe('Crypto Consistency E2E Tests', function () {
   this.timeout(900000); // 15 minutes for comprehensive tests
 
   let rustTestVectors: CryptoTestVector[] = [];

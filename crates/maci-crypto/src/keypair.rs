@@ -1,13 +1,14 @@
 //! Keypair Module
 //!
 //! Adapted for MACI with BigUint compatibility
+//! Uses eddsa-poseidon for key derivation and signing
 
-use crate::baby_jubjub::{base8, mul_point_escalar, EdwardsAffine};
 use crate::keys::{PrivKey, PubKey};
-use ark_ed_on_bn254::{Fq, Fr as EdFr};
 use ark_ff::{BigInteger, PrimeField};
+use baby_jubjub::{base8, mul_point_escalar, EdFr, EdwardsAffine, Fq};
+use eddsa_poseidon::{derive_secret_scalar, HashingAlgorithm};
 use light_poseidon::{Poseidon, PoseidonHasher};
-use num_bigint::{BigInt, BigUint, Sign};
+use num_bigint::BigUint;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A keypair containing private key, public key, and formatted private key
@@ -65,6 +66,7 @@ impl<'de> Deserialize<'de> for Keypair {
 
 impl Keypair {
     /// Creates a new keypair from a private key
+    /// Note: Expects private_key bytes in big-endian format (to match TypeScript bigInt2Buffer)
     pub fn new(private_key: &[u8]) -> Self {
         // Hash the private key
         let secret_scalar = Self::gen_secret_scalar(private_key);
@@ -77,7 +79,8 @@ impl Keypair {
         let commitment = public_key.commitment();
 
         // Convert to BigUint for backward compatibility
-        let priv_key_biguint = BigUint::from_bytes_le(private_key);
+        // Note: private_key is in big-endian format (matching TypeScript bigInt2Buffer)
+        let priv_key_biguint = BigUint::from_bytes_be(private_key);
         let pub_key_biguint = public_key.to_biguint_array();
         // Convert EdFr to BigUint
         let formated_priv_key_biguint = {
@@ -98,11 +101,15 @@ impl Keypair {
     }
 
     /// Creates a new keypair from a BigUint private key (for backward compatibility)
+    /// Note: Converts to big-endian to match TypeScript bigInt2Buffer behavior
     pub fn from_priv_key(priv_key: &PrivKey) -> Self {
-        let priv_key_bytes = priv_key.to_bytes_le();
+        let priv_key_bytes = priv_key.to_bytes_be();
         let mut padded = vec![0u8; 32];
         let len = priv_key_bytes.len().min(32);
-        padded[..len].copy_from_slice(&priv_key_bytes[..len]);
+        if len > 0 {
+            let offset = 32 - len;
+            padded[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
+        }
         Self::new(&padded)
     }
 
@@ -127,19 +134,16 @@ impl Keypair {
     }
 
     /// Generates the secret scalar from the private key
+    /// Uses eddsa-poseidon's derive_secret_scalar for consistency
     fn gen_secret_scalar(private_key: &[u8]) -> EdFr {
-        // Hash the private key
-        let mut hash = crate::keys::blake_512(private_key);
+        // Use eddsa-poseidon's derive_secret_scalar with Blake512
+        // This matches zk-kit's default Blake-1 (Blake512) implementation
+        let secret_scalar_biguint = derive_secret_scalar(private_key, HashingAlgorithm::Blake512)
+            .expect("Failed to derive secret scalar");
 
-        // Prune hash
-        hash[0] &= 0xF8;
-        hash[31] &= 0x7F;
-        hash[31] |= 0x40;
-
-        // Use first half of hash and divide by cofactor (equivalent to shifting right by 3 bits)
-        let shifted: BigInt = BigInt::from_bytes_le(Sign::Plus, &hash[..32]) >> 3;
-
-        EdFr::from_le_bytes_mod_order(&shifted.to_bytes_le().1)
+        // Convert BigUint to EdFr
+        let scalar_bytes = secret_scalar_biguint.to_bytes_le();
+        EdFr::from_le_bytes_mod_order(&scalar_bytes)
     }
 }
 

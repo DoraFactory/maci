@@ -1,12 +1,12 @@
-use crate::baby_jubjub::{
-    base8, gen_random_babyjub_value, mul_point_escalar, pack_point, unpack_point, EdwardsAffine,
-};
 use crate::constants::SNARK_FIELD_SIZE;
-use crate::error::Result;
-use ark_ed_on_bn254::{Fq, Fr as EdFr};
+use crate::error::{CryptoError, Result};
 use ark_ff::{BigInteger, PrimeField};
-use blake::Blake;
-use num_bigint::{BigInt, BigUint, Sign};
+use baby_jubjub::{mul_point_escalar, EdFr, EdwardsAffine, Fq};
+use eddsa_poseidon::{
+    derive_public_key, derive_secret_scalar, pack_public_key, sign_message, unpack_public_key,
+    verify_signature, HashingAlgorithm, Signature,
+};
+use num_bigint::BigUint;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -37,74 +37,61 @@ pub fn gen_priv_key() -> PrivKey {
 
 /// Generate a random salt (BabyJub-compatible)
 pub fn gen_random_salt() -> BigUint {
-    gen_random_babyjub_value()
-}
-
-/// Computes Blake 512 hash
-pub fn blake_512(input: &[u8]) -> [u8; 64] {
-    let mut output = [0u8; 64];
-    let mut hasher = Blake::new(512).unwrap();
-    hasher.update(input);
-    hasher.finalise(&mut output);
-    output
+    baby_jubjub::gen_random_babyjub_value()
 }
 
 /// Format a private key to be compatible with BabyJub curve
-/// This derives a secret scalar using Blake-512
+/// Uses eddsa-poseidon's derive_secret_scalar which handles Blake-512 hashing
+/// and proper key derivation
 ///
-/// Implementation:
-/// 1. Hash private key with Blake-512
-/// 2. Prune (clamp) the hash
-/// 3. Right shift by 3 bits (divide by cofactor 8)
-/// 4. Convert to BigUint (little-endian)
+/// This matches TypeScript's formatPrivKeyForBabyJub:
+/// `BigInt(deriveSecretScalar(bigInt2Buffer(privKey)))`
+///
+/// Note: TypeScript's bigInt2Buffer uses big-endian byte order
 pub fn format_priv_key_for_babyjub(priv_key: &PrivKey) -> BigUint {
-    // Convert private key to bytes (little-endian)
-    let priv_key_bytes = priv_key.to_bytes_le();
+    // Convert private key to bytes (big-endian to match TypeScript bigInt2Buffer)
+    // bigInt2Buffer: i.toString(16) -> Buffer.from(hex, 'hex') is big-endian
+    let priv_key_bytes = priv_key.to_bytes_be();
 
-    // Ensure we have at least some bytes (pad with zeros if needed)
+    // Pad to 32 bytes (prepend zeros for big-endian)
     let mut padded_key = vec![0u8; 32];
     let len = priv_key_bytes.len().min(32);
-    padded_key[..len].copy_from_slice(&priv_key_bytes[..len]);
-
-    // Hash the private key with Blake-512
-    let mut hash = blake_512(&padded_key);
-
-    // Prune (clamp) the hash as per EdDSA standard
-    hash[0] &= 0xF8; // Clear lowest 3 bits
-    hash[31] &= 0x7F; // Clear highest bit
-    hash[31] |= 0x40; // Set second highest bit
-
-    // Use first 32 bytes and divide by cofactor (right shift by 3 bits)
-    let hash_bigint = BigInt::from_bytes_le(Sign::Plus, &hash[..32]);
-    let shifted: BigInt = hash_bigint >> 3;
-
-    // Convert back to BigUint (taking absolute value since we know it's positive)
-    let (sign, shifted_bytes) = shifted.to_bytes_le();
-    if sign == Sign::Minus {
-        // This shouldn't happen, but handle it just in case
-        panic!("Unexpected negative value after right shift");
+    if len > 0 {
+        let offset = 32 - len;
+        padded_key[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
     }
-    BigUint::from_bytes_le(&shifted_bytes)
+
+    // Use eddsa-poseidon's derive_secret_scalar with Blake512
+    // This matches zk-kit's default Blake-1 (Blake512) implementation
+    derive_secret_scalar(&padded_key, HashingAlgorithm::Blake512)
+        .expect("Failed to derive secret scalar")
 }
 
-/// Generate a public key from a private key using Arkworks Baby Jubjub
+/// Generate a public key from a private key using eddsa-poseidon
 ///
-/// Implementation:
-/// - format_priv_key_for_babyjub already divides by cofactor 8 (right shift 3 bits)
-/// - Uses base8() and mul_point_escalar from baby_jubjub module
+/// This matches TypeScript's genPubKey:
+/// ```typescript
+/// const key = derivePublicKey(bigInt2Buffer(privKey));
+/// return [BigInt(key[0]), BigInt(key[1])];
+/// ```
+///
+/// Note: TypeScript's bigInt2Buffer uses big-endian byte order
 pub fn gen_pub_key(priv_key: &PrivKey) -> PubKey {
-    let formatted = format_priv_key_for_babyjub(priv_key);
+    // Convert private key to bytes (big-endian to match TypeScript bigInt2Buffer)
+    let priv_key_bytes = priv_key.to_bytes_be();
 
-    // Convert to EdFr (Edwards curve scalar field)
-    let scalar_bytes = formatted.to_bytes_le();
-    let mut padded = vec![0u8; 32];
-    let len = scalar_bytes.len().min(32);
-    padded[..len].copy_from_slice(&scalar_bytes[..len]);
-    let scalar_edfr = EdFr::from_le_bytes_mod_order(&padded);
+    // Pad to 32 bytes (prepend zeros for big-endian)
+    let mut padded_key = vec![0u8; 32];
+    let len = priv_key_bytes.len().min(32);
+    if len > 0 {
+        let offset = 32 - len;
+        padded_key[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
+    }
 
-    // Use base8() and mul_point_escalar from baby_jubjub module
-    let base8_point = base8();
-    let public_point = mul_point_escalar(&base8_point, scalar_edfr);
+    // Use eddsa-poseidon's derive_public_key with Blake512
+    // This matches zk-kit's default Blake-1 (Blake512) implementation
+    let public_point = derive_public_key(&padded_key, HashingAlgorithm::Blake512)
+        .expect("Failed to derive public key");
 
     // Extract x and y coordinates and convert to BigUint
     let x_bytes = public_point.x.into_bigint().to_bytes_le();
@@ -117,8 +104,10 @@ pub fn gen_pub_key(priv_key: &PrivKey) -> PubKey {
 }
 
 /// Pack a public key into a single BigUint (lossy compression)
-/// This encodes the y-coordinate and the sign of the x-coordinate
-/// Uses pack_point from baby_jubjub module
+/// Uses eddsa-poseidon's pack_public_key
+///
+/// This matches TypeScript's packPubKey:
+/// `BigInt(packPublicKey(pubKey))`
 pub fn pack_pub_key(pub_key: &PubKey) -> BigUint {
     // Convert PubKey (BigUint array) to EdwardsAffine point
     let x_bytes = pub_key[0].to_bytes_le();
@@ -138,21 +127,21 @@ pub fn pack_pub_key(pub_key: &PubKey) -> BigUint {
 
     let point = EdwardsAffine::new_unchecked(x_fq, y_fq);
 
-    // Use pack_point from baby_jubjub module
-    pack_point(&point)
+    // Use eddsa-poseidon's pack_public_key
+    pack_public_key(&point).expect("Failed to pack public key")
 }
 
 /// Unpack a public key from its packed representation
-/// This decompresses a point on the Baby Jubjub curve
+/// Uses eddsa-poseidon's unpack_public_key
 ///
-/// The packed format stores:
-/// - y coordinate in the lower 255 bits
-/// - sign of x coordinate in the highest bit (bit 255)
-///
-/// Uses unpack_point from baby_jubjub module
+/// This matches TypeScript's unpackPubKey:
+/// ```typescript
+/// const pubKey = unpackPublicKey(packed);
+/// return pubKey.map((x) => BigInt(x)) as PubKey;
+/// ```
 pub fn unpack_pub_key(packed: &BigUint) -> Result<PubKey> {
-    // Use unpack_point from baby_jubjub module
-    let point = unpack_point(packed)?;
+    // Use eddsa-poseidon's unpack_public_key
+    let point = unpack_public_key(packed).map_err(|e| CryptoError::InvalidPackedPublicKey(e))?;
 
     // Convert EdwardsAffine point to PubKey (BigUint array)
     let x_bytes = point.x.into_bigint().to_bytes_le();
@@ -165,6 +154,14 @@ pub fn unpack_pub_key(packed: &BigUint) -> Result<PubKey> {
 }
 
 /// Generate a keypair (optionally from a given private key)
+///
+/// This matches TypeScript's genKeypair:
+/// ```typescript
+/// const privKey = pkey ? pkey % SNARK_FIELD_SIZE : genPrivKey() % SNARK_FIELD_SIZE;
+/// const pubKey = genPubKey(privKey);
+/// const formatedPrivKey = formatPrivKeyForBabyJub(privKey);
+/// const keypair: Keypair = { privKey, pubKey, formatedPrivKey };
+/// ```
 pub fn gen_keypair(priv_key: Option<PrivKey>) -> Keypair {
     let priv_key = if let Some(pk) = priv_key {
         &pk % &*SNARK_FIELD_SIZE
@@ -183,8 +180,10 @@ pub fn gen_keypair(priv_key: Option<PrivKey>) -> Keypair {
 }
 
 /// Generate an ECDH shared key from a private key and a public key
-/// Uses Arkworks Baby Jubjub for curve operations
-/// Uses mul_point_escalar from baby_jubjub module
+/// Uses eddsa-poseidon's formatted private key and Baby Jubjub scalar multiplication
+///
+/// This matches TypeScript's genEcdhSharedKey:
+/// `mulPointEscalar(pubKey as Point<bigint>, formatPrivKeyForBabyJub(privKey))`
 pub fn gen_ecdh_shared_key(priv_key: &PrivKey, pub_key: &PubKey) -> EcdhSharedKey {
     let formatted = format_priv_key_for_babyjub(priv_key);
 
@@ -225,6 +224,61 @@ pub fn gen_ecdh_shared_key(priv_key: &PrivKey, pub_key: &PubKey) -> EcdhSharedKe
     let y = BigUint::from_bytes_le(&y_bytes);
 
     [x, y]
+}
+
+/// Sign a message using EdDSA-Poseidon signature scheme
+///
+/// This matches TypeScript's signMessage from @zk-kit/eddsa-poseidon:
+/// `const signature = signMessage(bigInt2Buffer(signPriKey), hash);`
+///
+/// Note: TypeScript's bigInt2Buffer uses big-endian byte order
+pub fn sign_message_eddsa(priv_key: &PrivKey, message: &BigUint) -> Result<Signature> {
+    // Convert private key to bytes (big-endian to match TypeScript bigInt2Buffer)
+    let priv_key_bytes = priv_key.to_bytes_be();
+
+    // Pad to 32 bytes (prepend zeros for big-endian)
+    let mut padded_key = vec![0u8; 32];
+    let len = priv_key_bytes.len().min(32);
+    if len > 0 {
+        let offset = 32 - len;
+        padded_key[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
+    }
+
+    // Use eddsa-poseidon's sign_message with Blake512
+    // This matches zk-kit's default Blake-1 (Blake512) implementation
+    sign_message(&padded_key, message, HashingAlgorithm::Blake512)
+        .map_err(|e| CryptoError::Generic(format!("Failed to sign message: {}", e)))
+}
+
+/// Verify an EdDSA-Poseidon signature
+///
+/// This matches TypeScript's verify functionality from @zk-kit/eddsa-poseidon
+pub fn verify_signature_eddsa(
+    message: &BigUint,
+    signature: &Signature,
+    pub_key: &PubKey,
+) -> Result<bool> {
+    // Convert PubKey to EdwardsAffine point
+    let x_bytes = pub_key[0].to_bytes_le();
+    let y_bytes = pub_key[1].to_bytes_le();
+
+    let mut x_padded = vec![0u8; 32];
+    let mut y_padded = vec![0u8; 32];
+
+    let x_len = x_bytes.len().min(32);
+    let y_len = y_bytes.len().min(32);
+
+    x_padded[..x_len].copy_from_slice(&x_bytes[..x_len]);
+    y_padded[..y_len].copy_from_slice(&y_bytes[..y_len]);
+
+    let x_fq = Fq::from_le_bytes_mod_order(&x_padded);
+    let y_fq = Fq::from_le_bytes_mod_order(&y_padded);
+
+    let pub_point = EdwardsAffine::new_unchecked(x_fq, y_fq);
+
+    // Use eddsa-poseidon's verify_signature
+    verify_signature(message, signature, &pub_point)
+        .map_err(|e| CryptoError::Generic(format!("Failed to verify signature: {}", e)))
 }
 
 #[cfg(test)]
@@ -283,9 +337,6 @@ mod tests {
         let packed = pack_pub_key(&keypair.pub_key);
         let unpacked = unpack_pub_key(&packed);
 
-        // Note: Public key unpacking requires full elliptic curve point decompression
-        // which is complex. The current implementation may not always recover the exact
-        // original x coordinate. For now, we verify basic properties.
         match unpacked {
             Ok(unpacked_key) => {
                 // Y coordinate should always match as it's stored directly
@@ -296,7 +347,6 @@ mod tests {
             }
             Err(_) => {
                 // If unpacking fails, it's a known limitation
-                // This test documents the current behavior
             }
         }
     }
@@ -331,5 +381,55 @@ mod tests {
 
         // Public key should not be the identity point (0, 1)
         assert!(!(pub_key[0] == BigUint::from(0u32) && pub_key[1] == BigUint::from(1u32)));
+    }
+
+    #[test]
+    fn test_sign_and_verify_message() {
+        let priv_key = BigUint::from(12345u64);
+        let message = BigUint::from(999999u64);
+
+        let keypair = gen_keypair(Some(priv_key.clone()));
+        let signature = sign_message_eddsa(&keypair.priv_key, &message).unwrap();
+        let is_valid = verify_signature_eddsa(&message, &signature, &keypair.pub_key).unwrap();
+
+        assert!(is_valid);
+    }
+
+    #[test]
+    fn test_sign_and_verify_different_message() {
+        let priv_key = BigUint::from(12345u64);
+        let message1 = BigUint::from(999999u64);
+        let message2 = BigUint::from(111111u64);
+
+        let keypair = gen_keypair(Some(priv_key.clone()));
+        let signature = sign_message_eddsa(&keypair.priv_key, &message1).unwrap();
+        let is_valid = verify_signature_eddsa(&message2, &signature, &keypair.pub_key).unwrap();
+
+        assert!(!is_valid);
+    }
+
+    #[test]
+    fn test_keypair_consistency_with_eddsa() {
+        // Test that our keypair generation is consistent with direct eddsa-poseidon usage
+        let priv_key = BigUint::from(54321u64);
+        let keypair = gen_keypair(Some(priv_key.clone()));
+
+        // Convert to bytes for eddsa-poseidon (big-endian to match TypeScript bigInt2Buffer)
+        let priv_key_bytes = priv_key.to_bytes_be();
+        let mut padded_key = vec![0u8; 32];
+        let len = priv_key_bytes.len().min(32);
+        if len > 0 {
+            let offset = 32 - len;
+            padded_key[offset..].copy_from_slice(&priv_key_bytes[priv_key_bytes.len() - len..]);
+        }
+
+        let eddsa_pub_key = derive_public_key(&padded_key, HashingAlgorithm::Blake512).unwrap();
+
+        // Extract coordinates
+        let eddsa_x = BigUint::from_bytes_le(&eddsa_pub_key.x.into_bigint().to_bytes_le());
+        let eddsa_y = BigUint::from_bytes_le(&eddsa_pub_key.y.into_bigint().to_bytes_le());
+
+        assert_eq!(keypair.pub_key[0], eddsa_x);
+        assert_eq!(keypair.pub_key[1], eddsa_y);
     }
 }
