@@ -2,15 +2,13 @@
 //!
 //! Adapted for MACI with BigUint compatibility
 
-use crate::baby_jubjub::{BabyJubjubConfig, EdwardsAffine};
+use crate::baby_jubjub::{base8, mul_point_escalar, EdwardsAffine};
 use crate::keys::{PrivKey, PubKey};
-use ark_ec::{twisted_edwards::TECurveConfig, CurveGroup};
 use ark_ed_on_bn254::{Fq, Fr as EdFr};
 use ark_ff::{BigInteger, PrimeField};
 use light_poseidon::{Poseidon, PoseidonHasher};
 use num_bigint::{BigInt, BigUint, Sign};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::ops::Mul;
 
 /// A keypair containing private key, public key, and formatted private key
 #[derive(Debug, Clone)]
@@ -72,6 +70,7 @@ impl Keypair {
         let secret_scalar = Self::gen_secret_scalar(private_key);
 
         // Get the public key by multiplying the secret scalar by the base point
+        // Use base8() and mul_point_escalar from baby_jubjub module
         let public_key = PublicKey::from_scalar(&secret_scalar);
 
         // Generate the identity commitment
@@ -157,8 +156,10 @@ impl PublicKey {
     }
 
     /// Creates a new subgroup public key from a scalar
+    /// Uses base8() and mul_point_escalar from baby_jubjub module
     pub fn from_scalar(secret_scalar: &EdFr) -> Self {
-        let point = BabyJubjubConfig::GENERATOR.mul(secret_scalar).into_affine();
+        let base8_point = base8();
+        let point = mul_point_escalar(&base8_point, *secret_scalar);
 
         Self { point }
     }

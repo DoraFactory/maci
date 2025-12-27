@@ -29,11 +29,10 @@
 //! assert_eq!(shared1, shared2);
 //! ```
 
-use thiserror::Error;
-
 // Module declarations
 pub mod baby_jubjub;
 pub mod constants;
+pub mod error;
 pub mod hashing;
 pub mod keypair;
 pub mod keys;
@@ -44,7 +43,8 @@ pub mod utils;
 
 // Re-export commonly used types and functions
 pub use baby_jubjub::{
-    gen_random_babyjub_value, BabyJubjubConfig, EdwardsAffine, EdwardsProjective, G1Point, G2Point,
+    add_point, base8, gen_random_babyjub_value, in_curve, mul_point_escalar, pack_point,
+    unpack_point, BabyJubjubConfig, EdwardsAffine, EdwardsProjective,
 };
 pub use constants::{NOTHING_UP_MY_SLEEVE, PAD_KEY_HASH, SNARK_FIELD_SIZE, UINT32, UINT96};
 pub use hashing::{
@@ -60,35 +60,8 @@ pub use rerandomize::{rerandomize, Ciphertext, RerandomizedCiphertext};
 pub use tree::{biguint_to_node, node_to_biguint, Tree};
 pub use utils::{bigint_to_bytes, bigint_to_hex, bytes_to_bigint, hex_to_bigint};
 
-/// Error types for the MACI crypto library
-#[derive(Error, Debug)]
-pub enum CryptoError {
-    #[error("Invalid field element: {0}")]
-    InvalidFieldElement(String),
-
-    #[error("Invalid point: {0}")]
-    InvalidPoint(String),
-
-    #[error("Invalid key: {0}")]
-    InvalidKey(String),
-
-    #[error("Hash function error: {0}")]
-    HashError(String),
-
-    #[error("Tree operation error: {0}")]
-    TreeError(String),
-
-    #[error("Serialization error: {0}")]
-    SerializationError(String),
-
-    #[error("Hex decode error: {0}")]
-    HexDecodeError(#[from] hex::FromHexError),
-
-    #[error("Generic error: {0}")]
-    Generic(String),
-}
-
-pub type Result<T> = std::result::Result<T, CryptoError>;
+// Re-export error types
+pub use error::{CryptoError, Result};
 
 #[cfg(test)]
 mod tests {

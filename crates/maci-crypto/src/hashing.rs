@@ -1,4 +1,5 @@
 use crate::constants::{biguint_to_fr, fr_to_biguint, SNARK_FIELD_SIZE};
+use crate::error::{CryptoError, Result};
 use ark_bn254::Fr;
 use light_poseidon::{Poseidon, PoseidonHasher};
 use num_bigint::BigUint;
@@ -10,47 +11,62 @@ pub fn poseidon(inputs: &[BigUint]) -> BigUint {
     if inputs.is_empty() {
         return BigUint::from(0u32);
     }
-    
+
     // Convert BigUint inputs to Fr
-    let fr_inputs: Vec<Fr> = inputs.iter().map(|v| biguint_to_fr(&(v % &*SNARK_FIELD_SIZE))).collect();
-    
+    let fr_inputs: Vec<Fr> = inputs
+        .iter()
+        .map(|v| biguint_to_fr(&(v % &*SNARK_FIELD_SIZE)))
+        .collect();
+
     // Create Poseidon hasher with appropriate width
     let width = fr_inputs.len();
     let mut poseidon = Poseidon::<Fr>::new_circom(width).expect("Failed to create Poseidon hasher");
-    
+
     // Hash and convert back to BigUint
     let result_fr = poseidon.hash(&fr_inputs).expect("Poseidon hash failed");
     fr_to_biguint(&result_fr)
 }
 
 /// Hash exactly 2 elements using Poseidon
-pub fn poseidon_t3(inputs: &[BigUint]) -> Result<BigUint, String> {
+pub fn poseidon_t3(inputs: &[BigUint]) -> Result<BigUint> {
     if inputs.len() != 2 {
-        return Err(format!("poseidon_t3 expects 2 inputs, got {}", inputs.len()));
+        return Err(CryptoError::PoseidonInputCountMismatch {
+            expected: 2,
+            actual: inputs.len(),
+        });
     }
     Ok(poseidon(inputs))
 }
 
 /// Hash exactly 3 elements using Poseidon
-pub fn poseidon_t4(inputs: &[BigUint]) -> Result<BigUint, String> {
+pub fn poseidon_t4(inputs: &[BigUint]) -> Result<BigUint> {
     if inputs.len() != 3 {
-        return Err(format!("poseidon_t4 expects 3 inputs, got {}", inputs.len()));
+        return Err(CryptoError::PoseidonInputCountMismatch {
+            expected: 3,
+            actual: inputs.len(),
+        });
     }
     Ok(poseidon(inputs))
 }
 
 /// Hash exactly 4 elements using Poseidon
-pub fn poseidon_t5(inputs: &[BigUint]) -> Result<BigUint, String> {
+pub fn poseidon_t5(inputs: &[BigUint]) -> Result<BigUint> {
     if inputs.len() != 4 {
-        return Err(format!("poseidon_t5 expects 4 inputs, got {}", inputs.len()));
+        return Err(CryptoError::PoseidonInputCountMismatch {
+            expected: 4,
+            actual: inputs.len(),
+        });
     }
     Ok(poseidon(inputs))
 }
 
 /// Hash exactly 5 elements using Poseidon
-pub fn poseidon_t6(inputs: &[BigUint]) -> Result<BigUint, String> {
+pub fn poseidon_t6(inputs: &[BigUint]) -> Result<BigUint> {
     if inputs.len() != 5 {
-        return Err(format!("poseidon_t6 expects 5 inputs, got {}", inputs.len()));
+        return Err(CryptoError::PoseidonInputCountMismatch {
+            expected: 5,
+            actual: inputs.len(),
+        });
     }
     Ok(poseidon(inputs))
 }
@@ -61,13 +77,12 @@ pub fn hash_left_right(left: &BigUint, right: &BigUint) -> BigUint {
 }
 
 /// Hash up to N elements, padding with zeros if necessary
-pub fn hash_n(num_elements: usize, elements: &[BigUint]) -> Result<BigUint, String> {
+pub fn hash_n(num_elements: usize, elements: &[BigUint]) -> Result<BigUint> {
     if elements.len() > num_elements {
-        return Err(format!(
-            "hash_n: elements length {} exceeds maximum {}",
-            elements.len(),
-            num_elements
-        ));
+        return Err(CryptoError::HashElementsExceedMax {
+            actual: elements.len(),
+            max: num_elements,
+        });
     }
 
     let mut padded = elements.to_vec();
@@ -79,22 +94,22 @@ pub fn hash_n(num_elements: usize, elements: &[BigUint]) -> Result<BigUint, Stri
 }
 
 /// Hash 2 elements
-pub fn hash2(elements: &[BigUint]) -> Result<BigUint, String> {
+pub fn hash2(elements: &[BigUint]) -> Result<BigUint> {
     hash_n(2, elements)
 }
 
 /// Hash 3 elements
-pub fn hash3(elements: &[BigUint]) -> Result<BigUint, String> {
+pub fn hash3(elements: &[BigUint]) -> Result<BigUint> {
     hash_n(3, elements)
 }
 
 /// Hash 4 elements
-pub fn hash4(elements: &[BigUint]) -> Result<BigUint, String> {
+pub fn hash4(elements: &[BigUint]) -> Result<BigUint> {
     hash_n(4, elements)
 }
 
 /// Hash 5 elements
-pub fn hash5(elements: &[BigUint]) -> Result<BigUint, String> {
+pub fn hash5(elements: &[BigUint]) -> Result<BigUint> {
     hash_n(5, elements)
 }
 
@@ -104,15 +119,14 @@ pub fn hash_lean_imt(a: &BigUint, b: &BigUint) -> BigUint {
 }
 
 /// Hash exactly 10 elements using the structure: hash2(hash5(first 5), hash5(last 5))
-pub fn hash10(elements: &[BigUint]) -> Result<BigUint, String> {
+pub fn hash10(elements: &[BigUint]) -> Result<BigUint> {
     const MAX: usize = 10;
-    
+
     if elements.len() > MAX {
-        return Err(format!(
-            "hash10: elements length {} exceeds maximum {}",
-            elements.len(),
-            MAX
-        ));
+        return Err(CryptoError::HashElementsExceedMax {
+            actual: elements.len(),
+            max: MAX,
+        });
     }
 
     let mut padded = elements.to_vec();
@@ -126,15 +140,14 @@ pub fn hash10(elements: &[BigUint]) -> Result<BigUint, String> {
 }
 
 /// Hash up to 12 elements
-pub fn hash12(elements: &[BigUint]) -> Result<BigUint, String> {
+pub fn hash12(elements: &[BigUint]) -> Result<BigUint> {
     const MAX: usize = 12;
-    
+
     if elements.len() > MAX {
-        return Err(format!(
-            "hash12: elements length {} exceeds maximum {}",
-            elements.len(),
-            MAX
-        ));
+        return Err(CryptoError::HashElementsExceedMax {
+            actual: elements.len(),
+            max: MAX,
+        });
     }
 
     let mut padded = elements.to_vec();
@@ -144,8 +157,13 @@ pub fn hash12(elements: &[BigUint]) -> Result<BigUint, String> {
 
     let hash1 = poseidon(&padded[0..5]);
     let hash2_val = poseidon(&padded[5..10]);
-    
-    Ok(poseidon(&[hash1, hash2_val, padded[10].clone(), padded[11].clone()]))
+
+    Ok(poseidon(&[
+        hash1,
+        hash2_val,
+        padded[10].clone(),
+        padded[11].clone(),
+    ]))
 }
 
 /// Hash a single BigUint
@@ -157,7 +175,7 @@ pub fn hash_one(pre_image: &BigUint) -> BigUint {
 /// Used for computing input hashes for zkSNARK circuits
 pub fn sha256_hash(inputs: &[BigUint]) -> BigUint {
     let mut hasher = Sha256::new();
-    
+
     for input in inputs {
         let mut bytes = input.to_bytes_be();
         // Pad to 32 bytes (uint256)
@@ -166,7 +184,7 @@ pub fn sha256_hash(inputs: &[BigUint]) -> BigUint {
         }
         hasher.update(&bytes);
     }
-    
+
     let result = hasher.finalize();
     let hash_value = BigUint::from_bytes_be(&result);
     &hash_value % &*SNARK_FIELD_SIZE
@@ -297,10 +315,10 @@ mod tests {
     fn test_hash_avalanche_effect() {
         let inputs1 = vec![BigUint::from(1u32), BigUint::from(2u32)];
         let inputs2 = vec![BigUint::from(1u32), BigUint::from(3u32)];
-        
+
         let result1 = poseidon(&inputs1);
         let result2 = poseidon(&inputs2);
-        
+
         assert_ne!(result1, result2);
     }
 }

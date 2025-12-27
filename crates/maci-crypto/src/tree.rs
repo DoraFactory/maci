@@ -1,8 +1,12 @@
+use crate::error::CryptoError;
 use crate::hashing::poseidon;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use zk_kit_imt::imt::{IMTNode, IMT};
+
+// Use full path for Result to avoid conflict with serde::Result
+type CryptoResult<T> = crate::error::Result<T>;
 
 /// Convert BigUint to IMTNode (String)
 pub fn biguint_to_node(value: &BigUint) -> IMTNode {
@@ -174,9 +178,9 @@ impl Tree {
     }
 
     /// Get a leaf by index
-    pub fn leaf(&self, leaf_idx: usize) -> Result<IMTNode, String> {
+    pub fn leaf(&self, leaf_idx: usize) -> CryptoResult<IMTNode> {
         if leaf_idx >= self.leaves_count {
-            return Err(format!("Leaf index {} out of range", leaf_idx));
+            return Err(CryptoError::LeafIndexOutOfRange { index: leaf_idx });
         }
 
         // Get all leaves and return the requested one
@@ -194,18 +198,18 @@ impl Tree {
     }
 
     /// Update a leaf at the given index
-    pub fn update_leaf(&mut self, leaf_idx: usize, leaf: IMTNode) -> Result<(), String> {
+    pub fn update_leaf(&mut self, leaf_idx: usize, leaf: IMTNode) -> CryptoResult<()> {
         if leaf_idx >= self.leaves_count {
-            return Err(format!("Leaf index {} out of range", leaf_idx));
+            return Err(CryptoError::LeafIndexOutOfRange { index: leaf_idx });
         }
 
         {
             let mut imt_borrow = self.imt.borrow_mut();
             if let Some(ref mut imt) = *imt_borrow {
                 imt.update(leaf_idx, leaf)
-                    .map_err(|e| format!("Failed to update leaf: {}", e))?;
+                    .map_err(|e| CryptoError::LeafUpdateFailed(e.to_string()))?;
             } else {
-                return Err("IMT not initialized".to_string());
+                return Err(CryptoError::IMTNotInitialized);
             }
         }
 
@@ -215,9 +219,9 @@ impl Tree {
     }
 
     /// Get path indices for a leaf
-    pub fn path_idx_of(&self, leaf_idx: usize) -> Result<Vec<IMTNode>, String> {
+    pub fn path_idx_of(&self, leaf_idx: usize) -> CryptoResult<Vec<IMTNode>> {
         if leaf_idx >= self.leaves_count {
-            return Err(format!("Leaf index {} out of range", leaf_idx));
+            return Err(CryptoError::LeafIndexOutOfRange { index: leaf_idx });
         }
 
         // Calculate path indices manually
@@ -234,9 +238,9 @@ impl Tree {
     }
 
     /// Get path elements (siblings) for a leaf
-    pub fn path_element_of(&self, leaf_idx: usize) -> Result<Vec<Vec<IMTNode>>, String> {
+    pub fn path_element_of(&self, leaf_idx: usize) -> CryptoResult<Vec<Vec<IMTNode>>> {
         if leaf_idx >= self.leaves_count {
-            return Err(format!("Leaf index {} out of range", leaf_idx));
+            return Err(CryptoError::LeafIndexOutOfRange { index: leaf_idx });
         }
 
         if let Some(ref imt) = *self.imt.borrow() {
@@ -271,7 +275,7 @@ impl Tree {
 
             Ok(siblings)
         } else {
-            Err("IMT not initialized".to_string())
+            Err(CryptoError::IMTNotInitialized)
         }
     }
 
@@ -308,12 +312,12 @@ impl Tree {
         to_depth: usize,
         zero_hashes: &[IMTNode],
         degree: usize,
-    ) -> Result<IMTNode, String> {
+    ) -> CryptoResult<IMTNode> {
         if to_depth <= from_depth {
-            return Err("to_depth must be greater than from_depth".to_string());
+            return Err(CryptoError::InvalidTreeDepth);
         }
         if zero_hashes.len() <= to_depth {
-            return Err("zero_hashes array is too short for target depth".to_string());
+            return Err(CryptoError::ZeroHashesTooShort);
         }
 
         let mut current_root = small_root.clone();

@@ -1,6 +1,7 @@
 use crate::baby_jubjub::{
     gen_random_babyjub_value, BabyJubjubConfig, EdwardsAffine, EdwardsProjective,
 };
+use crate::error::Result;
 use crate::keys::PubKey;
 use ark_ec::{twisted_edwards::TECurveConfig, CurveGroup};
 use ark_ed_on_bn254::{Fq, Fr as EdFr};
@@ -23,7 +24,7 @@ pub struct RerandomizedCiphertext {
 }
 
 /// Convert BigUint coordinates to an Edwards curve point
-fn biguint_to_edwards_point(coords: &[BigUint; 2]) -> Result<EdwardsProjective, String> {
+fn biguint_to_edwards_point(coords: &[BigUint; 2]) -> Result<EdwardsProjective> {
     let x_bytes = coords[0].to_bytes_le();
     let y_bytes = coords[1].to_bytes_le();
 
@@ -85,7 +86,7 @@ pub fn rerandomize(
     pub_key: &PubKey,
     ciphertext: &Ciphertext,
     random_val: Option<BigUint>,
-) -> Result<RerandomizedCiphertext, String> {
+) -> Result<RerandomizedCiphertext> {
     let random_val = random_val.unwrap_or_else(gen_random_babyjub_value);
 
     // Convert to EdFr (Edwards curve scalar field)
