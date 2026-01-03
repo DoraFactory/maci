@@ -18,7 +18,8 @@ export interface CryptoTestVector {
     | 'rerandomize'
     | 'amaci_static_random_key'
     | 'amaci_encrypt'
-    | 'amaci_rerandomize';
+    | 'amaci_rerandomize'
+    | 'amaci_deactivate_root';
   data: {
     // Keypair test data (required for test_type === 'keypair')
     seed?: string;
@@ -183,5 +184,26 @@ export interface CryptoTestVector {
         y: string;
       };
     };
+
+    // AMACI deactivate root test data (required for test_type === 'amaci_deactivate_root')
+    coordinator_seed?: string;
+    coordinator_pub_key?: {
+      x: string;
+      y: string;
+    };
+    accounts?: Array<{
+      x: string;
+      y: string;
+    }>;
+    state_tree_depth?: number;
+    tree_depth?: number;
+    tree_degree?: number;
+    deactivates?: Array<{
+      c1_x: string;
+      c1_y: string;
+      c2_x: string;
+      c2_y: string;
+      shared_key_hash: string;
+    }>;
   };
 }

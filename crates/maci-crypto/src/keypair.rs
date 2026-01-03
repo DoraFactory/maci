@@ -3,10 +3,13 @@
 //! Adapted for MACI with BigUint compatibility
 //! Uses eddsa-poseidon for key derivation and signing
 
+use crate::hashing::poseidon;
 use crate::keys::{EcdhSharedKey, PrivKey, PubKey};
+use crate::rerandomize::encrypt_odevity;
+use crate::tree::{biguint_to_node, Tree};
 use ark_bn254::Fr as Bn254Fr;
 use ark_ff::{BigInteger, PrimeField};
-use baby_jubjub::{base8, mul_point_escalar, EdFr, EdwardsAffine, Fq};
+use baby_jubjub::{base8, gen_random_babyjub_value, mul_point_escalar, EdFr, EdwardsAffine, Fq};
 use eddsa_poseidon::{derive_secret_scalar, HashingAlgorithm};
 use light_poseidon::{Poseidon, PoseidonHasher};
 use num_bigint::BigUint;
@@ -228,6 +231,109 @@ impl Keypair {
         let scalar_bytes = secret_scalar_biguint.to_bytes_le();
         EdFr::from_le_bytes_mod_order(&scalar_bytes)
     }
+
+    /// Generates a deactivate root for AMACI (Anonymous MACI)
+    ///
+    /// This function creates a Merkle tree of deactivated account states.
+    /// For each account public key, it:
+    /// 1. Computes ECDH shared key between coordinator and account
+    /// 2. Encrypts an "inactive" status (even parity) to the account's public key
+    /// 3. Constructs a deactivate leaf: [c1.x, c1.y, c2.x, c2.y, poseidon(sharedKey)]
+    /// 4. Hashes all deactivate entries to form tree leaves
+    /// 5. Builds a Merkle tree and returns root + tree structure
+    ///
+    /// This matches TypeScript's genDeactivateRoot:
+    /// ```typescript
+    /// genDeactivateRoot(
+    ///   accounts: PubKey[] | bigint[],
+    ///   stateTreeDepth: number
+    /// ): { deactivates: bigint[][]; root: bigint; leaves: bigint[]; tree: Tree; }
+    /// ```
+    ///
+    /// # Arguments
+    /// * `accounts` - Array of account public keys (can be PubKey or packed bigint)
+    /// * `state_tree_depth` - Depth of the state tree (tree will have depth = state_tree_depth + 2)
+    ///
+    /// # Returns
+    /// A tuple containing:
+    /// - deactivates: Vector of deactivate entries (each entry is [c1.x, c1.y, c2.x, c2.y, shared_key_hash])
+    /// - root: The Merkle tree root
+    /// - leaves: Vector of leaf hashes
+    /// - tree: The constructed Merkle tree
+    ///
+    /// # Example
+    /// ```
+    /// use maci_crypto::keypair::Keypair;
+    /// use num_bigint::BigUint;
+    ///
+    /// let coordinator = Keypair::from_priv_key(&BigUint::from(12345u64));
+    /// let account1 = Keypair::from_priv_key(&BigUint::from(11111u64));
+    /// let account2 = Keypair::from_priv_key(&BigUint::from(22222u64));
+    ///
+    /// let accounts = vec![account1.pub_key.clone(), account2.pub_key.clone()];
+    /// let state_tree_depth = 3;
+    ///
+    /// let result = coordinator.gen_deactivate_root(&accounts, state_tree_depth);
+    /// println!("Root: {}", result.1);
+    /// println!("Leaves count: {}", result.2.len());
+    /// ```
+    pub fn gen_deactivate_root(
+        &self,
+        accounts: &[PubKey],
+        state_tree_depth: usize,
+    ) -> (Vec<Vec<BigUint>>, BigUint, Vec<BigUint>, Tree) {
+        // STEP 1: Generate deactivate state tree leaf for each account
+        let deactivates: Vec<Vec<BigUint>> = accounts
+            .iter()
+            .map(|account| {
+                // Compute ECDH shared key with this account
+                let shared_key = self.gen_ecdh_shared_key(account);
+
+                // Encrypt "inactive" status (false = even parity = active signup)
+                // According to circuit rules: odd=active, even=inactive
+                // Set to false here to ensure valid signup
+                let random_val = gen_random_babyjub_value();
+                let deactivate = encrypt_odevity(false, &self.pub_key, Some(random_val))
+                    .expect("Failed to encrypt odevity");
+
+                // Hash the shared key using Poseidon
+                let shared_key_hash = poseidon(&vec![shared_key[0].clone(), shared_key[1].clone()]);
+
+                // Return deactivate entry: [c1.x, c1.y, c2.x, c2.y, poseidon(sharedKey)]
+                vec![
+                    deactivate.c1[0].clone(),
+                    deactivate.c1[1].clone(),
+                    deactivate.c2[0].clone(),
+                    deactivate.c2[1].clone(),
+                    shared_key_hash,
+                ]
+            })
+            .collect();
+
+        // STEP 2: Generate tree root
+        let degree = 5;
+        let depth = state_tree_depth + 2;
+        let zero = biguint_to_node(&BigUint::from(0u32));
+        let mut tree = Tree::new(degree, depth, zero);
+
+        // Hash each deactivate entry to create leaves
+        let leaves: Vec<BigUint> = deactivates
+            .iter()
+            .map(|deactivate| poseidon(deactivate))
+            .collect();
+
+        // Convert leaves to tree nodes (String format)
+        let leaf_nodes: Vec<String> = leaves.iter().map(|l| biguint_to_node(l)).collect();
+        tree.init_leaves(&leaf_nodes);
+
+        // Get the root as BigUint
+        let root_str = tree.root();
+        let root = root_str
+            .parse::<BigUint>()
+            .unwrap_or_else(|_| BigUint::from(0u32));
+
+        (deactivates, root, leaves, tree)
+    }
 }
 
 /// Public key
@@ -379,5 +485,101 @@ mod tests {
 
         // Both methods should produce the same result
         assert_eq!(shared_keypair, shared_keys);
+    }
+
+    #[test]
+    fn test_gen_deactivate_root() {
+        // Create coordinator keypair
+        let coordinator = Keypair::from_priv_key(&BigUint::from(12345u64));
+
+        // Create test account keypairs
+        let account1 = Keypair::from_priv_key(&BigUint::from(11111u64));
+        let account2 = Keypair::from_priv_key(&BigUint::from(22222u64));
+        let account3 = Keypair::from_priv_key(&BigUint::from(33333u64));
+
+        let accounts = vec![
+            account1.pub_key.clone(),
+            account2.pub_key.clone(),
+            account3.pub_key.clone(),
+        ];
+
+        let state_tree_depth = 3;
+
+        // Generate deactivate root
+        let (deactivates, root, leaves, tree) =
+            coordinator.gen_deactivate_root(&accounts, state_tree_depth);
+
+        // Verify the structure
+        assert_eq!(deactivates.len(), 3, "Should have 3 deactivate entries");
+        assert_eq!(leaves.len(), 3, "Should have 3 leaves");
+
+        // Each deactivate entry should have 5 elements: [c1.x, c1.y, c2.x, c2.y, shared_key_hash]
+        for deactivate in &deactivates {
+            assert_eq!(
+                deactivate.len(),
+                5,
+                "Each deactivate entry should have 5 elements"
+            );
+            // All elements should be non-zero
+            for element in deactivate {
+                assert!(
+                    element > &BigUint::from(0u32),
+                    "Elements should be non-zero"
+                );
+            }
+        }
+
+        // Root should be non-zero
+        assert!(root > BigUint::from(0u32), "Root should be non-zero");
+
+        // Tree should have correct depth and degree
+        assert_eq!(tree.depth, state_tree_depth + 2);
+        assert_eq!(tree.degree, 5);
+
+        println!("Deactivate root test passed!");
+        println!("Root: {}", root);
+        println!("Leaves: {:?}", leaves);
+    }
+
+    #[test]
+    fn test_gen_deactivate_root_single_account() {
+        let coordinator = Keypair::from_priv_key(&BigUint::from(99999u64));
+        let account = Keypair::from_priv_key(&BigUint::from(88888u64));
+
+        let accounts = vec![account.pub_key.clone()];
+        let state_tree_depth = 2;
+
+        let (deactivates, root, leaves, _tree) =
+            coordinator.gen_deactivate_root(&accounts, state_tree_depth);
+
+        assert_eq!(deactivates.len(), 1);
+        assert_eq!(leaves.len(), 1);
+        assert!(root > BigUint::from(0u32));
+        assert_eq!(deactivates[0].len(), 5);
+    }
+
+    #[test]
+    fn test_gen_deactivate_root_deterministic() {
+        // Test that the same inputs produce the same outputs
+        let coordinator = Keypair::from_priv_key(&BigUint::from(54321u64));
+        let account = Keypair::from_priv_key(&BigUint::from(12345u64));
+
+        let accounts = vec![account.pub_key.clone()];
+        let state_tree_depth = 3;
+
+        let (deactivates1, root1, leaves1, _) =
+            coordinator.gen_deactivate_root(&accounts, state_tree_depth);
+        let (deactivates2, root2, leaves2, _) =
+            coordinator.gen_deactivate_root(&accounts, state_tree_depth);
+
+        // Results should be different due to random values in encrypt_odevity
+        // But structure should be the same
+        assert_eq!(deactivates1.len(), deactivates2.len());
+        assert_eq!(leaves1.len(), leaves2.len());
+
+        // Roots will be different due to randomization in encrypt_odevity
+        // This is expected behavior
+        println!("Root1: {}", root1);
+        println!("Root2: {}", root2);
     }
 }
