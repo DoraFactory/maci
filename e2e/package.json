@@ -21,6 +21,7 @@
     "generate:crypto-vectors": "ts-node crypto-test/generate-vectors.ts",
     "pretest:crypto": "pnpm run generate:crypto-vectors",
     "test:crypto": "pnpm run mocha-test tests/crypto-consistency.e2e.test.ts",
+    "test:amaci-crypto-core": "pnpm run mocha-test tests/amaci-crypto-core.e2e.test.ts",
     "generate:baby-jubjub-vectors": "cd .. && cargo run --bin generate-baby-jubjub-vectors",
     "generate:eddsa-poseidon-vectors": "cd .. && cargo run --bin generate-eddsa-poseidon-vectors",
     "generate:zk-kit-vectors": "pnpm run generate:baby-jubjub-vectors && pnpm run generate:eddsa-poseidon-vectors",

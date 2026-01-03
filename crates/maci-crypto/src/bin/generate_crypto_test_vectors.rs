@@ -11,8 +11,8 @@ use maci_crypto::keypair::Keypair;
 /// These vectors can be used by TypeScript tests to verify consistency
 /// across SDK and Rust implementations.
 use maci_crypto::{
-    gen_ecdh_shared_key, gen_keypair, gen_pub_key, pack_element, rerandomize, tree::Tree,
-    unpack_element, Ciphertext,
+    gen_ecdh_shared_key, gen_keypair, gen_pub_key, pack_element, rerandomize_ciphertext,
+    tree::Tree, unpack_element, Ciphertext,
 };
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -622,10 +622,12 @@ fn generate_rerandomize_vectors() -> Vec<TestVector> {
     let ciphertext1 = Ciphertext {
         c1: keypair1.pub_key.clone(),
         c2: keypair1.pub_key.clone(),
+        x_increment: BigUint::from(123u32),
     };
     let random_val1 = BigUint::from(12345u64);
-    let rerandomized1 = rerandomize(&keypair1.pub_key, &ciphertext1, Some(random_val1.clone()))
-        .expect("Rerandomization should succeed");
+    let rerandomized1 =
+        rerandomize_ciphertext(&keypair1.pub_key, &ciphertext1, Some(random_val1.clone()))
+            .expect("Rerandomization should succeed");
 
     vectors.push(TestVector {
         name: "rerandomize_deterministic".to_string(),
@@ -645,17 +647,19 @@ fn generate_rerandomize_vectors() -> Vec<TestVector> {
                     "x": biguint_to_hex(&ciphertext1.c2[0]),
                     "y": biguint_to_hex(&ciphertext1.c2[1]),
                 },
+                "x_increment": biguint_to_hex(&ciphertext1.x_increment),
             },
             "random_val": biguint_to_hex(&random_val1),
             "rerandomized": {
-                "d1": {
-                    "x": biguint_to_hex(&rerandomized1.d1[0]),
-                    "y": biguint_to_hex(&rerandomized1.d1[1]),
+                "c1": {
+                    "x": biguint_to_hex(&rerandomized1.c1[0]),
+                    "y": biguint_to_hex(&rerandomized1.c1[1]),
                 },
-                "d2": {
-                    "x": biguint_to_hex(&rerandomized1.d2[0]),
-                    "y": biguint_to_hex(&rerandomized1.d2[1]),
+                "c2": {
+                    "x": biguint_to_hex(&rerandomized1.c2[0]),
+                    "y": biguint_to_hex(&rerandomized1.c2[1]),
                 },
+                "x_increment": biguint_to_hex(&rerandomized1.x_increment),
             },
         }),
     });
@@ -665,10 +669,12 @@ fn generate_rerandomize_vectors() -> Vec<TestVector> {
     let ciphertext2 = Ciphertext {
         c1: keypair2.pub_key.clone(),
         c2: keypair2.pub_key.clone(),
+        x_increment: BigUint::from(456u32),
     };
     let random_val2 = BigUint::from(67890u64);
-    let rerandomized2 = rerandomize(&keypair2.pub_key, &ciphertext2, Some(random_val2.clone()))
-        .expect("Rerandomization should succeed");
+    let rerandomized2 =
+        rerandomize_ciphertext(&keypair2.pub_key, &ciphertext2, Some(random_val2.clone()))
+            .expect("Rerandomization should succeed");
 
     vectors.push(TestVector {
         name: "rerandomize_deterministic_2".to_string(),
@@ -688,17 +694,19 @@ fn generate_rerandomize_vectors() -> Vec<TestVector> {
                     "x": biguint_to_hex(&ciphertext2.c2[0]),
                     "y": biguint_to_hex(&ciphertext2.c2[1]),
                 },
+                "x_increment": biguint_to_hex(&ciphertext2.x_increment),
             },
             "random_val": biguint_to_hex(&random_val2),
             "rerandomized": {
-                "d1": {
-                    "x": biguint_to_hex(&rerandomized2.d1[0]),
-                    "y": biguint_to_hex(&rerandomized2.d1[1]),
+                "c1": {
+                    "x": biguint_to_hex(&rerandomized2.c1[0]),
+                    "y": biguint_to_hex(&rerandomized2.c1[1]),
                 },
-                "d2": {
-                    "x": biguint_to_hex(&rerandomized2.d2[0]),
-                    "y": biguint_to_hex(&rerandomized2.d2[1]),
+                "c2": {
+                    "x": biguint_to_hex(&rerandomized2.c2[0]),
+                    "y": biguint_to_hex(&rerandomized2.c2[1]),
                 },
+                "x_increment": biguint_to_hex(&rerandomized2.x_increment),
             },
         }),
     });

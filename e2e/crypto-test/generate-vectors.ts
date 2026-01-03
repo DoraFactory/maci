@@ -28,7 +28,8 @@ async function generateVectors(): Promise<CryptoTestVector[]> {
   console.log(`   Working directory: ${MACI_CRYPTO_DIR}`);
 
   try {
-    // Run the Rust binary
+    // Run the main crypto test vectors binary
+    console.log('\n1️⃣  Generating main crypto test vectors...');
     execSync('cargo run --quiet --bin generate_crypto_test_vectors 2>&1', {
       cwd: MACI_CRYPTO_DIR,
       encoding: 'utf-8',
@@ -44,7 +45,28 @@ async function generateVectors(): Promise<CryptoTestVector[]> {
     const jsonContent = fs.readFileSync(OUTPUT_FILE, 'utf-8');
     const vectors: CryptoTestVector[] = JSON.parse(jsonContent);
 
-    console.log(`✅ Generated ${vectors.length} test vectors`);
+    console.log(`✅ Generated ${vectors.length} main test vectors`);
+
+    // Run the AMACI crypto test vectors binary
+    console.log('\n2️⃣  Generating AMACI crypto test vectors...');
+    const amaciOutput = execSync('cargo run --quiet --bin generate_amaci_crypto_vectors 2>&1', {
+      cwd: MACI_CRYPTO_DIR,
+      encoding: 'utf-8'
+    });
+
+    // Parse JSON output from stdout
+    const amaciJsonMatch = amaciOutput.match(/^\[[\s\S]*\]$/m);
+    if (amaciJsonMatch) {
+      const amaciVectors: CryptoTestVector[] = JSON.parse(amaciJsonMatch[0]);
+      vectors.push(...amaciVectors);
+      console.log(`✅ Generated ${amaciVectors.length} AMACI test vectors`);
+    } else {
+      console.warn('⚠️  Could not parse AMACI vectors from output');
+    }
+
+    // Write combined vectors back to file
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(vectors, null, 2), 'utf-8');
+    console.log(`\n💾 Saved combined vectors to ${path.basename(OUTPUT_FILE)}`);
 
     return vectors;
   } catch (error) {
@@ -65,7 +87,20 @@ function validateVectors(vectors: CryptoTestVector[]): void {
     if (!vector.name) {
       errors.push(`Vector ${index}: missing name`);
     }
-    if (!vector.test_type || !['keypair', 'keypair_comparison', 'ecdh', 'pack', 'tree', 'rerandomize'].includes(vector.test_type)) {
+    if (
+      !vector.test_type ||
+      ![
+        'keypair',
+        'keypair_comparison',
+        'ecdh',
+        'pack',
+        'tree',
+        'rerandomize',
+        'amaci_static_random_key',
+        'amaci_encrypt',
+        'amaci_rerandomize'
+      ].includes(vector.test_type)
+    ) {
       errors.push(`Vector ${index}: invalid test_type "${vector.test_type}"`);
     }
     if (!vector.data) {
@@ -94,6 +129,11 @@ function printSummary(vectors: CryptoTestVector[]): void {
   const packCount = vectors.filter((v) => v.test_type === 'pack').length;
   const treeCount = vectors.filter((v) => v.test_type === 'tree').length;
   const rerandomizeCount = vectors.filter((v) => v.test_type === 'rerandomize').length;
+  const amaciStaticKeyCount = vectors.filter(
+    (v) => v.test_type === 'amaci_static_random_key'
+  ).length;
+  const amaciEncryptCount = vectors.filter((v) => v.test_type === 'amaci_encrypt').length;
+  const amaciRerandomizeCount = vectors.filter((v) => v.test_type === 'amaci_rerandomize').length;
 
   console.log(`   Total vectors: ${vectors.length}`);
   console.log(`   - keypair: ${keypairCount}`);
@@ -102,6 +142,9 @@ function printSummary(vectors: CryptoTestVector[]): void {
   console.log(`   - pack: ${packCount}`);
   console.log(`   - tree: ${treeCount}`);
   console.log(`   - rerandomize: ${rerandomizeCount}`);
+  console.log(`   - amaci_static_random_key: ${amaciStaticKeyCount}`);
+  console.log(`   - amaci_encrypt: ${amaciEncryptCount}`);
+  console.log(`   - amaci_rerandomize: ${amaciRerandomizeCount}`);
 }
 
 /**
@@ -139,4 +182,3 @@ if (require.main === module) {
 }
 
 export { generateVectors, validateVectors };
-

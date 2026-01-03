@@ -122,7 +122,11 @@ pub fn gen_random_babyjub_value() -> BigUint {
     }
 
     // Compute the private key modulo 2^253 (as per the TS implementation)
-    let modulo = BigUint::from(2u32).pow(253);
+    // Precomputed: 2^253 = 14474011154664524427946373126085988481658748083205070504932198000989141204992
+    const MODULO_2_253: &str =
+        "14474011154664524427946373126085988481658748083205070504932198000989141204992";
+    let modulo =
+        BigUint::parse_bytes(MODULO_2_253.as_bytes(), 10).expect("Failed to parse modulo constant");
     &rand_val % &modulo
 }
 
@@ -346,17 +350,21 @@ mod tests {
 
         let expected_base_point = EdwardsAffine::new_unchecked(BASE_X, BASE_Y);
         let cofactor = EdFr::from_be_bytes_mod_order(&[BabyJubjubConfig::COFACTOR[0] as u8]);
-        let calculated_base_point = (g * cofactor).into_affine();
+        let calculated_base_point = g * cofactor;
 
-        assert_eq!(calculated_base_point, expected_base_point);
+        assert_eq!(
+            calculated_base_point,
+            EdwardsProjective::from(expected_base_point)
+        );
     }
 
     #[test]
     fn test_base_point_order() {
         let base_point = EdwardsAffine::new_unchecked(GENERATOR_X, GENERATOR_Y);
 
-        let result = (base_point * SUBGROUP_ORDER).into_affine();
-        let identity = EdwardsAffine::new_unchecked(Fq::zero(), Fq::ONE);
+        let result = base_point * SUBGROUP_ORDER;
+        // Identity in projective coordinates is (0, 1, 0, 1) for twisted Edwards
+        let identity = EdwardsProjective::new(Fq::zero(), Fq::ONE, Fq::zero(), Fq::ONE);
 
         assert_eq!(result, identity);
     }
@@ -365,7 +373,10 @@ mod tests {
     fn test_base8() {
         let base8_point = base8();
         let expected = EdwardsAffine::new_unchecked(BASE_X, BASE_Y);
-        assert_eq!(base8_point, expected);
+        assert_eq!(
+            EdwardsProjective::from(base8_point),
+            EdwardsProjective::from(expected)
+        );
         assert!(base8_point.is_on_curve());
     }
 
@@ -387,9 +398,9 @@ mod tests {
         );
 
         let result = add_point(&p1, &p2);
-        let expected = (p1 + p2).into_affine();
+        let expected = p1 + p2;
 
-        assert_eq!(result, expected);
+        assert_eq!(EdwardsProjective::from(result), expected);
         assert!(result.is_on_curve());
     }
 
@@ -399,9 +410,9 @@ mod tests {
         let scalar = EdFr::from(324u64);
 
         let result = mul_point_escalar(&base8_point, scalar);
-        let expected = (EdwardsProjective::from(base8_point) * scalar).into_affine();
+        let expected = EdwardsProjective::from(base8_point) * scalar;
 
-        assert_eq!(result, expected);
+        assert_eq!(EdwardsProjective::from(result), expected);
         assert!(result.is_on_curve());
     }
 
@@ -421,7 +432,10 @@ mod tests {
         let packed = pack_point(&point);
         let unpacked = unpack_point(&packed).expect("Failed to unpack point");
 
-        assert_eq!(point, unpacked);
+        assert_eq!(
+            EdwardsProjective::from(point),
+            EdwardsProjective::from(unpacked)
+        );
         assert!(unpacked.is_on_curve());
     }
 
@@ -435,7 +449,10 @@ mod tests {
         let packed = pack_point(&public_key);
         let unpacked = unpack_point(&packed).expect("Failed to unpack point");
 
-        assert_eq!(public_key, unpacked);
+        assert_eq!(
+            EdwardsProjective::from(public_key),
+            EdwardsProjective::from(unpacked)
+        );
         assert!(unpacked.is_on_curve());
     }
 
@@ -452,7 +469,12 @@ mod tests {
             let packed = pack_point(&point);
             let unpacked = unpack_point(&packed).expect("Failed to unpack point");
 
-            assert_eq!(point, unpacked, "Failed for scalar {}", scalar_val);
+            assert_eq!(
+                EdwardsProjective::from(point),
+                EdwardsProjective::from(unpacked),
+                "Failed for scalar {}",
+                scalar_val
+            );
             assert!(unpacked.is_on_curve());
         }
     }
@@ -508,7 +530,8 @@ mod tests {
         // Unpack the point and verify it matches
         let unpacked_point = unpack_point(&packed_point).expect("Failed to unpack point");
         assert_eq!(
-            public_key, unpacked_point,
+            EdwardsProjective::from(public_key),
+            EdwardsProjective::from(unpacked_point),
             "Unpacked point should match original"
         );
 

@@ -38,7 +38,9 @@ fn main() {
             );
 
             // Verify unpacked point matches original
-            if unpacked_point == public_key {
+            // Compare in projective coordinates to handle different representations
+            use baby_jubjub::EdwardsProjective;
+            if EdwardsProjective::from(unpacked_point) == EdwardsProjective::from(public_key) {
                 println!("✓ Unpacked point matches original point");
             } else {
                 println!("✗ Unpacked point does not match original point");
@@ -52,4 +54,3 @@ fn main() {
     // Check if point is on curve
     println!("inCurve: {}", in_curve(&public_key));
 }
-

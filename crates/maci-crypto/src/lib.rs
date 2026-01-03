@@ -55,7 +55,10 @@ pub use keys::{
     gen_random_salt, pack_pub_key, unpack_pub_key, EcdhSharedKey, Keypair, PrivKey, PubKey,
 };
 pub use pack::{pack_element, unpack_element, PackedElement};
-pub use rerandomize::{rerandomize, Ciphertext, RerandomizedCiphertext};
+pub use rerandomize::{
+    decode_message, decrypt, encode_to_message, encrypt, encrypt_odevity, rerandomize_ciphertext,
+    Ciphertext, Message,
+};
 pub use tree::{biguint_to_node, node_to_biguint, Tree};
 pub use utils::{bigint_to_bytes, bigint_to_hex, bytes_to_bigint, hex_to_bigint};
 

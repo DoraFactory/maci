@@ -408,7 +408,10 @@ mod tests {
         assert_eq!(packed.len(), 64);
 
         let unpacked = unpack_signature(&packed).unwrap();
-        assert_eq!(unpacked.r8, signature.r8);
+        assert_eq!(
+            baby_jubjub::EdwardsProjective::from(unpacked.r8),
+            baby_jubjub::EdwardsProjective::from(signature.r8)
+        );
         assert_eq!(unpacked.s, signature.s);
     }
 

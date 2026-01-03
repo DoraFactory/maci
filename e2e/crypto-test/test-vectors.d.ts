@@ -5,7 +5,16 @@
 export interface CryptoTestVector {
   name: string;
   description: string;
-  test_type: 'keypair' | 'keypair_comparison' | 'ecdh' | 'pack' | 'tree' | 'rerandomize';
+  test_type:
+    | 'keypair'
+    | 'keypair_comparison'
+    | 'ecdh'
+    | 'pack'
+    | 'tree'
+    | 'rerandomize'
+    | 'amaci_static_random_key'
+    | 'amaci_encrypt'
+    | 'amaci_rerandomize';
   data: {
     // Keypair test data
     seed?: string;
@@ -99,6 +108,7 @@ export interface CryptoTestVector {
         x: string;
         y: string;
       };
+      x_increment: string;
     };
     random_val?: string;
     rerandomized?: {
@@ -110,6 +120,36 @@ export interface CryptoTestVector {
         x: string;
         y: string;
       };
+    };
+
+    // AMACI static random key test data
+    operator_seed?: string;
+    operator_priv_key?: string;
+    operator_pub_key?: {
+      x: string;
+      y: string;
+    };
+    operator_formatted_priv_key?: string;
+    salt?: string;
+    keys?: {
+      [index: string]: string;
+    };
+
+    // AMACI encrypt test data
+    is_odd?: boolean;
+    random_key?: string;
+
+    // AMACI rerandomize test data
+    original_ciphertext?: {
+      c1: {
+        x: string;
+        y: string;
+      };
+      c2: {
+        x: string;
+        y: string;
+      };
+      x_increment: string;
     };
   };
 }
