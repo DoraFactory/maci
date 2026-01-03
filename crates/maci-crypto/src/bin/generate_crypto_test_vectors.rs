@@ -361,11 +361,11 @@ fn generate_keypair_comparison_vectors() -> Vec<TestVector> {
 fn generate_ecdh_vectors() -> Vec<TestVector> {
     let mut vectors = Vec::new();
 
-    // Test case 1: ECDH between two keypairs
+    // Test case 1: ECDH between two keypairs (using keys.rs functions)
     let seed1 = BigUint::from(100u64);
     let seed2 = BigUint::from(200u64);
-    let keypair1 = gen_keypair(Some(seed1));
-    let keypair2 = gen_keypair(Some(seed2));
+    let keypair1 = gen_keypair(Some(seed1.clone()));
+    let keypair2 = gen_keypair(Some(seed2.clone()));
 
     let shared1 = gen_ecdh_shared_key(&keypair1.priv_key, &keypair2.pub_key);
     let shared2 = gen_ecdh_shared_key(&keypair2.priv_key, &keypair1.pub_key);
@@ -396,6 +396,59 @@ fn generate_ecdh_vectors() -> Vec<TestVector> {
             "shared_key_reciprocal": {
                 "x": biguint_to_hex(&shared2[0]),
                 "y": biguint_to_hex(&shared2[1]),
+            },
+        }),
+    });
+
+    // Test case 1b: Same test using Keypair struct methods
+    let keypair_struct1 = Keypair::from_priv_key(&seed1);
+    let keypair_struct2 = Keypair::from_priv_key(&seed2);
+
+    let shared1_struct = keypair_struct1.gen_ecdh_shared_key(&keypair_struct2.pub_key);
+    let shared2_struct = keypair_struct2.gen_ecdh_shared_key(&keypair_struct1.pub_key);
+    let shared1_struct_pk =
+        keypair_struct1.gen_ecdh_shared_key_with_public_key(keypair_struct2.public_key());
+    let shared2_struct_pk =
+        keypair_struct2.gen_ecdh_shared_key_with_public_key(keypair_struct1.public_key());
+
+    vectors.push(TestVector {
+        name: "ecdh_keypair_struct_100_200".to_string(),
+        description: "ECDH shared key using Keypair struct methods (seeds 100 and 200)".to_string(),
+        test_type: "ecdh".to_string(),
+        data: serde_json::json!({
+            "keypair1": {
+                "priv_key": biguint_to_hex(&keypair_struct1.priv_key),
+                "pub_key": {
+                    "x": biguint_to_hex(&keypair_struct1.pub_key[0]),
+                    "y": biguint_to_hex(&keypair_struct1.pub_key[1]),
+                },
+            },
+            "keypair2": {
+                "priv_key": biguint_to_hex(&keypair_struct2.priv_key),
+                "pub_key": {
+                    "x": biguint_to_hex(&keypair_struct2.pub_key[0]),
+                    "y": biguint_to_hex(&keypair_struct2.pub_key[1]),
+                },
+            },
+            "shared_key": {
+                "x": biguint_to_hex(&shared1_struct[0]),
+                "y": biguint_to_hex(&shared1_struct[1]),
+            },
+            "shared_key_reciprocal": {
+                "x": biguint_to_hex(&shared2_struct[0]),
+                "y": biguint_to_hex(&shared2_struct[1]),
+            },
+            "shared_key_with_public_key": {
+                "x": biguint_to_hex(&shared1_struct_pk[0]),
+                "y": biguint_to_hex(&shared1_struct_pk[1]),
+            },
+            "shared_key_with_public_key_reciprocal": {
+                "x": biguint_to_hex(&shared2_struct_pk[0]),
+                "y": biguint_to_hex(&shared2_struct_pk[1]),
+            },
+            "consistency_check": {
+                "keys_vs_keypair": shared1 == shared1_struct && shared2 == shared2_struct,
+                "method_vs_method": shared1_struct == shared1_struct_pk && shared2_struct == shared2_struct_pk,
             },
         }),
     });
@@ -431,6 +484,49 @@ fn generate_ecdh_vectors() -> Vec<TestVector> {
                 "x": biguint_to_hex(&shared3[0]),
                 "y": biguint_to_hex(&shared3[1]),
             },
+        }),
+    });
+
+    // Test case 3: Test with commonly used seeds (matching TypeScript SDK test values)
+    let seed_alice = BigUint::from(11111u64);
+    let seed_bob = BigUint::from(22222u64);
+    let keypair_alice = Keypair::from_priv_key(&seed_alice);
+    let keypair_bob = Keypair::from_priv_key(&seed_bob);
+
+    let shared_alice_bob = keypair_alice.gen_ecdh_shared_key(&keypair_bob.pub_key);
+    let shared_bob_alice = keypair_bob.gen_ecdh_shared_key(&keypair_alice.pub_key);
+
+    vectors.push(TestVector {
+        name: "ecdh_keypair_struct_11111_22222".to_string(),
+        description: "ECDH shared key using Keypair struct - Alice (11111) and Bob (22222)"
+            .to_string(),
+        test_type: "ecdh".to_string(),
+        data: serde_json::json!({
+            "keypair1": {
+                "priv_key": biguint_to_hex(&keypair_alice.priv_key),
+                "pub_key": {
+                    "x": biguint_to_hex(&keypair_alice.pub_key[0]),
+                    "y": biguint_to_hex(&keypair_alice.pub_key[1]),
+                },
+                "formatted_priv_key": biguint_to_hex(&keypair_alice.formated_priv_key),
+            },
+            "keypair2": {
+                "priv_key": biguint_to_hex(&keypair_bob.priv_key),
+                "pub_key": {
+                    "x": biguint_to_hex(&keypair_bob.pub_key[0]),
+                    "y": biguint_to_hex(&keypair_bob.pub_key[1]),
+                },
+                "formatted_priv_key": biguint_to_hex(&keypair_bob.formated_priv_key),
+            },
+            "shared_key": {
+                "x": biguint_to_hex(&shared_alice_bob[0]),
+                "y": biguint_to_hex(&shared_alice_bob[1]),
+            },
+            "shared_key_reciprocal": {
+                "x": biguint_to_hex(&shared_bob_alice[0]),
+                "y": biguint_to_hex(&shared_bob_alice[1]),
+            },
+            "symmetry_check": shared_alice_bob == shared_bob_alice,
         }),
     });
 

@@ -3,7 +3,7 @@
 //! Adapted for MACI with BigUint compatibility
 //! Uses eddsa-poseidon for key derivation and signing
 
-use crate::keys::{PrivKey, PubKey};
+use crate::keys::{EcdhSharedKey, PrivKey, PubKey};
 use ark_bn254::Fr as Bn254Fr;
 use ark_ff::{BigInteger, PrimeField};
 use baby_jubjub::{base8, mul_point_escalar, EdFr, EdwardsAffine, Fq};
@@ -131,6 +131,91 @@ impl Keypair {
         &self.commitment
     }
 
+    /// Generates an Elliptic-Curve Diffie–Hellman (ECDH) shared key
+    ///
+    /// This matches TypeScript's genEcdhSharedKey:
+    /// `mulPointEscalar(pubKey as Point<bigint>, this.keypair.formatedPrivKey)`
+    ///
+    /// # Arguments
+    /// * `pub_key` - The other party's public key (as BigUint array)
+    ///
+    /// # Returns
+    /// The ECDH shared key as a point on the Baby Jubjub curve
+    ///
+    /// # Example
+    /// ```
+    /// use maci_crypto::keypair::Keypair;
+    /// use num_bigint::BigUint;
+    ///
+    /// let alice = Keypair::from_priv_key(&BigUint::from(11111u64));
+    /// let bob = Keypair::from_priv_key(&BigUint::from(22222u64));
+    ///
+    /// // Alice computes shared key with Bob's public key
+    /// let shared_alice = alice.gen_ecdh_shared_key(&bob.pub_key);
+    ///
+    /// // Bob computes shared key with Alice's public key
+    /// let shared_bob = bob.gen_ecdh_shared_key(&alice.pub_key);
+    ///
+    /// // Both should produce the same shared key
+    /// assert_eq!(shared_alice, shared_bob);
+    /// ```
+    pub fn gen_ecdh_shared_key(&self, pub_key: &PubKey) -> EcdhSharedKey {
+        // Convert public key BigUint coordinates to Fq (base field of Baby Jubjub)
+        let pub_x_bytes = pub_key[0].to_bytes_le();
+        let pub_y_bytes = pub_key[1].to_bytes_le();
+
+        let mut x_padded = vec![0u8; 32];
+        let mut y_padded = vec![0u8; 32];
+
+        let x_len = pub_x_bytes.len().min(32);
+        let y_len = pub_y_bytes.len().min(32);
+
+        x_padded[..x_len].copy_from_slice(&pub_x_bytes[..x_len]);
+        y_padded[..y_len].copy_from_slice(&pub_y_bytes[..y_len]);
+
+        let pub_x_fq = Fq::from_le_bytes_mod_order(&x_padded);
+        let pub_y_fq = Fq::from_le_bytes_mod_order(&y_padded);
+
+        // Create Edwards affine point from the public key
+        let pub_point_affine = EdwardsAffine::new_unchecked(pub_x_fq, pub_y_fq);
+
+        // Use the pre-computed secret_scalar for scalar multiplication
+        // This is more efficient than re-deriving it from formated_priv_key
+        let shared_affine = mul_point_escalar(&pub_point_affine, self.secret_scalar);
+
+        // Extract coordinates as BigUint
+        let x_bytes = shared_affine.x.into_bigint().to_bytes_le();
+        let y_bytes = shared_affine.y.into_bigint().to_bytes_le();
+
+        let x = BigUint::from_bytes_le(&x_bytes);
+        let y = BigUint::from_bytes_le(&y_bytes);
+
+        [x, y]
+    }
+
+    /// Generates an ECDH shared key with another keypair's public key
+    ///
+    /// Convenience method that accepts a PublicKey reference directly
+    ///
+    /// # Arguments
+    /// * `pub_key` - The other party's PublicKey
+    ///
+    /// # Returns
+    /// The ECDH shared key as a point on the Baby Jubjub curve
+    pub fn gen_ecdh_shared_key_with_public_key(&self, pub_key: &PublicKey) -> EcdhSharedKey {
+        // Direct scalar multiplication using the PublicKey's point
+        let shared_affine = mul_point_escalar(&pub_key.point, self.secret_scalar);
+
+        // Extract coordinates as BigUint
+        let x_bytes = shared_affine.x.into_bigint().to_bytes_le();
+        let y_bytes = shared_affine.y.into_bigint().to_bytes_le();
+
+        let x = BigUint::from_bytes_le(&x_bytes);
+        let y = BigUint::from_bytes_le(&y_bytes);
+
+        [x, y]
+    }
+
     /// Generates the secret scalar from the private key
     /// Uses eddsa-poseidon's derive_secret_scalar for consistency
     fn gen_secret_scalar(private_key: &[u8]) -> EdFr {
@@ -240,5 +325,59 @@ mod tests {
         let priv_key = BigUint::from(12345u64);
         let keypair = Keypair::from_priv_key(&priv_key);
         assert_eq!(keypair.priv_key, priv_key);
+    }
+
+    #[test]
+    fn test_ecdh_shared_key() {
+        // Create two keypairs
+        let alice = Keypair::from_priv_key(&BigUint::from(11111u64));
+        let bob = Keypair::from_priv_key(&BigUint::from(22222u64));
+
+        // Alice computes shared key with Bob's public key
+        let shared_alice = alice.gen_ecdh_shared_key(&bob.pub_key);
+
+        // Bob computes shared key with Alice's public key
+        let shared_bob = bob.gen_ecdh_shared_key(&alice.pub_key);
+
+        // Both should produce the same shared key
+        assert_eq!(shared_alice, shared_bob);
+        assert_eq!(shared_alice[0], shared_bob[0]);
+        assert_eq!(shared_alice[1], shared_bob[1]);
+    }
+
+    #[test]
+    fn test_ecdh_shared_key_with_public_key() {
+        // Create two keypairs
+        let alice = Keypair::from_priv_key(&BigUint::from(33333u64));
+        let bob = Keypair::from_priv_key(&BigUint::from(44444u64));
+
+        // Use the PublicKey method
+        let shared_alice = alice.gen_ecdh_shared_key_with_public_key(bob.public_key());
+        let shared_bob = bob.gen_ecdh_shared_key_with_public_key(alice.public_key());
+
+        // Both should produce the same shared key
+        assert_eq!(shared_alice, shared_bob);
+
+        // Should also match the BigUint array method
+        let shared_alice_biguint = alice.gen_ecdh_shared_key(&bob.pub_key);
+        assert_eq!(shared_alice, shared_alice_biguint);
+    }
+
+    #[test]
+    fn test_ecdh_consistency_with_keys_module() {
+        use crate::keys::gen_ecdh_shared_key;
+
+        // Create two keypairs
+        let alice = Keypair::from_priv_key(&BigUint::from(55555u64));
+        let bob = Keypair::from_priv_key(&BigUint::from(66666u64));
+
+        // Compute shared key using Keypair method
+        let shared_keypair = alice.gen_ecdh_shared_key(&bob.pub_key);
+
+        // Compute shared key using keys module function
+        let shared_keys = gen_ecdh_shared_key(&alice.priv_key, &bob.pub_key);
+
+        // Both methods should produce the same result
+        assert_eq!(shared_keypair, shared_keys);
     }
 }

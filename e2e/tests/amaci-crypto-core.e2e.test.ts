@@ -215,7 +215,10 @@ describe('AMACI Core Crypto Algorithm E2E Tests', function () {
 
         const originalCt = vector.data.original_ciphertext;
         const randomVal = BigInt(vector.data.random_val);
-        const rustRerandomized = vector.data.rerandomized;
+        const rustRerandomized = vector.data.rerandomized as unknown as {
+          d1: { x: string; y: string };
+          d2: { x: string; y: string };
+        };
 
         // Rerandomize using TypeScript SDK
         const tsRerandomized = rerandomize(
@@ -268,7 +271,10 @@ describe('AMACI Core Crypto Algorithm E2E Tests', function () {
 
         const originalCt = vector.data.original_ciphertext;
         const randomVal = BigInt(vector.data.random_val);
-        const rustRerandomized = vector.data.rerandomized;
+        const rustRerandomized = vector.data.rerandomized as unknown as {
+          d1: { x: string; y: string };
+          d2: { x: string; y: string };
+        };
 
         // Rerandomize using TypeScript SDK
         const tsRerandomized = rerandomize(

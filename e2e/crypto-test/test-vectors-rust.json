@@ -207,6 +207,47 @@
     }
   },
   {
+    "name": "ecdh_keypair_struct_100_200",
+    "description": "ECDH shared key using Keypair struct methods (seeds 100 and 200)",
+    "test_type": "ecdh",
+    "data": {
+      "consistency_check": {
+        "keys_vs_keypair": true,
+        "method_vs_method": true
+      },
+      "keypair1": {
+        "priv_key": "0x64",
+        "pub_key": {
+          "x": "0x0c8de9d48d6424ac7f89447b6bfec83ef81a5ac8a42b6075a0f119fd2af881c8",
+          "y": "0x424c5e61ae41fb7f4ff33c9f714c91ff6c7fc21c6505f1cea7f2c9937b283a"
+        }
+      },
+      "keypair2": {
+        "priv_key": "0xc8",
+        "pub_key": {
+          "x": "0x1899c8ed30cae2b69ff10bcf070f075eb9f8f335c705ef451177af8512af9805",
+          "y": "0x0adc35f4526218f3c138a12795ac034891ef4b99541460bcf40bd4488b2ebb5d"
+        }
+      },
+      "shared_key": {
+        "x": "0x1aa1beb99f67d8108640c77ba16311427f82f0deb050cb6660322f213db821ba",
+        "y": "0x13ffb78b7c1c5630463ca686b7604436bf4e3d9b3f4ccd371dc238a4a8a28cb5"
+      },
+      "shared_key_reciprocal": {
+        "x": "0x1aa1beb99f67d8108640c77ba16311427f82f0deb050cb6660322f213db821ba",
+        "y": "0x13ffb78b7c1c5630463ca686b7604436bf4e3d9b3f4ccd371dc238a4a8a28cb5"
+      },
+      "shared_key_with_public_key": {
+        "x": "0x1aa1beb99f67d8108640c77ba16311427f82f0deb050cb6660322f213db821ba",
+        "y": "0x13ffb78b7c1c5630463ca686b7604436bf4e3d9b3f4ccd371dc238a4a8a28cb5"
+      },
+      "shared_key_with_public_key_reciprocal": {
+        "x": "0x1aa1beb99f67d8108640c77ba16311427f82f0deb050cb6660322f213db821ba",
+        "y": "0x13ffb78b7c1c5630463ca686b7604436bf4e3d9b3f4ccd371dc238a4a8a28cb5"
+      }
+    }
+  },
+  {
     "name": "ecdh_keypair_300_400",
     "description": "ECDH shared key between keypairs from seeds 300 and 400",
     "test_type": "ecdh",
@@ -229,6 +270,38 @@
         "x": "0x108a55cbb495a9dde82267d90b3d8cdb8a5b76faec8bf0100361664492629cba",
         "y": "0x293b69fe124f0faee1c4a46d00b6df363faed1cac281cc60f01d7c3ad97475be"
       }
+    }
+  },
+  {
+    "name": "ecdh_keypair_struct_11111_22222",
+    "description": "ECDH shared key using Keypair struct - Alice (11111) and Bob (22222)",
+    "test_type": "ecdh",
+    "data": {
+      "keypair1": {
+        "formatted_priv_key": "0x058ae62ec93c3e7b29c23fef92205e819f6a12ab773a043662923dc7be0d8e19",
+        "priv_key": "0x2b67",
+        "pub_key": {
+          "x": "0x2dffbe7569a8aa8c18585946381b5735546a73800c0162c3c648cafed014b23f",
+          "y": "0x056f7ac1270d501235231f5b94bcb1578da0f037ca42b12609a3b2634d41414a"
+        }
+      },
+      "keypair2": {
+        "formatted_priv_key": "0x017c66b6ba9ff2168f0bdd03034b6c74045189ec2a45a354cf279e5d1bf6a296",
+        "priv_key": "0x56ce",
+        "pub_key": {
+          "x": "0x20d3dd870098d8ba103b18da8c9f7d4ff9177da9e063bde11285d3db631a68e4",
+          "y": "0x9601c55871b90964d43b785584a74eda1a2acb6fa5e6bb94ad9e2c47b9ed14"
+        }
+      },
+      "shared_key": {
+        "x": "0x01d21748d5fdfacc4c98b606f22db8890c617a1593d146f8df400e28d818b2b0",
+        "y": "0x226e96608ad45e69bfbd870a5fdb90f59c7b52dc60ab18268a84f4d04e76b689"
+      },
+      "shared_key_reciprocal": {
+        "x": "0x01d21748d5fdfacc4c98b606f22db8890c617a1593d146f8df400e28d818b2b0",
+        "y": "0x226e96608ad45e69bfbd870a5fdb90f59c7b52dc60ab18268a84f4d04e76b689"
+      },
+      "symmetry_check": true
     }
   },
   {

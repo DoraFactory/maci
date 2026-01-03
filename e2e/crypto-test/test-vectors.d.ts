@@ -1,5 +1,9 @@
 /**
  * Type definitions for crypto test vectors
+ *
+ * Note: While TypeScript types show many fields as optional,
+ * specific test_type values require certain fields to be present.
+ * The test code asserts these requirements at runtime.
  */
 
 export interface CryptoTestVector {
@@ -16,7 +20,7 @@ export interface CryptoTestVector {
     | 'amaci_encrypt'
     | 'amaci_rerandomize';
   data: {
-    // Keypair test data
+    // Keypair test data (required for test_type === 'keypair')
     seed?: string;
     priv_key?: string;
     pub_key?: {
@@ -26,7 +30,7 @@ export interface CryptoTestVector {
     formatted_priv_key?: string;
     packed_pub_key?: string;
 
-    // Keypair comparison test data
+    // Keypair comparison test data (required for test_type === 'keypair_comparison')
     keys_keypair?: {
       priv_key: string;
       pub_key: {
@@ -51,13 +55,15 @@ export interface CryptoTestVector {
     };
     input_bytes?: string;
 
-    // ECDH test data
+    // ECDH test data (required for test_type === 'ecdh')
+    // keypair1, keypair2, and shared_key are required
     keypair1?: {
       priv_key: string;
       pub_key: {
         x: string;
         y: string;
       };
+      formatted_priv_key?: string;
     };
     keypair2?: {
       priv_key: string;
@@ -65,6 +71,7 @@ export interface CryptoTestVector {
         x: string;
         y: string;
       };
+      formatted_priv_key?: string;
     };
     shared_key?: {
       x: string;
@@ -74,8 +81,21 @@ export interface CryptoTestVector {
       x: string;
       y: string;
     };
+    shared_key_with_public_key?: {
+      x: string;
+      y: string;
+    };
+    shared_key_with_public_key_reciprocal?: {
+      x: string;
+      y: string;
+    };
+    consistency_check?: {
+      keys_vs_keypair?: boolean;
+      method_vs_method?: boolean;
+    };
+    symmetry_check?: boolean;
 
-    // Pack test data
+    // Pack test data (required for test_type === 'pack')
     input?: {
       nonce: string;
       state_idx: string;
@@ -91,14 +111,14 @@ export interface CryptoTestVector {
       new_votes: string;
     };
 
-    // Tree test data
+    // Tree test data (required for test_type === 'tree')
     degree?: number;
     depth?: number;
     zero?: string;
     leaves?: string[];
     root?: string;
 
-    // Rerandomize test data (pub_key is also used here, but in different context)
+    // Rerandomize test data (required for test_type === 'rerandomize')
     ciphertext?: {
       c1: {
         x: string;
@@ -112,17 +132,18 @@ export interface CryptoTestVector {
     };
     random_val?: string;
     rerandomized?: {
-      d1: {
+      c1: {
         x: string;
         y: string;
       };
-      d2: {
+      c2: {
         x: string;
         y: string;
       };
+      x_increment: string;
     };
 
-    // AMACI static random key test data
+    // AMACI static random key test data (required for test_type === 'amaci_static_random_key')
     operator_seed?: string;
     operator_priv_key?: string;
     operator_pub_key?: {
@@ -135,11 +156,12 @@ export interface CryptoTestVector {
       [index: string]: string;
     };
 
-    // AMACI encrypt test data
+    // AMACI encrypt test data (required for test_type === 'amaci_encrypt')
     is_odd?: boolean;
     random_key?: string;
 
-    // AMACI rerandomize test data
+    // AMACI rerandomize test data (required for test_type === 'amaci_rerandomize')
+    // original_ciphertext, random_val, and rerandomized are required for this test type
     original_ciphertext?: {
       c1: {
         x: string;
@@ -150,6 +172,16 @@ export interface CryptoTestVector {
         y: string;
       };
       x_increment: string;
+    };
+    rerandomized?: {
+      d1: {
+        x: string;
+        y: string;
+      };
+      d2: {
+        x: string;
+        y: string;
+      };
     };
   };
 }
