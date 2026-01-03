@@ -486,7 +486,10 @@ pub fn execute_set_vote_options_map(
         MAX_VOTE_OPTIONS.save(deps.storage, &Uint256::from_u128(max_vote_options))?;
         let res = Response::new()
             .add_attribute("action", "set_vote_option")
-            .add_attribute("vote_option_map", format!("{:?}", vote_option_map))
+            .add_attribute(
+                "vote_option_map",
+                serde_json::to_string(&vote_option_map).unwrap_or_else(|_| "[]".to_string()),
+            )
             .add_attribute("max_vote_options", max_vote_options.to_string());
         Ok(res)
     }
@@ -671,8 +674,7 @@ pub fn execute_publish_message(
             MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
 
         // Compute the new message hash using the provided message, encrypted public key, and previous hash
-        let new_hash =
-            hash_message_and_enc_pub_key(message.clone(), enc_pub_key.clone(), old_msg_hashes);
+        let new_hash = hash_message_and_enc_pub_key(&message, &enc_pub_key, old_msg_hashes);
         MSG_HASHES.save(
             deps.storage,
             (msg_chain_length + Uint256::from_u128(1u128))
@@ -689,7 +691,10 @@ pub fn execute_publish_message(
         Ok(Response::new()
             .add_attribute("action", "publish_message")
             .add_attribute("msg_chain_length", old_chain_length.to_string())
-            .add_attribute("message", format!("{:?}", message.data))
+            .add_attribute(
+                "message",
+                serde_json::to_string(&message.data).unwrap_or_else(|_| "[]".to_string()),
+            )
             .add_attribute(
                 "enc_pub_key",
                 format!(
@@ -763,8 +768,7 @@ pub fn execute_publish_message_batch(
                 MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
 
             // Compute the new message hash using the provided message, encrypted public key, and previous hash
-            let new_hash =
-                hash_message_and_enc_pub_key(message.clone(), enc_pub_key.clone(), old_msg_hashes);
+            let new_hash = hash_message_and_enc_pub_key(message, enc_pub_key, old_msg_hashes);
             MSG_HASHES.save(
                 deps.storage,
                 (msg_chain_length + Uint256::from_u128(1u128))
@@ -780,7 +784,7 @@ pub fn execute_publish_message_batch(
             ));
             attributes.push(attr(
                 format!("msg_{}_data", i),
-                format!("{:?}", message.data),
+                serde_json::to_string(&message.data).unwrap_or_else(|_| "[]".to_string()),
             ));
             attributes.push(attr(
                 format!("msg_{}_enc_pub_key", i),
@@ -969,7 +973,10 @@ pub fn execute_process_message(
         attributes = vec![
             attr("zk_verify", is_passed.to_string()),
             attr("commitment", new_state_commitment.to_string()),
-            attr("proof", format!("{:?}", groth16_proof_data)),
+            attr(
+                "proof",
+                serde_json::to_string(&groth16_proof_data).unwrap_or_else(|_| "{}".to_string()),
+            ),
             attr("certification_system", "groth16"),
         ];
     }
@@ -1031,7 +1038,10 @@ pub fn execute_process_message(
         attributes = vec![
             attr("zk_verify", is_passed.to_string()),
             attr("commitment", new_state_commitment.to_string()),
-            attr("proof", format!("{:?}", plonk_proof_data)),
+            attr(
+                "proof",
+                serde_json::to_string(&plonk_proof_data).unwrap_or_else(|_| "{}".to_string()),
+            ),
             attr("certification_system", "plonk"),
         ];
     }
@@ -1179,7 +1189,10 @@ pub fn execute_process_tally(
         attributes = vec![
             attr("zk_verify", is_passed.to_string()),
             attr("commitment", new_tally_commitment.to_string()),
-            attr("proof", format!("{:?}", groth16_proof_data)),
+            attr(
+                "proof",
+                serde_json::to_string(&groth16_proof_data).unwrap_or_else(|_| "{}".to_string()),
+            ),
             attr("certification_system", "groth16"),
         ];
     }
@@ -1241,7 +1254,10 @@ pub fn execute_process_tally(
         attributes = vec![
             attr("zk_verify", is_passed.to_string()),
             attr("commitment", new_tally_commitment.to_string()),
-            attr("proof", format!("{:?}", plonk_proof_data)),
+            attr(
+                "proof",
+                serde_json::to_string(&plonk_proof_data).unwrap_or_else(|_| "{}".to_string()),
+            ),
             attr("certification_system", "plonk"),
         ];
     }
@@ -1325,13 +1341,13 @@ fn execute_stop_tallying_period(
             .add_attribute("action", "stop_tallying_period")
             .add_attribute(
                 "results",
-                format!(
-                    "{:?}",
-                    results
+                serde_json::to_string(
+                    &results
                         .iter()
                         .map(|x| x.to_string())
-                        .collect::<Vec<String>>()
-                ),
+                        .collect::<Vec<String>>(),
+                )
+                .unwrap_or_else(|_| "[]".to_string()),
             )
             .add_attribute("all_result", sum.to_string()));
     }
@@ -1363,13 +1379,13 @@ fn execute_stop_tallying_period(
         .add_attribute("action", "stop_tallying_period")
         .add_attribute(
             "results",
-            format!(
-                "{:?}",
-                results
+            serde_json::to_string(
+                &results
                     .iter()
                     .map(|x| x.to_string())
-                    .collect::<Vec<String>>()
-            ),
+                    .collect::<Vec<String>>(),
+            )
+            .unwrap_or_else(|_| "[]".to_string()),
         )
         .add_attribute("all_result", sum.to_string()))
 }
@@ -1647,8 +1663,8 @@ fn check_voting_time(env: Env, voting_time: VotingTime) -> Result<(), ContractEr
 }
 
 pub fn hash_message_and_enc_pub_key(
-    message: MessageData,
-    enc_pub_key: PubKey,
+    message: &MessageData,
+    enc_pub_key: &PubKey,
     prev_hash: Uint256,
 ) -> Uint256 {
     let mut m: [Uint256; 5] = [Uint256::zero(); 5];

@@ -556,7 +556,10 @@ pub fn execute_set_vote_options_map(
         .add_attribute("action", "saas_set_vote_option")
         .add_attribute("operator", info.sender.to_string())
         .add_attribute("target_contract", contract_addr)
-        .add_attribute("vote_option_map", format!("{:?}", vote_option_map)))
+        .add_attribute(
+            "vote_option_map",
+            serde_json::to_string(&vote_option_map).unwrap_or_else(|_| "[]".to_string()),
+        ))
 }
 
 pub fn execute_create_amaci_round(
@@ -755,7 +758,8 @@ fn reply_created_maci_round(
         attr("max_voters", oracle_maci_return_data.max_voters.to_string()),
         attr(
             "vote_option_map",
-            format!("{:?}", oracle_maci_return_data.vote_option_map),
+            serde_json::to_string(&oracle_maci_return_data.vote_option_map)
+                .unwrap_or_else(|_| "[]".to_string()),
         ),
         attr("circuit_type", &oracle_maci_return_data.circuit_type),
         attr(
