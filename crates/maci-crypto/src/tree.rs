@@ -80,13 +80,14 @@ impl<'de> Deserialize<'de> for Tree {
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
+        #[allow(dead_code)] // These fields are serialized for compatibility but recalculated during deserialization
         struct TreeData {
             depth: usize,
-            height: usize,
+            height: usize, // Recalculated as depth + 1
             degree: usize,
-            leaves_count: usize,
-            leaves_idx_0: usize,
-            nodes_count: usize,
+            leaves_count: usize, // Recalculated as degree^depth
+            leaves_idx_0: usize, // Recalculated from formula
+            nodes_count: usize,  // Recalculated from formula
             zero: IMTNode,
             leaves: Vec<IMTNode>,
         }
