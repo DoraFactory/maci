@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "pretest": "ts-node scripts/checkCircuits.ts",
+    "generate:all-vectors": "pnpm run generate:vectors && pnpm run generate:crypto-vectors",
+    "pretest": "ts-node scripts/checkCircuits.ts && pnpm run generate:all-vectors",
     "test": "pnpm run mocha-test tests/**/*.test.ts",
     "test:amaci": "pnpm run mocha-test tests/amaci.e2e.test.ts",
     "test:maci": "pnpm run mocha-test tests/maci.e2e.test.ts",

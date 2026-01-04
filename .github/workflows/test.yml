@@ -214,9 +214,9 @@ jobs:
         working-directory: ./crates/maci-utils
         run: cargo build --bin generate_test_vectors --release
 
-      - name: Generate Poseidon test vectors
+      - name: Generate all test vectors
         working-directory: ./e2e
-        run: pnpm run generate:vectors
+        run: pnpm run generate:all-vectors
 
       - name: Run e2e tests
         working-directory: ./e2e

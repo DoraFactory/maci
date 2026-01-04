@@ -98,7 +98,8 @@ function validateVectors(vectors: CryptoTestVector[]): void {
         'rerandomize',
         'amaci_static_random_key',
         'amaci_encrypt',
-        'amaci_rerandomize'
+        'amaci_rerandomize',
+        'amaci_deactivate_root'
       ].includes(vector.test_type)
     ) {
       errors.push(`Vector ${index}: invalid test_type "${vector.test_type}"`);
@@ -134,6 +135,9 @@ function printSummary(vectors: CryptoTestVector[]): void {
   ).length;
   const amaciEncryptCount = vectors.filter((v) => v.test_type === 'amaci_encrypt').length;
   const amaciRerandomizeCount = vectors.filter((v) => v.test_type === 'amaci_rerandomize').length;
+  const amaciDeactivateRootCount = vectors.filter(
+    (v) => v.test_type === 'amaci_deactivate_root'
+  ).length;
 
   console.log(`   Total vectors: ${vectors.length}`);
   console.log(`   - keypair: ${keypairCount}`);
@@ -145,6 +149,7 @@ function printSummary(vectors: CryptoTestVector[]): void {
   console.log(`   - amaci_static_random_key: ${amaciStaticKeyCount}`);
   console.log(`   - amaci_encrypt: ${amaciEncryptCount}`);
   console.log(`   - amaci_rerandomize: ${amaciRerandomizeCount}`);
+  console.log(`   - amaci_deactivate_root: ${amaciDeactivateRootCount}`);
 }
 
 /**
