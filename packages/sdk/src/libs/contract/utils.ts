@@ -1,8 +1,4 @@
-import {
-  MaciCertSystemType,
-  MaciCircuitType,
-  MaciRoundType,
-} from '../../types';
+import { MaciCertSystemType, MaciCircuitType, MaciRoundType } from '../../types';
 import { CIRCUIT_INFO } from './vars';
 
 export function getCircuitType(circuitType: MaciCircuitType) {
@@ -15,9 +11,7 @@ export function getCircuitType(circuitType: MaciCircuitType) {
       maciVoteType = '1';
       break;
     default:
-      throw new Error(
-        `Invalid circuit type ${circuitType}, only support 1P1V and QV`
-      );
+      throw new Error(`Invalid circuit type ${circuitType}, only support 1P1V and QV`);
   }
   return maciVoteType;
 }
@@ -50,9 +44,7 @@ export function getContractParams(
       maciVoteType = '1';
       break;
     default:
-      throw new Error(
-        `Invalid circuit type ${circuitType}, only support 1P1V and QV`
-      );
+      throw new Error(`Invalid circuit type ${circuitType}, only support 1P1V and QV`);
   }
 
   switch (proofSystem) {
@@ -63,9 +55,7 @@ export function getContractParams(
       maciCertSystem = '1';
       break;
     default:
-      throw new Error(
-        `Invalid proof system ${proofSystem}, only support GROTH16 and PLONK`
-      );
+      throw new Error(`Invalid proof system ${proofSystem}, only support GROTH16 and PLONK`);
   }
 
   if (maxVoter <= 25 && maxOption <= 5) {
@@ -107,12 +97,10 @@ export function getContractParams(
     parameters = CIRCUIT_INFO['9-4-3-625'].parameter;
     if (proofSystem === MaciCertSystemType.GROTH16) {
       if (circuitType === MaciCircuitType.IP1V) {
-        groth16ProcessVkey =
-          CIRCUIT_INFO['9-4-3-625']['groth16'].process_1p1v_vkey;
+        groth16ProcessVkey = CIRCUIT_INFO['9-4-3-625']['groth16'].process_1p1v_vkey;
         groth16TallyVkey = CIRCUIT_INFO['9-4-3-625']['groth16'].tally_1p1v_vkey;
       } else if (circuitType === MaciCircuitType.QV) {
-        groth16ProcessVkey =
-          CIRCUIT_INFO['9-4-3-625']['groth16'].process_qv_vkey;
+        groth16ProcessVkey = CIRCUIT_INFO['9-4-3-625']['groth16'].process_qv_vkey;
         groth16TallyVkey = CIRCUIT_INFO['9-4-3-625']['groth16'].tally_qv_vkey;
       }
     } else if (proofSystem === MaciCertSystemType.PLONK) {
@@ -130,7 +118,7 @@ export function getContractParams(
         plonkProcessVkey,
         plonkTallyVkey,
         maciVoteType,
-        maciCertSystem,
+        maciCertSystem
       };
     case MaciRoundType.AMACI:
       return {
@@ -142,12 +130,10 @@ export function getContractParams(
       };
     case MaciRoundType.ORACLE_MACI:
       if (circuitType === MaciCircuitType.IP1V) {
-        groth16ProcessVkey =
-          CIRCUIT_INFO['9-4-3-625']['groth16'].process_1p1v_vkey;
+        groth16ProcessVkey = CIRCUIT_INFO['9-4-3-625']['groth16'].process_1p1v_vkey;
         groth16TallyVkey = CIRCUIT_INFO['9-4-3-625']['groth16'].tally_1p1v_vkey;
       } else if (circuitType === MaciCircuitType.QV) {
-        groth16ProcessVkey =
-          CIRCUIT_INFO['9-4-3-625']['groth16'].process_qv_vkey;
+        groth16ProcessVkey = CIRCUIT_INFO['9-4-3-625']['groth16'].process_qv_vkey;
         groth16TallyVkey = CIRCUIT_INFO['9-4-3-625']['groth16'].tally_qv_vkey;
       }
       return {
@@ -157,7 +143,7 @@ export function getContractParams(
         plonkProcessVkey: null,
         plonkTallyVkey: null,
         maciVoteType,
-        maciCertSystem: '0',
+        maciCertSystem: '0'
       };
   }
 }
@@ -169,24 +155,20 @@ export function getAMaciRoundCircuitFee(
 ) {
   let requiredFee = {
     denom: 'peaka',
-    amount: '0',
+    amount: '0'
   };
   if (maxVoter <= 25 && maxOption <= 5) {
     // state_tree_depth: 2
     // vote_option_tree_depth: 1
-    if (network === 'mainnet') {
-      requiredFee.amount = '20000000000000000000';
-    } else {
-      requiredFee.amount = '20000000000000000000';
-    }
+    requiredFee.amount = '20000000000000000000';
   } else if (maxVoter <= 625 && maxOption <= 25) {
     // state_tree_depth: 4
     // vote_option_tree_depth: 2
-    if (network === 'mainnet') {
-      requiredFee.amount = '750000000000000000000';
-    } else {
-      requiredFee.amount = '750000000000000000000';
-    }
+    requiredFee.amount = '540000000000000000000';
+  } else if (maxVoter <= 15625 && maxOption <= 125) {
+    // state_tree_depth: 6
+    // vote_option_tree_depth: 3
+    requiredFee.amount = '1080000000000000000000';
   } else {
     throw new Error('Number of voters or options is too large.');
   }
