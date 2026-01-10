@@ -256,8 +256,12 @@ pub fn instantiate(
         // &Uint256::from_u128(0u128),
     )?;
 
-    // Define an array of zero values
-    let zeros: [Uint256; 8] = [
+    // Define an array of zero values for Merkle tree
+    // These are precomputed hash values for empty subtrees at each depth
+    // zeros[0] = 0 (zero leaf)
+    // zeros[i] = poseidon([zeros[i-1], zeros[i-1], zeros[i-1], zeros[i-1], zeros[i-1]])
+    // This supports state trees up to depth 6 (requires zeros[0] through zeros[8])
+    let zeros: [Uint256; 9] = [
         Uint256::from_u128(0u128),
         uint256_from_hex_string("2066be41bebe6caf7e079360abe14fbf9118c62eabc42e2fe75e342b160a95bc"),
         //     "14655542659562014735865511769057053982292279840403315552050801315682099828156",
@@ -273,7 +277,7 @@ pub fn instantiate(
         //     "2612442706402737973181840577010736087708621987282725873936541279764292204086",
         uint256_from_hex_string("272b3425fcc3b2c45015559b9941fde27527aab5226045bf9b0a6c1fe902d601"),
         //     "17716535433480122581515618850811568065658392066947958324371350481921422579201",
-        // uint256_from_hex_string("268d82cc07023a1d5e7c987cbd0328b34762c9ea21369bea418f08b71b16846a"),
+        uint256_from_hex_string("268d82cc07023a1d5e7c987cbd0328b34762c9ea21369bea418f08b71b16846a"),
         //     "17437916409890180001398333108882255895598851862997171508841759030332444017770",
     ];
     ZEROS.save(deps.storage, &zeros)?;
@@ -649,7 +653,10 @@ pub fn execute_set_vote_options_map(
         MAX_VOTE_OPTIONS.save(deps.storage, &Uint256::from_u128(max_vote_options))?;
         let res = Response::new()
             .add_attribute("action", "set_vote_option")
-            .add_attribute("vote_option_map", format!("{:?}", vote_option_map))
+            .add_attribute(
+                "vote_option_map",
+                serde_json::to_string(&vote_option_map).unwrap_or_else(|_| "[]".to_string()),
+            )
             .add_attribute("max_vote_options", max_vote_options.to_string());
         Ok(res)
     }
@@ -868,7 +875,7 @@ pub fn execute_publish_message(
             (msg_chain_length + Uint256::from_u128(1u128))
                 .to_be_bytes()
                 .to_vec(),
-            &hash_message_and_enc_pub_key(message.clone(), enc_pub_key.clone(), old_msg_hashes),
+            &hash_message_and_enc_pub_key(&message, &enc_pub_key, old_msg_hashes),
         )?;
 
         let old_chain_length = msg_chain_length;
@@ -879,7 +886,10 @@ pub fn execute_publish_message(
         Ok(Response::new()
             .add_attribute("action", "publish_message")
             .add_attribute("msg_chain_length", old_chain_length.to_string())
-            .add_attribute("message", format!("{:?}", message.data))
+            .add_attribute(
+                "message",
+                serde_json::to_string(&message.data).unwrap_or_else(|_| "[]".to_string()),
+            )
             .add_attribute(
                 "enc_pub_key",
                 format!(
@@ -954,8 +964,7 @@ pub fn execute_publish_message_batch(
                 MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
 
             // Compute the new message hash using the provided message, encrypted public key, and previous hash
-            let new_hash =
-                hash_message_and_enc_pub_key(message.clone(), enc_pub_key.clone(), old_msg_hashes);
+            let new_hash = hash_message_and_enc_pub_key(message, enc_pub_key, old_msg_hashes);
             MSG_HASHES.save(
                 deps.storage,
                 (msg_chain_length + Uint256::from_u128(1u128))
@@ -971,7 +980,7 @@ pub fn execute_publish_message_batch(
             ));
             attributes.push(attr(
                 format!("msg_{}_data", i),
-                format!("{:?}", message.data),
+                serde_json::to_string(&message.data).unwrap_or_else(|_| "[]".to_string()),
             ));
             attributes.push(attr(
                 format!("msg_{}_enc_pub_key", i),
@@ -1100,7 +1109,10 @@ pub fn execute_publish_deactivate_message(
             .add_attribute("action", "publish_deactivate_message")
             .add_attribute("dmsg_chain_length", old_chain_length.to_string())
             .add_attribute("num_sign_ups", num_sign_ups.to_string())
-            .add_attribute("message", format!("{:?}", message.data))
+            .add_attribute(
+                "message",
+                serde_json::to_string(&message.data).unwrap_or_else(|_| "[]".to_string()),
+            )
             .add_attribute(
                 "enc_pub_key",
                 format!(
@@ -1143,7 +1155,7 @@ pub fn execute_upload_deactivate_message(
             .add_attribute("maci_operator", &info.sender.to_string())
             .add_attribute(
                 "deactivate_message",
-                format!("{:?}", deactivate_format_data),
+                serde_json::to_string(&deactivate_format_data).unwrap_or_else(|_| "{}".to_string()),
             ))
     }
 }
@@ -1245,7 +1257,10 @@ pub fn execute_process_deactivate_message(
     let mut attributes = vec![
         attr("zk_verify", is_passed.to_string()),
         attr("commitment", new_deactivate_commitment.to_string()),
-        attr("proof", format!("{:?}", groth16_proof)),
+        attr(
+            "proof",
+            serde_json::to_string(&groth16_proof).unwrap_or_else(|_| "{}".to_string()),
+        ),
         attr("certification_system", "groth16"),
         attr("processed_dmsg_count", processed_dmsg_count.to_string()),
     ];
@@ -1714,7 +1729,10 @@ pub fn execute_process_message(
     let attributes = vec![
         attr("zk_verify", is_passed.to_string()),
         attr("commitment", new_state_commitment.to_string()),
-        attr("proof", format!("{:?}", groth16_proof_data)),
+        attr(
+            "proof",
+            serde_json::to_string(&groth16_proof_data).unwrap_or_else(|_| "{}".to_string()),
+        ),
         attr("certification_system", "groth16"),
         attr("processed_msg_count", processed_msg_count.to_string()),
     ];
@@ -1850,7 +1868,10 @@ pub fn execute_process_tally(
     let attributes = vec![
         attr("zk_verify", is_passed.to_string()),
         attr("commitment", new_tally_commitment.to_string()),
-        attr("proof", format!("{:?}", groth16_proof_data)),
+        attr(
+            "proof",
+            serde_json::to_string(&groth16_proof_data).unwrap_or_else(|_| "{}".to_string()),
+        ),
         attr("certification_system", "groth16"),
         attr("processed_user_count", processed_user_count.to_string()),
     ];
@@ -1989,13 +2010,13 @@ fn execute_stop_tallying_period(
             .add_attribute("action", "stop_tallying_period")
             .add_attribute(
                 "results",
-                format!(
-                    "{:?}",
-                    results
+                serde_json::to_string(
+                    &results
                         .iter()
                         .map(|x| x.to_string())
-                        .collect::<Vec<String>>()
-                ),
+                        .collect::<Vec<String>>(),
+                )
+                .unwrap_or_else(|_| "[]".to_string()),
             )
             .add_attribute("all_result", sum.to_string())
             .add_attributes(attributes));
@@ -2028,13 +2049,13 @@ fn execute_stop_tallying_period(
         .add_attribute("action", "stop_tallying_period")
         .add_attribute(
             "results",
-            format!(
-                "{:?}",
-                results
+            serde_json::to_string(
+                &results
                     .iter()
                     .map(|x| x.to_string())
-                    .collect::<Vec<String>>()
-            ),
+                    .collect::<Vec<String>>(),
+            )
+            .unwrap_or_else(|_| "[]".to_string()),
         )
         .add_attribute("all_result", sum.to_string())
         .add_attributes(attributes))
@@ -2249,8 +2270,8 @@ fn check_voting_time(env: Env, voting_time: VotingTime) -> Result<(), ContractEr
 }
 
 pub fn hash_message_and_enc_pub_key(
-    message: MessageData,
-    enc_pub_key: PubKey,
+    message: &MessageData,
+    enc_pub_key: &PubKey,
     prev_hash: Uint256,
 ) -> Uint256 {
     let mut m: [Uint256; 5] = [Uint256::zero(); 5];
@@ -2436,6 +2457,21 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::QueryCurrentStateCommitment {} => {
             let current_state_commitment = CURRENT_STATE_COMMITMENT.may_load(deps.storage)?;
             to_json_binary(&current_state_commitment)
+        }
+        QueryMsg::GetCoordinatorHash {} => {
+            let coordinator_hash = COORDINATORHASH.may_load(deps.storage)?;
+            to_json_binary(&coordinator_hash)
+        }
+        QueryMsg::GetMsgHash { index } => {
+            let msg_hash = MSG_HASHES
+                .may_load(deps.storage, index.to_be_bytes().to_vec())?
+                .unwrap_or_default();
+            to_json_binary(&msg_hash)
+        }
+        QueryMsg::GetCurrentDeactivateCommitment {} => {
+            let current_deactivate_commitment =
+                CURRENT_DEACTIVATE_COMMITMENT.may_load(deps.storage)?;
+            to_json_binary(&current_deactivate_commitment)
         }
     }
 }

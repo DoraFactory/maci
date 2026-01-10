@@ -2364,3 +2364,121 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
     let tally_delay = maci_contract.amaci_query_tally_delay(&app).unwrap();
     println!("tally_delay: {:?}", tally_delay);
 }
+
+#[test]
+fn test_create_round_event_data() {
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let label = "Dora AMaci Registry";
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+
+    let validator_set = contract.get_validators(&app).unwrap();
+    assert_eq!(
+        ValidatorSet {
+            addresses: vec![user1(), user2(), user4()]
+        },
+        validator_set
+    );
+
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+
+    // Create round and capture response
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(small_base_payamount, DORA_DEMON),
+        )
+        .unwrap();
+
+    println!("\n========== Created Round Event Data ==========");
+
+    // Print all events
+    for (idx, event) in resp.events.iter().enumerate() {
+        println!("\nEvent #{}: {}", idx, event.ty);
+        for attr in &event.attributes {
+            println!("  {} = {}", attr.key, attr.value);
+
+            // Special attention to vote_option_map fields
+            if attr.key == "vote_option_map_old" {
+                println!("  >>> vote_option_map_old: {}", attr.value);
+            }
+            if attr.key == "vote_option_map" {
+                println!("  >>> vote_option_map: {}", attr.value);
+            }
+        }
+    }
+
+    println!("\n========== End of Event Data ==========\n");
+
+    // Also get the contract address and query the vote option map
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    println!("AMACI Contract Address: {:?}", amaci_contract_addr);
+
+    let maci_contract = MaciContract::new(amaci_contract_addr.addr.clone());
+    let vote_option_map = maci_contract.amaci_vote_option_map(&app).unwrap();
+    println!(
+        "Queried vote_option_map after creation: {:?}",
+        vote_option_map
+    );
+
+    // Set custom vote option map with numbers, characters and emojis
+    println!("\n========== Setting Custom Vote Option Map ==========");
+    let custom_vote_options = vec![
+        String::from("Option1"),    // with number
+        String::from("yes_vote"),   // with underscore
+        String::from("no-vote ❤️"), // with dash
+        String::from("👍 Approve"), // with emoji
+        String::from("👎 Reject"),  // with emoji
+    ];
+    println!("Custom vote options: {:?}", custom_vote_options);
+
+    let set_resp = maci_contract
+        .amaci_set_custom_vote_option_map(&mut app, creator(), custom_vote_options.clone())
+        .unwrap();
+
+    println!("\n========== Set Vote Option Map Event Data ==========");
+    for (idx, event) in set_resp.events.iter().enumerate() {
+        println!("\nEvent #{}: {}", idx, event.ty);
+        for attr in &event.attributes {
+            println!("  {} = {}", attr.key, attr.value);
+
+            // Special attention to vote_option_map fields
+            if attr.key == "vote_option_map_old" {
+                println!("  >>> vote_option_map_old: {}", attr.value);
+            }
+            if attr.key == "vote_option_map" {
+                println!("  >>> vote_option_map: {}", attr.value);
+            }
+        }
+    }
+    println!("\n========== End of Set Vote Option Map Event Data ==========\n");
+
+    // Query the updated vote option map
+    let updated_vote_option_map = maci_contract.amaci_vote_option_map(&app).unwrap();
+    println!(
+        "Queried vote_option_map after update: {:?}",
+        updated_vote_option_map
+    );
+    assert_eq!(updated_vote_option_map, custom_vote_options);
+}

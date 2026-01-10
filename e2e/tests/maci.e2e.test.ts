@@ -90,18 +90,17 @@ describe('MACI (Standard) End-to-End Test', function () {
     log(`Initialized ${numVoters} voters`);
 
     // Initialize operator MACI (1P1V mode, non-anonymous)
-    operator.initMaci({
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
-      maxVoteOptions,
-      numSignUps,
+      maxVoteOptions: 3, // Must match contract's vote_option_map length
       isQuadraticCost: false, // 1P1V mode
       isAmaci: false // API-MACI uses standard MACI (no anonymous keys)
     });
 
-    log('Operator MACI initialized (1P1V mode, non-anonymous)');
+    log('Operator MACI round initialized (1P1V mode, non-anonymous)');
 
     // Deploy API-MACI contract
     const contractLoader = new ContractLoader();
@@ -196,7 +195,7 @@ describe('MACI (Standard) End-to-End Test', function () {
         `Voter ${i} sign up failed`
       );
 
-      operator.initStateTree(i, voterPubKey, 1); // 1 voice credit for 1P1V
+      operator.updateStateTree(i, voterPubKey, 1); // 1 voice credit for 1P1V
     }
 
     log(`All ${numVoters} voters registered`);
@@ -368,6 +367,13 @@ describe('MACI (Standard) End-to-End Test', function () {
     operator.endVotePeriod();
     log('Vote period ended, processing started');
 
+    // 🔍 DEBUG: Check operator state before processing
+    log('\n🔍 DEBUG: Operator state before processMessages:');
+    log(`  - numSignUps: ${operator.numSignUps}`);
+    log(`  - maxVoteOptions: ${operator.maxVoteOptions}`);
+    log(`  - isQuadraticCost: ${operator.isQuadraticCost}`);
+    log(`  - Total messages: ${operator.messages.length}`);
+
     log('\n=== Step 4: Process Messages ===\n');
 
     let batchCount = 0;
@@ -378,7 +384,24 @@ describe('MACI (Standard) End-to-End Test', function () {
         zkeyFile: processMessagesZkey
       });
 
-      log(`Processing message batch ${batchCount}...`);
+      // 🔍 DEBUG: Verify public input
+      log(`\n🔍 DEBUG: Public input for batch ${batchCount}:`);
+      const circuitType = operator.isQuadraticCost ? 1n : 0n;
+      const expectedPackedVals =
+        BigInt(operator.maxVoteOptions!) +
+        (BigInt(operator.numSignUps!) << 32n) +
+        (circuitType << 64n);
+      log(`  - packedVals (expected): ${expectedPackedVals}`);
+      log(`  - packedVals (operator): ${processResult.input.packedVals}`);
+      log(`  - Match: ${expectedPackedVals === processResult.input.packedVals ? '✅' : '❌'}`);
+      if (expectedPackedVals !== processResult.input.packedVals) {
+        log(`  - ⚠️ MISMATCH DETECTED!`);
+        log(`  - numSignUps: ${operator.numSignUps}`);
+        log(`  - maxVoteOptions: ${operator.maxVoteOptions}`);
+        log(`  - circuitType: ${circuitType}`);
+      }
+
+      log(`\nProcessing message batch ${batchCount}...`);
 
       if (!processResult.proof) {
         throw new Error('SDK failed to generate proof');

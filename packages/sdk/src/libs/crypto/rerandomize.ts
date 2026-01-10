@@ -13,7 +13,7 @@ const F = BabyJub.Fr;
  * @param original The value to encode. It must be less than the BabyJub field
  *                 size.
  */
-const encodeToMessage = (original: bigint, randomKey = genKeypair()) => {
+export const encodeToMessage = (original: bigint, randomKey = genKeypair()) => {
   const xIncrement = F.e(F.sub(randomKey.pubKey[0], original));
 
   return {
@@ -31,7 +31,7 @@ const encodeToMessage = (original: bigint, randomKey = genKeypair()) => {
  * x-increment.
  * @param message The message to convert.
  */
-const decodeMessage = (message: { point: { x: bigint; y: bigint }; xIncrement: bigint }) => {
+export const decodeMessage = (message: { point: { x: bigint; y: bigint }; xIncrement: bigint }) => {
   const decoded = BigInt(F.e(F.sub(message.point.x, message.xIncrement)));
 
   return decoded;

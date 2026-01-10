@@ -11,5 +11,5 @@
       "skipLibCheck": true
     }
   },
-  "include": ["src/**/*", "tests/**/*"]
+  "include": ["src/**/*", "tests/**/*", "crypto-test/**/*", "poseidon-test/**/*"]
 }

@@ -120,6 +120,25 @@ export class AmaciContractClient extends BaseContractClient {
   }
 
   /**
+   * Pre add new key (uses pre-uploaded deactivate data)
+   */
+  async preAddNewKey(
+    pubkey: { x: string; y: string },
+    nullifier: string,
+    d: [string, string, string, string],
+    proof: { a: string; b: string; c: string }
+  ): Promise<any> {
+    return await this.execute({
+      pre_add_new_key: {
+        pubkey,
+        nullifier,
+        d,
+        groth16_proof: proof
+      }
+    });
+  }
+
+  /**
    * Publish message (vote)
    */
   async publishMessage(message: string[], encPubKey: { x: string; y: string }): Promise<any> {
@@ -243,6 +262,20 @@ export class AmaciContractClient extends BaseContractClient {
   }
 
   /**
+   * Query: Get state tree root
+   */
+  async getStateTreeRoot(): Promise<string> {
+    return await this.query({ get_state_tree_root: {} });
+  }
+
+  /**
+   * Query: Get node by index
+   */
+  async getNode(index: string): Promise<string> {
+    return await this.query({ get_node: { index } });
+  }
+
+  /**
    * Query: Get result
    */
   async getResult(index: string): Promise<any> {
@@ -268,6 +301,66 @@ export class AmaciContractClient extends BaseContractClient {
    */
   async getProcessedDMsgCount(): Promise<any> {
     return await this.query({ get_processed_d_msg_count: {} });
+  }
+
+  /**
+   * Query: Get coordinator hash
+   */
+  async getCoordinatorHash(): Promise<string> {
+    return await this.query({ get_coordinator_hash: {} });
+  }
+
+  /**
+   * Query: Get message hash by index
+   */
+  async getMsgHash(index: string): Promise<string> {
+    return await this.query({ get_msg_hash: { index } });
+  }
+
+  /**
+   * Query: Get current state commitment
+   */
+  async getCurrentStateCommitment(): Promise<string> {
+    return await this.query({ query_current_state_commitment: {} });
+  }
+
+  /**
+   * Query: Get current deactivate commitment
+   */
+  async getCurrentDeactivateCommitment(): Promise<string> {
+    return await this.query({ get_current_deactivate_commitment: {} });
+  }
+
+  /**
+   * Query: Get circuit type
+   */
+  async getCircuitType(): Promise<string> {
+    return await this.query({ query_circuit_type: {} });
+  }
+
+  /**
+   * Query: Get max vote options
+   */
+  async getMaxVoteOptions(): Promise<string> {
+    return await this.query({ max_vote_options: {} });
+  }
+
+  /**
+   * Upload deactivate message (for pre-add-new-key)
+   */
+  async uploadDeactivateMessage(deactivateMessage: string[][]): Promise<any> {
+    return await this.execute({
+      upload_deactivate_message: {
+        deactivate_message: deactivateMessage
+      }
+    });
+  }
+
+  /**
+   * Query: Get deactivate message
+   */
+  async getDeactivateMessage(): Promise<string[][]> {
+    return await this.query({ get_deactivate_message: {} });
   }
 }
 

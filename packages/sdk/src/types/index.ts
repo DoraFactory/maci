@@ -111,8 +111,8 @@ export type RoundType = {
   operatorLogoUrl?: string;
   operatorMoniker?: string;
   resultsList?: {
-    v: number;
-    v2: number;
+    v: string;
+    v2: string;
   }[];
 };
 

@@ -5,13 +5,11 @@ import * as BabyJub from '@zk-kit/baby-jubjub';
 import { Point } from '@zk-kit/baby-jubjub';
 import { derivePublicKey, signMessage, deriveSecretScalar } from '@zk-kit/eddsa-poseidon';
 
-import { solidityPackedSha256 } from 'ethers';
-
 import { mulPointEscalar } from '@zk-kit/baby-jubjub';
 import { packPublicKey, unpackPublicKey } from '@zk-kit/eddsa-poseidon';
 
 import { EcdhSharedKey, Keypair, PrivKey, PubKey } from './types';
-import { poseidon } from './hashing';
+import { poseidon, computeInputHash } from './hashing';
 import { Tree } from './tree';
 import { genRandomBabyJubValue } from './babyjub';
 import { packElement } from './pack';
@@ -238,21 +236,15 @@ export const genAddKeyInput = (
   const deactivateRoot = tree.root;
   const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
 
-  const inputHash =
-    BigInt(
-      solidityPackedSha256(
-        new Array(7).fill('uint256'),
-        stringizing([
-          deactivateRoot,
-          poseidon(coordPubKey),
-          nullifier,
-          d1[0],
-          d1[1],
-          d2[0],
-          d2[1]
-        ]) as string[]
-      )
-    ) % SNARK_FIELD_SIZE;
+  const inputHash = computeInputHash([
+    deactivateRoot,
+    poseidon(coordPubKey),
+    nullifier,
+    d1[0],
+    d1[1],
+    d2[0],
+    d2[1]
+  ]);
 
   const input = {
     inputHash,

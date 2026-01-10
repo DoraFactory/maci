@@ -4,10 +4,10 @@ import {
   RoundGraphqlResponse,
   RoundsGraphqlResponse,
   SelectiveRoundResponse,
-  SelectiveRoundGraphqlResponse,
+  SelectiveRoundGraphqlResponse
 } from '../../types';
 import { Http } from '../../libs';
-import { isValidAddress } from '../../utils';
+import { processTallyResults, isValidAddress } from '../../utils';
 import { handleError, ErrorType } from '../errors';
 import { ERROR } from '../errors/types';
 
@@ -25,8 +25,8 @@ export class Round {
           code: 400,
           error: {
             message: 'Invalid round address format',
-            type: ERROR.ERROR_ROUND_INVALID_ADDRESS,
-          },
+            type: ERROR.ERROR_ROUND_INVALID_ADDRESS
+          }
         };
       }
 
@@ -69,18 +69,15 @@ export class Round {
       }
     }`;
 
-      const response = await this.http.fetchGraphql<RoundGraphqlResponse>(
-        ROUND_QUERY,
-        ''
-      );
+      const response = await this.http.fetchGraphql<RoundGraphqlResponse>(ROUND_QUERY, '');
 
       if (!response || !response.data || !response.data.round) {
         return {
           code: 404,
           error: {
             message: `No round data found for address ${address}`,
-            type: ERROR.ERROR_ROUND_NOT_FOUND,
-          },
+            type: ERROR.ERROR_ROUND_NOT_FOUND
+          }
         };
       }
 
@@ -95,42 +92,27 @@ export class Round {
 
       if (keybaseData.status.code === 0) {
         if (keybaseData.them[0]?.pictures?.primary?.url) {
-          response.data.round.operatorLogoUrl =
-            keybaseData.them[0].pictures.primary.url;
+          response.data.round.operatorLogoUrl = keybaseData.them[0].pictures.primary.url;
         }
         if (keybaseData.them[0]?.basics?.username_cased) {
-          response.data.round.operatorMoniker =
-            keybaseData.them[0].profile.full_name;
+          response.data.round.operatorMoniker = keybaseData.them[0].profile.full_name;
         }
       }
       // } catch (error) {
       //   console.error('Error fetching keybase data:', error);
       // }
 
+      // Decode tally results and calculate percentages
+      // Each result is encoded as: v * (v + MAX_VOTES) where MAX_VOTES = 10^24
+      // High bits (÷ 10^24): total vote count
+      // Low bits (% 10^24): total voice credits (sum of v^2)
       const results = JSON.parse(response.data.round.results);
-      const votes = results.map((r: string) => ({
-        v: Number(r.slice(0, -24)),
-        v2: Number(r.slice(-24)),
-      }));
-      const totalVotes = votes.reduce(
-        (s: { v: number; v2: number }, c: { v: number; v2: number }) => ({
-          v: s.v + c.v,
-          v2: s.v2 + c.v2,
-        }),
-        { v: 0, v2: 0 }
-      );
-      const resultsList = votes.map((v: { v: number; v2: number }) => ({
-        v: totalVotes.v === 0 ? '0.0' : ((v.v / totalVotes.v) * 100).toFixed(3),
-        v2:
-          totalVotes.v2 === 0
-            ? '0.0'
-            : ((v.v2 / totalVotes.v2) * 100).toFixed(3),
-      }));
-      response.data.round.resultsList = resultsList;
+      const { percentages } = processTallyResults(results);
+      response.data.round.resultsList = percentages;
 
       return {
         code: 200,
-        data: response.data,
+        data: response.data
       };
     } catch (error: any) {
       return handleError(error as ErrorType);
@@ -143,18 +125,15 @@ export class Round {
    * @param fields Array of fields to return, returns all fields if empty
    * @returns Round information response
    */
-  async getRoundWithFields(
-    address: string,
-    fields?: string[]
-  ): Promise<SelectiveRoundResponse> {
+  async getRoundWithFields(address: string, fields?: string[]): Promise<SelectiveRoundResponse> {
     try {
       if (!isValidAddress(address)) {
         return {
           code: 400,
           error: {
             message: 'Invalid round address format',
-            type: ERROR.ERROR_ROUND_INVALID_ADDRESS,
-          },
+            type: ERROR.ERROR_ROUND_INVALID_ADDRESS
+          }
         };
       }
 
@@ -192,27 +171,24 @@ export class Round {
         'maciType',
         'voiceCreditAmount',
         'preDeactivateRoot',
-        'identity',
+        'identity'
         // 'funds',
       ];
 
       if (fields && fields.length > 0) {
-        const invalidFields = fields.filter(
-          (field) => !defaultFields.includes(field)
-        );
+        const invalidFields = fields.filter((field) => !defaultFields.includes(field));
         if (invalidFields.length > 0) {
           return {
             code: 400,
             error: {
               message: `Invalid fields: ${invalidFields.join(', ')}`,
-              type: ERROR.ERROR_INVALID_FIELDS,
-            },
+              type: ERROR.ERROR_INVALID_FIELDS
+            }
           };
         }
       }
 
-      const selectedFields =
-        fields && fields.length > 0 ? fields : defaultFields;
+      const selectedFields = fields && fields.length > 0 ? fields : defaultFields;
 
       const fieldString = selectedFields.join('\n        ');
 
@@ -222,25 +198,21 @@ export class Round {
           }
         }`;
 
-      const response =
-        await this.http.fetchGraphql<SelectiveRoundGraphqlResponse>(
-          ROUND_QUERY,
-          ''
-        );
+      const response = await this.http.fetchGraphql<SelectiveRoundGraphqlResponse>(ROUND_QUERY, '');
 
       if (!response || !response.data || !response.data.round) {
         return {
           code: 404,
           error: {
             message: `No round data found for address ${address}`,
-            type: ERROR.ERROR_ROUND_NOT_FOUND,
-          },
+            type: ERROR.ERROR_ROUND_NOT_FOUND
+          }
         };
       }
 
       return {
         code: 200,
-        data: response.data,
+        data: response.data
       };
     } catch (error: any) {
       return handleError(error as ErrorType);
@@ -304,24 +276,19 @@ export class Round {
         limit
       );
 
-      if (
-        !response ||
-        !response.data ||
-        !response.data.rounds ||
-        !response.data.rounds.edges
-      ) {
+      if (!response || !response.data || !response.data.rounds || !response.data.rounds.edges) {
         return {
           code: 404,
           error: {
             message: 'No rounds data found',
-            type: ERROR.ERROR_ROUNDS_NOT_FOUND,
-          },
+            type: ERROR.ERROR_ROUNDS_NOT_FOUND
+          }
         };
       }
 
       return {
         code: 200,
-        data: response.data,
+        data: response.data
       };
     } catch (error) {
       return handleError(error as ErrorType);
@@ -393,35 +360,26 @@ export class Round {
         limit
       );
 
-      if (
-        !response ||
-        !response.data ||
-        !response.data.rounds ||
-        !response.data.rounds.edges
-      ) {
+      if (!response || !response.data || !response.data.rounds || !response.data.rounds.edges) {
         return {
           code: 404,
           error: {
             message: `No rounds data found for circuit name ${circuitName}`,
-            type: ERROR.ERROR_ROUNDS_NOT_FOUND,
-          },
+            type: ERROR.ERROR_ROUNDS_NOT_FOUND
+          }
         };
       }
 
       return {
         code: 200,
-        data: response.data,
+        data: response.data
       };
     } catch (error: any) {
       return handleError(error as ErrorType);
     }
   }
 
-  async getRoundsByStatus(
-    status: string,
-    after: string,
-    limit?: number
-  ): Promise<RoundsResponse> {
+  async getRoundsByStatus(status: string, after: string, limit?: number): Promise<RoundsResponse> {
     try {
       const currentTime = Math.floor(Date.now() / 1000);
       let filterCondition = '';
@@ -463,8 +421,8 @@ export class Round {
             code: 400,
             error: {
               message: `Invalid status: ${status}`,
-              type: ERROR.ERROR_ROUND_INVALID_STATUS,
-            },
+              type: ERROR.ERROR_ROUND_INVALID_STATUS
+            }
           };
       }
 
@@ -521,24 +479,19 @@ export class Round {
         after,
         limit
       );
-      if (
-        !response ||
-        !response.data ||
-        !response.data.rounds ||
-        !response.data.rounds.edges
-      ) {
+      if (!response || !response.data || !response.data.rounds || !response.data.rounds.edges) {
         return {
           code: 404,
           error: {
             message: `No rounds data found for status ${status}`,
-            type: ERROR.ERROR_ROUNDS_NOT_FOUND,
-          },
+            type: ERROR.ERROR_ROUNDS_NOT_FOUND
+          }
         };
       }
 
       return {
         code: 200,
-        data: response.data,
+        data: response.data
       };
     } catch (error: any) {
       return handleError(error as ErrorType);
@@ -556,8 +509,8 @@ export class Round {
           code: 400,
           error: {
             message: 'Invalid operator address format',
-            type: ERROR.ERROR_OPERATOR_INVALID_ADDRESS,
-          },
+            type: ERROR.ERROR_OPERATOR_INVALID_ADDRESS
+          }
         };
       }
 
@@ -619,24 +572,19 @@ export class Round {
         limit
       );
 
-      if (
-        !response ||
-        !response.data ||
-        !response.data.rounds ||
-        !response.data.rounds.edges
-      ) {
+      if (!response || !response.data || !response.data.rounds || !response.data.rounds.edges) {
         return {
           code: 404,
           error: {
             message: `No rounds data found for operator ${operator}`,
-            type: ERROR.ERROR_ROUNDS_NOT_FOUND,
-          },
+            type: ERROR.ERROR_ROUNDS_NOT_FOUND
+          }
         };
       }
 
       return {
         code: 200,
-        data: response.data,
+        data: response.data
       };
     } catch (error: any) {
       return handleError(error as ErrorType);

@@ -84,13 +84,13 @@ describe('AMACI Integration Test', function () {
     console.log('\n=== Step 1: Initialize AMACI ===\n');
 
     // Initialize AMACI with coordinator using the same parameters as circuits
-    operator.initMaci({
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 3,
+
       isQuadraticCost: true,
       isAmaci: true // AMACI mode with anonymous keys (d1, d2)
     });
@@ -103,8 +103,8 @@ describe('AMACI Integration Test', function () {
     const user1PubKey = voter1.getPubkey().toPoints();
     const user2PubKey = voter2.getPubkey().toPoints();
 
-    operator.initStateTree(USER_1, user1PubKey, 100);
-    operator.initStateTree(USER_2, user2PubKey, 100);
+    operator.updateStateTree(USER_1, user1PubKey, 100);
+    operator.updateStateTree(USER_2, user2PubKey, 100);
 
     expect(operator.stateLeaves.size).to.equal(2);
 
@@ -178,7 +178,7 @@ describe('AMACI Integration Test', function () {
     // For testing, we directly register the new key
     const d1 = newDeactivate[0].slice(0, 2);
     const d2 = newDeactivate[0].slice(2, 4);
-    operator.initStateTree(USER_1A, user1aPubKey, 100, [d1[0], d1[1], d2[0], d2[1]]);
+    operator.updateStateTree(USER_1A, user1aPubKey, 100, [d1[0], d1[1], d2[0], d2[1]]);
 
     expect(operator.stateLeaves.size).to.equal(3);
     console.log('User 1 new key registered at index', USER_1A);
@@ -331,13 +331,13 @@ describe('AMACI Integration Test', function () {
       secretKey: 999999n
     });
 
-    newOperator.initMaci({
+    newOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 3,
+
       isQuadraticCost: false,
       isAmaci: true // AMACI mode
     });
@@ -357,19 +357,19 @@ describe('AMACI Integration Test', function () {
       secretKey: 888888n
     });
 
-    testOperator.initMaci({
+    testOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 3,
+
       isQuadraticCost: false,
       isAmaci: true // AMACI mode
     });
 
     const testPubKey: [bigint, bigint] = [12345n, 67890n];
-    testOperator.initStateTree(0, testPubKey, 200);
+    testOperator.updateStateTree(0, testPubKey, 200);
 
     const stateLeaf = testOperator.stateLeaves.get(0);
     expect(stateLeaf).to.not.be.undefined;
@@ -383,13 +383,13 @@ describe('AMACI Integration Test', function () {
       secretKey: 777777n
     });
 
-    testOperator.initMaci({
+    testOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 3,
+
       isQuadraticCost: false,
       isAmaci: true // AMACI mode
     });
@@ -418,13 +418,13 @@ describe('AMACI Integration Test', function () {
       secretKey: 789012n
     });
 
-    testOperator.initMaci({
+    testOperator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 1,
+
       isQuadraticCost: false, // Use linear cost for easier calculation
       isAmaci: true
     });
@@ -432,7 +432,7 @@ describe('AMACI Integration Test', function () {
     // Register user
     const userPubKey = testVoter.getPubkey().toPoints();
     const USER_IDX = 0;
-    testOperator.initStateTree(USER_IDX, userPubKey, 1000); // Give user 1000 voice credits
+    testOperator.updateStateTree(USER_IDX, userPubKey, 1000); // Give user 1000 voice credits
 
     const coordPubKey = testOperator.getPubkey().toPoints();
 
@@ -484,19 +484,19 @@ describe('AMACI Integration Test', function () {
       secretKey: 123456n
     });
 
-    testOperator2.initMaci({
+    testOperator2.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps: 1,
+
       isQuadraticCost: false,
       isAmaci: true
     });
 
     // Register same user
-    testOperator2.initStateTree(USER_IDX, userPubKey, 1000);
+    testOperator2.updateStateTree(USER_IDX, userPubKey, 1000);
 
     // First vote: option 1 = 5, option 2 = 3
     for (const payload of firstVotePayload) {

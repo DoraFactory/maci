@@ -247,6 +247,15 @@ pub enum QueryMsg {
 
     #[returns(Uint256)]
     QueryCurrentStateCommitment {},
+
+    #[returns(Uint256)]
+    GetCoordinatorHash {},
+
+    #[returns(Uint256)]
+    GetMsgHash { index: Uint256 },
+
+    #[returns(Uint256)]
+    GetCurrentDeactivateCommitment {},
 }
 
 #[cw_serde]

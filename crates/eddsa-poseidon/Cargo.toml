@@ -1,0 +1,50 @@
+[package]
+name = "eddsa-poseidon"
+version = "0.1.0"
+edition = "2021"
+description = "EdDSA signature scheme using Poseidon hash and Baby Jubjub elliptic curve"
+license = "MIT"
+
+[dependencies]
+# Baby Jubjub Elliptic Curve
+baby-jubjub = { path = "../baby-jubjub" }
+
+# Arkworks Ecosystem
+ark-ff = "0.5"
+ark-ec = "0.5"
+ark-bn254 = "0.5"
+
+# Poseidon Hashing
+light-poseidon = "0.4"
+
+# Big Number Arithmetic
+num-bigint = { version = "0.4", features = ["serde"] }
+num-traits = "0.2"
+
+# Blake2b (using Rust ecosystem)
+blake2 = "0.10.6"
+
+# Blake (for comparison testing)
+blake = "2.0.2"
+
+# Random Number Generation
+rand = "0.8"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+
+# Error Handling
+thiserror = "1.0"
+
+[dev-dependencies]
+ark-ff = "0.5"
+hex = "0.4"
+
+[[example]]
+name = "blake512_hash_test"
+path = "examples/blake512_hash_test.rs"
+
+[[example]]
+name = "complete"
+path = "examples/complete.rs"
+

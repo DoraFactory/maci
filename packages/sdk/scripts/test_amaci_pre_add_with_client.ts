@@ -261,7 +261,33 @@ async function main() {
     const voteResult2 = await account.saasVote({
       contractAddress,
       operatorPubkey,
-      selectedOptions: [{ idx: 3, vc: 2 }],
+      selectedOptions: [
+        { idx: 0, vc: 1 },
+        { idx: 1, vc: 1 },
+        { idx: 2, vc: 1 },
+        { idx: 3, vc: 1 },
+        { idx: 4, vc: 1 },
+        { idx: 5, vc: 1 },
+        { idx: 6, vc: 1 },
+        { idx: 7, vc: 1 },
+        { idx: 8, vc: 1 },
+        { idx: 9, vc: 1 },
+        { idx: 10, vc: 1 },
+        { idx: 11, vc: 1 },
+        { idx: 12, vc: 1 },
+        { idx: 13, vc: 1 },
+        { idx: 14, vc: 1 },
+        { idx: 15, vc: 1 },
+        { idx: 16, vc: 1 },
+        { idx: 17, vc: 1 },
+        { idx: 18, vc: 1 },
+        { idx: 19, vc: 1 },
+        { idx: 20, vc: 1 },
+        { idx: 21, vc: 1 },
+        { idx: 22, vc: 1 },
+        { idx: 23, vc: 1 },
+        { idx: 24, vc: 1 }
+      ],
       ticket: ticket
     });
 

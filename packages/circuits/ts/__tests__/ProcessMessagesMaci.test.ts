@@ -52,7 +52,7 @@ describe('ProcessMessages MACI Circuit Tests', function () {
       secretKey: 111111n
     });
 
-    operator.initMaci({
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth: 1,
       voteOptionTreeDepth,
@@ -73,7 +73,7 @@ describe('ProcessMessages MACI Circuit Tests', function () {
     // Register voters in state tree
     voters.forEach((voter, idx) => {
       const pubKey = voter.getPubkey().toPoints();
-      operator.initStateTree(idx, pubKey, 100); // 100 voice credits
+      operator.updateStateTree(idx, pubKey, 100); // 100 voice credits
     });
 
     return { operator, voters };
@@ -410,7 +410,7 @@ describe('ProcessMessages MACI Circuit Tests', function () {
 
       // Set low balance
       const lowBalanceVoter = new VoterClient({ network: 'testnet', secretKey: 777777n });
-      operator.initStateTree(3, lowBalanceVoter.getPubkey().toPoints(), 10); // Only 10 credits
+      operator.updateStateTree(3, lowBalanceVoter.getPubkey().toPoints(), 10); // Only 10 credits
 
       const coordPubKey = operator.getPubkey().toPoints();
 

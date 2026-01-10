@@ -345,7 +345,10 @@ pub fn execute_set_validators(
 
         Ok(Response::new()
             .add_attribute("action", "set_validators")
-            .add_attribute("addresses", format!("{:?}", addresses.addresses)))
+            .add_attribute(
+                "addresses",
+                serde_json::to_string(&addresses.addresses).unwrap_or_else(|_| "[]".to_string()),
+            ))
     }
 }
 
@@ -570,7 +573,8 @@ pub fn reply_created_round(
         ),
         attr(
             "vote_option_map",
-            format!("{:?}", amaci_return_data.vote_option_map),
+            serde_json::to_string(&amaci_return_data.vote_option_map)
+                .unwrap_or_else(|_| "[]".to_string()),
         ),
         attr(
             "voice_credit_amount",

@@ -335,3 +335,233 @@ export function assertBigIntArrayEqual(
     );
   }
 }
+
+/**
+ * Verify account state in OperatorClient
+ * Validates balance, voted status, and activeState for a given stateIdx
+ */
+export function verifyAccountState(
+  operator: any, // OperatorClient type
+  stateIdx: number,
+  expected: {
+    balance?: bigint;
+    voted?: boolean;
+    activeState?: bigint;
+  }
+): void {
+  const stateLeaf = operator.stateLeaves.get(stateIdx);
+  
+  if (!stateLeaf) {
+    throw new Error(`State leaf not found for index ${stateIdx}`);
+  }
+
+  if (expected.balance !== undefined) {
+    expect(stateLeaf.balance, `Balance mismatch for state ${stateIdx}`).to.equal(expected.balance);
+  }
+
+  if (expected.voted !== undefined) {
+    expect(stateLeaf.voted, `Voted status mismatch for state ${stateIdx}`).to.equal(expected.voted);
+  }
+
+  if (expected.activeState !== undefined) {
+    const actualActiveState = operator.activeStateTree?.leaf(stateIdx);
+    expect(actualActiveState, `ActiveState mismatch for state ${stateIdx}`).to.equal(
+      expected.activeState
+    );
+  }
+}
+
+/**
+ * Verify tally results match between SDK and contract
+ * Validates that vote tallies are consistent across SDK and on-chain
+ */
+export async function verifyTallyResults(
+  contract: any, // AmaciContractClient type
+  operator: any, // OperatorClient type
+  expectedVotes: bigint[]
+): Promise<void> {
+  const sdkResults = operator.getTallyResults();
+  const contractResults = await contract.getAllResult();
+
+  // Verify expected votes length matches
+  if (expectedVotes.length !== sdkResults.length) {
+    throw new Error(
+      `Expected votes length ${expectedVotes.length} does not match SDK results length ${sdkResults.length}`
+    );
+  }
+
+  // Verify each option's votes
+  for (let idx = 0; idx < expectedVotes.length; idx++) {
+    // Check SDK result
+    expect(sdkResults[idx], `SDK result mismatch for option ${idx}`).to.equal(expectedVotes[idx]);
+
+    // Parse contract result
+    // Contract format: votes * 10^24 + voiceCredits
+    const MAX_VOTES = 1000000000000000000000000n;
+    const contractVotes = BigInt(contractResults[idx]) / MAX_VOTES;
+
+    expect(contractVotes, `Contract result mismatch for option ${idx}`).to.equal(
+      expectedVotes[idx]
+    );
+  }
+
+  log('✓ Tally results verified: SDK and contract match');
+}
+
+/**
+ * Verify multiple account states in batch
+ * Useful for testing scenarios with multiple voters
+ */
+export function verifyMultipleAccountStates(
+  operator: any,
+  accountStates: Array<{
+    stateIdx: number;
+    expected: {
+      balance?: bigint;
+      voted?: boolean;
+      activeState?: bigint;
+    };
+  }>
+): void {
+  for (const { stateIdx, expected } of accountStates) {
+    verifyAccountState(operator, stateIdx, expected);
+  }
+  log(`✓ Verified ${accountStates.length} account states`);
+}
+
+/**
+ * Verify deactivate status for an account
+ * Checks that an account is properly marked as deactivated
+ */
+export function verifyDeactivateStatus(
+  operator: any,
+  stateIdx: number,
+  shouldBeDeactivated: boolean
+): void {
+  const activeState = operator.activeStateTree?.leaf(stateIdx);
+
+  if (shouldBeDeactivated) {
+    expect(activeState, `Account ${stateIdx} should be deactivated (activeState != 0)`).to.not.equal(
+      0n
+    );
+  } else {
+    expect(activeState, `Account ${stateIdx} should be active (activeState == 0)`).to.equal(0n);
+  }
+}
+
+/**
+ * Verify vote rejection (balance unchanged, voted=false)
+ * Useful for testing scenarios where votes should be rejected
+ */
+export function verifyVoteRejection(
+  operator: any,
+  stateIdx: number,
+  initialBalance: bigint,
+  reason: string
+): void {
+  const stateLeaf = operator.stateLeaves.get(stateIdx);
+
+  if (!stateLeaf) {
+    throw new Error(`State leaf not found for index ${stateIdx}`);
+  }
+
+  expect(
+    stateLeaf.balance,
+    `Vote should be rejected (${reason}): balance should remain ${initialBalance}`
+  ).to.equal(initialBalance);
+
+  log(`✓ Vote rejection verified for state ${stateIdx}: ${reason}`);
+}
+
+/**
+ * Verify vote acceptance (balance changed, voted=true)
+ * Validates that a vote was successfully processed
+ */
+export function verifyVoteAcceptance(
+  operator: any,
+  stateIdx: number,
+  initialBalance: bigint,
+  expectedCost: bigint
+): void {
+  const stateLeaf = operator.stateLeaves.get(stateIdx);
+
+  if (!stateLeaf) {
+    throw new Error(`State leaf not found for index ${stateIdx}`);
+  }
+
+  const expectedBalance = initialBalance - expectedCost;
+
+  expect(stateLeaf.balance, `Vote acceptance: balance should be ${expectedBalance}`).to.equal(
+    expectedBalance
+  );
+
+  expect(stateLeaf.voted, `Vote acceptance: voted flag should be true`).to.be.true;
+
+  log(
+    `✓ Vote acceptance verified for state ${stateIdx}: balance ${initialBalance} -> ${expectedBalance} (cost: ${expectedCost})`
+  );
+}
+
+/**
+ * Calculate quadratic voting cost
+ * Returns the cost for a given number of votes under quadratic voting
+ */
+export function calculateQuadraticVoteCost(votes: number): bigint {
+  return BigInt(votes * votes);
+}
+
+/**
+ * Verify AddNewKey state inheritance
+ * Validates that new key inherits balance and deactivate data from old key
+ */
+export function verifyAddNewKeyInheritance(
+  operator: any,
+  oldStateIdx: number,
+  newStateIdx: number,
+  expectedBalance: bigint
+): void {
+  const oldStateLeaf = operator.stateLeaves.get(oldStateIdx);
+  const newStateLeaf = operator.stateLeaves.get(newStateIdx);
+
+  if (!oldStateLeaf || !newStateLeaf) {
+    throw new Error('State leaves not found for AddNewKey verification');
+  }
+
+  // New key should inherit balance
+  expect(
+    newStateLeaf.balance,
+    `New key should inherit balance ${expectedBalance} from old key`
+  ).to.equal(expectedBalance);
+
+  // Old key should be deactivated
+  const oldActiveState = operator.activeStateTree?.leaf(oldStateIdx);
+  expect(oldActiveState, 'Old key should be deactivated (activeState != 0)').to.not.equal(0n);
+
+  // New key should be active
+  const newActiveState = operator.activeStateTree?.leaf(newStateIdx);
+  expect(newActiveState, 'New key should be active (activeState == 0)').to.equal(0n);
+
+  log(
+    `✓ AddNewKey inheritance verified: old[${oldStateIdx}] (deactivated) -> new[${newStateIdx}] (active, balance: ${expectedBalance})`
+  );
+}
+
+/**
+ * Verify process message batch count
+ * Validates that the expected number of batches were processed
+ */
+export function verifyBatchCount(
+  actualBatchCount: number,
+  expectedBatchCount: number,
+  maxBatchCount: number = 10
+): void {
+  expect(
+    actualBatchCount,
+    `Batch count should be ${expectedBatchCount}, got ${actualBatchCount}`
+  ).to.equal(expectedBatchCount);
+
+  expect(actualBatchCount, 'Batch count exceeded maximum').to.be.lessThanOrEqual(maxBatchCount);
+
+  log(`✓ Batch count verified: ${actualBatchCount} batches processed`);
+}
+

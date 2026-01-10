@@ -915,6 +915,21 @@ impl MaciContract {
     }
 
     #[track_caller]
+    pub fn amaci_set_custom_vote_option_map(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        vote_option_map: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::SetVoteOptionsMap { vote_option_map },
+            &[],
+        )
+    }
+
+    #[track_caller]
     pub fn amaci_publish_deactivate_message(
         &self,
         app: &mut DefaultApp,

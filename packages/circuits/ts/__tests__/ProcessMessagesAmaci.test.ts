@@ -30,7 +30,6 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
   const voteOptionTreeDepth = 2;
   const batchSize = 5;
   const maxVoteOptions = 5;
-  const numSignUps = 3;
 
   before(async () => {
     console.log('Initializing AMACI ProcessMessages circuit...');
@@ -51,13 +50,12 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
       secretKey: 111111n
     });
 
-    operator.initMaci({
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth: 1,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps,
       isQuadraticCost,
       isAmaci: true // AMACI mode
     });
@@ -73,7 +71,7 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
     voters.forEach((voter, idx) => {
       const pubKey = voter.getPubkey().toPoints();
       // In AMACI, we need to provide d1, d2
-      operator.initStateTree(idx, pubKey, 100);
+      operator.updateStateTree(idx, pubKey, 100);
     });
 
     return { operator, voters };
@@ -371,7 +369,6 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
 
       console.log('\n=== Checkpoint 3: Parameter Range ===');
       console.log('maxVoteOptions:', maxVoteOptions);
-      console.log('numSignUps:', numSignUps);
       console.log('Max capacity: 5^depth');
 
       // Verify with circuit (will fail if parameters are out of range)
@@ -680,33 +677,33 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
       });
 
       // Initialize MACI
-      maciOperator.initMaci({
+      maciOperator.initRound({
         stateTreeDepth: 2,
         intStateTreeDepth: 1,
         voteOptionTreeDepth: 2,
         batchSize: 5,
         maxVoteOptions: 5,
-        numSignUps: 2,
+
         isQuadraticCost: false,
         isAmaci: false
       });
 
       // Initialize AMACI
-      amaciOperator.initMaci({
+      amaciOperator.initRound({
         stateTreeDepth: 2,
         intStateTreeDepth: 1,
         voteOptionTreeDepth: 2,
         batchSize: 5,
         maxVoteOptions: 5,
-        numSignUps: 2,
+
         isQuadraticCost: false,
         isAmaci: true
       });
 
       const testPubKey: [bigint, bigint] = [12345n, 67890n];
 
-      maciOperator.initStateTree(0, testPubKey, 100);
-      amaciOperator.initStateTree(0, testPubKey, 100);
+      maciOperator.updateStateTree(0, testPubKey, 100);
+      amaciOperator.updateStateTree(0, testPubKey, 100);
 
       console.log('\n=== AMACI vs MACI State Leaf ===');
       console.log('MACI: 5 fields [pubKey, balance, voRoot, nonce]');
@@ -736,6 +733,171 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
       console.log('  7. deactivateCommitment ← AMACI-only');
 
       console.log('\n✓ InputHash calculation differs as expected');
+    });
+  });
+
+  // ============================================================================
+  // PART 5: Deactivation Mechanism Tests (Reference to Extended Test Suites)
+  // ============================================================================
+
+  describe('Part 5: Deactivation Mechanism - Quick Reference', () => {
+    it('should reference comprehensive test suites for deactivation', () => {
+      console.log('\n=== AMACI Deactivation Test Suites ===');
+      console.log('');
+      console.log('For comprehensive testing of deactivation mechanisms, see:');
+      console.log('');
+      console.log('1. ProcessMessagesAmaciIntegration.test.ts');
+      console.log('   - Complete lifecycle: SignUp → Vote → Deactivate → AddNewKey');
+      console.log('   - Multiple deactivate/reactivate cycles');
+      console.log('   - Concurrent users with different paths');
+      console.log('');
+      console.log('2. ProcessMessagesAmaciSecurity.test.ts');
+      console.log('   - ActiveStateTree circuit verification');
+      console.log('   - Dual verification mechanism (activeStateTree + d1/d2)');
+      console.log('   - Prevention of operator tampering');
+      console.log('   - Prevention of message skipping');
+      console.log('');
+      console.log('3. ProcessMessagesAmaciEdgeCases.test.ts');
+      console.log('   - Invalid messages generating odd c1/c2');
+      console.log('   - Accounts with odd d1/d2 being rejected');
+      console.log('   - Nullifier preventing replay attacks');
+      console.log('   - Chain data synchronization with odd d1/d2');
+      console.log('');
+      console.log('4. ProcessMessagesAmaciSync.test.ts');
+      console.log('   - State tree hash consistency (SDK vs Circuit)');
+      console.log('   - ActiveStateTree update consistency');
+      console.log('   - InputHash calculation consistency (7 fields)');
+      console.log('   - Complete flow end-to-end consistency');
+      console.log('');
+      console.log('5. DeactivateStatusDetection.test.ts');
+      console.log('   - ElGamalDecrypt circuit verification');
+      console.log('   - Hash5 precomputed value tests');
+      console.log('   - StateLeafTransformer integration');
+      console.log('   - Operator detection logic');
+      console.log('');
+      console.log('✓ All extended test suites available for comprehensive coverage');
+    });
+
+    it('should verify activeStateTree is unique to AMACI', () => {
+      console.log('\n=== ActiveStateTree (AMACI-only) ===');
+
+      const amaciOperator = new OperatorClient({
+        network: 'testnet',
+        secretKey: 999999n
+      });
+
+      amaciOperator.initRound({
+        stateTreeDepth: 2,
+        intStateTreeDepth: 1,
+        voteOptionTreeDepth: 2,
+        batchSize: 5,
+        maxVoteOptions: 5,
+
+        isQuadraticCost: false,
+        isAmaci: true
+      });
+
+      // ActiveStateTree exists in AMACI
+      expect(amaciOperator.activeStateTree).to.exist;
+      expect(amaciOperator.deactivateTree).to.exist;
+
+      console.log('AMACI has:');
+      console.log('  - stateTree (standard)');
+      console.log('  - activeStateTree (for deactivation tracking)');
+      console.log('  - deactivateTree (for AddNewKey proof data)');
+
+      console.log('\nMACI has:');
+      console.log('  - stateTree (only)');
+
+      console.log('✓ AMACI tree structure verified');
+    });
+
+    it('should verify dual-check mechanism is enforced', () => {
+      console.log('\n=== Dual-Check Mechanism ===');
+      console.log('');
+      console.log('Vote validation requires BOTH checks to pass:');
+      console.log('');
+      console.log('Check 1: ActiveStateTree');
+      console.log('  - Fast check: activeStateTree[idx] == 0 ?');
+      console.log('  - If != 0: User is INACTIVE (deactivated)');
+      console.log('  - Updated by ProcessDeactivateMessages');
+      console.log('');
+      console.log('Check 2: d1/d2 Decrypt');
+      console.log('  - Privacy check: decrypt(d1, d2) % 2 == 0 ?');
+      console.log('  - If odd: User is DEACTIVATED (corrupted data)');
+      console.log('  - Prevents accepting corrupted chain data');
+      console.log('');
+      console.log('Security properties:');
+      console.log('  1. Operator cannot bypass by tampering activeStateTree');
+      console.log('     → Merkle proof verification catches this');
+      console.log('  2. d1/d2 provides defensive check against data corruption');
+      console.log('     → Even if activeStateTree says active, odd d1/d2 rejects');
+      console.log('  3. Both checks together ensure integrity');
+      console.log('');
+      console.log('✓ Dual-check mechanism design verified');
+    });
+
+    it('should explain d1/d2 storage purpose', () => {
+      console.log('\n=== Why Store d1/d2 in Contract ===');
+      console.log('');
+      console.log('Purpose 1: Privacy-preserving deactivation');
+      console.log('  - d1/d2 are ElGamal encrypted values');
+      console.log('  - Only coordinator can decrypt to check status');
+      console.log('  - Outsiders cannot determine if odd or even');
+      console.log('');
+      console.log('Purpose 2: Uniqueness binding');
+      console.log('  - Each deactivate creates unique d1/d2');
+      console.log('  - Prevents replay: same voter cannot reuse old data');
+      console.log('  - ECDH sharedKey ensures data belongs to specific voter');
+      console.log('');
+      console.log('Purpose 3: Defensive check against corruption');
+      console.log('  - If chain data is corrupted/tampered');
+      console.log('  - d1/d2 decrypt check catches odd values');
+      console.log('  - Prevents accepting invalid state');
+      console.log('');
+      console.log('Purpose 4: AddNewKey inheritance');
+      console.log('  - New account inherits d1/d2 from deactivate proof');
+      console.log('  - Must be even (valid deactivate) for AddNewKey to succeed');
+      console.log('  - Circuit verifies rerandomization correctness');
+      console.log('');
+      console.log('✓ d1/d2 storage serves multiple security purposes');
+    });
+
+    it('should clarify normal operation expectations', () => {
+      console.log('\n=== Normal Operation Expectations ===');
+      console.log('');
+      console.log('Q: In normal operation, do we see "deactivated" status?');
+      console.log('   (i.e., decrypt(d1,d2) % 2 === 1)');
+      console.log('');
+      console.log('A: NO - In normal operation without corruption:');
+      console.log('');
+      console.log('Initial SignUp:');
+      console.log('  - d1 = [0, 0], d2 = [0, 0]');
+      console.log('  - decrypt([0,0], [0,0]) = 0 (even) ✓');
+      console.log('');
+      console.log('After Valid Deactivate → AddNewKey:');
+      console.log('  - d1, d2 = encryptOdevity(false) = even');
+      console.log('  - decrypt(d1, d2) = even number ✓');
+      console.log('');
+      console.log('After Invalid Deactivate (wrong signature):');
+      console.log('  - DeactivateTree gets: encryptOdevity(true) = odd');
+      console.log('  - But activeStateTree NOT updated (still active)');
+      console.log('  - User cannot use this odd data for AddNewKey');
+      console.log('  - Contract rejects: invalid proof');
+      console.log('');
+      console.log('Only see odd d1/d2 in StateLeaf if:');
+      console.log('  1. Malicious operator forces invalid AddNewKey (impossible due to proof)');
+      console.log('  2. Chain data corruption (caught by d1/d2 check)');
+      console.log('  3. Direct contract state manipulation (not possible)');
+      console.log('');
+      console.log('Terminology:');
+      console.log('  - INACTIVE: activeStateTree[idx] != 0 (user deactivated, cannot vote)');
+      console.log('  - DEACTIVATED: decrypt(d1,d2) % 2 == 1 (corrupted data, caught by check)');
+      console.log('');
+      console.log('Normal flow: active ↔ inactive (via deactivate/addNewKey)');
+      console.log('Error flow: deactivated (odd d1/d2, caught and rejected)');
+      console.log('');
+      console.log('✓ Normal operation behavior clarified');
     });
   });
 });

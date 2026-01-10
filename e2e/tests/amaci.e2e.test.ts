@@ -113,18 +113,17 @@ describe('AMACI End-to-End Test', function () {
     log('SDK clients initialized');
 
     // Initialize operator AMACI (Quadratic Voting with anonymous keys)
-    operator.initMaci({
+    operator.initRound({
       stateTreeDepth,
       intStateTreeDepth,
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps,
       isQuadraticCost: true,
       isAmaci: true // AMACI uses anonymous keys (d1, d2)
     });
 
-    log('Operator AMACI initialized');
+    log('Operator AMACI round initialized');
 
     // Deploy AMACI contract
     const contractLoader = new ContractLoader();
@@ -219,7 +218,7 @@ describe('AMACI End-to-End Test', function () {
       'User 1 sign up failed'
     );
 
-    operator.initStateTree(USER_1, user1PubKey, 100);
+    operator.updateStateTree(USER_1, user1PubKey, 100);
     log('User 1 registered');
 
     // Register user 2
@@ -232,7 +231,7 @@ describe('AMACI End-to-End Test', function () {
       'User 2 sign up failed'
     );
 
-    operator.initStateTree(USER_2, user2PubKey, 100);
+    operator.updateStateTree(USER_2, user2PubKey, 100);
     log('User 2 registered');
 
     // Register user 1's new key (without deactivate process)
@@ -247,7 +246,7 @@ describe('AMACI End-to-End Test', function () {
     );
 
     // Add new key to operator state tree
-    operator.initStateTree(USER_1A, user1aPubKey, 100);
+    operator.updateStateTree(USER_1A, user1aPubKey, 100);
     log('User 1 new key registered and added to operator state tree');
 
     // Verify registration count

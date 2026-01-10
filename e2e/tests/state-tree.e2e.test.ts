@@ -243,13 +243,12 @@ describe('State Tree Update E2E Test', function () {
       maciContract = new ApiMaciContractClient(client, contractInfo.contractAddress, adminAddress);
 
       // Initialize operator's local state
-      operator.initMaci({
+      operator.initRound({
         stateTreeDepth,
         intStateTreeDepth,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 25,
         isQuadraticCost: false,
         isAmaci: false
       });
@@ -297,7 +296,7 @@ describe('State Tree Update E2E Test', function () {
         assertExecuteSuccess(result);
 
         // Update operator's local tree
-        operator.initStateTree(i, pubKey, BigInt(voiceCredits));
+        operator.updateStateTree(i, pubKey, BigInt(voiceCredits));
 
         log(`  SDK Tree Root: ${operator.stateTree!.root.toString()}`);
       }
@@ -441,13 +440,12 @@ describe('State Tree Update E2E Test', function () {
         secretKey: 123456n
       });
 
-      operatorAmaci.initMaci({
+      operatorAmaci.initRound({
         stateTreeDepth,
         intStateTreeDepth: 1,
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-        numSignUps: 25,
         isQuadraticCost: false,
         isAmaci: true // Important!
       });
@@ -550,7 +548,7 @@ describe('State Tree Update E2E Test', function () {
         log(`\nUser ${i + 1} signing up (leaf index ${operator.stateTree!.LEAVES_IDX_0 + i})...`);
 
         // Update operator's local tree BEFORE signup to avoid period issues
-        operator.initStateTree(i, pubKey, 100n, [0n, 0n, 0n, 0n]);
+        operator.updateStateTree(i, pubKey, 100n, [0n, 0n, 0n, 0n]);
 
         // Sign up on contract
         try {

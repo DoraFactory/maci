@@ -205,7 +205,8 @@ async function main() {
         { idx: 0, vc: 1 },
         { idx: 2, vc: 1 },
         { idx: 3, vc: 1 }
-      ]
+      ],
+      ticket: ''
     });
 
     console.log('✓ Voting succeeded!', voteResult);

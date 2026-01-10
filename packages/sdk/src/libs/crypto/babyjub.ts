@@ -156,6 +156,7 @@ export const genRandomBabyJubValue = () => {
   }
 
   // const privKey = rand % SNARK_FIELD_SIZE;
-  const privKey = rand % 2n ** 253n;
+  const privKey =
+    rand % 14474011154664524427946373126085988481658748083205070504932198000989141204992n; // rand % 2**253
   return privKey;
 };
