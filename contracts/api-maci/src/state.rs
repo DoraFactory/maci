@@ -146,7 +146,10 @@ impl QuinaryTreeRoot {
     const DEGREE: u32 = 5;
 
     pub fn root_of(&self, depth: Uint256, nodes: Vec<Uint256>) -> Uint256 {
-        let _depth = depth.to_string().parse().unwrap();
+        let _depth = depth
+            .to_string()
+            .parse()
+            .expect("depth should be a valid u32 within the allowed tree depth range");
         let capacity = Self::DEGREE.pow(_depth);
         let length = nodes.len() as u32;
 

@@ -848,7 +848,7 @@ pub fn execute_start_process_period(
     };
     PERIOD.save(deps.storage, &period)?;
     // Compute the state root
-    let state_root = state_root(deps.as_ref());
+    let state_root = state_root(deps.as_ref())?;
 
     // Compute the current state commitment as the hash of the state root and 0
     CURRENT_STATE_COMMITMENT.save(
@@ -959,9 +959,13 @@ pub fn execute_process_message(
         let is_passed = groth16_verify(
             &pvk,
             &pof,
-            &[Fr::from_str(&input_hash.to_string()).unwrap()],
+            &[Fr::from_str(&input_hash.to_string()).ok_or_else(|| {
+                ContractError::FieldConversionError {
+                    value: input_hash.to_string(),
+                }
+            })?],
         )
-        .unwrap();
+        .map_err(|_| ContractError::SynthesisError {})?;
 
         // If the proof verification fails, return an error
         if !is_passed {
@@ -994,8 +998,8 @@ pub fn execute_process_message(
                 .wire_commitments
                 .clone()
                 .into_iter()
-                .map(|x| hex::decode(x).unwrap())
-                .collect(),
+                .map(|x| hex::decode(x).map_err(|_| ContractError::HexDecodingError {}))
+                .collect::<Result<Vec<_>, _>>()?,
             grand_product_commitment: hex::decode(
                 plonk_proof_data.grand_product_commitment.clone(),
             )
@@ -1004,8 +1008,8 @@ pub fn execute_process_message(
                 .quotient_poly_commitments
                 .clone()
                 .into_iter()
-                .map(|x| hex::decode(x).unwrap())
-                .collect(),
+                .map(|x| hex::decode(x).map_err(|_| ContractError::HexDecodingError {}))
+                .collect::<Result<Vec<_>, _>>()?,
             wire_values_at_z: plonk_proof_data.wire_values_at_z.clone(),
             wire_values_at_z_omega: plonk_proof_data.wire_values_at_z_omega.clone(),
             grand_product_at_z_omega: plonk_proof_data.grand_product_at_z_omega.clone(),
@@ -1175,9 +1179,13 @@ pub fn execute_process_tally(
         let is_passed = groth16_verify(
             &pvk,
             &pof,
-            &[Fr::from_str(&input_hash.to_string()).unwrap()],
+            &[Fr::from_str(&input_hash.to_string()).ok_or_else(|| {
+                ContractError::FieldConversionError {
+                    value: input_hash.to_string(),
+                }
+            })?],
         )
-        .unwrap();
+        .map_err(|_| ContractError::SynthesisError {})?;
 
         // If the proof verification fails, return an error
         if !is_passed {
@@ -1210,8 +1218,8 @@ pub fn execute_process_tally(
                 .wire_commitments
                 .clone()
                 .into_iter()
-                .map(|x| hex::decode(x).unwrap())
-                .collect(),
+                .map(|x| hex::decode(x).map_err(|_| ContractError::HexDecodingError {}))
+                .collect::<Result<Vec<_>, _>>()?,
             grand_product_commitment: hex::decode(
                 plonk_proof_data.grand_product_commitment.clone(),
             )
@@ -1220,8 +1228,8 @@ pub fn execute_process_tally(
                 .quotient_poly_commitments
                 .clone()
                 .into_iter()
-                .map(|x| hex::decode(x).unwrap())
-                .collect(),
+                .map(|x| hex::decode(x).map_err(|_| ContractError::HexDecodingError {}))
+                .collect::<Result<Vec<_>, _>>()?,
             wire_values_at_z: plonk_proof_data.wire_values_at_z.clone(),
             wire_values_at_z_omega: plonk_proof_data.wire_values_at_z_omega.clone(),
             grand_product_at_z_omega: plonk_proof_data.grand_product_at_z_omega.clone(),
@@ -1264,16 +1272,12 @@ pub fn execute_process_tally(
 
     // Proof verify success
     // Update the current tally commitment
-    CURRENT_TALLY_COMMITMENT
-        .save(deps.storage, &new_tally_commitment)
-        .unwrap();
+    CURRENT_TALLY_COMMITMENT.save(deps.storage, &new_tally_commitment)?;
 
     // Update the count of processed users
     processed_user_count += batch_size;
 
-    PROCESSED_USER_COUNT
-        .save(deps.storage, &processed_user_count)
-        .unwrap();
+    PROCESSED_USER_COUNT.save(deps.storage, &processed_user_count)?;
 
     Ok(Response::new()
         .add_attribute("action", "process_tally")
@@ -1552,20 +1556,18 @@ fn user_balance_of(
 }
 
 // Load the root node of the state tree
-fn state_root(deps: Deps) -> Uint256 {
-    let root = NODES
-        .load(
-            deps.storage,
-            Uint256::from_u128(0u128).to_be_bytes().to_vec(),
-        )
-        .unwrap();
-    root
+fn state_root(deps: Deps) -> Result<Uint256, ContractError> {
+    let root = NODES.load(
+        deps.storage,
+        Uint256::from_u128(0u128).to_be_bytes().to_vec(),
+    )?;
+    Ok(root)
 }
 
 // Enqueues the state leaf into the tree
 fn state_enqueue(deps: &mut DepsMut, leaf: Uint256) -> Result<bool, ContractError> {
-    let leaf_idx0 = LEAF_IDX_0.load(deps.storage).unwrap();
-    let num_sign_ups = NUMSIGNUPS.load(deps.storage).unwrap();
+    let leaf_idx0 = LEAF_IDX_0.load(deps.storage)?;
+    let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
 
     let leaf_idx = leaf_idx0 + num_sign_ups;
     NODES.save(deps.storage, leaf_idx.to_be_bytes().to_vec(), &leaf)?;
@@ -1574,7 +1576,7 @@ fn state_enqueue(deps: &mut DepsMut, leaf: Uint256) -> Result<bool, ContractErro
 
 // Updates the state at the given index in the tree
 fn state_update_at(deps: &mut DepsMut, index: Uint256, full: bool) -> Result<bool, ContractError> {
-    let leaf_idx0 = LEAF_IDX_0.load(deps.storage).unwrap();
+    let leaf_idx0 = LEAF_IDX_0.load(deps.storage)?;
     if index < leaf_idx0 {
         return Err(ContractError::MustUpdate {});
     }
@@ -1583,7 +1585,7 @@ fn state_update_at(deps: &mut DepsMut, index: Uint256, full: bool) -> Result<boo
 
     let mut height = 0;
 
-    let zeros = ZEROS.load(deps.storage).unwrap();
+    let zeros = ZEROS.load(deps.storage)?;
 
     while idx > Uint256::from_u128(0u128)
         && (full || idx % Uint256::from_u128(5u128) == Uint256::from_u128(0u128))
@@ -1596,14 +1598,12 @@ fn state_update_at(deps: &mut DepsMut, index: Uint256, full: bool) -> Result<boo
         let mut inputs: [Uint256; 5] = [Uint256::zero(); 5];
 
         for i in 0..5 {
-            let node_value = NODES
-                .may_load(
-                    deps.storage,
-                    (children_idx0 + Uint256::from_u128(i as u128))
-                        .to_be_bytes()
-                        .to_vec(),
-                )
-                .unwrap();
+            let node_value = NODES.may_load(
+                deps.storage,
+                (children_idx0 + Uint256::from_u128(i as u128))
+                    .to_be_bytes()
+                    .to_vec(),
+            )?;
 
             let child = match node_value {
                 Some(value) => value,
@@ -1614,21 +1614,17 @@ fn state_update_at(deps: &mut DepsMut, index: Uint256, full: bool) -> Result<boo
         }
 
         if NODES.has(deps.storage, parent_idx.to_be_bytes().to_vec()) {
-            NODES
-                .update(
-                    deps.storage,
-                    parent_idx.to_be_bytes().to_vec(),
-                    |_c: Option<Uint256>| -> StdResult<_> { Ok(hash5(inputs)) },
-                )
-                .unwrap();
+            NODES.update(
+                deps.storage,
+                parent_idx.to_be_bytes().to_vec(),
+                |_c: Option<Uint256>| -> StdResult<_> { Ok(hash5(inputs)) },
+            )?;
         } else {
-            NODES
-                .save(
-                    deps.storage,
-                    parent_idx.to_be_bytes().to_vec(),
-                    &hash5(inputs),
-                )
-                .unwrap();
+            NODES.save(
+                deps.storage,
+                parent_idx.to_be_bytes().to_vec(),
+                &hash5(inputs),
+            )?;
         }
 
         height += 1;
@@ -1640,7 +1636,13 @@ fn state_update_at(deps: &mut DepsMut, index: Uint256, full: bool) -> Result<boo
 
 fn calculate_voting_power(amount: Uint256, config: &VotingPowerConfig) -> Uint256 {
     match config.mode {
-        VotingPowerMode::Slope => amount / config.slope,
+        VotingPowerMode::Slope => {
+            // Prevent division by zero
+            if config.slope == Uint256::zero() {
+                return Uint256::zero();
+            }
+            amount / config.slope
+        }
         VotingPowerMode::Threshold => {
             if amount >= config.threshold {
                 Uint256::from(1u128)
@@ -1706,13 +1708,9 @@ fn can_execute(deps: Deps, sender: &str) -> StdResult<bool> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetRoundInfo {} => {
-            to_json_binary::<RoundInfo>(&ROUNDINFO.load(deps.storage).unwrap())
-        }
-        QueryMsg::GetVotingTime {} => {
-            to_json_binary::<VotingTime>(&VOTINGTIME.load(deps.storage).unwrap())
-        }
-        QueryMsg::GetPeriod {} => to_json_binary::<Period>(&PERIOD.load(deps.storage).unwrap()),
+        QueryMsg::GetRoundInfo {} => to_json_binary::<RoundInfo>(&ROUNDINFO.load(deps.storage)?),
+        QueryMsg::GetVotingTime {} => to_json_binary::<VotingTime>(&VOTINGTIME.load(deps.storage)?),
+        QueryMsg::GetPeriod {} => to_json_binary::<Period>(&PERIOD.load(deps.storage)?),
         QueryMsg::GetNumSignUp {} => {
             to_json_binary::<Uint256>(&NUMSIGNUPS.may_load(deps.storage)?.unwrap_or_default())
         }
@@ -1744,8 +1742,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ),
         QueryMsg::GetVoiceCreditBalance { index } => to_json_binary::<Uint256>(
             &VOICECREDITBALANCE
-                .load(deps.storage, index.to_be_bytes().to_vec())
-                .unwrap(),
+                .may_load(deps.storage, index.to_be_bytes().to_vec())?
+                .unwrap_or_default(),
         ),
         QueryMsg::IsWhiteList {
             pubkey,
@@ -1765,14 +1763,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         QueryMsg::WhiteInfo { pubkey } => to_json_binary::<WhitelistConfig>(
             &WHITELIST
-                .load(
+                .may_load(
                     deps.storage,
                     &(
                         pubkey.x.to_be_bytes().to_vec(),
                         pubkey.y.to_be_bytes().to_vec(),
                     ),
-                )
-                .unwrap(),
+                )?
+                .ok_or_else(|| cosmwasm_std::StdError::not_found("Whitelist entry not found"))?,
         ),
         QueryMsg::MaxWhitelistNum {} => to_json_binary::<u128>(
             &MAX_WHITELIST_NUM
@@ -1780,7 +1778,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .unwrap_or_default(),
         ),
         QueryMsg::VoteOptionMap {} => {
-            to_json_binary::<Vec<String>>(&VOTEOPTIONMAP.load(deps.storage).unwrap())
+            to_json_binary::<Vec<String>>(&VOTEOPTIONMAP.load(deps.storage)?)
         }
         QueryMsg::MaxVoteOptions {} => {
             to_json_binary::<Uint256>(&MAX_VOTE_OPTIONS.may_load(deps.storage)?.unwrap_or_default())
@@ -1801,7 +1799,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let current_state_commitment = CURRENT_STATE_COMMITMENT.may_load(deps.storage)?;
             to_json_binary(&current_state_commitment)
         }
-        QueryMsg::GetStateTreeRoot {} => to_json_binary::<Uint256>(&state_root(deps)),
+        QueryMsg::GetStateTreeRoot {} => to_json_binary::<Uint256>(
+            &state_root(deps).map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?,
+        ),
         QueryMsg::GetNode { index } => {
             let node = NODES
                 .may_load(deps.storage, index.to_be_bytes().to_vec())?

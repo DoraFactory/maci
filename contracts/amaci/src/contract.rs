@@ -45,8 +45,10 @@ use hex;
 /// Convert Uint256 to a field element for proof verification
 /// This helper centralizes the conversion logic
 #[inline]
-fn uint256_to_field<F: Fr>(input: &Uint256) -> F {
-    F::from_str(&input.to_string()).unwrap()
+fn uint256_to_field<F: Fr>(input: &Uint256) -> Result<F, ContractError> {
+    F::from_str(&input.to_string()).ok_or_else(|| ContractError::FieldConversionError {
+        value: input.to_string(),
+    })
 }
 
 /// Convert a contract address to Uint256 format
@@ -96,7 +98,10 @@ pub fn instantiate(
                 .vote_option_tree_depth
                 .to_string()
                 .parse()
-                .unwrap(),
+                .map_err(|e| ContractError::ParseError {
+                    value: msg.parameters.vote_option_tree_depth.to_string(),
+                    reason: format!("{}", e),
+                })?,
         ),
     );
     let actual_vote_options = Uint256::from_u128(msg.vote_option_map.len() as u128);
@@ -131,7 +136,12 @@ pub fn instantiate(
     match msg.whitelist {
         Some(content) => {
             let max_voter_amount = Uint256::from_u128(
-                5u128.pow(msg.parameters.state_tree_depth.to_string().parse().unwrap()),
+                5u128.pow(msg.parameters.state_tree_depth.to_string().parse().map_err(
+                    |e| ContractError::ParseError {
+                        value: msg.parameters.state_tree_depth.to_string(),
+                        reason: format!("{}", e),
+                    },
+                )?),
             );
             if Uint256::from_u128(content.users.len() as u128) > max_voter_amount {
                 return Err(ContractError::MaxVoterExceeded {
@@ -217,8 +227,16 @@ pub fn instantiate(
     COORDINATORHASH.save(deps.storage, &coordinator_hash)?;
 
     // Compute the maximum number of leaves based on the state tree depth
-    let max_leaves_count =
-        Uint256::from_u128(5u128.pow(msg.parameters.state_tree_depth.to_string().parse().unwrap()));
+    let max_leaves_count = Uint256::from_u128(5u128.pow(
+        msg.parameters
+            .state_tree_depth
+            .to_string()
+            .parse()
+            .map_err(|e| ContractError::ParseError {
+                value: msg.parameters.state_tree_depth.to_string(),
+                reason: format!("{}", e),
+            })?,
+    ));
     MAX_LEAVES_COUNT.save(deps.storage, &max_leaves_count)?;
 
     // Calculate the index of the first leaf in the tree
@@ -252,7 +270,10 @@ pub fn instantiate(
             .state_tree_depth
             .to_string()
             .parse::<usize>()
-            .unwrap()],
+            .map_err(|e| ContractError::ParseError {
+                value: msg.parameters.state_tree_depth.to_string(),
+                reason: format!("{}", e),
+            })?],
         // &Uint256::from_u128(0u128),
     )?;
 
@@ -310,11 +331,17 @@ pub fn instantiate(
             .state_tree_depth
             .to_string()
             .parse::<usize>()
-            .unwrap()],
+            .map_err(|e| ContractError::ParseError {
+                value: msg.parameters.state_tree_depth.to_string(),
+                reason: format!("{}", e),
+            })?],
         zeros[(msg.parameters.state_tree_depth + Uint256::from_u128(2u128))
             .to_string()
             .parse::<usize>()
-            .unwrap()],
+            .map_err(|e| ContractError::ParseError {
+                value: (msg.parameters.state_tree_depth + Uint256::from_u128(2u128)).to_string(),
+                reason: format!("{}", e),
+            })?],
     ]);
     CURRENT_DEACTIVATE_COMMITMENT.save(deps.storage, current_dcommitment)?;
     DMSG_HASHES.save(
@@ -594,8 +621,15 @@ pub fn execute_set_whitelists(
     } else {
         let cfg = MACIPARAMETERS.load(deps.storage)?;
 
-        let max_voter_amount =
-            Uint256::from_u128(5u128.pow(cfg.state_tree_depth.to_string().parse().unwrap()));
+        let max_voter_amount = Uint256::from_u128(5u128.pow(
+            cfg.state_tree_depth
+                .to_string()
+                .parse()
+                .map_err(|e| ContractError::ParseError {
+                    value: cfg.state_tree_depth.to_string(),
+                    reason: format!("{}", e),
+                })?,
+        ));
         if Uint256::from_u128(whitelists.users.len() as u128) > max_voter_amount {
             return Err(ContractError::MaxVoterExceeded {
                 current: Uint256::from_u128(whitelists.users.len() as u128),
@@ -639,8 +673,15 @@ pub fn execute_set_vote_options_map(
         let cfg = MACIPARAMETERS.load(deps.storage)?;
 
         // An error will be thrown if the number of vote options exceeds the circuit's capacity.
-        let vote_option_max_amount =
-            Uint256::from_u128(5u128.pow(cfg.vote_option_tree_depth.to_string().parse().unwrap()));
+        let vote_option_max_amount = Uint256::from_u128(5u128.pow(
+            cfg.vote_option_tree_depth
+                .to_string()
+                .parse()
+                .map_err(|e| ContractError::ParseError {
+                    value: cfg.vote_option_tree_depth.to_string(),
+                    reason: format!("{}", e),
+                })?,
+        ));
         if Uint256::from_u128(max_vote_options) > vote_option_max_amount {
             return Err(ContractError::MaxVoteOptionsExceeded {
                 current: Uint256::from_u128(max_vote_options),
@@ -681,14 +722,15 @@ pub fn execute_sign_up(
 
     if is_oracle_mode {
         // Oracle mode: verify signature using voice_credit_amount
-        let certificate = certificate.unwrap();
+        let certificate = certificate.expect("certificate is Some because is_oracle_mode is true");
 
         // Check if oracle whitelist pubkey exists
         let oracle_whitelist_pubkey = ORACLE_WHITELIST_PUBKEY.may_load(deps.storage)?;
         if oracle_whitelist_pubkey.is_none() {
             return Err(ContractError::OracleWhitelistNotConfigured {});
         }
-        let oracle_pubkey_str = oracle_whitelist_pubkey.unwrap();
+        let oracle_pubkey_str = oracle_whitelist_pubkey
+            .expect("oracle_whitelist_pubkey is Some because we just checked is_none()");
 
         // Verify oracle signature using voice_credit_amount as the standard amount
         // Convert contract address to uint256 format to match api-maci
@@ -1029,7 +1071,10 @@ pub fn execute_publish_deactivate_message(
         (maci_parameters.state_tree_depth + Uint256::from_u128(2u128))
             .to_string()
             .parse()
-            .unwrap(),
+            .map_err(|e| ContractError::ParseError {
+                value: (maci_parameters.state_tree_depth + Uint256::from_u128(2u128)).to_string(),
+                reason: format!("Failed to parse as u32: {}", e),
+            })?,
     ) - Uint256::from_u128(1u128);
     if dmsg_chain_length + Uint256::from_u128(1u128) > max_deactivate_messages {
         return Err(ContractError::MaxDeactivateMessagesReached {
@@ -1084,7 +1129,7 @@ pub fn execute_publish_deactivate_message(
             &m_n_hash,
         )?;
 
-        let state_root = state_root(deps.as_ref());
+        let state_root = state_root(deps.as_ref())?;
 
         STATE_ROOT_BY_DMSG.save(
             deps.storage,
@@ -1240,7 +1285,8 @@ pub fn execute_process_deactivate_message(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
+        .map_err(|_| ContractError::SynthesisError {})?;
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1385,7 +1431,8 @@ pub fn execute_add_new_key(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
+        .map_err(|_| ContractError::SynthesisError {})?;
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1523,7 +1570,8 @@ pub fn execute_pre_add_new_key(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
+        .map_err(|_| ContractError::SynthesisError {})?;
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1604,7 +1652,7 @@ pub fn execute_start_process_period(
     };
     PERIOD.save(deps.storage, &period)?;
     // Compute the state root
-    let state_root = state_root(deps.as_ref());
+    let state_root = state_root(deps.as_ref())?;
     // Compute the current state commitment as the hash of the state root and 0
     CURRENT_STATE_COMMITMENT.save(
         deps.storage,
@@ -1717,7 +1765,8 @@ pub fn execute_process_message(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
+        .map_err(|_| ContractError::SynthesisError {})?;
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1806,8 +1855,16 @@ pub fn execute_process_tally(
 
     let parameters = MACIPARAMETERS.load(deps.storage)?;
     // Calculate the batch size
-    let batch_size =
-        Uint256::from_u128(5u128).pow(parameters.int_state_tree_depth.to_string().parse().unwrap());
+    let batch_size = Uint256::from_u128(5u128).pow(
+        parameters
+            .int_state_tree_depth
+            .to_string()
+            .parse()
+            .map_err(|e| ContractError::ParseError {
+                value: parameters.int_state_tree_depth.to_string(),
+                reason: format!("{}", e),
+            })?,
+    );
     // Calculate the batch number
     let batch_num = processed_user_count / batch_size;
 
@@ -1856,7 +1913,8 @@ pub fn execute_process_tally(
     let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
 
     // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)]).unwrap();
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
+        .map_err(|_| ContractError::SynthesisError {})?;
 
     // If the proof verification fails, return an error
     if !is_passed {
@@ -1878,16 +1936,12 @@ pub fn execute_process_tally(
 
     // Proof verify success
     // Update the current tally commitment
-    CURRENT_TALLY_COMMITMENT
-        .save(deps.storage, &new_tally_commitment)
-        .unwrap();
+    CURRENT_TALLY_COMMITMENT.save(deps.storage, &new_tally_commitment)?;
 
     // Update the count of processed users
     processed_user_count += batch_size;
 
-    PROCESSED_USER_COUNT
-        .save(deps.storage, &processed_user_count)
-        .unwrap();
+    PROCESSED_USER_COUNT.save(deps.storage, &processed_user_count)?;
 
     Ok(Response::new()
         .add_attribute("action", "process_tally")
@@ -2174,20 +2228,18 @@ fn can_sign_up(deps: Deps, sender: &Addr) -> StdResult<bool> {
 }
 
 // Load the root node of the state tree
-fn state_root(deps: Deps) -> Uint256 {
-    let root = NODES
-        .load(
-            deps.storage,
-            Uint256::from_u128(0u128).to_be_bytes().to_vec(),
-        )
-        .unwrap();
-    root
+fn state_root(deps: Deps) -> Result<Uint256, ContractError> {
+    let root = NODES.load(
+        deps.storage,
+        Uint256::from_u128(0u128).to_be_bytes().to_vec(),
+    )?;
+    Ok(root)
 }
 
 // Enqueues the state leaf into the tree
 fn state_enqueue(deps: &mut DepsMut, leaf: Uint256) -> Result<bool, ContractError> {
-    let leaf_idx0 = LEAF_IDX_0.load(deps.storage).unwrap();
-    let num_sign_ups = NUMSIGNUPS.load(deps.storage).unwrap();
+    let leaf_idx0 = LEAF_IDX_0.load(deps.storage)?;
+    let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
 
     let leaf_idx = leaf_idx0 + num_sign_ups;
     NODES.save(deps.storage, leaf_idx.to_be_bytes().to_vec(), &leaf)?;
@@ -2196,7 +2248,7 @@ fn state_enqueue(deps: &mut DepsMut, leaf: Uint256) -> Result<bool, ContractErro
 
 // Updates the state at the given index in the tree
 fn state_update_at(deps: &mut DepsMut, index: Uint256) -> Result<bool, ContractError> {
-    let leaf_idx0 = LEAF_IDX_0.load(deps.storage).unwrap();
+    let leaf_idx0 = LEAF_IDX_0.load(deps.storage)?;
     if index < leaf_idx0 {
         return Err(ContractError::MustUpdate {});
     }
@@ -2205,7 +2257,7 @@ fn state_update_at(deps: &mut DepsMut, index: Uint256) -> Result<bool, ContractE
 
     let mut height = 0;
 
-    let zeros = ZEROS_H10.load(deps.storage).unwrap();
+    let zeros = ZEROS_H10.load(deps.storage)?;
 
     while idx > Uint256::from_u128(0u128) {
         let parent_idx = (idx - Uint256::one()) / Uint256::from(5u8);
@@ -2222,8 +2274,7 @@ fn state_update_at(deps: &mut DepsMut, index: Uint256) -> Result<bool, ContractE
                     (children_idx0 + Uint256::from_u128(i as u128))
                         .to_be_bytes()
                         .to_vec(),
-                )
-                .unwrap();
+                )?;
 
             let child = match node_value {
                 Some(value) => value,
@@ -2234,21 +2285,17 @@ fn state_update_at(deps: &mut DepsMut, index: Uint256) -> Result<bool, ContractE
         }
 
         if NODES.has(deps.storage, parent_idx.to_be_bytes().to_vec()) {
-            NODES
-                .update(
-                    deps.storage,
-                    parent_idx.to_be_bytes().to_vec(),
-                    |_c: Option<Uint256>| -> StdResult<_> { Ok(hash5(inputs)) },
-                )
-                .unwrap();
+            NODES.update(
+                deps.storage,
+                parent_idx.to_be_bytes().to_vec(),
+                |_c: Option<Uint256>| -> StdResult<_> { Ok(hash5(inputs)) },
+            )?;
         } else {
-            NODES
-                .save(
-                    deps.storage,
-                    parent_idx.to_be_bytes().to_vec(),
-                    &hash5(inputs),
-                )
-                .unwrap();
+            NODES.save(
+                deps.storage,
+                parent_idx.to_be_bytes().to_vec(),
+                &hash5(inputs),
+            )?;
         }
 
         height += 1;
@@ -2323,12 +2370,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Admin {} => to_json_binary(&ADMIN.load(deps.storage)?.admin),
         QueryMsg::Operator {} => to_json_binary(&MACI_OPERATOR.load(deps.storage)?),
         QueryMsg::GetRoundInfo {} => {
-            to_json_binary::<RoundInfo>(&ROUNDINFO.load(deps.storage).unwrap())
+            to_json_binary::<RoundInfo>(&ROUNDINFO.load(deps.storage)?)
         }
         QueryMsg::GetVotingTime {} => {
-            to_json_binary::<VotingTime>(&VOTINGTIME.load(deps.storage).unwrap())
+            to_json_binary::<VotingTime>(&VOTINGTIME.load(deps.storage)?)
         }
-        QueryMsg::GetPeriod {} => to_json_binary::<Period>(&PERIOD.load(deps.storage).unwrap()),
+        QueryMsg::GetPeriod {} => to_json_binary::<Period>(&PERIOD.load(deps.storage)?),
         QueryMsg::GetNumSignUp {} => {
             to_json_binary::<Uint256>(&NUMSIGNUPS.may_load(deps.storage)?.unwrap_or_default())
         }
@@ -2355,7 +2402,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .may_load(deps.storage)?
                 .unwrap_or_default(),
         ),
-        QueryMsg::GetStateTreeRoot {} => to_json_binary::<Uint256>(&state_root(deps)),
+        QueryMsg::GetStateTreeRoot {} => {
+            to_json_binary::<Uint256>(&state_root(deps).map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?)
+        }
         QueryMsg::GetNode { index } => {
             let node = NODES
                 .may_load(deps.storage, index.to_be_bytes().to_vec())?
@@ -2377,8 +2426,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ),
         QueryMsg::GetVoiceCreditBalance { index } => to_json_binary::<Uint256>(
             &VOICECREDITBALANCE
-                .load(deps.storage, index.to_be_bytes().to_vec())
-                .unwrap(),
+                .may_load(deps.storage, index.to_be_bytes().to_vec())?
+                .unwrap_or_default(),
         ),
         QueryMsg::GetVoiceCreditAmount {} => to_json_binary::<Uint256>(
             &VOICE_CREDIT_AMOUNT
@@ -2402,7 +2451,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&state_idx)
         }
         QueryMsg::VoteOptionMap {} => {
-            to_json_binary::<Vec<String>>(&VOTEOPTIONMAP.load(deps.storage).unwrap())
+            to_json_binary::<Vec<String>>(&VOTEOPTIONMAP.load(deps.storage)?)
         }
         QueryMsg::MaxVoteOptions {} => {
             to_json_binary::<Uint256>(&MAX_VOTE_OPTIONS.may_load(deps.storage)?.unwrap_or_default())
@@ -2625,7 +2674,8 @@ fn can_sign_up_with_oracle(
     if oracle_whitelist_pubkey.is_none() {
         return Ok(false);
     }
-    let oracle_pubkey_str = oracle_whitelist_pubkey.unwrap();
+    let oracle_pubkey_str = oracle_whitelist_pubkey
+        .expect("oracle_whitelist_pubkey is Some because we just checked is_none()");
 
     // Use the contract's voice_credit_amount for verification
     let voice_credit_amount = VOICE_CREDIT_AMOUNT.load(deps.storage)?;
@@ -2684,7 +2734,8 @@ fn user_balance_of_oracle(
     if oracle_whitelist_pubkey.is_none() {
         return Ok(Uint256::zero());
     }
-    let oracle_pubkey_str = oracle_whitelist_pubkey.unwrap();
+    let oracle_pubkey_str = oracle_whitelist_pubkey
+        .expect("oracle_whitelist_pubkey is Some because we just checked is_none()");
 
     // Use the contract's voice_credit_amount for verification
     let voice_credit_amount = VOICE_CREDIT_AMOUNT.load(deps.storage)?;

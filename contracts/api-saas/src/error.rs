@@ -54,4 +54,8 @@ pub enum ContractError {
 
     #[error("Treasury manager unauthorized")]
     TreasuryManagerUnauthorized {},
+
+    // Conversion and parsing errors
+    #[error("Failed to parse numeric value: {value}, reason: {reason}")]
+    ParseError { value: String, reason: String },
 }

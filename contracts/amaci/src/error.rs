@@ -162,4 +162,14 @@ pub enum ContractError {
 
     #[error("Voting power is zero")]
     VotingPowerIsZero {},
+
+    // Conversion and parsing errors
+    #[error("Failed to convert Uint256 to field element: {value}")]
+    FieldConversionError { value: String },
+
+    #[error("Failed to parse numeric value: {value}, reason: {reason}")]
+    ParseError { value: String, reason: String },
+
+    #[error("Poseidon hash operation failed: {0}")]
+    PoseidonError(String),
 }
