@@ -713,8 +713,13 @@ fn reply_created_maci_round(
 
     let contract_address = Addr::unchecked(parsed_response.contract_address.clone());
 
-    let oracle_maci_return_data: OracleMaciInstantiationData =
-        from_json(&parsed_response.data.unwrap())?;
+    let oracle_maci_return_data: OracleMaciInstantiationData = from_json(
+        &parsed_response
+            .data
+            .ok_or_else(|| ContractError::SerializationError {
+                msg: "Missing instantiation data".to_string(),
+            })?,
+    )?;
 
     let maci_code_id = MACI_CODE_ID.load(deps.storage)?;
 

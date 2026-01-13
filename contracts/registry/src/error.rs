@@ -100,4 +100,8 @@ pub enum ContractError {
         required: Uint128,
         provided: Uint128,
     },
+
+    // Conversion and parsing errors
+    #[error("Failed to parse numeric value: {value}, reason: {reason}")]
+    ParseError { value: String, reason: String },
 }

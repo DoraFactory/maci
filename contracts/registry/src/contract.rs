@@ -542,7 +542,11 @@ pub fn reply_created_round(
 
     let addr = Addr::unchecked(response.clone().contract_address);
     let data = InstantiationData { addr: addr.clone() };
-    let amaci_return_data: AMaciInstantiationData = from_json(&response.data.unwrap())?;
+    let amaci_return_data: AMaciInstantiationData = from_json(
+        &response
+            .data
+            .ok_or_else(|| ContractError::DataMissingErr {})?,
+    )?;
 
     let mut attributes = vec![
         attr("action", "created_round"),

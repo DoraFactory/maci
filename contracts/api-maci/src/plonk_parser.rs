@@ -131,8 +131,8 @@ where
     final_proof.n = n;
     final_proof.input_values = input_values
         .into_iter()
-        .map(|x| from_hex(&x).unwrap())
-        .collect();
+        .map(|x| from_hex(&x).map_err(|_| ContractError::HexDecodingError {}))
+        .collect::<Result<Vec<_>, _>>()?;
     final_proof.wire_commitments = wire_commitments_affine;
     final_proof.grand_product_commitment = grand_product_commitment_affine;
     final_proof.quotient_poly_commitments = quotient_poly_commitments_affine;
@@ -140,15 +140,18 @@ where
     final_proof.wire_values_at_z = wire_values_at_z_res?;
     final_proof.wire_values_at_z_omega = wire_values_at_z_omega
         .into_iter()
-        .map(|x| from_hex(&x).unwrap())
-        .collect();
-    final_proof.grand_product_at_z_omega = from_hex(&grand_product_at_z_omega).unwrap();
-    final_proof.quotient_polynomial_at_z = from_hex(&quotient_polynomial_at_z).unwrap();
-    final_proof.linearization_polynomial_at_z = from_hex(&linearization_polynomial_at_z).unwrap();
+        .map(|x| from_hex(&x).map_err(|_| ContractError::HexDecodingError {}))
+        .collect::<Result<Vec<_>, _>>()?;
+    final_proof.grand_product_at_z_omega =
+        from_hex(&grand_product_at_z_omega).map_err(|_| ContractError::HexDecodingError {})?;
+    final_proof.quotient_polynomial_at_z =
+        from_hex(&quotient_polynomial_at_z).map_err(|_| ContractError::HexDecodingError {})?;
+    final_proof.linearization_polynomial_at_z =
+        from_hex(&linearization_polynomial_at_z).map_err(|_| ContractError::HexDecodingError {})?;
     final_proof.permutation_polynomials_at_z = permutation_polynomials_at_z
         .into_iter()
-        .map(|x| from_hex(&x).unwrap())
-        .collect();
+        .map(|x| from_hex(&x).map_err(|_| ContractError::HexDecodingError {}))
+        .collect::<Result<Vec<_>, _>>()?;
 
     final_proof.opening_at_z_proof = opening_at_z_proof_affine;
     final_proof.opening_at_z_omega_proof = opening_at_z_omega_proof_affine;
@@ -261,8 +264,8 @@ where
         permutation_commitments: permutation_commitments_affine,
         non_residues: non_residues
             .into_iter()
-            .map(|x| from_hex(&x).unwrap())
-            .collect(),
+            .map(|x| from_hex(&x).map_err(|_| ContractError::HexDecodingError {}))
+            .collect::<Result<Vec<_>, _>>()?,
         g2_elements: g2_elements_affine_arr,
         _marker: std::marker::PhantomData,
     })

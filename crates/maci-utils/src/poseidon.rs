@@ -23,8 +23,11 @@ pub fn uint256_to_fr(input: &Uint256) -> Fr {
 pub fn hash_uint256(data: Uint256) -> Uint256 {
     // Hash single value using width 1
     let fr_value = uint256_to_fr(&data);
-    let mut poseidon = Poseidon::<ArkFr>::new_circom(1).unwrap();
-    let result_fr = poseidon.hash(&[fr_value]).unwrap();
+    let mut poseidon = Poseidon::<ArkFr>::new_circom(1)
+        .expect("Poseidon initialization with width 1 should never fail");
+    let result_fr = poseidon
+        .hash(&[fr_value])
+        .expect("Poseidon hash with valid Fr input should never fail");
 
     // Convert Fr to Uint256 via little-endian bytes
     let bigint = result_fr.into_bigint();
@@ -40,8 +43,11 @@ pub fn hash_uint256(data: Uint256) -> Uint256 {
 
 /// Core hash function for width 2
 fn hash_width_2(message: &[Fr; 2]) -> Uint256 {
-    let mut poseidon = Poseidon::<ArkFr>::new_circom(2).unwrap();
-    let result_fr = poseidon.hash(message).unwrap();
+    let mut poseidon = Poseidon::<ArkFr>::new_circom(2)
+        .expect("Poseidon initialization with width 2 should never fail");
+    let result_fr = poseidon
+        .hash(message)
+        .expect("Poseidon hash with valid Fr input should never fail");
 
     // Convert Fr to Uint256 via little-endian bytes
     let bigint = result_fr.into_bigint();
@@ -57,8 +63,11 @@ fn hash_width_2(message: &[Fr; 2]) -> Uint256 {
 
 /// Core hash function for width 5
 fn hash_width_5(message: &[Fr; 5]) -> Uint256 {
-    let mut poseidon = Poseidon::<ArkFr>::new_circom(5).unwrap();
-    let result_fr = poseidon.hash(message).unwrap();
+    let mut poseidon = Poseidon::<ArkFr>::new_circom(5)
+        .expect("Poseidon initialization with width 5 should never fail");
+    let result_fr = poseidon
+        .hash(message)
+        .expect("Poseidon hash with valid Fr input should never fail");
 
     // Convert Fr to Uint256 via little-endian bytes
     let bigint = result_fr.into_bigint();
@@ -86,8 +95,11 @@ pub fn hash(message: Vec<Fr>) -> Uint256 {
         return hash_width_5(&arr);
     } else {
         // For other widths, create a new Poseidon instance
-        let mut poseidon = Poseidon::<Fr>::new_circom(len).unwrap();
-        let result_fr = poseidon.hash(&message).unwrap();
+        let mut poseidon = Poseidon::<Fr>::new_circom(len)
+            .expect("Poseidon initialization with valid width should never fail");
+        let result_fr = poseidon
+            .hash(&message)
+            .expect("Poseidon hash with valid Fr input should never fail");
 
         // Convert Fr to Uint256 via little-endian bytes
         let bigint = result_fr.into_bigint();
