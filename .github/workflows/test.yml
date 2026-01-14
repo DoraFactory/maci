@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - '**'
+    paths-ignore:
+      - 'docs/**'
+      - 'artifacts/**'
+      - '**/*.md'
+      - '.changeset/**'
+      - '.prettierrc.json'
+      - '.prettierignore'
+      - '.gitignore'
+      - '.github/workflows/changeset.yml'
+      - '.github/workflows/publish.yml'
 
 jobs:
   contract-tests:
