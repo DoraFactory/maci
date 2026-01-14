@@ -1,0 +1,92 @@
+# 安装
+
+开始使用 MACI SDK 来构建支持隐私保护和抗串谋的投票应用。
+
+## 环境要求
+
+在开始之前，请确保您的开发环境满足以下要求：
+
+- **Node.js**: 16.x 或更高版本
+- **npm**: 7.x 或更高版本（或使用 pnpm/yarn）
+- **TypeScript**: 4.x 或更高版本（推荐）
+
+## 安装 SDK
+
+### 使用 npm
+
+```bash
+npm install @dorafactory/maci-sdk
+```
+
+### 使用 pnpm
+
+```bash
+pnpm add @dorafactory/maci-sdk
+```
+
+### 使用 yarn
+
+```bash
+yarn add @dorafactory/maci-sdk
+```
+
+## 安装依赖
+
+MACI SDK 依赖于 CosmJS，用于与 Cosmos 链交互：
+
+```bash
+npm install @cosmjs/proto-signing @cosmjs/stargate
+```
+
+## 验证安装
+
+创建一个测试文件来验证安装：
+
+```typescript
+// test.ts
+import { MaciClient } from '@dorafactory/maci-sdk';
+
+const client = new MaciClient({
+  network: 'testnet'
+});
+
+console.log('MACI SDK 安装成功！');
+```
+
+运行测试：
+
+```bash
+npx ts-node test.ts
+```
+
+如果看到 "MACI SDK 安装成功！" 输出，说明安装成功。
+
+## TypeScript 配置
+
+如果您使用 TypeScript，建议添加以下 `tsconfig.json` 配置：
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+## 下一步
+
+现在您已经成功安装了 MACI SDK，接下来可以：
+
+- 📖 [客户端初始化](/sdk/client-setup) - 学习如何初始化客户端
+- 🚀 [快速开始](/introduction/quick-start) - 快速上手教程
+- 💡 [示例代码](/examples/basic-voting) - 查看完整示例

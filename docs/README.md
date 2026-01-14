@@ -1,23 +1,49 @@
-# Nextra Docs Template 
+> 👋 Nov 2025: I’m actively working on this template. If you run into any problems, just create an issue and I’ll respond within a day.
 
-This is a template for creating documentation with [Nextra](https://nextra.site).
+# Nextra Docs Starter 
 
-[**Live Demo →**](https://nextra-docs-template.vercel.app)
+![Vercel Deploy](https://deploy-badge.vercel.app/vercel/nextra-docs-starter)
 
-[![](.github/screenshot.png)](https://nextra-docs-template.vercel.app)
+This starter template includes the following features:
+
+- [x] **Nextra 4**
+- [x] **Improved Search UI with Pagefind**
+
+[**Live Demo →**](https://nextra.phucbm.com)
+
+![search-dialog](https://github.com/user-attachments/assets/c2993957-542d-4796-8529-141e16fccb43)
 
 ## Quick Start
 
-Click the button to clone this repository and deploy it on Vercel:
+You can deploy this template on Vercel by clicking the button below
 
-[![](https://vercel.com/button)](https://vercel.com/new/clone?s=https%3A%2F%2Fgithub.com%2Fshuding%2Fnextra-docs-template&showOptionalTeamCreation=false)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fphucbm%2Fnextra-docs-starter)
 
 ## Local Development
 
-First, run `pnpm i` to install the dependencies.
+### Clone this repository
 
-Then, run `pnpm dev` to start the development server and visit localhost:3000.
+Using the GitHub CLI:
+```bash
+gh repo clone phucbm/nextra-docs-starter
+```
 
-## License
+### Install
+```bash
+pnpm i
+```
 
-This project is licensed under the MIT License.
+### Run the development server
+```bash
+pnpm dev
+```
+
+## Star History
+
+<a href="https://www.star-history.com/#phucbm/nextra-docs-starter&type=timeline&logscale&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=phucbm/nextra-docs-starter&type=timeline&theme=dark&logscale&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=phucbm/nextra-docs-starter&type=timeline&logscale&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=phucbm/nextra-docs-starter&type=timeline&logscale&legend=top-left" />
+ </picture>
+</a>

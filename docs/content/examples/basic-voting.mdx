@@ -1,0 +1,335 @@
+# 基础投票示例
+
+本示例展示如何创建一个完整的投票应用，包括创建 Round、用户投票和查询结果。
+
+## 完整代码
+
+```typescript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+async function main() {
+  // === 初始化 ===
+  console.log('=== 初始化 MACI 客户端 ===\n');
+  
+  const client = new MaciClient({ network: 'testnet' });
+  
+  // 创建钱包
+  const creatorWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.CREATOR_PRIVATE_KEY!, 'hex'),
+    'dora'
+  );
+  
+  const [creatorAccount] = await creatorWallet.getAccounts();
+  console.log('创建者地址:', creatorAccount.address);
+  
+  // === 步骤 1: 创建投票轮次 ===
+  console.log('\n=== 步骤 1: 创建投票轮次 ===\n');
+  
+  const round = await client.createOracleMaciRound({
+    signer: creatorWallet,
+    operatorPubkey: process.env.OPERATOR_PUBKEY!,
+    
+    startVoting: new Date(),
+    endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    
+    title: '社区提案投票示例',
+    description: '这是一个使用 MACI 的投票示例',
+    link: 'https://example.com',
+    
+    voteOptionMap: [
+      '提案 A: 增加社区资金',
+      '提案 B: 改进技术基础设施',
+      '提案 C: 扩大市场推广',
+      '提案 D: 教育和培训项目'
+    ],
+    
+    circuitType: MaciCircuitType.QV,
+    
+    whitelistEcosystem: 'cosmoshub',
+    whitelistSnapshotHeight: '0',
+    whitelistVotingPowerArgs: {
+      mode: 'slope',
+      slope: '1000000',
+      threshold: '1000000'
+    }
+  });
+  
+  console.log('✅ Round 创建成功！');
+  console.log('合约地址:', round.contractAddress);
+  console.log('交易哈希:', round.transactionHash);
+  
+  const contractAddress = round.contractAddress;
+  
+  // 等待合约初始化
+  console.log('\n等待合约初始化...');
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  
+  // === 步骤 2: 用户 A 投票 ===
+  console.log('\n=== 步骤 2: 用户 A 投票 ===\n');
+  
+  const voterAWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.VOTER_A_PRIVATE_KEY!, 'hex'),
+    'dora'
+  );
+  const [voterA] = await voterAWallet.getAccounts();
+  
+  await voteAsUser(
+    client,
+    voterAWallet,
+    voterA.address,
+    contractAddress,
+    [
+      { idx: 0, vc: 8 },  // 提案 A: 8 票 (消耗 64 credits)
+      { idx: 2, vc: 6 }   // 提案 C: 6 票 (消耗 36 credits)
+    ]
+  );
+  
+  // === 步骤 3: 用户 B 投票 ===
+  console.log('\n=== 步骤 3: 用户 B 投票 ===\n');
+  
+  const voterBWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.VOTER_B_PRIVATE_KEY!, 'hex'),
+    'dora'
+  );
+  const [voterB] = await voterBWallet.getAccounts();
+  
+  await voteAsUser(
+    client,
+    voterBWallet,
+    voterB.address,
+    contractAddress,
+    [
+      { idx: 1, vc: 9 },  // 提案 B: 9 票 (消耗 81 credits)
+      { idx: 3, vc: 4 }   // 提案 D: 4 票 (消耗 16 credits)
+    ]
+  );
+  
+  // === 步骤 4: 用户 A 改变主意 ===
+  console.log('\n=== 步骤 4: 用户 A 重新投票 ===\n');
+  
+  await revote(
+    client,
+    voterAWallet,
+    voterA.address,
+    contractAddress,
+    [
+      { idx: 1, vc: 10 }  // 改投提案 B: 10 票 (消耗 100 credits)
+    ]
+  );
+  
+  // === 步骤 5: 查询当前状态 ===
+  console.log('\n=== 步骤 5: 查询当前状态 ===\n');
+  
+  const roundInfo = await client.getRoundById(contractAddress);
+  
+  console.log('Round 信息:');
+  console.log('- 标题:', roundInfo.title);
+  console.log('- 状态:', roundInfo.status);
+  console.log('- 签到人数:', roundInfo.numSignups);
+  console.log('- 消息数量:', roundInfo.numMessages);
+  console.log('- 选项:', roundInfo.voteOptionMap);
+  
+  console.log('\n✅ 示例完成！');
+  console.log('\n注意: 实际结果需要等待 Operator 处理和统计');
+}
+
+async function voteAsUser(
+  client: MaciClient,
+  wallet: any,
+  address: string,
+  contractAddress: string,
+  options: { idx: number; vc: number }[]
+) {
+  console.log(`用户 ${address.slice(0, 10)}... 开始投票`);
+  
+  // 1. 生成 MACI 账户
+  console.log('  1/5 生成 MACI 账户...');
+  const maciAccount = await client.circom.genKeypairFromSign(wallet, address);
+  
+  // 2. 获取证书
+  console.log('  2/5 获取 Oracle 证书...');
+  const certificate = await client.maci.requestOracleCertificate({
+    signer: wallet,
+    ecosystem: 'cosmoshub',
+    address,
+    contractAddress
+  });
+  console.log(`     投票权重: ${certificate.amount}`);
+  
+  // 3. 等待 Gas Station
+  console.log('  3/5 等待 Gas Station...');
+  const hasGasStation = await waitForGasStation(client, address, contractAddress);
+  
+  // 4. 签到
+  console.log('  4/5 签到中...');
+  await client.maci.signup({
+    signer: wallet,
+    address,
+    contractAddress,
+    maciAccount,
+    oracleCertificate: certificate,
+    gasStation: hasGasStation
+  });
+  
+  // 5. 投票
+  console.log('  5/5 投票中...');
+  const roundInfo = await client.getRoundById(contractAddress);
+  
+  await client.maci.vote({
+    signer: wallet,
+    address,
+    contractAddress,
+    selectedOptions: options,
+    operatorCoordPubKey: [
+      BigInt(roundInfo.coordinatorPubkeyX),
+      BigInt(roundInfo.coordinatorPubkeyY)
+    ],
+    maciAccount,
+    gasStation: hasGasStation
+  });
+  
+  console.log(`✅ ${address.slice(0, 10)}... 投票成功！`);
+  
+  // 显示投票详情
+  console.log('   投票详情:');
+  options.forEach(opt => {
+    const cost = opt.vc * opt.vc;  // QV 模式
+    console.log(`   - 选项 ${opt.idx}: ${opt.vc} 票 (消耗 ${cost} credits)`);
+  });
+}
+
+async function revote(
+  client: MaciClient,
+  wallet: any,
+  address: string,
+  contractAddress: string,
+  options: { idx: number; vc: number }[]
+) {
+  console.log(`用户 ${address.slice(0, 10)}... 重新投票`);
+  
+  // 使用之前的 MACI 账户
+  const maciAccount = await client.circom.genKeypairFromSign(wallet, address);
+  
+  const roundInfo = await client.getRoundById(contractAddress);
+  const hasGasStation = await waitForGasStation(client, address, contractAddress);
+  
+  await client.maci.vote({
+    signer: wallet,
+    address,
+    contractAddress,
+    selectedOptions: options,
+    operatorCoordPubKey: [
+      BigInt(roundInfo.coordinatorPubkeyX),
+      BigInt(roundInfo.coordinatorPubkeyY)
+    ],
+    maciAccount,
+    gasStation: hasGasStation
+  });
+  
+  console.log(`✅ ${address.slice(0, 10)}... 重新投票成功！`);
+}
+
+async function waitForGasStation(
+  client: MaciClient,
+  address: string,
+  contractAddress: string
+): Promise<boolean> {
+  let hasFeegrant = false;
+  let attempts = 0;
+  const maxAttempts = 30;
+  
+  while (!hasFeegrant && attempts < maxAttempts) {
+    hasFeegrant = await client.maci.hasFeegrant({
+      address,
+      contractAddress
+    });
+    
+    if (!hasFeegrant) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      attempts++;
+    }
+  }
+  
+  return hasFeegrant;
+}
+
+// 运行主函数
+main().catch(console.error);
+```
+
+## 环境配置
+
+创建 `.env` 文件：
+
+```bash
+# .env
+CREATOR_PRIVATE_KEY=your_creator_private_key_here
+VOTER_A_PRIVATE_KEY=voter_a_private_key_here
+VOTER_B_PRIVATE_KEY=voter_b_private_key_here
+OPERATOR_PUBKEY=operator_public_key_here
+```
+
+## 运行示例
+
+```bash
+# 安装依赖
+npm install @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate dotenv
+
+# 运行示例
+npx ts-node basic-voting.ts
+```
+
+## 预期输出
+
+```
+=== 初始化 MACI 客户端 ===
+
+创建者地址: dora1creator...
+
+=== 步骤 1: 创建投票轮次 ===
+
+✅ Round 创建成功！
+合约地址: dora1contract...
+交易哈希: ABCD1234...
+
+等待合约初始化...
+
+=== 步骤 2: 用户 A 投票 ===
+
+用户 dora1voter... 开始投票
+  1/5 生成 MACI 账户...
+  2/5 获取 Oracle 证书...
+     投票权重: 100
+  3/5 等待 Gas Station...
+  4/5 签到中...
+  5/5 投票中...
+✅ dora1voter... 投票成功！
+   投票详情:
+   - 选项 0: 8 票 (消耗 64 credits)
+   - 选项 2: 6 票 (消耗 36 credits)
+
+=== 步骤 3: 用户 B 投票 ===
+
+...
+
+=== 步骤 5: 查询当前状态 ===
+
+Round 信息:
+- 标题: 社区提案投票示例
+- 状态: Voting
+- 签到人数: 2
+- 消息数量: 3
+- 选项: [...]
+
+✅ 示例完成！
+```
+
+## 下一步
+
+- 📖 [Oracle 轮次示例](/examples/oracle-round) - 更详细的 Oracle 配置
+- 🚀 [SDK 文档](/sdk/installation) - 学习更多 SDK 功能
+- 📚 [协议详解](/protocol/overview) - 深入理解 MACI

@@ -1,0 +1,491 @@
+# 架构总览
+
+MACI 的合约系统采用模块化设计，通过 Registry 合约统一管理多个 AMACI 投票合约实例。本节介绍整体架构和设计理念。
+
+## 系统架构
+
+### 架构图
+
+```mermaid
+graph TD
+    User[用户] --> Registry[Registry 合约]
+    Operator[Operator] --> Registry
+    Registry --> OpMgmt[Operator 管理]
+    Registry --> RoundMgmt[Round 管理]
+    Registry --> CircuitMgmt[Circuit 配置]
+    RoundMgmt -->|实例化| AMACI1[AMACI 合约 1]
+    RoundMgmt -->|实例化| AMACI2[AMACI 合约 2]
+    RoundMgmt -->|实例化| AMACI3[AMACI 合约 N]
+    AMACI1 --> Voter1[投票者 A]
+    AMACI1 --> Voter2[投票者 B]
+    AMACI2 --> Voter3[投票者 C]
+    OpMgmt --> OpList[(Operator 列表)]
+    OpMgmt --> ValidatorList[(Validator 列表)]
+```
+
+### 组件说明
+
+**Registry 合约（注册中心）**
+- 管理 Operator 注册和配置
+- 管理 Validator 列表
+- 创建和配置 AMACI 合约实例
+- 配置 ZK 电路参数
+- 管理费用配置
+
+**AMACI 合约（投票实例）**
+- 处理用户签到（Signup）
+- 接收和存储加密投票消息
+- 验证零知识证明
+- 发布投票结果
+- 每个投票轮次对应一个独立的 AMACI 合约实例
+
+## 设计理念
+
+### 1. 关注点分离
+
+```mermaid
+graph LR
+    A[Registry] -->|职责| B[系统级管理]
+    C[AMACI] -->|职责| D[投票级逻辑]
+    B --> B1[Operator 管理]
+    B --> B2[Round 创建]
+    B --> B3[全局配置]
+    D --> D1[用户签到]
+    D --> D2[投票消息]
+    D --> D3[结果统计]
+```
+
+**Registry 关注：**
+- 谁可以运行 Operator
+- 如何创建投票轮次
+- 系统级参数配置
+
+**AMACI 关注：**
+- 用户如何参与投票
+- 消息如何存储和处理
+- 结果如何验证和发布
+
+### 2. 一键创建
+
+用户无需手动部署 AMACI 合约：
+
+```rust
+// 用户只需调用 Registry 的一个函数
+ExecuteMsg::CreateRound {
+    operator,
+    max_voter,
+    voice_credit_amount,
+    vote_option_map,
+    // ... 其他参数
+}
+
+// Registry 自动：
+// 1. 验证 Operator 是否注册
+// 2. 实例化 AMACI 合约
+// 3. 配置初始参数
+// 4. 返回合约地址
+```
+
+### 3. 标准化接口
+
+所有 AMACI 合约实例共享相同的接口：
+
+```rust
+// 统一的消息类型
+pub enum ExecuteMsg {
+    Signup { ... },
+    PublishMessage { ... },
+    ProcessMessages { ... },
+    ProcessTally { ... },
+}
+
+// 统一的查询接口
+pub enum QueryMsg {
+    GetRoundInfo {},
+    GetNumSignups {},
+    GetMessage { index },
+}
+```
+
+### 4. 灵活配置
+
+支持多种配置选项：
+
+```rust
+// 投票类型
+pub enum CircuitType {
+    IP1V = 0,  // 一人一票
+    QV = 1,    // 二次方投票
+}
+
+// 认证系统
+pub enum CertificationSystem {
+    Oracle = 0,     // Oracle 白名单
+    OnChain = 1,    // 链上白名单
+}
+
+// 白名单配置
+pub struct WhitelistBase {
+    ecosystem: String,        // cosmoshub / doravota
+    snapshot_height: String,  // 快照高度
+    voting_power_args: VotingPowerArgs,
+}
+```
+
+## 合约关系
+
+### 创建流程
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Registry as Registry 合约
+    participant CodeId as AMACI Code ID
+    participant AMACI as AMACI 实例
+    User->>Registry: CreateRound(参数)
+    Registry->>Registry: 验证 Operator
+    Registry->>Registry: 计算费用
+    Registry->>CodeId: 实例化合约
+    CodeId->>AMACI: 创建新实例
+    AMACI->>AMACI: 初始化状态
+    AMACI-->>Registry: 返回地址
+    Registry-->>User: 返回合约地址
+    Note over User,AMACI: 用户可以开始使用 AMACI 合约
+```
+
+### 交互模式
+
+```mermaid
+graph TD
+    A[阶段 1: 创建] --> B[用户 → Registry]
+    B --> C[Registry → AMACI 实例]
+    D[阶段 2: 投票] --> E[用户 → AMACI 直接]
+    F[阶段 3: 处理] --> G[Operator → AMACI 直接]
+    H[阶段 4: 查询] --> I[任何人 → AMACI 直接]
+```
+
+**注意：**
+- Registry 只在创建时参与
+- 创建后，用户直接与 AMACI 合约交互
+- Registry 不参与投票过程
+
+## 数据流
+
+### 完整数据流图
+
+```mermaid
+flowchart TD
+    subgraph RegistryLayer [Registry 层]
+        A[Operator 注册]
+        B[Round 创建请求]
+        C[Circuit 配置]
+    end
+    subgraph AMACILayer [AMACI 层]
+        D[用户签到]
+        E[投票消息]
+        F[状态树]
+        G[消息队列]
+    end
+    subgraph OperatorLayer [Operator 层]
+        H[下载消息]
+        I[解密处理]
+        J[生成证明]
+    end
+    subgraph Verification [链上验证]
+        K[验证证明]
+        L[更新状态]
+        M[发布结果]
+    end
+    A --> B
+    B --> D
+    D --> F
+    E --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    K --> L
+    L --> M
+    C -.配置.-> D
+```
+
+## 状态管理
+
+### Registry 状态
+
+```rust
+// Registry 存储的状态
+pub struct RegistryState {
+    // 管理员
+    admin: Addr,
+    operator: Addr,
+    
+    // AMACI 合约 Code ID
+    amaci_code_id: u64,
+    
+    // Operator 集合
+    operator_set: Map<Addr, bool>,
+    operator_pubkey: Map<Addr, PubKey>,
+    operator_identity: Map<Addr, String>,
+    
+    // Validator 集合
+    validator_list: Vec<Addr>,
+    validator_operator: Map<Addr, Addr>,
+    
+    // 费用配置
+    circuit_charge_config: CircuitChargeConfig,
+}
+```
+
+### AMACI 状态
+
+```rust
+// AMACI 合约存储的状态
+pub struct AMACIState {
+    // 轮次信息
+    round_info: RoundInfo,
+    voting_time: VotingTime,
+    
+    // Coordinator 公钥
+    coordinator_pub_key: PubKey,
+    
+    // 用户数据
+    num_sign_ups: u64,
+    voice_credit_amount: Uint256,
+    
+    // 消息队列
+    messages: Vec<Message>,
+    
+    // 状态树
+    state_tree_depth: u8,
+    state_tree_root: Uint256,
+    
+    // 投票配置
+    max_vote_options: Uint256,
+    vote_option_map: Vec<String>,
+    
+    // 电路配置
+    circuit_type: Uint256,
+    certification_system: Uint256,
+    
+    // 白名单
+    whitelist: Option<WhitelistBase>,
+}
+```
+
+## 权限管理
+
+### Registry 权限
+
+```mermaid
+graph TD
+    Admin[Admin] -->|全权管理| Registry
+    Operator[Operator] -->|创建 Round| Registry
+    Admin --> A1[更新 AMACI Code ID]
+    Admin --> A2[更改 Operator]
+    Admin --> A3[更改费用配置]
+    Operator --> O1[注册为 Operator]
+    Operator --> O2[设置公钥]
+    Operator --> O3[设置身份信息]
+    Validator[Validator] -->|验证操作| Registry
+    Validator --> V1[被添加到列表]
+    Validator --> V2[关联 Operator]
+```
+
+### AMACI 权限
+
+```mermaid
+graph TD
+    Anyone[任何人] -->|签到| AMACI
+    Anyone -->|投票| AMACI
+    Anyone -->|查询| AMACI
+    Operator[Operator] -->|处理| AMACI
+    Operator --> O1[ProcessMessages]
+    Operator --> O2[ProcessTally]
+    Anyone --> A1[Signup]
+    Anyone --> A2[PublishMessage]
+    Anyone --> A3[GetRoundInfo]
+    Anyone --> A4[GetMessages]
+```
+
+## 安全设计
+
+### 1. 合约验证
+
+```rust
+// Registry 创建 AMACI 时的验证
+fn create_round(
+    deps: DepsMut,
+    info: MessageInfo,
+    operator: Addr,
+    // ... 其他参数
+) -> Result<Response, ContractError> {
+    // 验证 1: Operator 必须已注册
+    if !is_maci_operator(deps.storage, &operator)? {
+        return Err(ContractError::OperatorNotRegistered {});
+    }
+    
+    // 验证 2: 参数合法性
+    if max_voter == Uint256::zero() {
+        return Err(ContractError::InvalidMaxVoter {});
+    }
+    
+    // 验证 3: 费用检查
+    let required_fee = calculate_fee(&circuit_charge_config);
+    if info.funds.amount < required_fee {
+        return Err(ContractError::InsufficientFee {});
+    }
+    
+    // 通过验证，创建合约
+    instantiate_amaci_contract(deps, operator, ...)
+}
+```
+
+### 2. 状态隔离
+
+```mermaid
+graph TD
+    R[Registry 状态] --> R1[Operator 数据]
+    R --> R2[配置数据]
+    A1[AMACI 实例 1] --> A1S[独立状态]
+    A2[AMACI 实例 2] --> A2S[独立状态]
+    A1S -.不影响.-> A2S
+    A2S -.不影响.-> A1S
+```
+
+**特点：**
+- 每个 AMACI 实例有独立的状态
+- 一个实例的问题不影响其他实例
+- Registry 只存储全局配置
+
+### 3. 升级机制
+
+```rust
+// Registry 支持更新 AMACI Code ID
+ExecuteMsg::UpdateAmaciCodeId {
+    amaci_code_id: u64,
+}
+
+// 新创建的 AMACI 实例使用新 Code ID
+// 已存在的实例不受影响
+```
+
+## 部署流程
+
+### 步骤 1: 部署 AMACI 合约代码
+
+```bash
+# 编译 AMACI 合约
+cd contracts/amaci
+cargo wasm
+
+# 优化 wasm
+docker run --rm -v "$(pwd)":/code \
+  cosmwasm/rust-optimizer:0.12.11
+
+# 上传到链上
+dorad tx wasm store artifacts/amaci.wasm \
+  --from deployer \
+  --gas auto
+
+# 获得 Code ID（例如：123）
+```
+
+### 步骤 2: 部署 Registry 合约
+
+```bash
+# 实例化 Registry
+dorad tx wasm instantiate 123 \
+  '{
+    "admin": "dora1...",
+    "operator": "dora1...",
+    "amaci_code_id": 123
+  }' \
+  --from deployer \
+  --label "MACI Registry" \
+  --gas auto
+
+# 获得 Registry 地址（例如：dora1registry...）
+```
+
+### 步骤 3: 注册 Operator
+
+```bash
+# Operator 注册
+dorad tx wasm execute dora1registry... \
+  '{
+    "set_maci_operator": {
+      "operator": "dora1operator..."
+    }
+  }' \
+  --from operator \
+  --gas auto
+
+# 设置 Operator 公钥
+dorad tx wasm execute dora1registry... \
+  '{
+    "set_maci_operator_pubkey": {
+      "pubkey": {
+        "x": "0x...",
+        "y": "0x..."
+      }
+    }
+  }' \
+  --from operator \
+  --gas auto
+```
+
+### 步骤 4: 创建投票轮次
+
+现在用户可以通过 Registry 创建 AMACI 实例：
+
+```typescript
+// 使用 SDK
+const round = await client.createOracleMaciRound({
+  signer: wallet,
+  operatorPubkey: '0x...',
+  // ... 其他参数
+});
+
+console.log('AMACI 合约地址:', round.contractAddress);
+```
+
+## 优势
+
+### 1. 简化部署
+
+❌ **传统方式：**
+```
+用户 → 编译合约 → 上传代码 → 实例化合约 → 配置参数
+```
+
+✅ **Registry 方式：**
+```
+用户 → 调用 CreateRound → 完成
+```
+
+### 2. 统一管理
+
+- 所有 Operator 在一个地方注册
+- 统一的费用配置
+- 统一的 Code ID 管理
+
+### 3. 安全性
+
+- Registry 验证 Operator 资格
+- 标准化的合约创建流程
+- 减少人为错误
+
+### 4. 可升级性
+
+- 更新 Code ID 后新实例使用新代码
+- 旧实例继续运行不受影响
+- 平滑升级路径
+
+## 下一步
+
+现在您已经了解了整体架构，接下来可以深入学习：
+
+- 📋 [Registry 合约](/contracts/registry) - 详细了解 Registry 的功能
+- 🗳️ [AMACI 合约](/contracts/amaci) - 学习 AMACI 的投票逻辑
+- 🔄 [完整工作流程](/contracts/workflow) - 理解从创建到结果的全流程

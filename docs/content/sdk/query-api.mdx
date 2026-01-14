@@ -1,0 +1,332 @@
+# 查询 API
+
+MACI SDK 提供了丰富的查询功能来获取各种信息。
+
+## Round 查询
+
+### 通过 ID 查询 Round
+
+```typescript
+const round = await client.getRoundById('dora1contractaddress...');
+
+console.log('Round 信息:', {
+  title: round.title,
+  description: round.description,
+  status: round.status,
+  coordinatorPubkey: round.coordinatorPubkey,
+  numSignups: round.numSignups,
+  votingTime: round.votingTime,
+  voteOptionMap: round.voteOptionMap
+});
+```
+
+### 获取 Round 列表
+
+```typescript
+const rounds = await client.getRounds('first', 10);
+
+rounds.forEach(round => {
+  console.log(`- ${round.title} (${round.status})`);
+});
+```
+
+### 按状态查询
+
+```typescript
+// 查询所有进行中的投票
+const activeRounds = await client.getRoundsByStatus(
+  'Voting',
+  'first',
+  10
+);
+
+// 可用状态：'Created', 'Voting', 'Processing', 'Tallied'
+```
+
+### 按 Operator 查询
+
+```typescript
+const operatorRounds = await client.getRoundsByOperator(
+  'dora1operator...',
+  'first',
+  10
+);
+```
+
+### 按电路类型查询
+
+```typescript
+// 查询所有 QV 投票
+const qvRounds = await client.getRoundsByCircuitName(
+  'amaci-qv',
+  'first',
+  10
+);
+
+// 查询所有 1P1V 投票
+const p1vRounds = await client.getRoundsByCircuitName(
+  'amaci-1p1v',
+  'first',
+  10
+);
+```
+
+## Operator 查询
+
+### 通过地址查询 Operator
+
+```typescript
+const operator = await client.getOperatorByAddress('dora1operator...');
+
+console.log('Operator 信息:', {
+  address: operator.address,
+  pubkey: operator.pubkey,
+  identity: operator.identity,
+  isActive: operator.isActive
+});
+```
+
+### 获取 Operator 列表
+
+```typescript
+const operators = await client.getOperators('first', 10);
+
+operators.forEach(op => {
+  console.log(`- ${op.identity || op.address}`);
+});
+```
+
+## Circuit 查询
+
+### 通过名称查询 Circuit
+
+```typescript
+const circuit = await client.getCircuitByName('amaci-qv');
+
+console.log('Circuit 信息:', {
+  name: circuit.name,
+  type: circuit.type,
+  description: circuit.description
+});
+```
+
+### 获取所有 Circuits
+
+```typescript
+const circuits = await client.getCircuits();
+
+circuits.forEach(circuit => {
+  console.log(`- ${circuit.name}: ${circuit.description}`);
+});
+```
+
+## 交易查询
+
+### 通过哈希查询交易
+
+```typescript
+const tx = await client.getTransactionByHash('ABCD1234...');
+
+console.log('交易信息:', {
+  hash: tx.hash,
+  height: tx.height,
+  success: tx.success,
+  gasUsed: tx.gasUsed,
+  timestamp: tx.timestamp
+});
+```
+
+### 按合约地址查询交易
+
+```typescript
+const transactions = await client.getTransactionsByContractAddress(
+  'dora1contract...',
+  'first',
+  10
+);
+
+transactions.forEach(tx => {
+  console.log(`- ${tx.type} at block ${tx.height}`);
+});
+```
+
+### 获取交易列表
+
+```typescript
+const recentTxs = await client.getTransactions('first', 20);
+```
+
+## 证明查询
+
+### 查询证明信息
+
+```typescript
+const proof = await client.getProofByContractAddress('dora1contract...');
+
+console.log('证明信息:', {
+  contractAddress: proof.contractAddress,
+  hasProcessMessagesProof: proof.hasProcessMessagesProof,
+  hasTallyProof: proof.hasTallyProof,
+  processedAt: proof.processedAt,
+  talliedAt: proof.talliedAt
+});
+```
+
+## 余额查询
+
+### 查询账户余额
+
+```typescript
+const balance = await client.balanceOf('dora1address...');
+
+console.log('余额:', {
+  amount: balance.amount,
+  denom: balance.denom
+});
+```
+
+## 高级查询
+
+### 分页查询
+
+所有列表查询都支持分页：
+
+```typescript
+// 第一页
+const page1 = await client.getRounds('first', 10);
+
+// 下一页（使用最后一个项目的 ID）
+const lastId = page1[page1.length - 1].id;
+const page2 = await client.getRounds('after', 10, lastId);
+
+// 上一页
+const page0 = await client.getRounds('before', 10, page1[0].id);
+```
+
+### 组合查询示例
+
+```typescript
+async function findActiveQVRounds(client: MaciClient) {
+  // 1. 获取所有 QV 电路的投票
+  const qvRounds = await client.getRoundsByCircuitName('amaci-qv', 'first', 100);
+  
+  // 2. 过滤出进行中的投票
+  const activeRounds = qvRounds.filter(round => {
+    const now = Date.now() / 1000;
+    return (
+      round.votingTime.startTime <= now &&
+      round.votingTime.endTime >= now &&
+      round.status === 'Voting'
+    );
+  });
+  
+  // 3. 按参与人数排序
+  activeRounds.sort((a, b) => b.numSignups - a.numSignups);
+  
+  return activeRounds;
+}
+
+// 使用
+const popularRounds = await findActiveQVRounds(client);
+console.log(`找到 ${popularRounds.length} 个活跃的 QV 投票`);
+```
+
+### 监听 Round 状态
+
+```typescript
+async function waitForRoundToFinish(
+  client: MaciClient,
+  contractAddress: string
+): Promise<void> {
+  console.log('等待投票结束...');
+  
+  while (true) {
+    const round = await client.getRoundById(contractAddress);
+    
+    if (round.status === 'Tallied') {
+      console.log('✅ 投票已完成！');
+      break;
+    }
+    
+    console.log(`当前状态: ${round.status}`);
+    
+    // 等待 10 秒后再次检查
+    await new Promise(resolve => setTimeout(resolve, 10000));
+  }
+}
+
+// 使用
+await waitForRoundToFinish(client, 'dora1contract...');
+```
+
+## 错误处理
+
+```typescript
+async function safeQuery<T>(
+  queryFn: () => Promise<T>
+): Promise<T | null> {
+  try {
+    return await queryFn();
+  } catch (error) {
+    console.error('查询失败:', error);
+    return null;
+  }
+}
+
+// 使用
+const round = await safeQuery(() => 
+  client.getRoundById('dora1contract...')
+);
+
+if (round) {
+  console.log('Round:', round.title);
+} else {
+  console.log('Round 不存在或查询失败');
+}
+```
+
+## 缓存查询
+
+对于频繁查询的数据，可以实现简单的缓存：
+
+```typescript
+class CachedMaciClient {
+  private cache = new Map<string, { data: any; expiry: number }>();
+  private cacheDuration = 60000;  // 1 分钟
+  
+  constructor(private client: MaciClient) {}
+  
+  async getRoundById(contractAddress: string) {
+    const key = `round:${contractAddress}`;
+    const cached = this.cache.get(key);
+    
+    if (cached && cached.expiry > Date.now()) {
+      console.log('使用缓存数据');
+      return cached.data;
+    }
+    
+    console.log('从链上查询');
+    const data = await this.client.getRoundById(contractAddress);
+    
+    this.cache.set(key, {
+      data,
+      expiry: Date.now() + this.cacheDuration
+    });
+    
+    return data;
+  }
+}
+
+// 使用
+const cachedClient = new CachedMaciClient(client);
+const round1 = await cachedClient.getRoundById('dora1...');  // 链上查询
+const round2 = await cachedClient.getRoundById('dora1...');  // 使用缓存
+```
+
+## 下一步
+
+了解查询 API 后，您可以：
+
+- 🚀 [探索高级功能](/sdk/advanced) - 了解更多 SDK 功能
+- 💡 [查看示例](/examples/basic-voting) - 完整的应用示例
+- 📖 [回到概览](/sdk/installation) - SDK 文档首页

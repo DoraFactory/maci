@@ -1,0 +1,451 @@
+# 高级功能
+
+探索 MACI SDK 的高级功能和最佳实践。
+
+## 交易监控
+
+### 监听交易状态
+
+```typescript
+async function monitorTransaction(
+  client: MaciClient,
+  txHash: string
+): Promise<void> {
+  console.log(`监控交易: ${txHash}`);
+  
+  let confirmed = false;
+  let attempts = 0;
+  const maxAttempts = 30;
+  
+  while (!confirmed && attempts < maxAttempts) {
+    try {
+      const tx = await client.getTransactionByHash(txHash);
+      
+      if (tx.success) {
+        console.log('✅ 交易成功确认');
+        console.log(`- 区块高度: ${tx.height}`);
+        console.log(`- Gas 使用: ${tx.gasUsed}`);
+        confirmed = true;
+      } else {
+        console.log('❌ 交易失败');
+        break;
+      }
+    } catch (error) {
+      console.log(`等待确认 (${attempts + 1}/${maxAttempts})...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      attempts++;
+    }
+  }
+  
+  if (!confirmed && attempts >= maxAttempts) {
+    console.log('⚠️  交易确认超时');
+  }
+}
+```
+
+### 交易重试机制
+
+```typescript
+async function retryTransaction<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      console.log(`尝试 ${i + 1}/${maxRetries} 失败:`, error.message);
+      
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+      } else {
+        throw error;
+      }
+    }
+  }
+  
+  throw new Error('重试次数已用尽');
+}
+
+// 使用
+const round = await retryTransaction(() =>
+  client.createOracleMaciRound({ /* 参数 */ })
+);
+```
+
+## 批量操作
+
+### 批量查询 Rounds
+
+```typescript
+async function batchGetRounds(
+  client: MaciClient,
+  contractAddresses: string[]
+): Promise<Round[]> {
+  const promises = contractAddresses.map(addr =>
+    client.getRoundById(addr).catch(error => {
+      console.error(`获取 ${addr} 失败:`, error.message);
+      return null;
+    })
+  );
+  
+  const results = await Promise.all(promises);
+  return results.filter(r => r !== null) as Round[];
+}
+
+// 使用
+const addresses = ['dora1...', 'dora2...', 'dora3...'];
+const rounds = await batchGetRounds(client, addresses);
+```
+
+### 批量投票处理
+
+```typescript
+async function batchVote(
+  client: MaciClient,
+  wallet: any,
+  address: string,
+  rounds: Array<{
+    contractAddress: string;
+    options: { idx: number; vc: number }[];
+  }>
+): Promise<void> {
+  for (const round of rounds) {
+    try {
+      console.log(`投票: ${round.contractAddress}`);
+      
+      // 完整的投票流程
+      await completeVotingProcess(
+        client,
+        wallet,
+        address,
+        round.contractAddress,
+        round.options
+      );
+      
+      console.log('✅ 成功');
+    } catch (error) {
+      console.error('❌ 失败:', error.message);
+    }
+  }
+}
+```
+
+## 自定义网络配置
+
+### 连接到自定义网络
+
+```typescript
+import { MaciClient } from '@dorafactory/maci-sdk';
+
+const customClient = new MaciClient({
+  network: 'testnet',  // 基础配置
+  rpcEndpoint: 'https://custom-rpc.example.com',
+  chainId: 'custom-chain-1',
+  gasPrice: '0.025udora',
+  registryAddress: 'dora1customregistry...'
+});
+```
+
+### 动态网络切换
+
+```typescript
+class MultiNetworkClient {
+  private clients: Map<string, MaciClient> = new Map();
+  
+  getClient(network: 'mainnet' | 'testnet' | 'local'): MaciClient {
+    if (!this.clients.has(network)) {
+      this.clients.set(network, new MaciClient({ network }));
+    }
+    return this.clients.get(network)!;
+  }
+  
+  async getRoundOnAnyNetwork(contractAddress: string) {
+    for (const network of ['mainnet', 'testnet', 'local'] as const) {
+      try {
+        const client = this.getClient(network);
+        const round = await client.getRoundById(contractAddress);
+        return { network, round };
+      } catch (error) {
+        continue;
+      }
+    }
+    throw new Error('Round 在任何网络上都找不到');
+  }
+}
+```
+
+## Gas 优化
+
+### 估算 Gas
+
+```typescript
+async function estimateGas(
+  client: MaciClient,
+  operation: 'signup' | 'vote' | 'createRound'
+): Promise<number> {
+  // 基于操作类型的估算
+  const gasEstimates = {
+    signup: 200000,
+    vote: 150000,
+    createRound: 500000
+  };
+  
+  return gasEstimates[operation];
+}
+```
+
+### Gas 价格优化
+
+```typescript
+async function optimizedTransaction<T>(
+  client: MaciClient,
+  txFn: () => Promise<T>,
+  useGasStation: boolean = true
+): Promise<T> {
+  if (useGasStation) {
+    // 使用 Gas Station，无需支付 Gas
+    return await txFn();
+  } else {
+    // 自己支付 Gas，使用优化的 Gas 价格
+    // 这里可以根据网络拥堵情况动态调整
+    return await txFn();
+  }
+}
+```
+
+## 错误处理最佳实践
+
+### 统一错误处理
+
+```typescript
+class MaciError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'MaciError';
+  }
+}
+
+async function handleMaciOperation<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error: any) {
+    if (error.message.includes('insufficient funds')) {
+      throw new MaciError(
+        '余额不足',
+        'INSUFFICIENT_FUNDS',
+        error
+      );
+    } else if (error.message.includes('not in voting period')) {
+      throw new MaciError(
+        '不在投票期内',
+        'NOT_IN_VOTING_PERIOD',
+        error
+      );
+    } else if (error.message.includes('already signed up')) {
+      throw new MaciError(
+        '已经签到过了',
+        'ALREADY_SIGNED_UP',
+        error
+      );
+    } else {
+      throw new MaciError(
+        '操作失败',
+        'UNKNOWN_ERROR',
+        error
+      );
+    }
+  }
+}
+
+// 使用
+try {
+  await handleMaciOperation(() =>
+    client.maci.signup({ /* 参数 */ })
+  );
+} catch (error) {
+  if (error instanceof MaciError) {
+    console.error(`错误 [${error.code}]: ${error.message}`);
+  }
+}
+```
+
+## 事件监听
+
+### 监听 Round 状态变化
+
+```typescript
+class RoundWatcher {
+  private intervals: Map<string, NodeJS.Timeout> = new Map();
+  
+  watch(
+    client: MaciClient,
+    contractAddress: string,
+    callback: (status: string) => void,
+    interval: number = 10000
+  ): void {
+    let lastStatus: string | null = null;
+    
+    const checkStatus = async () => {
+      try {
+        const round = await client.getRoundById(contractAddress);
+        
+        if (round.status !== lastStatus) {
+          lastStatus = round.status;
+          callback(round.status);
+        }
+      } catch (error) {
+        console.error('检查状态失败:', error);
+      }
+    };
+    
+    checkStatus();  // 立即检查一次
+    
+    const timer = setInterval(checkStatus, interval);
+    this.intervals.set(contractAddress, timer);
+  }
+  
+  unwatch(contractAddress: string): void {
+    const timer = this.intervals.get(contractAddress);
+    if (timer) {
+      clearInterval(timer);
+      this.intervals.delete(contractAddress);
+    }
+  }
+  
+  unwatchAll(): void {
+    for (const timer of this.intervals.values()) {
+      clearInterval(timer);
+    }
+    this.intervals.clear();
+  }
+}
+
+// 使用
+const watcher = new RoundWatcher();
+
+watcher.watch(client, 'dora1contract...', (status) => {
+  console.log(`Round 状态变更: ${status}`);
+  
+  if (status === 'Tallied') {
+    console.log('投票已完成，停止监听');
+    watcher.unwatch('dora1contract...');
+  }
+});
+```
+
+## 工具函数
+
+### 时间转换
+
+```typescript
+// Unix 时间戳转 Date
+function timestampToDate(timestamp: number): Date {
+  return new Date(timestamp * 1000);
+}
+
+// Date 转 Unix 时间戳
+function dateToTimestamp(date: Date): number {
+  return Math.floor(date.getTime() / 1000);
+}
+
+// 格式化投票时间
+function formatVotingTime(votingTime: VotingTime): string {
+  const start = timestampToDate(votingTime.startTime);
+  const end = timestampToDate(votingTime.endTime);
+  
+  return `${start.toLocaleString()} - ${end.toLocaleString()}`;
+}
+```
+
+### 投票权重计算
+
+```typescript
+// 计算 QV 模式下的最大票数
+function calculateMaxVotes(voiceCredits: number, isQV: boolean): number {
+  if (isQV) {
+    return Math.floor(Math.sqrt(voiceCredits));
+  } else {
+    return voiceCredits;
+  }
+}
+
+// 计算投票消耗
+function calculateVoteCost(
+  votes: { idx: number; vc: number }[],
+  isQV: boolean
+): number {
+  return votes.reduce((sum, vote) => {
+    return sum + (isQV ? vote.vc * vote.vc : vote.vc);
+  }, 0);
+}
+
+// 验证投票是否合法
+function validateVotes(
+  votes: { idx: number; vc: number }[],
+  voiceCredits: number,
+  isQV: boolean
+): { valid: boolean; error?: string } {
+  const cost = calculateVoteCost(votes, isQV);
+  
+  if (cost > voiceCredits) {
+    return {
+      valid: false,
+      error: `投票消耗 (${cost}) 超过可用额度 (${voiceCredits})`
+    };
+  }
+  
+  return { valid: true };
+}
+```
+
+## 性能优化
+
+### 请求去重
+
+```typescript
+class RequestDeduplicator {
+  private pending: Map<string, Promise<any>> = new Map();
+  
+  async deduplicate<T>(
+    key: string,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    if (this.pending.has(key)) {
+      console.log(`使用进行中的请求: ${key}`);
+      return this.pending.get(key);
+    }
+    
+    const promise = fn().finally(() => {
+      this.pending.delete(key);
+    });
+    
+    this.pending.set(key, promise);
+    return promise;
+  }
+}
+
+const dedup = new RequestDeduplicator();
+
+// 即使并发调用多次，也只会发送一次请求
+const [round1, round2, round3] = await Promise.all([
+  dedup.deduplicate('round:dora1...', () => client.getRoundById('dora1...')),
+  dedup.deduplicate('round:dora1...', () => client.getRoundById('dora1...')),
+  dedup.deduplicate('round:dora1...', () => client.getRoundById('dora1...'))
+]);
+```
+
+## 下一步
+
+探索了高级功能后，您可以：
+
+- 💡 [查看完整示例](/examples/basic-voting) - 学习实际应用
+- 📖 [回到 SDK 首页](/sdk/installation) - 查看所有 SDK 文档
+- 🚀 [快速开始](/introduction/quick-start) - 快速上手 MACI
