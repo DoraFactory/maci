@@ -1,23 +1,11 @@
-> 👋 Nov 2025: I’m actively working on this template. If you run into any problems, just create an issue and I’ll respond within a day.
+# MACI Documentation
 
-# Nextra Docs Starter 
-
-![Vercel Deploy](https://deploy-badge.vercel.app/vercel/nextra-docs-starter)
-
-This starter template includes the following features:
+This documentation site is built with Nextra 4 and includes the following features:
 
 - [x] **Nextra 4**
 - [x] **Improved Search UI with Pagefind**
 
-[**Live Demo →**](https://nextra.phucbm.com)
-
-![search-dialog](https://github.com/user-attachments/assets/c2993957-542d-4796-8529-141e16fccb43)
-
-## Quick Start
-
-You can deploy this template on Vercel by clicking the button below
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fphucbm%2Fnextra-docs-starter)
+MACI (Minimal Anti-Collusion Infrastructure) provides collusion-resistant voting with on-chain verification.
 
 ## Local Development
 
@@ -25,7 +13,8 @@ You can deploy this template on Vercel by clicking the button below
 
 Using the GitHub CLI:
 ```bash
-gh repo clone phucbm/nextra-docs-starter
+gh repo clone DoraFactory/maci
+cd maci/docs
 ```
 
 ### Install
@@ -38,12 +27,13 @@ pnpm i
 pnpm dev
 ```
 
-## Star History
+## About MACI
 
-<a href="https://www.star-history.com/#phucbm/nextra-docs-starter&type=timeline&logscale&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=phucbm/nextra-docs-starter&type=timeline&theme=dark&logscale&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=phucbm/nextra-docs-starter&type=timeline&logscale&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=phucbm/nextra-docs-starter&type=timeline&logscale&legend=top-left" />
- </picture>
-</a>
+MACI is a set of smart contracts, cryptographic libraries, and zero-knowledge circuits that provides:
+
+- **Privacy-Preserving Voting**: Ensures voter privacy through encryption and zero-knowledge proofs
+- **Collusion Resistance**: Prevents bribery and coercion through innovative cryptographic mechanisms
+- **Flexible Voting Mechanisms**: 1P1V, Quadratic Voting, and configurable voting power calculation
+- **Cross-Chain Support**: Cosmos Hub and Dora Vota ecosystem integration
+
+For more information, visit the [main repository](https://github.com/DoraFactory/maci).

@@ -1,7 +1,7 @@
 {
-  "name": "nextra-docs-starter",
+  "name": "maci-docs",
   "version": "1.0.0",
-  "description": "Nextra docs starter with search included.",
+  "description": "MACI (Minimal Anti-Collusion Infrastructure) documentation",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,15 +9,15 @@
     "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind"
   },
   "repository": {
-    "type": "module",
-    "url": "https://github.com/phucbm/nextra-docs-starter"
+    "type": "git",
+    "url": "https://github.com/DoraFactory/maci"
   },
-  "author": "PHUCBM",
+  "author": "DoraFactory",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/phucbm/nextra-docs-starter/issues"
+    "url": "https://github.com/DoraFactory/maci/issues"
   },
-  "homepage": "https://github.com/phucbm/nextra-docs-starter#readme",
+  "homepage": "https://github.com/DoraFactory/maci#readme",
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
     "@tailwindcss/postcss": "^4.1.18",
