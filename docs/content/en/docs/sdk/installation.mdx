@@ -1,0 +1,213 @@
+# SDK Installation and Configuration
+
+Install MACI SDK and initialize the client.
+
+## Environment Requirements
+
+- Node.js 16+
+- npm 7+ (or pnpm/yarn)
+- TypeScript 4+ (recommended)
+
+## Installation
+
+```bash
+npm install @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate
+```
+
+Or using pnpm:
+
+```bash
+pnpm add @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate
+```
+
+## Initialize Client
+
+### Basic Usage
+
+```typescript
+import { MaciClient } from '@dorafactory/maci-sdk';
+
+const client = new MaciClient({ network: 'testnet' });
+```
+
+### Configure Wallet
+
+```typescript
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+
+const wallet = await DirectSecp256k1Wallet.fromKey(
+  Buffer.from(privateKeyHex, 'hex'),
+  'dora'
+);
+
+const [account] = await wallet.getAccounts();
+console.log('Address:', account.address);
+```
+
+### Complete Example
+
+```typescript
+import { MaciClient } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+
+async function setup() {
+  const client = new MaciClient({ network: 'testnet' });
+  
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.PRIVATE_KEY, 'hex'),
+    'dora'
+  );
+  
+  const [account] = await wallet.getAccounts();
+  
+  return { client, wallet, address: account.address };
+}
+
+setup().then(({ client, wallet, address }) => {
+  console.log('Ready:', address);
+});
+```
+
+## Network Configuration
+
+### Testnet
+
+```typescript
+const client = new MaciClient({ network: 'testnet' });
+// RPC: https://vota-testnet-rpc.dorafactory.org
+// Chain ID: vota-testnet
+```
+
+### Mainnet
+
+```typescript
+const client = new MaciClient({ network: 'mainnet' });
+// RPC: https://vota-rpc.dorafactory.org
+// Chain ID: vota-ash
+```
+
+### Custom Configuration
+
+```typescript
+const client = new MaciClient({
+  network: 'testnet',
+  rpcEndpoint: 'https://your-rpc.example.com',
+  chainId: 'custom-chain'
+});
+```
+
+## Environment Variables
+
+Use environment variables to store sensitive information:
+
+```bash
+# .env
+PRIVATE_KEY=your_private_key_hex
+NETWORK=testnet
+```
+
+Install dotenv:
+
+```bash
+npm install dotenv
+```
+
+Use in code:
+
+```typescript
+import dotenv from 'dotenv';
+dotenv.config();
+
+const client = new MaciClient({
+  network: process.env.NETWORK as 'testnet' | 'mainnet'
+});
+
+const wallet = await DirectSecp256k1Wallet.fromKey(
+  Buffer.from(process.env.PRIVATE_KEY, 'hex'),
+  'dora'
+);
+```
+
+## TypeScript Configuration
+
+Recommended `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+## Create Wallet from Mnemonic
+
+```typescript
+const wallet = await DirectSecp256k1Wallet.fromMnemonic(
+  "your twelve word mnemonic phrase",
+  { prefix: 'dora' }
+);
+```
+
+## FAQ
+
+### "Module not found" Error
+
+Ensure all dependencies are installed:
+
+```bash
+npm install @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate
+```
+
+### "Invalid private key" Error
+
+Private key should be a 64-character hexadecimal string (32 bytes). Check:
+- Does it include "0x" prefix (should be removed)
+- Is length correct
+- Was it copied from correct source
+
+### Connection Timeout
+
+Testnet or mainnet RPC may occasionally be unavailable. Try:
+- Wait a few minutes and retry
+- Use custom RPC endpoint
+- Check network connection
+
+## Verify Installation
+
+Create test file:
+
+```typescript
+// test.ts
+import { MaciClient } from '@dorafactory/maci-sdk';
+
+const client = new MaciClient({ network: 'testnet' });
+console.log('MACI SDK installed successfully');
+```
+
+Run:
+
+```bash
+npx ts-node test.ts
+```
+
+Seeing "MACI SDK installed successfully" means installation is correct.
+
+## Next Steps
+
+**Create Voting** - Check [Create Round](/docs/sdk/create-round) to learn how to create votes.
+
+**Participate in Voting** - Read [Voting Guide](/docs/sdk/voting-guide) to understand voting process.
+
+**Query Data** - Refer to [Query API](/docs/sdk/query-api) to learn data queries.
+
+**Complete Examples** - View [Basic Examples](/docs/examples/basic-voting) for end-to-end process.

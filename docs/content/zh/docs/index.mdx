@@ -1,0 +1,84 @@
+# MACI 文档
+
+MACI (Minimal Anti-Collusion Infrastructure) 是一个基于密码学的链上投票系统，通过零知识证明提供隐私保护和抗串谋能力。
+
+## 快速导航
+
+**刚接触 MACI？** 阅读[什么是 MACI](/docs/introduction/what-is-maci)了解核心概念，然后跟随[快速开始指南](/docs/introduction/quick-start)创建第一个投票。
+
+**需要集成到应用？** 查看 [SDK 安装](/docs/sdk/installation)和[完整示例](/docs/examples/basic-voting)。
+
+**想了解技术细节？** 从[协议概览](/docs/protocol/overview)开始，深入学习 MACI 的工作原理。
+
+## 根据角色学习
+
+### 应用开发者
+
+你想在应用中集成 MACI 投票功能：
+
+1. [什么是 MACI](/docs/introduction/what-is-maci) - 理解基本概念
+2. [快速开始](/docs/introduction/quick-start) - 五分钟运行第一个示例
+3. [SDK 安装](/docs/sdk/installation) - 配置开发环境
+4. [创建投票](/docs/sdk/create-round) - 学习创建投票轮次
+5. [投票指南](/docs/sdk/voting-guide) - 实现用户投票流程
+
+### 协议研究者
+
+你想理解 MACI 的密码学机制和设计理念：
+
+1. [协议概览](/docs/protocol/overview) - 整体架构
+2. [核心概念](/docs/protocol/core-concepts) - 关键组件和数据结构
+3. [密码学机制](/docs/protocol/cryptography) - EdDSA、Poseidon、ZK 证明
+4. [隐私保护](/docs/protocol/privacy-protection) - 身份匿名和抗串谋设计
+5. [消息流程](/docs/protocol/message-flow) - 投票消息的生命周期
+
+### 合约开发者
+
+你想了解 MACI 合约的实现或进行二次开发：
+
+1. [架构设计](/docs/contracts/architecture) - 合约系统架构
+2. [Registry 合约](/docs/contracts/registry) - Operator 和轮次管理
+3. [AMACI 合约](/docs/contracts/amaci) - 匿名投票实现
+4. [工作流程](/docs/contracts/workflow) - 完整的投票生命周期
+
+### Operator 运营者
+
+你想运行 MACI Operator 节点：
+
+1. [协议概览](/docs/protocol/overview) - 理解 Operator 职责
+2. [消息流程](/docs/protocol/message-flow) - 学习消息处理
+3. [工作流程](/docs/contracts/workflow) - 了解处理时机和要求
+
+## 核心组件
+
+### 智能合约
+
+- **Registry** - 管理 Operator 注册和投票轮次创建
+- **AMACI** - 匿名投票合约实例，处理用户注册和投票
+
+### SDK 和工具
+
+- **@dorafactory/maci-sdk** - TypeScript 客户端 SDK
+- **@dorafactory/maci-operator** - Operator 系统
+- **maci-crypto** - Rust 密码学库
+
+### 零知识电路
+
+使用 Circom 实现的 ZK 电路，支持 Groth16 和 PLONK 证明系统。
+
+## 适用场景
+
+- **DAO 治理** - 社区提案和协议参数投票
+- **二次方融资** - Gitcoin Grants 类型的公共物品资助
+- **组织选举** - 内部选举和代表选举
+- **代币投票** - 基于持币量的加权投票
+
+## 技术资源
+
+- [Minimal anti-collusion infrastructure](https://ethresear.ch/t/minimal-anti-collusion-infrastructure/5413) - 原始提案
+- [MACI anonymization](https://ethresear.ch/t/maci-anonymization-using-rerandomizable-encryption/7054) - 匿名化设计
+- [GitHub 仓库](https://github.com/DoraFactory/maci) - 源代码和示例
+
+## 获取帮助
+
+遇到问题？查看 [GitHub Issues](https://github.com/DoraFactory/maci/issues) 或提交新问题。

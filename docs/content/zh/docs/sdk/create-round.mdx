@@ -1,0 +1,253 @@
+# 创建投票
+
+使用 SDK 创建 MACI 投票轮次。
+
+## 最小示例
+
+```typescript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+
+const client = new MaciClient({ network: 'testnet' });
+
+// 查询可用的 operator
+const operators = await client.indexer.getOperators();
+const operator = operators.find(op => op.status === 'Active');
+
+// 创建投票
+const round = await client.createAMaciRound({
+  signer: wallet,
+  operator: operator.address,
+  
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),  // 7天后
+  
+  title: '社区提案投票',
+  voteOptionMap: ['选项 A', '选项 B', '选项 C'],
+  
+  circuitType: MaciCircuitType.QV,  // 二次方投票
+  maxVoter: 100,
+  voiceCreditAmount: '100',
+  
+  whitelist: {
+    addresses: ['dora1...', 'dora1...']  // 白名单地址
+  }
+});
+
+console.log('合约地址:', round.contractAddress);
+```
+
+## 核心参数
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `signer` | Wallet | 签名钱包（创建者） |
+| `operator` | string | Operator 地址 |
+| `startVoting` | Date | 投票开始时间 |
+| `endVoting` | Date | 投票结束时间 |
+| `title` | string | 投票标题 |
+| `voteOptionMap` | string[] | 投票选项列表 |
+| `circuitType` | MaciCircuitType | QV 或 1P1V |
+| `maxVoter` | number | 最大投票人数 |
+| `voiceCreditAmount` | string | 每人投票权重 |
+| `whitelist` | object | 白名单配置 |
+
+## 白名单配置
+
+### 地址列表模式
+
+指定具体地址列表：
+
+```typescript
+whitelist: {
+  addresses: [
+    'dora1abc...',
+    'dora1def...',
+    'dora1ghi...'
+  ]
+}
+```
+
+### 代币持有者模式
+
+基于代币持有量：
+
+```typescript
+whitelist: {
+  ecosystem: 'cosmoshub',
+  snapshotHeight: '12345678',  // 区块高度
+  votingPowerArgs: {
+    mode: 'slope',
+    slope: '1000000',      // 每 1 ATOM = 1 voice credit
+    threshold: '1000000'   // 最低 1 ATOM 可参与
+  }
+}
+```
+
+voting power 计算：
+
+- **mode: 'slope'** - `voiceCredits = (balance - threshold) / slope`
+- **mode: 'constant'** - 所有人相同权重
+
+## 投票模式
+
+### 二次方投票 (QV)
+
+票数的平方是消耗量，鼓励分散投票：
+
+```typescript
+circuitType: MaciCircuitType.QV
+
+// 用户有 100 voice credits
+// 投 10 票消耗 100 credits (10²)
+// 投 5 票消耗 25 credits (5²)
+```
+
+### 一人一票 (1P1V)
+
+票数直接等于消耗量：
+
+```typescript
+circuitType: MaciCircuitType.IP1V
+
+// 用户有 100 voice credits
+// 投 100 票消耗 100 credits
+```
+
+## Pre-add-new-key 模式
+
+创建完全匿名的投票（需要预先生成密钥对）：
+
+```typescript
+import { OperatorClient } from '@dorafactory/maci-sdk';
+
+const operatorClient = new OperatorClient({ network: 'testnet' });
+
+// 1. 生成预配置密钥对
+const keypairs = Array.from({ length: 100 }, () => genKeypair());
+
+// 2. 处理 deactivate 并获取 tree data
+const preDeactivateData = await operatorClient.genPreDeactivates({
+  stateTreeDepth: 10,
+  coordinatorKeypair,
+  deactivates: keypairs.map(kp => ({
+    key: kp,
+    // ... deactivate 数据
+  })),
+  wasmFile,
+  zkeyFile
+});
+
+// 3. 创建 round（附带 pre-deactivate root）
+const round = await client.createAMaciRound({
+  // ... 其他参数
+  preDeactivateRoot: preDeactivateData.root
+});
+
+// 4. 分发密钥给用户（安全渠道）
+```
+
+用户可以立即使用 pre-add-new-key 匿名注册。
+
+## 查询 Operator
+
+```typescript
+// 获取所有 operator
+const operators = await client.indexer.getOperators();
+
+// 筛选活跃的
+const active = operators.filter(op => op.status === 'Active');
+
+// 查看 operator 信息
+console.log('身份:', active[0].identity);
+console.log('地址:', active[0].address);
+console.log('公钥:', active[0].pubkey);
+```
+
+Operator 列表也可以在 https://vota.dorafactory.org/operators 查看。
+
+## 费用
+
+创建投票需要支付 operator 服务费。费用包含：
+- 处理 deactivate 消息（如果有）
+- 处理投票消息
+- 生成零知识证明
+- 提交证明到链上
+
+费用根据投票规模（maxVoter）和复杂度自动计算。
+
+## 使用场景示例
+
+### DAO 治理投票
+
+```typescript
+{
+  title: '协议升级提案 #42',
+  voteOptionMap: ['赞成', '反对', '弃权'],
+  circuitType: MaciCircuitType.IP1V,
+  whitelist: {
+    ecosystem: 'doravota',
+    votingPowerArgs: { mode: 'constant' }  // 一人一票
+  }
+}
+```
+
+### 二次方融资
+
+```typescript
+{
+  title: 'Q1 2024 公共物品资助',
+  voteOptionMap: [
+    '项目 A: 开源工具',
+    '项目 B: 教育内容',
+    '项目 C: 社区活动'
+  ],
+  circuitType: MaciCircuitType.QV,  // 二次方投票
+  voiceCreditAmount: '1000',
+  whitelist: {
+    ecosystem: 'cosmoshub',
+    votingPowerArgs: {
+      mode: 'slope',
+      slope: '1000000'  // 1 ATOM = 1 credit
+    }
+  }
+}
+```
+
+### 匿名民意调查
+
+```typescript
+{
+  title: '产品功能优先级调查',
+  voteOptionMap: ['功能 A', '功能 B', '功能 C', '功能 D'],
+  circuitType: MaciCircuitType.QV,
+  maxVoter: 1000,
+  voiceCreditAmount: '100',
+  preDeactivateRoot: '0x...'  // 使用 pre-add-new-key 匿名模式
+}
+```
+
+## 常见问题
+
+### 如何修改投票配置？
+
+投票一旦创建，配置无法修改。如需更改，需要创建新的投票轮次。
+
+### 可以添加更多白名单地址吗？
+
+不可以。白名单在创建时固定。如果需要动态添加，考虑使用链上数据模式（基于代币持有等）。
+
+### 投票期可以延长吗？
+
+不可以。投票开始和结束时间在创建时确定，无法更改。
+
+### Operator 地址从哪里获取？
+
+通过 `client.indexer.getOperators()` 查询，或访问 https://vota.dorafactory.org/operators。
+
+## 下一步
+
+**投票流程** - 查看[投票指南](/docs/sdk/voting-guide)了解用户如何投票。
+
+**查询数据** - 参考 [Query API](/docs/sdk/query-api)学习如何查询投票信息。
+
+**完整示例** - 查看[基础示例](/docs/examples/basic-voting)了解端到端流程。

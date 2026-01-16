@@ -1,0 +1,318 @@
+# Query API
+
+MACI SDK provides rich query functions to retrieve various information.
+
+## Round Queries
+
+### Query Round by ID
+
+```typescript
+// Method 1: Use getRoundInfo (recommended)
+const round = await client.getRoundInfo({ contractAddress: 'dora1contractaddress...' });
+
+// Method 2: Use indexer query
+const round = await client.indexer.getRoundById('dora1contractaddress...');
+
+console.log('Round info:', {
+  title: round.title,
+  description: round.description,
+  status: round.status,
+  coordinatorPubkey: round.coordinatorPubkey,
+  numSignups: round.numSignups,
+  votingTime: round.votingTime,
+  voteOptionMap: round.voteOptionMap
+});
+```
+
+### Get Round List
+
+```typescript
+const rounds = await client.getRounds('first', 10);
+
+rounds.forEach(round => {
+  console.log(`- ${round.title} (${round.status})`);
+});
+```
+
+### Query by Status
+
+```typescript
+const activeRounds = await client.indexer.getRoundsByStatus(
+  'Voting',
+  'first',
+  10
+);
+
+// Available statuses: 'Created', 'Voting', 'Processing', 'Tallied'
+```
+
+### Query by Operator
+
+```typescript
+const operatorRounds = await client.indexer.getRoundsByOperator(
+  'dora1operator...',
+  'first',
+  10
+);
+```
+
+### Query by Circuit Type
+
+```typescript
+// Query all QV votes
+const qvRounds = await client.indexer.getRoundsByCircuitName(
+  'amaci-qv',
+  'first',
+  10
+);
+
+// Query all 1P1V votes
+const p1vRounds = await client.indexer.getRoundsByCircuitName(
+  'amaci-1p1v',
+  'first',
+  10
+);
+```
+
+## Operator Queries
+
+### Query Operator by Address
+
+```typescript
+const operator = await client.indexer.getOperatorByAddress('dora1operator...');
+
+console.log('Operator info:', {
+  address: operator.address,
+  pubkey: operator.pubkey,
+  identity: operator.identity,
+  isActive: operator.isActive
+});
+```
+
+### Get Operator List
+
+```typescript
+const operators = await client.indexer.getOperators('first', 10);
+
+operators.forEach(op => {
+  console.log(`- ${op.identity || op.address}`);
+});
+```
+
+## Circuit Queries
+
+### Query Circuit by Name
+
+```typescript
+const circuit = await client.indexer.getCircuitByName('amaci-qv');
+
+console.log('Circuit info:', {
+  name: circuit.name,
+  type: circuit.type,
+  description: circuit.description
+});
+```
+
+### Get All Circuits
+
+```typescript
+const circuits = await client.indexer.getCircuits();
+
+circuits.forEach(circuit => {
+  console.log(`- ${circuit.name}: ${circuit.description}`);
+});
+```
+
+## Transaction Queries
+
+### Query Transaction by Hash
+
+```typescript
+const tx = await client.indexer.getTransactionByHash('ABCD1234...');
+
+console.log('Transaction info:', {
+  hash: tx.hash,
+  height: tx.height,
+  success: tx.success,
+  gasUsed: tx.gasUsed,
+  timestamp: tx.timestamp
+});
+```
+
+### Query Transactions by Contract Address
+
+```typescript
+const transactions = await client.indexer.getTransactionsByContractAddress(
+  'dora1contract...',
+  'first',
+  10
+);
+
+transactions.forEach(tx => {
+  console.log(`- ${tx.type} at block ${tx.height}`);
+});
+```
+
+### Get Transaction List
+
+```typescript
+const recentTxs = await client.indexer.getTransactions('first', 20);
+```
+
+## Proof Queries
+
+### Query Proof Information
+
+```typescript
+const proof = await client.indexer.getProofByContractAddress('dora1contract...');
+
+console.log('Proof info:', {
+  contractAddress: proof.contractAddress,
+  hasProcessMessagesProof: proof.hasProcessMessagesProof,
+  hasTallyProof: proof.hasTallyProof,
+  processedAt: proof.processedAt,
+  talliedAt: proof.talliedAt
+});
+```
+
+## Balance Queries
+
+### Query Account Balance
+
+```typescript
+const balance = await client.indexer.balanceOf('dora1address...');
+
+console.log('Balance:', {
+  amount: balance.amount,
+  denom: balance.denom
+});
+```
+
+## Advanced Queries
+
+### Pagination
+
+All list queries support pagination:
+
+```typescript
+// First page
+const page1 = await client.getRounds('first', 10);
+
+// Next page (use last item's ID)
+const lastId = page1[page1.length - 1].id;
+const page2 = await client.getRounds('after', 10, lastId);
+
+// Previous page
+const page0 = await client.getRounds('before', 10, page1[0].id);
+```
+
+### Combined Query Example
+
+```typescript
+async function findActiveQVRounds(client: MaciClient) {
+  const qvRounds = await client.indexer.getRoundsByCircuitName('amaci-qv', 'first', 100);
+  
+  const activeRounds = qvRounds.filter(round => {
+    const now = Date.now() / 1000;
+    return (
+      round.votingTime.startTime <= now &&
+      round.votingTime.endTime >= now &&
+      round.status === 'Voting'
+    );
+  });
+  
+  activeRounds.sort((a, b) => b.numSignups - a.numSignups);
+  
+  return activeRounds;
+}
+
+const popularRounds = await findActiveQVRounds(client);
+console.log(`Found ${popularRounds.length} active QV rounds`);
+```
+
+### Monitor Round Status
+
+```typescript
+async function waitForRoundToFinish(
+  client: MaciClient,
+  contractAddress: string
+): Promise<void> {
+  while (true) {
+    const round = await client.getRoundInfo({ contractAddress });
+    
+    if (round.status === 'Tallied') {
+      console.log('Round finished');
+      break;
+    }
+    
+    console.log(`Current status: ${round.status}`);
+    await new Promise(resolve => setTimeout(resolve, 10000));
+  }
+}
+```
+
+## Error Handling
+
+```typescript
+async function safeQuery<T>(
+  queryFn: () => Promise<T>
+): Promise<T | null> {
+  try {
+    return await queryFn();
+  } catch (error) {
+    console.error('Query failed:', error);
+    return null;
+  }
+}
+
+const round = await safeQuery(() => 
+  client.getRoundInfo({ contractAddress: 'dora1contract...' })
+);
+
+if (round) {
+  console.log('Round:', round.title);
+} else {
+  console.log('Round not found or query failed');
+}
+```
+
+## Cached Queries
+
+For frequently queried data, implement simple caching:
+
+```typescript
+class CachedMaciClient {
+  private cache = new Map<string, { data: any; expiry: number }>();
+  private cacheDuration = 60000;
+  
+  constructor(private client: MaciClient) {}
+  
+  async getRoundById(contractAddress: string) {
+    const key = `round:${contractAddress}`;
+    const cached = this.cache.get(key);
+    
+    if (cached && cached.expiry > Date.now()) {
+      return cached.data;
+    }
+    
+    const data = await this.client.getRoundInfo({ contractAddress });
+    
+    this.cache.set(key, {
+      data,
+      expiry: Date.now() + this.cacheDuration
+    });
+    
+    return data;
+  }
+}
+
+const cachedClient = new CachedMaciClient(client);
+const round1 = await cachedClient.getRoundById('dora1...');
+const round2 = await cachedClient.getRoundById('dora1...');  // Uses cache
+```
+
+## Related Documentation
+
+- [Advanced Features](/docs/sdk/advanced) - Explore more SDK features
+- [Complete Examples](/docs/examples/basic-voting) - View practical application code
+- [SDK Overview](/docs/sdk/installation) - Return to SDK documentation homepage

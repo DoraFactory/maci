@@ -1,0 +1,253 @@
+# Create Voting Round
+
+Use SDK to create MACI voting rounds.
+
+## Minimal Example
+
+```typescript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+
+const client = new MaciClient({ network: 'testnet' });
+
+// Query available operators
+const operators = await client.indexer.getOperators();
+const operator = operators.find(op => op.status === 'Active');
+
+// Create voting round
+const round = await client.createAMaciRound({
+  signer: wallet,
+  operator: operator.address,
+  
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),  // 7 days later
+  
+  title: 'Community Proposal Vote',
+  voteOptionMap: ['Option A', 'Option B', 'Option C'],
+  
+  circuitType: MaciCircuitType.QV,  // Quadratic voting
+  maxVoter: 100,
+  voiceCreditAmount: '100',
+  
+  whitelist: {
+    addresses: ['dora1...', 'dora1...']  // Whitelist addresses
+  }
+});
+
+console.log('Contract address:', round.contractAddress);
+```
+
+## Core Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `signer` | Wallet | Signing wallet (creator) |
+| `operator` | string | Operator address |
+| `startVoting` | Date | Voting start time |
+| `endVoting` | Date | Voting end time |
+| `title` | string | Vote title |
+| `voteOptionMap` | string[] | Voting options list |
+| `circuitType` | MaciCircuitType | QV or 1P1V |
+| `maxVoter` | number | Maximum voter count |
+| `voiceCreditAmount` | string | Voting weight per person |
+| `whitelist` | object | Whitelist configuration |
+
+## Whitelist Configuration
+
+### Address List Mode
+
+Specify specific address list:
+
+```typescript
+whitelist: {
+  addresses: [
+    'dora1abc...',
+    'dora1def...',
+    'dora1ghi...'
+  ]
+}
+```
+
+### Token Holder Mode
+
+Based on token holdings:
+
+```typescript
+whitelist: {
+  ecosystem: 'cosmoshub',
+  snapshotHeight: '12345678',  // Block height
+  votingPowerArgs: {
+    mode: 'slope',
+    slope: '1000000',      // 1 ATOM = 1 voice credit
+    threshold: '1000000'   // Minimum 1 ATOM to participate
+  }
+}
+```
+
+Voting power calculation:
+
+- **mode: 'slope'** - `voiceCredits = (balance - threshold) / slope`
+- **mode: 'constant'** - Same weight for everyone
+
+## Voting Modes
+
+### Quadratic Voting (QV)
+
+Square of votes is consumption amount, encourages distributed voting:
+
+```typescript
+circuitType: MaciCircuitType.QV
+
+// User has 100 voice credits
+// 10 votes costs 100 credits (10²)
+// 5 votes costs 25 credits (5²)
+```
+
+### One Person One Vote (1P1V)
+
+Votes directly equal consumption amount:
+
+```typescript
+circuitType: MaciCircuitType.IP1V
+
+// User has 100 voice credits
+// 100 votes costs 100 credits
+```
+
+## Pre-add-new-key Mode
+
+Create fully anonymous voting (requires pre-generating keypairs):
+
+```typescript
+import { OperatorClient } from '@dorafactory/maci-sdk';
+
+const operatorClient = new OperatorClient({ network: 'testnet' });
+
+// 1. Generate pre-configured keypairs
+const keypairs = Array.from({ length: 100 }, () => genKeypair());
+
+// 2. Process deactivate and get tree data
+const preDeactivateData = await operatorClient.genPreDeactivates({
+  stateTreeDepth: 10,
+  coordinatorKeypair,
+  deactivates: keypairs.map(kp => ({
+    key: kp,
+    // ... deactivate data
+  })),
+  wasmFile,
+  zkeyFile
+});
+
+// 3. Create round (with pre-deactivate root)
+const round = await client.createAMaciRound({
+  // ... other parameters
+  preDeactivateRoot: preDeactivateData.root
+});
+
+// 4. Distribute keys to users (secure channel)
+```
+
+Users can immediately register anonymously using pre-add-new-key.
+
+## Query Operators
+
+```typescript
+// Get all operators
+const operators = await client.indexer.getOperators();
+
+// Filter active ones
+const active = operators.filter(op => op.status === 'Active');
+
+// View operator info
+console.log('Identity:', active[0].identity);
+console.log('Address:', active[0].address);
+console.log('Pubkey:', active[0].pubkey);
+```
+
+Operator list can also be viewed at https://vota.dorafactory.org/operators.
+
+## Fees
+
+Creating voting rounds requires paying operator service fees. Fees include:
+- Processing deactivate messages (if any)
+- Processing voting messages
+- Generating zero-knowledge proofs
+- Submitting proofs on-chain
+
+Fees are automatically calculated based on voting scale (maxVoter) and complexity.
+
+## Use Case Examples
+
+### DAO Governance Voting
+
+```typescript
+{
+  title: 'Protocol Upgrade Proposal #42',
+  voteOptionMap: ['For', 'Against', 'Abstain'],
+  circuitType: MaciCircuitType.IP1V,
+  whitelist: {
+    ecosystem: 'doravota',
+    votingPowerArgs: { mode: 'constant' }  // One person one vote
+  }
+}
+```
+
+### Quadratic Funding
+
+```typescript
+{
+  title: 'Q1 2024 Public Goods Funding',
+  voteOptionMap: [
+    'Project A: Open Source Tools',
+    'Project B: Educational Content',
+    'Project C: Community Events'
+  ],
+  circuitType: MaciCircuitType.QV,  // Quadratic voting
+  voiceCreditAmount: '1000',
+  whitelist: {
+    ecosystem: 'cosmoshub',
+    votingPowerArgs: {
+      mode: 'slope',
+      slope: '1000000'  // 1 ATOM = 1 credit
+    }
+  }
+}
+```
+
+### Anonymous Poll
+
+```typescript
+{
+  title: 'Product Feature Priority Survey',
+  voteOptionMap: ['Feature A', 'Feature B', 'Feature C', 'Feature D'],
+  circuitType: MaciCircuitType.QV,
+  maxVoter: 1000,
+  voiceCreditAmount: '100',
+  preDeactivateRoot: '0x...'  // Use pre-add-new-key anonymous mode
+}
+```
+
+## FAQ
+
+### How to modify voting configuration?
+
+Once created, configuration cannot be modified. If changes needed, must create new voting round.
+
+### Can I add more whitelist addresses?
+
+No. Whitelist is fixed at creation. If need dynamic addition, consider using on-chain data mode (based on token holdings, etc.).
+
+### Can voting period be extended?
+
+No. Voting start and end times are determined at creation, cannot be changed.
+
+### Where to get Operator address?
+
+Query via `client.indexer.getOperators()`, or visit https://vota.dorafactory.org/operators.
+
+## Next Steps
+
+**Voting Process** - Check [Voting Guide](/docs/sdk/voting-guide) to learn how users vote.
+
+**Query Data** - Refer to [Query API](/docs/sdk/query-api) to learn how to query voting information.
+
+**Complete Examples** - View [Basic Examples](/docs/examples/basic-voting) for end-to-end process.

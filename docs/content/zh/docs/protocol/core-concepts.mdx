@@ -1,0 +1,257 @@
+# 核心概念
+
+AMACI 的核心组件、数据结构和关键机制。
+
+## 三种注册方式
+
+AMACI 提供三种注册方式，平衡隐私和便利性：
+
+### Signup（标准注册）
+
+最快捷的方式。直接用钱包地址注册，合约分配 state index。
+
+```typescript
+const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
+
+await client.signup({
+  signer: wallet,
+  address,
+  contractAddress,
+  maciKeypair
+});
+```
+
+**隐私级别：低。** Operator 可以通过链上 signup 交易关联：地址 `dora1abc...` → state index 5 → 投了什么票。
+
+**适用场景：** 不关心隐私的公开投票，或内部可信环境。
+
+### Add-new-key（动态匿名）
+
+通过零知识证明创建新身份，完全断开与原地址的关联。
+
+**核心思想：** 证明"我知道 deactivate tree 中某个条目的私钥"，但不透露是哪个。
+
+```typescript
+// 1. 用老身份提交 deactivate
+await client.deactivate({ signer: oldWallet, ... });
+
+// 2. 等待 operator 处理 deactivate，生成 deactivate tree
+
+// 3. 生成 ZK 证明
+const voterClient = new VoterClient({ secretKey: oldPrivateKey });
+const payload = await voterClient.buildAddNewKeyPayload({
+  operatorPubkey,
+  deactivates,  // deactivate tree leaves
+  wasmFile,
+  zkeyFile
+});
+
+// 4. 用新钱包提交 add-new-key
+await client.addNewKey({
+  signer: newWallet,  // 不同的地址
+  d: payload.d,
+  proof: payload.proof,
+  nullifier: payload.nullifier,
+  newMaciKeypair: newKeypair
+});
+```
+
+**隐私级别：高。** Operator 只知道"有人用 add-new-key 注册了"，但无法确定是 deactivate tree 中的哪个用户。匿名集大小 = deactivate 消息数量。
+
+**权衡：** 需要等待 operator 处理 deactivate（通常几小时）。
+
+### Pre-add-new-key（预配置匿名）
+
+兼具匿名性和速度。投票创建时预先配置 deactivate tree，用户可以立即匿名注册。
+
+```typescript
+// 平台预先生成密钥对并构建 deactivate tree
+// 用户收到分发的密钥后，本地生成证明
+
+const payload = await voterClient.buildPreAddNewKeyPayload({
+  coordinatorPubkey,
+  deactivates: preConfiguredLeaves,
+  wasmFile,
+  zkeyFile
+});
+
+// 用任意地址发送交易
+await client.rawPreAddNewKey({
+  signer: anyWallet,
+  d: payload.d,
+  proof: payload.proof,
+  nullifier: payload.nullifier,
+  newPubkey: myKeypair.publicKey
+});
+```
+
+**隐私级别：高。** 与 add-new-key 相同，但无需等待。
+
+**权衡：** 需要投票组织者预先配置，且需要安全分发密钥。
+
+## 参与角色
+
+### 投票者
+
+负责生成密钥、提交投票消息。可以选择注册方式：signup（快速但不匿名）、add-new-key（匿名但需等待）或 pre-add-new-key（匿名且即时）。
+
+关键能力：
+- 多次投票，最后一次有效
+- 更改密钥使之前的投票失效
+- 使用 add-new-key 创建匿名身份
+
+### Operator
+
+负责处理投票消息和生成零知识证明。
+
+能做什么：
+- 解密所有投票消息
+- 看到每个 state index 投了什么
+
+不能做什么（AMACI 保护）：
+- 无法确定使用 add-new-key 的用户对应哪个地址
+- 无法篡改投票（ZK 证明约束）
+- 无法忽略或隐藏投票
+
+Operator 是许可制的专业节点网络，由 Dora Factory 管理。查看列表：https://vota.dorafactory.org/operators
+
+### 智能合约
+
+存储加密消息、验证 ZK 证明、发布结果。合约无法解密消息内容，依赖 operator 提交处理结果和证明。
+
+## 状态管理
+
+AMACI 使用 Merkle tree 管理投票者状态：
+
+### State Tree
+
+每个 leaf 代表一个投票者：
+
+```
+State Leaf = {
+  pubKey: [x, y],           // MACI 公钥
+  voiceCreditBalance: 100,  // 可用投票权重
+  voteOptionTreeRoot: hash, // 投票选项树根
+  nonce: 0,                 // 消息序号
+  d1: [0, 0],              // AMACI: 匿名化数据
+  d2: [0, 0]               // AMACI: 匿名化数据
+}
+```
+
+d1/d2 字段是 AMACI 新增的，用于 add-new-key 机制的重新随机化。
+
+### Deactivate Tree (AMACI 独有)
+
+存储所有 deactivate 消息，形成匿名集。每个 leaf：
+
+```
+[c1[0], c1[1], c2[0], c2[1], sharedKeyHash]
+```
+
+Add-new-key 用户证明自己知道这个 tree 中某个条目的私钥，但不透露是哪个。
+
+### Vote Option Tree
+
+每个投票者有一个，记录对各选项的投票权重：
+
+```
+      Root
+      /  \
+  [Opt0] [Opt1]
+  (5vc)  (3vc)
+```
+
+只有投了票的选项对应的 leaf 非零。
+
+### Message Tree
+
+按提交顺序存储所有投票消息。Operator 必须处理所有消息，message tree root 用于验证完整性。
+
+## 关键机制
+
+### Nonce 序列
+
+每个投票者有一个 nonce，从 0 开始递增。Operator 按 nonce 顺序处理消息：
+
+```
+第 1 条消息 nonce=0 → 处理，nonce 变为 1
+第 2 条消息 nonce=1 → 处理，nonce 变为 2
+第 3 条消息 nonce=0 → 忽略（已过期）
+```
+
+这确保最新的投票有效，旧投票被覆盖。
+
+### 密钥更改
+
+投票者可以提交特殊消息更改公钥。State leaf 中的公钥更新后，用旧密钥签名的消息变为无效。
+
+防贿选原理：
+1. 接受贿赂，用旧密钥投给 A
+2. 秘密更改密钥
+3. 用新密钥投给 B
+4. 最终只有 B 有效，贿赂者无法验证
+
+### 消息加密
+
+投票消息使用 ECDH + Poseidon 加密：
+
+1. 投票者私钥 × Operator 公钥 = 共享密钥
+2. 用共享密钥加密投票内容
+3. 用 EdDSA 签名证明消息真实性
+
+Operator 用自己的私钥和投票者公钥生成相同的共享密钥解密。
+
+### 零知识证明
+
+Operator 处理消息后生成 ZK 证明，证明：
+- 处理了所有消息
+- 按正确顺序处理（nonce）
+- 没有篡改任何投票
+- 正确更新了状态树
+- 正确统计了结果
+
+合约验证证明。任何人都可以验证，确保 operator 没有作弊。
+
+## 投票模式
+
+### 一人一票 (1P1V)
+
+Voice credit 直接作为票数消耗：
+
+```typescript
+voiceCredits = 100
+vote = [
+  { idx: 0, vc: 60 },  // 消耗 60
+  { idx: 1, vc: 40 }   // 消耗 40
+]
+```
+
+### 二次方投票 (QV)
+
+票数的平方是消耗量，鼓励分散投票：
+
+```typescript
+voiceCredits = 100
+vote = [
+  { idx: 0, vc: 8 },  // 消耗 64 (8²)
+  { idx: 1, vc: 6 }   // 消耗 36 (6²)
+]
+```
+
+## 白名单模式
+
+投票可以限制参与者：
+
+**地址列表模式** - 指定具体地址，只有列表中的地址可以 signup。
+
+**链上数据模式** - 基于代币持有量等链上数据动态计算资格和投票权重。例如："持有 1 ATOM 以上的地址可以投票，每 1 ATOM = 1 voice credit"。
+
+使用 add-new-key 时，白名单检查发生在 deactivate 阶段（老身份需要在白名单中），新身份无需再次检查。
+
+## 下一步
+
+**理解隐私保护** - 阅读[隐私保护机制](/docs/protocol/privacy-protection)深入了解身份匿名化。
+
+**学习消息流程** - 查看[消息流程](/docs/protocol/message-flow)理解投票消息的生命周期。
+
+**了解密码学** - 查看[密码学机制](/docs/protocol/cryptography)学习 EdDSA、Poseidon 等技术细节。

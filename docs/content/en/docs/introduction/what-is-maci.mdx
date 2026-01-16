@@ -1,0 +1,105 @@
+# MACI Voting System
+
+MACI (Minimal Anti-Collusion Infrastructure) is a cryptography-based on-chain voting system specifically designed to solve collusion, bribery, and privacy leakage issues in traditional electronic voting.
+
+## Why MACI is Needed
+
+Traditional on-chain voting is completely public and transparent—anyone can see who voted for what. This leads to several serious problems:
+
+**Bribery is easy.** In the early days of Gitcoin Grants, people directly tweeted: "Vote for my project, I'll send you money." Because voting records are public, bribers can verify if you actually voted.
+
+**Social pressure is pervasive.** In DAO governance, if you vote against a proposal, you may face community pressure. Some people don't dare express their true opinions because voting records are permanently traceable.
+
+**Sybil attacks are hard to prevent.** Someone creates numerous wallet accounts, votes once with each account, and manipulates voting results.
+
+MACI solves these problems through cryptographic techniques, making voting both verifiable and privacy-preserving.
+
+## MACI vs AMACI
+
+**MACI** is the first implementation, providing vote content encryption and anti-bribery mechanisms. The problem is: although vote content is encrypted, the operator processing votes can see "who voted" through on-chain signup transactions. The operator can determine "address `dora1abc...` voted for option A".
+
+**AMACI** (Anonymous MACI) is the current version, adding identity anonymization on top of MACI. Even the operator can only see "someone voted for option A" but doesn't know which specific address. This is achieved through zero-knowledge proof technology.
+
+## AMACI's Core Mechanisms
+
+### Vote Content Encryption
+
+All voting messages are encrypted with the operator's public key before being submitted on-chain. Only the operator can decrypt message content; external observers cannot see who voted for what.
+
+### Identity Anonymization
+
+AMACI provides three registration methods:
+
+**Signup** is the fastest. Register directly with your wallet address, suitable for public voting scenarios. The downside is the operator can see your address.
+
+**Add-new-key** is fully anonymous. Create a new identity through zero-knowledge proofs; the operator cannot link it to your original address. Requires waiting for the operator to process deactivate messages, usually a few hours.
+
+**Pre-add-new-key** combines anonymity and speed. Vote organizers pre-configure an anonymity set, allowing immediate anonymous registration.
+
+### Anti-Bribery Mechanism
+
+MACI allows you to change keys at any time. Even if you accept a bribe and vote for the briber with your old key, you can still:
+
+1. Secretly change your key
+2. Revote with the new key
+3. Only the last vote counts
+
+Bribers cannot verify your final vote. If you use add-new-key anonymous registration, bribers can't even find bribery targets.
+
+### Zero-Knowledge Proofs
+
+After processing votes, the operator must generate a zero-knowledge proof, proving they:
+- Did not tamper with any votes
+- Did not omit any votes
+- Correctly tallied results
+
+Anyone can verify this proof. The operator cannot cheat.
+
+## Workflow
+
+A complete AMACI voting process:
+
+**Create Round.** Vote organizers select a registered operator, configure voting options, time, participation eligibility, etc., and create a voting instance through the Registry contract with one click.
+
+**User Registration.** Choose signup, add-new-key, or pre-add-new-key registration based on privacy needs.
+
+**Submit Vote.** Voting messages are encrypted locally, then submitted on-chain. Multiple votes allowed; last one counts.
+
+**Operator Processing.** After voting period ends, operator downloads all encrypted messages, decrypts and processes them, and generates zero-knowledge proofs.
+
+**On-chain Verification.** Smart contract verifies the proof submitted by the operator; if verification passes, results are published.
+
+## Key Design Tradeoffs
+
+**Operator Dependency.** AMACI uses a permissioned professional operator network. Operators can see vote content (but don't know who voted when using add-new-key), and may refuse to process votes. This design trades usability for privacy: users don't need to run complex operator software themselves, and zero-knowledge proofs ensure operators cannot cheat.
+
+**Processing Delay.** Results are not real-time. Operators need time to process messages and generate proofs (usually completed within a few hours). This is a necessary cost of privacy protection.
+
+**Gas Costs.** Verifying zero-knowledge proofs requires significant on-chain computation. AMACI subsidizes user transaction fees through Gas Station, with service fees paid to operators when creating rounds.
+
+## Use Cases
+
+AMACI is suitable for voting that requires strong privacy protection and anti-collusion:
+
+- **DAO Governance** - Protocol parameter adjustments, funding allocation decisions, avoiding social pressure and whale manipulation
+- **Quadratic Funding** - Gitcoin Grants-style public goods funding, preventing bribery and collusion
+- **Organization Elections** - Internal elections or representative selection, protecting voting privacy
+- **Token-Weighted Voting** - Governance voting based on token holdings, supporting snapshots and cross-chain
+
+## Technology Stack
+
+AMACI is a complete technology stack:
+
+- Smart Contracts (Rust/CosmWasm) - Deployed on Cosmos chains
+- Zero-Knowledge Circuits (Circom) - Generate and verify proofs
+- Cryptography Library - EdDSA signatures, Poseidon encryption
+- TypeScript SDK - Easy integration for developers
+- Operator Network - Permissioned professional nodes
+
+## Next Steps
+
+**Want a quick experience?** Check out the [Quick Start Guide](/docs/introduction/quick-start) to create your first vote in five minutes.
+
+**Want to understand technical details?** Read [Protocol Overview](/docs/protocol/overview) to deeply understand how AMACI works.
+
+**Want to integrate into your app?** Refer to [SDK Documentation](/docs/sdk/installation) and [Complete Examples](/docs/examples/basic-voting).

@@ -1,0 +1,288 @@
+# Basic Voting Example
+
+This example demonstrates how to create a complete voting application, including creating a Round, user voting, and querying results.
+
+## Complete Code
+
+```typescript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+async function main() {
+  const client = new MaciClient({ network: 'testnet' });
+  
+  const creatorWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.CREATOR_PRIVATE_KEY!, 'hex'),
+    'dora'
+  );
+  
+  const [creatorAccount] = await creatorWallet.getAccounts();
+  console.log('Creator:', creatorAccount.address);
+  
+  // Query and select Operator
+  const operators = await client.indexer.getOperators();
+  const activeOperators = operators.filter(op => op.status === 'Active');
+  const selectedOperator = activeOperators[0];
+  
+  console.log('Selected Operator:', selectedOperator.identity);
+  
+  // Create voting round
+  const round = await client.createAMaciRound({
+    signer: creatorWallet,
+    operator: selectedOperator.address,
+    
+    startVoting: new Date(),
+    endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    
+    title: 'Community Proposal Vote',
+    description: 'Example AMACI voting round',
+    link: 'https://example.com',
+    
+    voteOptionMap: [
+      'Proposal A: Increase community fund',
+      'Proposal B: Improve technical infrastructure',
+      'Proposal C: Expand marketing',
+      'Proposal D: Education and training'
+    ],
+    
+    circuitType: MaciCircuitType.QV,
+    maxVoter: 100,
+    voiceCreditAmount: '100',
+    
+    whitelist: {
+      addresses: [
+        process.env.VOTER_A_ADDRESS!,
+        process.env.VOTER_B_ADDRESS!,
+        process.env.VOTER_C_ADDRESS!
+      ]
+    }
+  });
+  
+  console.log('Round created:', round.contractAddress);
+  console.log('Transaction hash:', round.transactionHash);
+  
+  const contractAddress = round.contractAddress;
+  
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  
+  // Voter A votes
+  const voterAWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.VOTER_A_PRIVATE_KEY!, 'hex'),
+    'dora'
+  );
+  const [voterA] = await voterAWallet.getAccounts();
+  
+  await voteAsUser(
+    client,
+    voterAWallet,
+    voterA.address,
+    contractAddress,
+    [
+      { idx: 0, vc: 8 },
+      { idx: 2, vc: 6 }
+    ]
+  );
+  
+  // Voter B votes
+  const voterBWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.VOTER_B_PRIVATE_KEY!, 'hex'),
+    'dora'
+  );
+  const [voterB] = await voterBWallet.getAccounts();
+  
+  await voteAsUser(
+    client,
+    voterBWallet,
+    voterB.address,
+    contractAddress,
+    [
+      { idx: 1, vc: 9 },
+      { idx: 3, vc: 4 }
+    ]
+  );
+  
+  // Voter A changes mind
+  await revote(
+    client,
+    voterAWallet,
+    voterA.address,
+    contractAddress,
+    [
+      { idx: 1, vc: 10 }
+    ]
+  );
+  
+  // Query current status
+  const roundInfo = await client.getRoundInfo({ contractAddress });
+  
+  console.log('Round info:');
+  console.log('- Title:', roundInfo.title);
+  console.log('- Status:', roundInfo.status);
+  console.log('- Signups:', roundInfo.numSignups);
+  console.log('- Messages:', roundInfo.numMessages);
+  
+  console.log('Example completed');
+  console.log('Note: Final results require Operator processing');
+}
+
+async function voteAsUser(
+  client: MaciClient,
+  wallet: any,
+  address: string,
+  contractAddress: string,
+  options: { idx: number; vc: number }[]
+) {
+  console.log(`User ${address.slice(0, 10)}... voting`);
+  
+  const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
+  const hasGasStation = await waitForGasStation(client, address, contractAddress);
+  
+  await client.signup({
+    signer: wallet,
+    address,
+    contractAddress,
+    maciKeypair,
+    gasStation: hasGasStation
+  });
+  
+  const roundInfo = await client.getRoundInfo({ contractAddress });
+  
+  await client.vote({
+    signer: wallet,
+    address,
+    contractAddress,
+    selectedOptions: options,
+    operatorCoordPubKey: [
+      BigInt(roundInfo.coordinatorPubkeyX),
+      BigInt(roundInfo.coordinatorPubkeyY)
+    ],
+    maciKeypair,
+    gasStation: hasGasStation
+  });
+  
+  console.log(`User ${address.slice(0, 10)}... voted successfully`);
+  
+  options.forEach(opt => {
+    const cost = opt.vc * opt.vc;
+    console.log(`   - Option ${opt.idx}: ${opt.vc} votes (cost ${cost} credits)`);
+  });
+}
+
+async function revote(
+  client: MaciClient,
+  wallet: any,
+  address: string,
+  contractAddress: string,
+  options: { idx: number; vc: number }[]
+) {
+  console.log(`User ${address.slice(0, 10)}... changing vote`);
+  
+  const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
+  const roundInfo = await client.getRoundInfo({ contractAddress });
+  const hasGasStation = await waitForGasStation(client, address, contractAddress);
+  
+  await client.vote({
+    signer: wallet,
+    address,
+    contractAddress,
+    selectedOptions: options,
+    operatorCoordPubKey: [
+      BigInt(roundInfo.coordinatorPubkeyX),
+      BigInt(roundInfo.coordinatorPubkeyY)
+    ],
+    maciKeypair,
+    gasStation: hasGasStation
+  });
+  
+  console.log(`User ${address.slice(0, 10)}... vote changed successfully`);
+}
+
+async function waitForGasStation(
+  client: MaciClient,
+  address: string,
+  contractAddress: string
+): Promise<boolean> {
+  let hasFeegrant = false;
+  let attempts = 0;
+  const maxAttempts = 30;
+  
+  while (!hasFeegrant && attempts < maxAttempts) {
+    hasFeegrant = await client.hasFeegrant({
+      address,
+      contractAddress
+    });
+    
+    if (!hasFeegrant) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      attempts++;
+    }
+  }
+  
+  return hasFeegrant;
+}
+
+main().catch(console.error);
+```
+
+## Environment Configuration
+
+Create `.env` file:
+
+```bash
+# .env
+CREATOR_PRIVATE_KEY=your_creator_private_key_here
+VOTER_A_PRIVATE_KEY=voter_a_private_key_here
+VOTER_B_PRIVATE_KEY=voter_b_private_key_here
+OPERATOR_PUBKEY=operator_public_key_here
+```
+
+## Run Example
+
+```bash
+# Install dependencies
+npm install @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate dotenv
+
+# Run example
+npx ts-node basic-voting.ts
+```
+
+## Expected Output
+
+```
+Creator: dora1creator...
+
+Selected Operator: Dora Foundation
+
+Round created: dora1contract...
+Transaction hash: ABCD1234...
+
+User dora1voter... voting
+User dora1voter... voted successfully
+   - Option 0: 8 votes (cost 64 credits)
+   - Option 2: 6 votes (cost 36 credits)
+
+User dora1voter... voting
+User dora1voter... voted successfully
+   - Option 1: 9 votes (cost 81 credits)
+   - Option 3: 4 votes (cost 16 credits)
+
+User dora1voter... changing vote
+User dora1voter... vote changed successfully
+
+Round info:
+- Title: Community Proposal Vote
+- Status: Voting
+- Signups: 2
+- Messages: 3
+
+Example completed
+```
+
+## Related Documentation
+
+- [Pre-add-new-key Example](/docs/examples/pre-addnewkey-round) - Anonymous voting example
+- [SDK Documentation](/docs/sdk/installation) - Learn more SDK features
+- [Protocol Explained](/docs/protocol/overview) - Deep dive into MACI

@@ -1,0 +1,261 @@
+# Privacy Protection Mechanisms
+
+AMACI's privacy protection design. This document analyzes threats from potential attackers' perspectives and explains how AMACI defends against them.
+
+## What Attackers Want to Do
+
+### Attack 1: View Vote Content
+
+**Goal:** Know who voted for what.
+
+**Method:** Observe voting transactions on blockchain.
+
+**MACI's Defense:** Voting messages encrypted with operator public key. Blockchain observers can only see encrypted data, cannot decrypt.
+
+```typescript
+// On-chain only shows encrypted data
+{
+  encPubKey: [bigint, bigint],
+  data: [bigint, bigint, bigint, ...],  // Poseidon encrypted
+  signature: {...}
+}
+```
+
+Only operator can decrypt with private key. But operator is constrained by zero-knowledge proofs, must correctly process all votes, cannot cheat.
+
+**Limitation:** Operator can see vote content. If concerned about operator leaking, need additional identity anonymization (see Attack 3).
+
+### Attack 2: Vote Buying
+
+**Goal:** Bribe voters to vote for specific options and provide proof of voting.
+
+**Traditional Voting Problem:** Vote records are public, voters can provide transaction hash as proof. Bribers can verify votes.
+
+**MACI's Defense:** Key change mechanism.
+
+Scenario:
+
+```
+1. Alice accepts Bob's bribe, required to vote for option A
+2. Alice votes for A with key K1, provides proof to Bob
+3. Alice secretly changes key to K2
+4. Alice revotes for B with K2
+5. Only B is valid in the end
+```
+
+Voter's state stores current public key. After changing key, messages signed with old key become invalid. Bob cannot verify Alice's final vote.
+
+**Core Principle:** Voters cannot prove their final vote to third parties because they can change it at any time.
+
+### Attack 3: Operator Tracks Voter Identity
+
+**Goal:** Operator wants to know which specific address voted, for targeted bribery or retaliation.
+
+**MACI's Problem:** Operator can correlate identity through on-chain signup transactions.
+
+```
+On-chain signup transaction (public):
+  sender: dora1abc...
+  pubkey: 0x123...
+
+Contract query:
+  pubkey 0x123... → state index 5
+
+Decrypt vote:
+  state index 5 → voted for option A
+
+Conclusion: dora1abc... voted for option A
+```
+
+Operator can determine which specific address voted, can conduct targeted attacks.
+
+**AMACI's Defense:** Add-new-key mechanism (identity anonymization).
+
+Core idea: Use zero-knowledge proofs to create new identity, breaking link to original address.
+
+How it works:
+
+```
+1. Old user submits deactivate message
+   - Message content encrypted
+   - Placed in deactivate tree
+
+2. Operator processes deactivate
+   - Builds deactivate tree (assume N entries)
+   - Publishes tree root
+
+3. New user registers with ZK proof
+   - Proves: "I know the private key of some entry in deactivate tree"
+   - Doesn't reveal which one
+   - Sends transaction with new wallet address
+
+4. Operator sees add-new-key transaction
+   - Knows someone registered with add-new-key
+   - But this person is one of N deactivated users
+   - Cannot determine who specifically
+```
+
+**Anonymity Set Size:** If 100 users deactivated, add-new-key user's anonymity set is these 100 people. Operator can only determine it's one of these 100, but doesn't know who specifically.
+
+**Operator's Perspective:**
+
+```
+MACI:
+  State Index 5 → dora1abc... (knows for certain)
+
+AMACI (add-new-key):
+  State Index 5 → ??? (one of 100 possibilities, cannot determine)
+```
+
+Even if Operator wants to bribe or retaliate against voters, cannot find targets.
+
+### Attack 4: Coerced Voting
+
+**Goal:** Force someone to vote for specific option, e.g., employer requiring employees to vote for certain proposal.
+
+**MACI's Defense:** Repeatable voting + key change.
+
+```
+1. Employee forced to vote for A (with key K1)
+2. Employee secretly changes key to K2
+3. Employee revotes for B with K2
+4. Only B is valid in the end
+```
+
+Coercer cannot verify final vote. If using add-new-key, coercer doesn't even know who to coerce.
+
+### Attack 5: Operator Tampers with Votes
+
+**Goal:** Operator decrypts messages then tries to modify vote content or results.
+
+**MACI's Defense:** Zero-knowledge proofs.
+
+After processing votes, Operator must generate ZK proof proving:
+- Processed all messages (message tree root matches)
+- Processed in correct order (nonce)
+- Did not modify any vote content
+- Correctly updated state tree
+- Correctly tallied results
+
+```rust
+// Operator submits
+ProcessMessages {
+  new_state_commitment: "0x...",
+  new_state_root: "0x...",
+  proof: [...]  // ZK proof
+}
+```
+
+Contract verifies proof. If operator tampers with any vote, proof verification fails. Anyone can verify proof validity.
+
+**Limitation:** Operator can see vote content, but cannot change content or results.
+
+## Privacy Protection Layers
+
+AMACI provides three progressive layers of privacy protection:
+
+### Layer 1: Vote Content Encryption
+
+Everyone (except operator) cannot see vote content.
+
+Use case: When trusting operator to keep content confidential.
+
+### Layer 2: Anti-Collusion Mechanism
+
+Key change + repeatable voting, prevents vote buying and coercion.
+
+Voters cannot prove final vote to third parties, making bribery and coercion meaningless.
+
+### Layer 3: Identity Anonymization
+
+Operator also cannot determine voter identity (when using add-new-key).
+
+Even if operator wants to conduct targeted attacks, cannot find targets.
+
+## Privacy Levels of Three Registration Methods
+
+### Signup
+
+Defends against attacks 1, 2, 4, 5.
+
+Operator knows your identity (attack 3 ineffective).
+
+Suitable for: Trust operator or don't care about privacy scenarios.
+
+### Add-new-key
+
+Defends against all attacks (1-5).
+
+Operator cannot determine your identity.
+
+Suitable for: Need complete privacy scenarios.
+
+Trade-off: Need to wait for operator to process deactivate (usually a few hours).
+
+### Pre-add-new-key
+
+Defends against all attacks (1-5), without waiting.
+
+Requires vote organizer to pre-configure deactivate tree.
+
+Suitable for: Need instant anonymous registration scenarios.
+
+## Trust Assumptions
+
+AMACI's security is based on the following assumptions:
+
+**Cryptographic Assumptions:**
+- EdDSA signatures are unforgeable
+- Poseidon hash is collision-resistant
+- ECDH key exchange is secure
+- ZK proof system is sound
+
+**Operational Assumptions:**
+- Operator correctly generates keypair
+- Operator protects private key securely
+- Voters protect their MACI private keys
+
+**Protocol Assumptions:**
+- Operator will process votes (liveness assumption)
+- Smart contracts correctly implement protocol logic
+- Blockchain won't rollback confirmed transactions
+
+**Don't Need to Trust:**
+- Operator won't tamper with votes (ZK proofs guarantee)
+- Operator won't ignore votes (ZK proofs guarantee)
+- Operator doesn't know identity (when using add-new-key)
+
+## Privacy vs Convenience Trade-off
+
+**Signup:** Fastest, but operator knows identity
+- Registration: Immediate
+- Privacy: Low
+
+**Add-new-key:** Most anonymous, but requires waiting
+- Registration: Wait for deactivate processing (~few hours)
+- Privacy: High
+
+**Pre-add-new-key:** Combines anonymity and speed
+- Registration: Immediate
+- Privacy: High
+- Trade-off: Requires vote organizer pre-configuration
+
+Choose based on your privacy needs and time budget.
+
+## Practical Recommendations
+
+**Public Voting (DAO proposals, community decisions):** Use signup. Speed is most important, public identity is acceptable.
+
+**Sensitive Voting (Stakeholder fund allocation):** Use add-new-key. Fully anonymous, prevents targeted attacks.
+
+**Large-Scale Public Vote (Need quick participation):** Use pre-add-new-key. Organizer pre-configures deactivate tree, users can register anonymously immediately.
+
+**Internal Elections (Employer/employee relationships):** Use add-new-key. Prevents coerced voting and retaliation.
+
+## Next Steps
+
+**Understand Technical Details** - Check [Cryptography Mechanisms](/docs/protocol/cryptography) to learn EdDSA, Poseidon implementations.
+
+**Understand Registration Methods** - Read [Core Concepts](/docs/protocol/core-concepts) for deep dive into technical details of three registration methods.
+
+**Message Flow** - View [Message Flow](/docs/protocol/message-flow) to understand voting message lifecycle.

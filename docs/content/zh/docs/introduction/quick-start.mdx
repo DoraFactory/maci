@@ -1,0 +1,258 @@
+# 快速开始
+
+假设你要为社区创建一个匿名提案投票。本指南演示如何用 MACI SDK 实现这个场景。
+
+## 环境准备
+
+需要安装：
+- Node.js 16+
+- npm 或 pnpm
+- 一个测试网钱包私钥
+
+## 安装 SDK
+
+```bash
+mkdir my-voting-app && cd my-voting-app
+npm init -y
+npm install @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate
+```
+
+## 创建投票
+
+创建 `create-vote.js`：
+
+```javascript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+
+const client = new MaciClient({ network: 'testnet' });
+
+async function createVote() {
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.PRIVATE_KEY, 'hex'),
+    'dora'
+  );
+  
+  const round = await client.createAMaciRound({
+    signer: wallet,
+    operator: 'dora1...',  // Operator 地址
+    
+    startVoting: new Date(),
+    endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    
+    title: '社区提案投票',
+    voteOptionMap: [
+      '提案 A: 增加开发资金',
+      '提案 B: 改进基础设施',
+      '提案 C: 市场推广'
+    ],
+    
+    circuitType: MaciCircuitType.QV,
+    maxVoter: 100,
+    voiceCreditAmount: '100',
+    
+    whitelist: {
+      addresses: ['dora1...', 'dora1...']  // 白名单地址
+    }
+  });
+  
+  console.log('投票已创建:', round.contractAddress);
+  return round.contractAddress;
+}
+
+createVote().catch(console.error);
+```
+
+## 参与投票
+
+创建 `vote.js`：
+
+```javascript
+import { MaciClient } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+
+const client = new MaciClient({ network: 'testnet' });
+const contractAddress = 'dora1...';  // 上一步创建的合约地址
+
+async function castVote() {
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.PRIVATE_KEY, 'hex'),
+    'dora'
+  );
+  const [account] = await wallet.getAccounts();
+  
+  // Generate MACI keypair from wallet
+  const maciKeypair = await client.genKeypairFromSign({ 
+    signer: wallet, 
+    address: account.address 
+  });
+  
+  // Sign up (whitelist only)
+  await client.signup({
+    signer: wallet,
+    address: account.address,
+    contractAddress,
+    maciKeypair,
+    gasStation: true
+  });
+  
+  // Get operator public key
+  const roundInfo = await client.getRoundInfo({ contractAddress });
+  
+  // Cast vote
+  await client.vote({
+    signer: wallet,
+    address: account.address,
+    contractAddress,
+    selectedOptions: [
+      { idx: 0, vc: 8 },  // Proposal A: 8 votes (costs 64 credits in QV)
+      { idx: 2, vc: 6 }   // Proposal C: 6 votes (costs 36 credits in QV)
+    ],
+    operatorCoordPubKey: [
+      BigInt(roundInfo.coordinatorPubkeyX),
+      BigInt(roundInfo.coordinatorPubkeyY)
+    ],
+    maciKeypair,
+    gasStation: true
+  });
+  
+  console.log('投票成功');
+}
+
+castVote().catch(console.error);
+```
+
+## 匿名投票（可选）
+
+如果需要完全匿名，使用 pre-add-new-key 方式：
+
+```javascript
+import { VoterClient, genKeypair } from '@dorafactory/maci-sdk';
+
+async function anonymousVote() {
+  // 使用平台分发的密钥
+  const voterClient = new VoterClient({
+    network: 'testnet',
+    secretKey: receivedPrivateKey
+  });
+  
+  // 生成自己的新密钥
+  const myKeypair = genKeypair();
+  
+  // 生成 ZK 证明
+  const payload = await voterClient.buildPreAddNewKeyPayload({
+    stateTreeDepth: 10,
+    coordinatorPubkey: preDeactivateData.coordinatorPubkey,
+    deactivates: preDeactivateData.leaves,
+    wasmFile: './addNewKey.wasm',
+    zkeyFile: './addNewKey.zkey'
+  });
+  
+  // 用任意地址发送交易
+  await client.rawPreAddNewKey({
+    signer: anyWallet,
+    contractAddress,
+    d: payload.d,
+    proof: payload.proof,
+    nullifier: payload.nullifier,
+    newPubkey: {
+      x: myKeypair.publicKey[0].toString(16),
+      y: myKeypair.publicKey[1].toString(16)
+    },
+    gasStation: true
+  });
+  
+  // 用新密钥投票
+  await client.vote({
+    signer: anyWallet,
+    address: anyAddress,
+    contractAddress,
+    selectedOptions: [{ idx: 0, vc: 10 }],
+    operatorCoordPubKey: [...],
+    maciKeypair: myKeypair,
+    gasStation: true
+  });
+}
+```
+
+## 查询结果
+
+```javascript
+const round = await client.getRoundInfo({ contractAddress });
+
+console.log('投票状态:', round.status);
+console.log('参与人数:', round.numSignups);
+console.log('投票消息数:', round.numMessages);
+
+// 结果在 operator 处理后可用
+if (round.results) {
+  console.log('投票结果:', round.results);
+}
+```
+
+## 常见问题
+
+### "Not in whitelist" 错误
+
+你的地址不在白名单中。检查：
+- 创建投票时是否正确配置白名单
+- 使用的地址是否在白名单列表里
+- 如果使用 Oracle 模式，是否满足持币要求
+
+### "Insufficient voice credits" 错误
+
+投票消耗超过可用额度。在 QV 模式下，票数的平方是消耗量：
+- 投 10 票消耗 100 credits
+- 投 8 票消耗 64 credits
+
+检查你的 voice credit 余额和投票配额。
+
+### Gas Station 不可用
+
+如果 `hasFeegrant` 返回 false：
+- 等待几分钟后重试，Gas Station 可能还在配置
+- 或者确保钱包有足够余额支付 gas 费用，设置 `gasStation: false`
+
+### Operator 公钥错误
+
+从 Registry 合约查询正确的 operator 信息：
+
+```javascript
+const operators = await client.indexer.getOperators();
+const operator = operators.find(op => op.address === 'dora1...');
+console.log('Operator 公钥:', operator.pubkey);
+```
+
+## 二次方投票 (QV) vs 一人一票 (1P1V)
+
+**二次方投票：** 票数的平方是消耗量，鼓励分散投票
+
+```javascript
+// 100 credits 可用
+[
+  { idx: 0, vc: 8 },  // 8² = 64 credits
+  { idx: 1, vc: 6 }   // 6² = 36 credits
+]
+// 总消耗 100 credits
+```
+
+**一人一票：** 票数直接等于消耗量
+
+```javascript
+// 100 credits 可用
+[
+  { idx: 0, vc: 60 },  // 60 credits
+  { idx: 1, vc: 40 }   // 40 credits
+]
+// 总消耗 100 credits
+```
+
+## 下一步
+
+**理解原理：** 阅读[协议概览](/docs/protocol/overview)了解 MACI 如何工作
+
+**完整示例：** 查看[完整代码示例](/docs/examples/basic-voting)学习更多场景
+
+**API 参考：** 查阅 [SDK 文档](/docs/sdk/installation)了解所有可用功能
+
+**合约交互：** 学习[合约架构](/docs/contracts/architecture)理解底层实现
