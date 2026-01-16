@@ -1,5 +1,406 @@
 # Advanced Features
 
-Advanced SDK features and customization options.
+Explore advanced features and best practices of MACI SDK.
 
-*English documentation coming soon. Please refer to the [Chinese version](/zh/docs/sdk/advanced) for now.*
+## Transaction Monitoring
+
+### Monitor Transaction Status
+
+```typescript
+async function monitorTransaction(
+  client: MaciClient,
+  txHash: string
+): Promise<void> {
+  let confirmed = false;
+  let attempts = 0;
+  const maxAttempts = 30;
+  
+  while (!confirmed && attempts < maxAttempts) {
+    try {
+      const tx = await client.indexer.getTransactionByHash(txHash);
+      
+      if (tx.success) {
+        console.log('Transaction confirmed');
+        console.log(`Block height: ${tx.height}`);
+        console.log(`Gas used: ${tx.gasUsed}`);
+        confirmed = true;
+      } else {
+        console.log('Transaction failed');
+        break;
+      }
+    } catch (error) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      attempts++;
+    }
+  }
+}
+```
+
+### Transaction Retry Mechanism
+
+```typescript
+async function retryTransaction<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+      } else {
+        throw error;
+      }
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
+// Usage
+const round = await retryTransaction(() =>
+  client.createAMaciRound({
+    operator: operator.address,
+    /* other parameters */
+  })
+);
+```
+
+## Batch Operations
+
+### Batch Query Rounds
+
+```typescript
+async function batchGetRounds(
+  client: MaciClient,
+  contractAddresses: string[]
+): Promise<Round[]> {
+  const promises = contractAddresses.map(addr =>
+    client.getRoundInfo({ contractAddress: addr }).catch(error => {
+      console.error(`Failed to get ${addr}:`, error.message);
+      return null;
+    })
+  );
+  
+  const results = await Promise.all(promises);
+  return results.filter(r => r !== null) as Round[];
+}
+```
+
+### Batch Voting Processing
+
+```typescript
+async function batchVote(
+  client: MaciClient,
+  wallet: any,
+  address: string,
+  rounds: Array<{
+    contractAddress: string;
+    options: { idx: number; vc: number }[];
+  }>
+): Promise<void> {
+  for (const round of rounds) {
+    try {
+      await completeVotingProcess(
+        client,
+        wallet,
+        address,
+        round.contractAddress,
+        round.options
+      );
+    } catch (error) {
+      console.error(`Vote failed for ${round.contractAddress}:`, error.message);
+    }
+  }
+}
+```
+
+## Custom Network Configuration
+
+### Connect to Custom Network
+
+```typescript
+import { MaciClient } from '@dorafactory/maci-sdk';
+
+const customClient = new MaciClient({
+  network: 'testnet',
+  rpcEndpoint: 'https://custom-rpc.example.com',
+  chainId: 'custom-chain-1',
+  gasPrice: '0.025udora',
+  registryAddress: 'dora1customregistry...'
+});
+```
+
+### Dynamic Network Switching
+
+```typescript
+class MultiNetworkClient {
+  private clients: Map<string, MaciClient> = new Map();
+  
+  getClient(network: 'mainnet' | 'testnet' | 'local'): MaciClient {
+    if (!this.clients.has(network)) {
+      this.clients.set(network, new MaciClient({ network }));
+    }
+    return this.clients.get(network)!;
+  }
+  
+  async getRoundOnAnyNetwork(contractAddress: string) {
+    for (const network of ['mainnet', 'testnet', 'local'] as const) {
+      try {
+        const client = this.getClient(network);
+        const round = await client.getRoundInfo({ contractAddress });
+        return { network, round };
+      } catch (error) {
+        continue;
+      }
+    }
+    throw new Error('Round not found on any network');
+  }
+}
+```
+
+## Gas Optimization
+
+### Estimate Gas
+
+```typescript
+async function estimateGas(
+  client: MaciClient,
+  operation: 'signup' | 'vote' | 'createRound'
+): Promise<number> {
+  const gasEstimates = {
+    signup: 200000,
+    vote: 150000,
+    createRound: 500000
+  };
+  
+  return gasEstimates[operation];
+}
+```
+
+### Gas Price Optimization
+
+```typescript
+async function optimizedTransaction<T>(
+  client: MaciClient,
+  txFn: () => Promise<T>,
+  useGasStation: boolean = true
+): Promise<T> {
+  if (useGasStation) {
+    return await txFn();
+  } else {
+    // Pay gas yourself, can dynamically adjust price based on network conditions
+    return await txFn();
+  }
+}
+```
+
+## Error Handling Best Practices
+
+### Unified Error Handling
+
+```typescript
+class MaciError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'MaciError';
+  }
+}
+
+async function handleMaciOperation<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error: any) {
+    if (error.message.includes('insufficient funds')) {
+      throw new MaciError('Insufficient balance', 'INSUFFICIENT_FUNDS', error);
+    } else if (error.message.includes('not in voting period')) {
+      throw new MaciError('Not in voting period', 'NOT_IN_VOTING_PERIOD', error);
+    } else if (error.message.includes('already signed up')) {
+      throw new MaciError('Already signed up', 'ALREADY_SIGNED_UP', error);
+    } else {
+      throw new MaciError('Operation failed', 'UNKNOWN_ERROR', error);
+    }
+  }
+}
+
+// Usage
+try {
+  await handleMaciOperation(() =>
+    client.maci.signup({ /* parameters */ })
+  );
+} catch (error) {
+  if (error instanceof MaciError) {
+    console.error(`Error [${error.code}]: ${error.message}`);
+  }
+}
+```
+
+## Event Listening
+
+### Monitor Round Status Changes
+
+```typescript
+class RoundWatcher {
+  private intervals: Map<string, NodeJS.Timeout> = new Map();
+  
+  watch(
+    client: MaciClient,
+    contractAddress: string,
+    callback: (status: string) => void,
+    interval: number = 10000
+  ): void {
+    let lastStatus: string | null = null;
+    
+    const checkStatus = async () => {
+      try {
+        const round = await client.getRoundInfo({ contractAddress });
+        
+        if (round.status !== lastStatus) {
+          lastStatus = round.status;
+          callback(round.status);
+        }
+      } catch (error) {
+        console.error('Status check failed:', error);
+      }
+    };
+    
+    checkStatus();
+    
+    const timer = setInterval(checkStatus, interval);
+    this.intervals.set(contractAddress, timer);
+  }
+  
+  unwatch(contractAddress: string): void {
+    const timer = this.intervals.get(contractAddress);
+    if (timer) {
+      clearInterval(timer);
+      this.intervals.delete(contractAddress);
+    }
+  }
+  
+  unwatchAll(): void {
+    for (const timer of this.intervals.values()) {
+      clearInterval(timer);
+    }
+    this.intervals.clear();
+  }
+}
+
+// Usage
+const watcher = new RoundWatcher();
+
+watcher.watch(client, 'dora1contract...', (status) => {
+  console.log(`Round status changed: ${status}`);
+  
+  if (status === 'Tallied') {
+    watcher.unwatch('dora1contract...');
+  }
+});
+```
+
+## Utility Functions
+
+### Time Conversion
+
+```typescript
+function timestampToDate(timestamp: number): Date {
+  return new Date(timestamp * 1000);
+}
+
+function dateToTimestamp(date: Date): number {
+  return Math.floor(date.getTime() / 1000);
+}
+
+function formatVotingTime(votingTime: VotingTime): string {
+  const start = timestampToDate(votingTime.startTime);
+  const end = timestampToDate(votingTime.endTime);
+  
+  return `${start.toLocaleString()} - ${end.toLocaleString()}`;
+}
+```
+
+### Voting Weight Calculation
+
+```typescript
+function calculateMaxVotes(voiceCredits: number, isQV: boolean): number {
+  if (isQV) {
+    return Math.floor(Math.sqrt(voiceCredits));
+  } else {
+    return voiceCredits;
+  }
+}
+
+function calculateVoteCost(
+  votes: { idx: number; vc: number }[],
+  isQV: boolean
+): number {
+  return votes.reduce((sum, vote) => {
+    return sum + (isQV ? vote.vc * vote.vc : vote.vc);
+  }, 0);
+}
+
+function validateVotes(
+  votes: { idx: number; vc: number }[],
+  voiceCredits: number,
+  isQV: boolean
+): { valid: boolean; error?: string } {
+  const cost = calculateVoteCost(votes, isQV);
+  
+  if (cost > voiceCredits) {
+    return {
+      valid: false,
+      error: `Cost (${cost}) exceeds available credits (${voiceCredits})`
+    };
+  }
+  
+  return { valid: true };
+}
+```
+
+## Performance Optimization
+
+### Request Deduplication
+
+```typescript
+class RequestDeduplicator {
+  private pending: Map<string, Promise<any>> = new Map();
+  
+  async deduplicate<T>(
+    key: string,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    if (this.pending.has(key)) {
+      return this.pending.get(key);
+    }
+    
+    const promise = fn().finally(() => {
+      this.pending.delete(key);
+    });
+    
+    this.pending.set(key, promise);
+    return promise;
+  }
+}
+
+const dedup = new RequestDeduplicator();
+
+// Even with concurrent calls, only one request is sent
+const [round1, round2, round3] = await Promise.all([
+  dedup.deduplicate('round:dora1...', () => client.getRoundById('dora1...')),
+  dedup.deduplicate('round:dora1...', () => client.getRoundById('dora1...')),
+  dedup.deduplicate('round:dora1...', () => client.getRoundById('dora1...'))
+]);
+```
+
+## Related Documentation
+
+- [Complete Examples](/docs/examples/basic-voting) - View practical application code
+- [SDK Overview](/docs/sdk/installation) - Return to SDK documentation homepage
+- [Quick Start](/docs/introduction/quick-start) - Get started with MACI quickly

@@ -1,149 +1,258 @@
 # Quick Start
 
-This guide will help you create your first MACI voting round in 5 minutes.
+Let's create an anonymous proposal voting system for your community. This guide demonstrates how to implement this scenario using the MACI SDK.
 
-## Overview
+## Environment Setup
 
-We'll create a simple anonymous voting round where users can vote on their favorite programming language. You'll learn:
+Requirements:
+- Node.js 16+
+- npm or pnpm
+- A testnet wallet private key
 
-- How to install and configure the SDK
-- How to create a voting round
-- How to register and vote
-- How to query results
-
-## Prerequisites
-
-- Node.js 16+ installed
-- A Cosmos wallet with test tokens
-- Basic knowledge of TypeScript
-
-## Step 1: Install SDK
+## Install SDK
 
 ```bash
-npm install @dorafactory/maci-sdk
+mkdir my-voting-app && cd my-voting-app
+npm init -y
+npm install @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate
 ```
 
-Or using yarn:
+## Create Voting Round
 
-```bash
-yarn add @dorafactory/maci-sdk
-```
+Create `create-vote.js`:
 
-## Step 2: Initialize Client
+```javascript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 
-```typescript
-import { MACIClient } from '@dorafactory/maci-sdk';
+const client = new MaciClient({ network: 'testnet' });
 
-const client = await MACIClient.connect({
-  endpoint: 'https://rpc.dora.com',
-  chainId: 'dora-1',
-  wallet: yourWallet,
-});
-```
-
-## Step 3: Create Voting Round
-
-```typescript
-const result = await client.createRound({
-  title: 'Favorite Programming Language',
-  description: 'Vote for your favorite language',
-  options: ['JavaScript', 'Python', 'Rust', 'Go'],
-  duration: 7 * 24 * 60 * 60, // 7 days
-  votingMode: 'qv', // Quadratic voting
-  operatorAddress: 'dora1...', // Select operator
-});
-
-console.log('Round created:', result.roundId);
-```
-
-## Step 4: Register to Vote
-
-```typescript
-// Option 1: Fast signup (not anonymous)
-await client.signup(roundId);
-
-// Option 2: Anonymous registration (requires waiting)
-await client.addNewKey(roundId);
-
-// Option 3: Pre-configured anonymous (instant)
-await client.preAddNewKey(roundId, anonymitySetId);
-```
-
-## Step 5: Submit Vote
-
-```typescript
-await client.vote({
-  roundId: roundId,
-  votes: [
-    { option: 0, credits: 9 }, // JavaScript - 9 credits = 3 votes
-    { option: 2, credits: 4 }, // Rust - 4 credits = 2 votes
-  ],
-});
-```
-
-## Step 6: Query Results
-
-```typescript
-// Wait for operator to process
-const status = await client.getRoundStatus(roundId);
-
-if (status === 'tallied') {
-  const results = await client.getResults(roundId);
-  console.log('Results:', results);
+async function createVote() {
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.PRIVATE_KEY, 'hex'),
+    'dora'
+  );
+  
+  const round = await client.createAMaciRound({
+    signer: wallet,
+    operator: 'dora1...',  // Operator address
+    
+    startVoting: new Date(),
+    endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    
+    title: 'Community Proposal Vote',
+    voteOptionMap: [
+      'Proposal A: Increase Development Funding',
+      'Proposal B: Improve Infrastructure',
+      'Proposal C: Marketing Campaign'
+    ],
+    
+    circuitType: MaciCircuitType.QV,
+    maxVoter: 100,
+    voiceCreditAmount: '100',
+    
+    whitelist: {
+      addresses: ['dora1...', 'dora1...']  // Whitelist addresses
+    }
+  });
+  
+  console.log('Vote created:', round.contractAddress);
+  return round.contractAddress;
 }
+
+createVote().catch(console.error);
 ```
 
-## Complete Example
+## Participate in Voting
 
-```typescript
-import { MACIClient } from '@dorafactory/maci-sdk';
+Create `vote.js`:
 
-async function main() {
-  // Connect
-  const client = await MACIClient.connect({
-    endpoint: 'https://rpc.dora.com',
-    chainId: 'dora-1',
-    wallet: yourWallet,
+```javascript
+import { MaciClient } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+
+const client = new MaciClient({ network: 'testnet' });
+const contractAddress = 'dora1...';  // Contract address from previous step
+
+async function castVote() {
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.PRIVATE_KEY, 'hex'),
+    'dora'
+  );
+  const [account] = await wallet.getAccounts();
+  
+  // Generate MACI keypair from wallet
+  const maciKeypair = await client.genKeypairFromSign({ 
+    signer: wallet, 
+    address: account.address 
   });
-
-  // Create round
-  const { roundId } = await client.createRound({
-    title: 'Favorite Programming Language',
-    options: ['JavaScript', 'Python', 'Rust', 'Go'],
-    duration: 7 * 24 * 60 * 60,
-    votingMode: 'qv',
+  
+  // Sign up (whitelist only)
+  await client.signup({
+    signer: wallet,
+    address: account.address,
+    contractAddress,
+    maciKeypair,
+    gasStation: true
   });
-
-  // Register
-  await client.signup(roundId);
-
-  // Vote
+  
+  // Get operator public key
+  const roundInfo = await client.getRoundInfo({ contractAddress });
+  
+  // Cast vote
   await client.vote({
-    roundId,
-    votes: [{ option: 0, credits: 9 }],
+    signer: wallet,
+    address: account.address,
+    contractAddress,
+    selectedOptions: [
+      { idx: 0, vc: 8 },  // Proposal A: 8 votes (costs 64 credits in QV)
+      { idx: 2, vc: 6 }   // Proposal C: 6 votes (costs 36 credits in QV)
+    ],
+    operatorCoordPubKey: [
+      BigInt(roundInfo.coordinatorPubkeyX),
+      BigInt(roundInfo.coordinatorPubkeyY)
+    ],
+    maciKeypair,
+    gasStation: true
   });
-
-  // Query results
-  const results = await client.getResults(roundId);
-  console.log(results);
+  
+  console.log('Vote submitted successfully');
 }
 
-main();
+castVote().catch(console.error);
+```
+
+## Anonymous Voting (Optional)
+
+For complete anonymity, use the pre-add-new-key method:
+
+```javascript
+import { VoterClient, genKeypair } from '@dorafactory/maci-sdk';
+
+async function anonymousVote() {
+  // Use platform-distributed key
+  const voterClient = new VoterClient({
+    network: 'testnet',
+    secretKey: receivedPrivateKey
+  });
+  
+  // Generate your own new keypair
+  const myKeypair = genKeypair();
+  
+  // Generate ZK proof
+  const payload = await voterClient.buildPreAddNewKeyPayload({
+    stateTreeDepth: 10,
+    coordinatorPubkey: preDeactivateData.coordinatorPubkey,
+    deactivates: preDeactivateData.leaves,
+    wasmFile: './addNewKey.wasm',
+    zkeyFile: './addNewKey.zkey'
+  });
+  
+  // Send transaction from any address
+  await client.rawPreAddNewKey({
+    signer: anyWallet,
+    contractAddress,
+    d: payload.d,
+    proof: payload.proof,
+    nullifier: payload.nullifier,
+    newPubkey: {
+      x: myKeypair.publicKey[0].toString(16),
+      y: myKeypair.publicKey[1].toString(16)
+    },
+    gasStation: true
+  });
+  
+  // Vote with new keypair
+  await client.vote({
+    signer: anyWallet,
+    address: anyAddress,
+    contractAddress,
+    selectedOptions: [{ idx: 0, vc: 10 }],
+    operatorCoordPubKey: [...],
+    maciKeypair: myKeypair,
+    gasStation: true
+  });
+}
+```
+
+## Query Results
+
+```javascript
+const round = await client.getRoundInfo({ contractAddress });
+
+console.log('Voting status:', round.status);
+console.log('Participants:', round.numSignups);
+console.log('Vote messages:', round.numMessages);
+
+// Results available after operator processing
+if (round.results) {
+  console.log('Vote results:', round.results);
+}
+```
+
+## Common Issues
+
+### "Not in whitelist" Error
+
+Your address is not whitelisted. Check:
+- Did you configure the whitelist correctly when creating the vote?
+- Is the address you're using in the whitelist?
+- If using Oracle mode, do you meet token holding requirements?
+
+### "Insufficient voice credits" Error
+
+Vote consumption exceeds available credits. In QV mode, the square of votes is the cost:
+- 10 votes costs 100 credits
+- 8 votes costs 64 credits
+
+Check your voice credit balance and voting allowance.
+
+### Gas Station Unavailable
+
+If `hasFeegrant` returns false:
+- Wait a few minutes and retry, Gas Station may still be configuring
+- Or ensure wallet has sufficient balance to pay gas fees, set `gasStation: false`
+
+### Operator Public Key Error
+
+Query correct operator information from Registry contract:
+
+```javascript
+const operators = await client.indexer.getOperators();
+const operator = operators.find(op => op.address === 'dora1...');
+console.log('Operator pubkey:', operator.pubkey);
+```
+
+## Quadratic Voting (QV) vs One Person One Vote (1P1V)
+
+**Quadratic Voting:** Square of votes is the cost, encourages distributed voting
+
+```javascript
+// 100 credits available
+[
+  { idx: 0, vc: 8 },  // 8² = 64 credits
+  { idx: 1, vc: 6 }   // 6² = 36 credits
+]
+// Total cost: 100 credits
+```
+
+**One Person One Vote:** Votes directly equal cost
+
+```javascript
+// 100 credits available
+[
+  { idx: 0, vc: 60 },  // 60 credits
+  { idx: 1, vc: 40 }   // 40 credits
+]
+// Total cost: 100 credits
 ```
 
 ## Next Steps
 
-- [Learn more about registration methods](/docs/sdk/voting-guide)
-- [Understand voting modes](/docs/protocol/core-concepts)
-- [Explore complete examples](/docs/examples/basic-voting)
-- [Configure whitelists and permissions](/docs/sdk/advanced)
+**Understand Principles:** Read [Protocol Overview](/docs/protocol/overview) to learn how MACI works
 
-## Troubleshooting
+**Complete Examples:** Check [Full Code Examples](/docs/examples/basic-voting) to learn more scenarios
 
-**Transaction failed?** Check if you have sufficient gas fees and tokens.
+**API Reference:** Refer to [SDK Documentation](/docs/sdk/installation) for all available features
 
-**Cannot register?** Verify if you meet whitelist requirements.
-
-**Results not appearing?** Wait for operator processing, usually 1-3 hours.
-
-For more help, check [GitHub Issues](https://github.com/DoraFactory/maci/issues).
+**Contract Interaction:** Learn [Contract Architecture](/docs/contracts/architecture) to understand the underlying implementation

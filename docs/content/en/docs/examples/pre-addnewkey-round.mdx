@@ -1,5 +1,494 @@
-# Anonymous Voting Example
+# Pre-add-new-key Anonymous Voting Example
 
-Example of implementing anonymous voting with pre-add-new-key.
+This example demonstrates how to use Pre-add-new-key mode to create a fully anonymous voting round, including the complete process of platform pre-generation, key distribution, and user anonymous voting.
 
-*English documentation coming soon. Please refer to the [Chinese version](/zh/docs/examples/pre-addnewkey-round) for now.*
+## Complete Code
+
+### Platform Side: Pre-generate and Create Round
+
+```typescript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { genKeypair } from 'maci-crypto';
+import { buildPreDeactivateTree } from '@dorafactory/maci-sdk';
+import fs from 'fs';
+
+async function platformPrepareRound() {
+  console.log('=== Platform Side: Pre-generate Keypairs and Create Round ===\n');
+  
+  const client = new MaciClient({ network: 'testnet' });
+  
+  // Create platform wallet
+  const platformWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.PLATFORM_PRIVATE_KEY!, 'hex'),
+    'dora'
+  );
+  
+  // === Generate Keypairs ===
+  console.log('Generating keypairs for users...');
+  
+  const userCount = 100;  // Pre-generate for 100 users
+  const userPreKeys = [];
+  
+  for (let i = 0; i < userCount; i++) {
+    const keypair = genKeypair();
+    userPreKeys.push({
+      id: `user_${i}`,
+      privateKey: keypair.privateKey.toString(16),
+      publicKey: {
+        x: keypair.publicKey[0].toString(16),
+        y: keypair.publicKey[1].toString(16)
+      }
+    });
+  }
+  
+  console.log(` Generated ${userCount} keypairs\n`);
+  
+  // === Generate pre-deactivate tree ===
+  console.log('Generating pre-deactivate tree...');
+  
+  const platformCoordKeypair = genKeypair();
+  const preDeactivateTree = buildPreDeactivateTree(
+    userPreKeys,
+    platformCoordKeypair
+  );
+  
+  console.log(' Pre-deactivate tree generated successfully');
+  console.log('Root:', preDeactivateTree.root);
+  console.log('');
+  
+  // === Query and Select Operator ===
+  console.log('Querying Operators...');
+  
+  const operators = await client.indexer.getOperators();
+  const activeOperators = operators.filter(op => op.status === 'Active');
+  const selectedOperator = activeOperators[0];
+  
+  console.log(' Selected Operator:', selectedOperator.identity);
+  console.log('');
+  
+  // === Create Round ===
+  console.log('Creating anonymous voting Round...');
+  
+  const round = await client.createAMaciRound({
+    signer: platformWallet,
+    operator: selectedOperator.address,
+    
+    startVoting: new Date(),
+    endVoting: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),  // 14 days
+    
+    title: 'Anonymous Community Vote Example',
+    description: 'Fully anonymous voting using Pre-add-new-key',
+    link: 'https://forum.example.com/anonymous-vote',
+    
+    voteOptionMap: [
+      'Proposal A: Technical Upgrade',
+      'Proposal B: Community Development',
+      'Proposal C: Marketing Campaign',
+      'Proposal D: Education and Training'
+    ],
+    
+    circuitType: MaciCircuitType.QV,
+    
+    maxVoter: 100,
+    voiceCreditAmount: '100',
+    
+    // Pre-add-new-key configuration
+    preDeactivateRoot: preDeactivateTree.root,
+    preDeactivateCoordinator: [
+      platformCoordKeypair.publicKey[0],
+      platformCoordKeypair.publicKey[1]
+    ]
+  });
+  
+  console.log(' Round created successfully!');
+  console.log('Contract address:', round.contractAddress);
+  console.log('');
+  
+  // === Save Data ===
+  console.log('Saving data...');
+  
+  const dataToSave = {
+    contractAddress: round.contractAddress,
+    preDeactivateData: {
+      root: preDeactivateTree.root,
+      leaves: preDeactivateTree.leaves,
+      coordinatorPubkey: {
+        x: platformCoordKeypair.publicKey[0].toString(16),
+        y: platformCoordKeypair.publicKey[1].toString(16)
+      }
+    },
+    userKeys: userPreKeys
+  };
+  
+  fs.writeFileSync('round_data.json', JSON.stringify(dataToSave, null, 2));
+  
+  console.log(' Data saved to round_data.json');
+  console.log('');
+  console.log('Next step: Distribute keypairs to users');
+  
+  return dataToSave;
+}
+
+// Run
+platformPrepareRound().catch(console.error);
+```
+
+### User Side: Anonymous Registration and Voting
+
+```typescript
+import { MaciClient, VoterClient } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { genKeypair } from 'maci-crypto';
+import fs from 'fs';
+
+async function userAnonymousVote(
+  userIndex: number,  // User ID
+  anyWalletPrivateKey: string  // User can use any wallet
+) {
+  console.log(`\n=== User ${userIndex}: Anonymous Voting ===\n`);
+  
+  const client = new MaciClient({ network: 'testnet' });
+  
+  // === Load Platform-Distributed Data ===
+  console.log('Loading platform-distributed data...');
+  
+  const roundData = JSON.parse(fs.readFileSync('round_data.json', 'utf-8'));
+  const contractAddress = roundData.contractAddress;
+  const preDeactivateData = roundData.preDeactivateData;
+  
+  // Get this user's keypair
+  const myPreKey = roundData.userKeys[userIndex];
+  console.log(` Loaded data for user ${myPreKey.id}`);
+  console.log('');
+  
+  // === Generate Proof and New Key Locally ===
+  console.log('Generating ZK proof and new key locally...');
+  
+  const voterClient = new VoterClient({
+    network: 'testnet',
+    secretKey: myPreKey.privateKey  // Platform-distributed private key
+  });
+  
+  // User generates their own new keypair (fully controlled by user)
+  const myNewKeypair = genKeypair();
+  console.log(' New key generated locally, only I know it');
+  
+  // Generate pre-add-new-key payload
+  const payload = await voterClient.buildPreAddNewKeyPayload({
+    stateTreeDepth: 10,
+    coordinatorPubkey: preDeactivateData.coordinatorPubkey,
+    deactivates: preDeactivateData.leaves,
+    wasmFile: './circuits/addNewKey.wasm',
+    zkeyFile: './circuits/addNewKey.zkey'
+  });
+  
+  console.log(' ZK proof generation complete');
+  console.log('');
+  
+  // === Send Pre-add-new-key with Any Address ===
+  console.log('Anonymous registration (with any address)...');
+  
+  // User can use any wallet
+  const anyWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(anyWalletPrivateKey, 'hex'),
+    'dora'
+  );
+  const [anyAccount] = await anyWallet.getAccounts();
+  
+  console.log('Using address:', anyAccount.address);
+  
+  await client.rawPreAddNewKey({
+    signer: anyWallet,
+    contractAddress,
+    d: payload.d,
+    proof: payload.proof,
+    nullifier: payload.nullifier,
+    newPubkey: {
+      x: myNewKeypair.publicKey[0].toString(16),
+      y: myNewKeypair.publicKey[1].toString(16)
+    },
+    gasStation: true
+  });
+  
+  console.log(' Anonymous registration successful');
+  console.log(' Operator doesn\'t know who specifically');
+  console.log('');
+  
+  // === Vote ===
+  console.log('Voting...');
+  
+  const roundInfo = await client.getRoundInfo({ contractAddress });
+  
+  // Randomly select vote options (simulating user preference)
+  const voteOptions = [
+    { idx: userIndex % 4, vc: 7 },
+    { idx: (userIndex + 1) % 4, vc: 5 }
+  ];
+  
+  await client.vote({
+    signer: anyWallet,
+    address: anyAccount.address,
+    contractAddress,
+    selectedOptions: voteOptions,
+    operatorCoordPubKey: [
+      BigInt(roundInfo.coordinatorPubkeyX),
+      BigInt(roundInfo.coordinatorPubkeyY)
+    ],
+    maciKeypair: myNewKeypair,  // Only user knows
+    gasStation: true
+  });
+  
+  console.log(' Voting complete, fully anonymous');
+  console.log('Vote details:');
+  voteOptions.forEach(opt => {
+    const cost = opt.vc * opt.vc;
+    console.log(`  - Option ${opt.idx}: ${opt.vc} votes (cost ${cost} credits)`);
+  });
+}
+
+// === Simulate Multiple Users Voting ===
+async function multipleUsersVote() {
+  // User 0 votes with wallet A
+  await userAnonymousVote(0, process.env.WALLET_A_KEY!);
+  
+  // User 1 votes with wallet B
+  await userAnonymousVote(1, process.env.WALLET_B_KEY!);
+  
+  // User 2 votes with wallet C
+  await userAnonymousVote(2, process.env.WALLET_C_KEY!);
+  
+  console.log('\n All users voted!');
+}
+
+// Run
+multipleUsersVote().catch(console.error);
+```
+
+---
+
+## Code Explanation
+
+### Platform Side Responsibilities
+
+1. **Pre-generate Keypairs**
+   - Batch generate EdDSA-Poseidon keypairs for many users
+   - Save keypair data
+
+2. **Generate pre-deactivate tree**
+   - Build deactivate tree using pre-generated keypairs
+   - Generate root and coordinator public key
+
+3. **Query and Select Operator**
+   - Query active Operator list from Registry
+   - Select Operator with high rating and good reputation
+
+4. **Create Round**
+   - Use `createAMaciRound` API
+   - Configure `operator` address
+   - Configure `preDeactivateRoot` and `preDeactivateCoordinator`
+   - Round is immediately available after creation
+
+5. **Distribute Keys**
+   - Distribute keypairs to users through secure channels
+   - Can use API, encrypted email, etc.
+
+### User Side Process
+
+1. **Receive Keys**
+   - Get pre-generated keypairs from platform
+   - Get pre-deactivate data
+
+2. **Generate Proof Locally**
+   - Use platform-distributed private key
+   - Generate own new keypair (fully controlled by user)
+   - Generate ZK proof
+
+3. **Anonymous Registration**
+   - Can send transaction with any dora address
+   - Operator cannot determine who specifically
+
+4. **Vote**
+   - Vote with own new keypair
+   - Maintain full anonymity
+
+---
+
+## Environment Variable Configuration
+
+Create `.env` file:
+
+```bash
+# Platform side
+PLATFORM_PRIVATE_KEY=your_platform_private_key
+
+# User side (can be any wallet)
+WALLET_A_KEY=user_wallet_a_key
+WALLET_B_KEY=user_wallet_b_key
+WALLET_C_KEY=user_wallet_c_key
+```
+
+Note: No longer need `OPERATOR_PUBKEY`, query Operator list and select via SDK instead.
+
+---
+
+## Expected Output
+
+### Platform Side Output
+
+```
+=== Platform Side: Pre-generate Keypairs and Create Round ===
+
+Generating keypairs for users...
+ Generated 100 keypairs
+
+Generating pre-deactivate tree...
+ Pre-deactivate tree generated successfully
+Root: 0x1234567890abcdef...
+
+Querying Operators...
+ Selected Operator: Dora Foundation
+
+Creating anonymous voting Round...
+ Round created successfully!
+Contract address: dora1contract...
+
+Saving data...
+ Data saved to round_data.json
+
+Next step: Distribute keypairs to users
+```
+
+### User Side Output
+
+```
+=== User 0: Anonymous Voting ===
+
+Loading platform-distributed data...
+ Loaded data for user user_0
+
+Generating ZK proof and new key locally...
+ New key generated locally, only I know it
+ ZK proof generation complete
+
+Anonymous registration (with any address)...
+Using address: dora1abc...
+ Anonymous registration successful
+ Operator doesn't know who specifically
+
+Voting...
+ Voting complete, fully anonymous
+Vote details:
+  - Option 0: 7 votes (cost 49 credits)
+  - Option 1: 5 votes (cost 25 credits)
+
+=== User 1: Anonymous Voting ===
+...
+
+ All users voted!
+```
+
+---
+
+## Privacy Analysis
+
+### What Platform Knows
+
+✅ Pre-generated keypairs (already distributed)  
+✅ Pre-deactivate tree  
+❌ User's new keypairs (user-generated locally)  
+❌ Which address user uses to send transaction  
+❌ User's vote content
+
+### What Operator Knows
+
+✅ Someone registered with pre-add-new-key  
+✅ They are one in pre-deactivate tree  
+❌ Which specific user number  
+❌ Which address sent transaction  
+❌ User's real identity
+
+### What User Controls
+
+✅ New keypair fully generated locally by user  
+✅ Can send transaction with any address  
+✅ Neither Operator nor platform can determine identity  
+✅ Anonymity set size = number of users in pre-deactivate tree
+
+---
+
+## Security Best Practices
+
+### Platform Side
+
+1. **Key Storage**
+   - Encrypt storage of pre-generated keypairs
+   - Can choose to delete after distribution (further enhance privacy)
+
+2. **Distribution Channel**
+   - Use encrypted channels to distribute keys
+   - Use HTTPS when returning from API
+   - Can encrypt with user's public key
+
+3. **Batch Generation**
+   - Pre-generate sufficient keypairs
+   - Consider reserving surplus
+
+### User Side
+
+1. **Local Operations**
+   - Proof generation completed locally
+   - Don't leak new keypair to anyone
+
+2. **Wallet Selection**
+   - Can use new wallet to increase anonymity
+   - Can use mixer services to further hide
+
+3. **Network Security**
+   - Use VPN to add network-level anonymity
+   - Avoid operating in insecure network environments
+
+---
+
+## Data Structure
+
+### round_data.json
+
+```json
+{
+  "contractAddress": "dora1contract...",
+  "preDeactivateData": {
+    "root": "0x1234567890abcdef...",
+    "leaves": [
+      {
+        "leaf": "0xabcd...",
+        "path": ["0x...", "0x...", ...]
+      },
+      ...
+    ],
+    "coordinatorPubkey": {
+      "x": "0xabc...",
+      "y": "0xdef..."
+    }
+  },
+  "userKeys": [
+    {
+      "id": "user_0",
+      "privateKey": "0x123...",
+      "publicKey": {
+        "x": "0xabc...",
+        "y": "0xdef..."
+      }
+    },
+    ...
+  ]
+}
+```
+
+---
+
+## Next Steps
+
+- [Basic Voting Example](/docs/examples/basic-voting) - Whitelist mode example
+- [SDK Documentation](/docs/sdk/installation) - Learn more SDK features
+- [Privacy Protection](/docs/protocol/privacy-protection) - Deep dive into AMACI privacy mechanisms

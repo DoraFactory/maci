@@ -1,5 +1,257 @@
 # Core Concepts
 
-Key components and data structures in MACI.
+AMACI's core components, data structures, and key mechanisms.
 
-*English documentation coming soon. Please refer to the [Chinese version](/zh/docs/protocol/core-concepts) for now.*
+## Three Registration Methods
+
+AMACI provides three registration methods, balancing privacy and convenience:
+
+### Signup (Standard Registration)
+
+The fastest method. Register directly with wallet address, contract assigns state index.
+
+```typescript
+const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
+
+await client.signup({
+  signer: wallet,
+  address,
+  contractAddress,
+  maciKeypair
+});
+```
+
+**Privacy Level: Low.** Operator can correlate through on-chain signup transactions: address `dora1abc...` → state index 5 → what they voted for.
+
+**Use Cases:** Public voting where privacy isn't a concern, or trusted internal environments.
+
+### Add-new-key (Dynamic Anonymity)
+
+Creates new identity through zero-knowledge proofs, completely breaking link to original address.
+
+**Core Idea:** Prove "I know the private key of some entry in the deactivate tree" without revealing which one.
+
+```typescript
+// 1. Submit deactivate with old identity
+await client.deactivate({ signer: oldWallet, ... });
+
+// 2. Wait for operator to process deactivate, generating deactivate tree
+
+// 3. Generate ZK proof
+const voterClient = new VoterClient({ secretKey: oldPrivateKey });
+const payload = await voterClient.buildAddNewKeyPayload({
+  operatorPubkey,
+  deactivates,  // deactivate tree leaves
+  wasmFile,
+  zkeyFile
+});
+
+// 4. Submit add-new-key with new wallet
+await client.addNewKey({
+  signer: newWallet,  // Different address
+  d: payload.d,
+  proof: payload.proof,
+  nullifier: payload.nullifier,
+  newMaciKeypair: newKeypair
+});
+```
+
+**Privacy Level: High.** Operator only knows "someone registered with add-new-key" but cannot determine which user in the deactivate tree. Anonymity set size = number of deactivate messages.
+
+**Trade-off:** Need to wait for operator to process deactivate (usually a few hours).
+
+### Pre-add-new-key (Pre-configured Anonymity)
+
+Combines anonymity and speed. Deactivate tree is pre-configured when vote is created, users can register anonymously immediately.
+
+```typescript
+// Platform pre-generates keypairs and builds deactivate tree
+// After users receive distributed keys, they generate proof locally
+
+const payload = await voterClient.buildPreAddNewKeyPayload({
+  coordinatorPubkey,
+  deactivates: preConfiguredLeaves,
+  wasmFile,
+  zkeyFile
+});
+
+// Send transaction from any address
+await client.rawPreAddNewKey({
+  signer: anyWallet,
+  d: payload.d,
+  proof: payload.proof,
+  nullifier: payload.nullifier,
+  newPubkey: myKeypair.publicKey
+});
+```
+
+**Privacy Level: High.** Same as add-new-key, but without waiting.
+
+**Trade-off:** Requires vote organizer to pre-configure, and secure key distribution needed.
+
+## Participating Roles
+
+### Voters
+
+Responsible for generating keys and submitting voting messages. Can choose registration method: signup (fast but not anonymous), add-new-key (anonymous but requires waiting), or pre-add-new-key (anonymous and instant).
+
+Key Capabilities:
+- Vote multiple times, last one counts
+- Change keys to invalidate previous votes
+- Use add-new-key to create anonymous identity
+
+### Operator
+
+Responsible for processing voting messages and generating zero-knowledge proofs.
+
+What They Can Do:
+- Decrypt all voting messages
+- See what each state index voted for
+
+What They Cannot Do (AMACI Protection):
+- Cannot determine which address corresponds to users using add-new-key
+- Cannot tamper with votes (ZK proof constraints)
+- Cannot ignore or hide votes
+
+Operators are a permissioned professional node network managed by Dora Factory. View list: https://vota.dorafactory.org/operators
+
+### Smart Contracts
+
+Stores encrypted messages, verifies ZK proofs, publishes results. Contracts cannot decrypt message content, relying on operators to submit processing results and proofs.
+
+## State Management
+
+AMACI uses Merkle trees to manage voter state:
+
+### State Tree
+
+Each leaf represents a voter:
+
+```
+State Leaf = {
+  pubKey: [x, y],           // MACI public key
+  voiceCreditBalance: 100,  // Available voting weight
+  voteOptionTreeRoot: hash, // Vote option tree root
+  nonce: 0,                 // Message sequence number
+  d1: [0, 0],              // AMACI: Anonymization data
+  d2: [0, 0]               // AMACI: Anonymization data
+}
+```
+
+d1/d2 fields are new additions in AMACI, used for re-randomization in add-new-key mechanism.
+
+### Deactivate Tree (AMACI-specific)
+
+Stores all deactivate messages, forming anonymity set. Each leaf:
+
+```
+[c1[0], c1[1], c2[0], c2[1], sharedKeyHash]
+```
+
+Add-new-key users prove they know the private key of some entry in this tree without revealing which one.
+
+### Vote Option Tree
+
+Each voter has one, recording voting weight for each option:
+
+```
+      Root
+      /  \
+  [Opt0] [Opt1]
+  (5vc)  (3vc)
+```
+
+Only leaves corresponding to voted options are non-zero.
+
+### Message Tree
+
+Stores all voting messages in submission order. Operator must process all messages, message tree root is used to verify completeness.
+
+## Key Mechanisms
+
+### Nonce Sequence
+
+Each voter has a nonce starting from 0 and incrementing. Operator processes messages in nonce order:
+
+```
+1st message nonce=0 → process, nonce becomes 1
+2nd message nonce=1 → process, nonce becomes 2
+3rd message nonce=0 → ignore (expired)
+```
+
+This ensures latest vote is valid, old votes are overwritten.
+
+### Key Change
+
+Voters can submit special messages to change public key. After public key in state leaf updates, messages signed with old key become invalid.
+
+Anti-bribery principle:
+1. Accept bribe, vote for A with old key
+2. Secretly change key
+3. Vote for B with new key
+4. Only B is valid in the end, briber cannot verify
+
+### Message Encryption
+
+Voting messages use ECDH + Poseidon encryption:
+
+1. Voter private key × Operator public key = Shared key
+2. Encrypt vote content with shared key
+3. Sign with EdDSA to prove message authenticity
+
+Operator generates same shared key with their private key and voter's public key to decrypt.
+
+### Zero-Knowledge Proofs
+
+After processing messages, Operator generates ZK proofs proving:
+- Processed all messages
+- Processed in correct order (nonce)
+- Did not tamper with any votes
+- Correctly updated state tree
+- Correctly tallied results
+
+Contract verifies proofs. Anyone can verify, ensuring operator didn't cheat.
+
+## Voting Modes
+
+### One Person One Vote (1P1V)
+
+Voice credits directly consumed as vote count:
+
+```typescript
+voiceCredits = 100
+vote = [
+  { idx: 0, vc: 60 },  // Consume 60
+  { idx: 1, vc: 40 }   // Consume 40
+]
+```
+
+### Quadratic Voting (QV)
+
+Square of votes is consumption amount, encourages distributed voting:
+
+```typescript
+voiceCredits = 100
+vote = [
+  { idx: 0, vc: 8 },  // Consume 64 (8²)
+  { idx: 1, vc: 6 }   // Consume 36 (6²)
+]
+```
+
+## Whitelist Modes
+
+Voting can limit participants:
+
+**Address List Mode** - Specify specific addresses, only addresses in list can signup.
+
+**On-chain Data Mode** - Dynamically calculate eligibility and voting weight based on on-chain data like token holdings. Example: "Addresses holding 1+ ATOM can vote, each 1 ATOM = 1 voice credit".
+
+When using add-new-key, whitelist checks occur during deactivate phase (old identity needs to be in whitelist), new identity doesn't need recheck.
+
+## Next Steps
+
+**Understand Privacy Protection** - Read [Privacy Protection Mechanisms](/docs/protocol/privacy-protection) for deep dive into identity anonymization.
+
+**Learn Message Flow** - Check [Message Flow](/docs/protocol/message-flow) to understand voting message lifecycle.
+
+**Understand Cryptography** - View [Cryptography Mechanisms](/docs/protocol/cryptography) to learn EdDSA, Poseidon and other technical details.

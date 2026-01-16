@@ -1,17 +1,277 @@
 # Protocol Overview
 
-Comprehensive overview of the MACI protocol architecture and design principles.
+AMACI (Anonymous MACI) adds identity anonymization capabilities on top of the original MACI. This document explains how AMACI works through a complete case study.
 
-*English documentation coming soon. Please refer to the [Chinese version](/zh/docs/protocol/overview) for now.*
+## Starting with a Real-World Case
 
-## Key Topics
+Suppose Alice wants to create an anonymous proposal vote for her DAO. She doesn't want community members to face pressure for voting against proposals, and worries about vote buying. Let's see how AMACI protects this vote.
 
-- System architecture
-- Component interaction
-- Operator responsibilities
-- Security model
+## AMACI vs MACI
 
-## Resources
+**MACI** protects vote content through encryption, but the operator processing votes can see "Alice (address dora1abc...) voted for Proposal A" through on-chain signup transactions.
 
-- [Original MACI Paper](https://ethresear.ch/t/minimal-anti-collusion-infrastructure/5413)
-- [AMACI Anonymization](https://ethresear.ch/t/maci-anonymization-using-rerandomizable-encryption/7054)
+**AMACI** goes further. With anonymous registration, the operator can only see "state index 5 voted for Proposal A" but cannot determine which address corresponds to state index 5. Even if the operator wants to bribe or retaliate against voters, they cannot find targets.
+
+## Complete Voting Process
+
+### Phase 1: Alice Creates Vote
+
+Alice selects a registered operator and configures voting parameters:
+
+```typescript
+const round = await client.createAMaciRound({
+  operator: 'dora1operator...',
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  voteOptionMap: ['Proposal A', 'Proposal B', 'Proposal C'],
+  circuitType: MaciCircuitType.QV,
+  whitelist: { addresses: [...] }
+});
+```
+
+Registry contract verifies operator, instantiates AMACI contract, and returns contract address to Alice.
+
+### Phase 2: Bob Registers Anonymously (Using add-new-key)
+
+Bob wants to vote completely anonymously. He first submits a deactivate message with his existing identity:
+
+```typescript
+await client.deactivate({
+  signer: bobWallet,
+  address: bobAddress,
+  contractAddress,
+  maciKeypair: bobOldKeypair
+});
+```
+
+After waiting for operator to process these deactivate messages, Bob generates a zero-knowledge proof:
+
+```typescript
+const voterClient = new VoterClient({
+  secretKey: bobOldPrivateKey
+});
+
+const payload = await voterClient.buildAddNewKeyPayload({
+  stateTreeDepth: 10,
+  coordinatorPubkey: operatorPubkey,
+  deactivates: deactivateLeaves,
+  wasmFile: './addNewKey.wasm',
+  zkeyFile: './addNewKey.zkey'
+});
+```
+
+This proof states: "I know the private key of some entry in the deactivate tree, but I won't tell you which one."
+
+Bob sends an add-new-key transaction with a new wallet:
+
+```typescript
+await client.addNewKey({
+  signer: newWallet,  // Different wallet address
+  contractAddress,
+  d: payload.d,
+  proof: payload.proof,
+  nullifier: payload.nullifier,
+  newMaciKeypair: newKeypair
+});
+```
+
+The operator sees someone registered with add-new-key on-chain, but cannot determine if it's Bob or any other deactivated user.
+
+### Phase 3: Carol Quick Registration (Using signup)
+
+Carol doesn't mind privacy and registers directly with signup:
+
+```typescript
+const maciKeypair = await client.genKeypairFromSign({ 
+  signer: carolWallet, 
+  address: carolAddress 
+});
+
+await client.signup({
+  signer: carolWallet,
+  address: carolAddress,
+  contractAddress,
+  maciKeypair
+});
+```
+
+This method is fastest, but the operator can see Carol's address.
+
+### Phase 4: Voting
+
+Both Bob and Carol create encrypted voting messages:
+
+```typescript
+// Bob votes with new key
+await client.vote({
+  signer: newWallet,
+  contractAddress,
+  selectedOptions: [
+    { idx: 0, vc: 8 },  // Proposal A: 8 votes
+    { idx: 2, vc: 6 }   // Proposal C: 6 votes
+  ],
+  operatorCoordPubKey: [...],
+  maciKeypair: newKeypair  // Bob's new key
+});
+
+// Carol votes
+await client.vote({
+  signer: carolWallet,
+  contractAddress,
+  selectedOptions: [{ idx: 1, vc: 10 }],  // Proposal B: 10 votes
+  operatorCoordPubKey: [...],
+  maciKeypair: carolKeypair
+});
+```
+
+Voting messages are encrypted with operator public key before going on-chain. Anyone can see encrypted messages on-chain, but cannot decrypt the content.
+
+Bob changes his mind and revotes:
+
+```typescript
+await client.vote({
+  selectedOptions: [{ idx: 1, vc: 14 }],  // Change to Proposal B
+  // nonce automatically +1, overwrites previous vote
+  ...
+});
+```
+
+### Phase 5: Operator Processes Votes
+
+After voting period ends, operator begins work.
+
+**5.1 Process Deactivate Messages (AMACI-specific)**
+
+Operator downloads all deactivate messages, decrypts them, and builds deactivate tree. This tree becomes the anonymity set: any subsequent users using add-new-key are members of this set, but operator cannot determine who specifically.
+
+**5.2 Process Voting Messages**
+
+Operator downloads all voting messages and decrypts with their private key:
+
+```
+State Index 3 (Carol): Proposal B = 10 votes
+State Index 5 (Bob): Proposal B = 14 votes
+State Index 8 (Alice): Proposal A = 5 votes, Proposal C = 5 votes
+...
+```
+
+Operator can see what each state index voted for, but for Bob who used add-new-key, operator doesn't know which real address corresponds to state index 5.
+
+Operator processes messages in nonce order, updating state tree. For Bob's two votes, the second (nonce=1) overwrites the first (nonce=0).
+
+**5.3 Generate Zero-Knowledge Proofs**
+
+Operator generates ZK proofs proving:
+- Processed all messages
+- Did not tamper with any votes
+- Correctly updated state tree
+- Correctly tallied results
+
+If operator attempts to cheat (e.g., ignore some votes or modify results), ZK proof verification will fail.
+
+### Phase 6: On-chain Verification and Results
+
+Operator submits proofs to AMACI contract:
+
+```rust
+ProcessMessages {
+  new_state_root: "0x...",
+  proof: [...],
+  ...
+}
+
+ProcessTally {
+  results: [
+    { option: 0, votes: "250" },  // Proposal A
+    { option: 1, votes: "384" },  // Proposal B (Carol 100 + Bob 196 + ...)
+    { option: 2, votes: "181" }   // Proposal C
+  ],
+  proof: [...]
+}
+```
+
+Contract verifies ZK proofs. After verification passes, results are published on-chain. Anyone can:
+- Verify proof validity
+- Confirm results are correct
+- But cannot see individual votes (unless registered with signup)
+
+## Comparison of Three Registration Methods
+
+**Signup** is simplest. Register directly with wallet address, suitable for public voting. Operator can see your address.
+
+**Add-new-key** is fully anonymous. Creates new identity through ZK proof, operator cannot correlate. Requires waiting for operator to process deactivate (usually a few hours).
+
+**Pre-add-new-key** combines anonymity and speed. Deactivate tree is pre-configured when vote is created, users can register anonymously immediately.
+
+## Key Mechanisms
+
+### Key Change Anti-Bribery
+
+Even if a briber demands Bob vote for Proposal A, Bob can:
+1. First vote for A with old key, provide proof to briber
+2. Secretly change key
+3. Vote for B with new key
+
+Only B is valid in the end. Briber cannot verify Bob's final vote.
+
+If Bob uses add-new-key, briber cannot even find bribery targets.
+
+### Message Encryption
+
+Voting messages use ECDH + Poseidon encryption:
+
+1. Bob generates shared key with his private key and operator public key
+2. Encrypts vote content with shared key
+3. Signs with EdDSA to prove message is from Bob
+4. Operator generates same shared key with their private key and Bob's public key to decrypt
+
+### Nonce Ordering Guarantee
+
+Each voter has a nonce starting from 0:
+- First message nonce=0, after processing nonce becomes 1
+- Second message nonce=1, after processing nonce becomes 2
+- If submitting message with nonce=0, it's ignored (expired)
+
+This ensures votes are processed in correct order, with the latest vote being valid.
+
+## State Management
+
+AMACI maintains several Merkle trees:
+
+**State Tree** stores all voter states. Each leaf contains: public key, voice credit balance, vote option tree root, nonce, and AMACI-specific d1/d2 fields (for add-new-key anonymization).
+
+**Deactivate Tree** stores all deactivate messages, forming anonymity set. Add-new-key users prove they belong to this set without revealing specific identity.
+
+**Message Tree** stores all voting messages, ensuring operator processed all messages.
+
+**Vote Option Tree** each voter has one, recording voting weight for each option.
+
+## Security Guarantees
+
+**Vote Content Privacy** - Only operator can decrypt, but operator is constrained by ZK proofs and cannot cheat.
+
+**Identity Privacy** - When using add-new-key, even operator doesn't know who you are.
+
+**Anti-Bribery** - Key change mechanism + identity anonymization, dual protection.
+
+**Verifiability** - Anyone can verify ZK proofs to confirm results are correct.
+
+**Immutability** - Messages stored on blockchain, operator cannot delete or modify.
+
+## Design Trade-offs
+
+**Operator Dependency** - Operator can see vote content (but doesn't know who voted when using add-new-key), and may refuse to process. Trade-off is: users don't need to run complex software, ZK proofs ensure operator cannot cheat.
+
+**Processing Delay** - Results are not real-time, usually take a few hours. This is a necessary cost of privacy protection.
+
+**Gas Costs** - ZK proof verification requires significant on-chain computation. Users are subsidized through Gas Station, operator fees paid when creating votes.
+
+## Next Steps
+
+**Understand Registration Methods** - Read [Core Concepts](/docs/protocol/core-concepts) for deep dive into technical details of three registration methods.
+
+**Learn Cryptography** - Check [Cryptography Mechanisms](/docs/protocol/cryptography) to understand EdDSA, Poseidon, and ZK proofs.
+
+**Privacy Design** - Read [Privacy Protection](/docs/protocol/privacy-protection) to understand identity anonymization principles.
+
+**Contract Implementation** - View [Contract Architecture](/docs/contracts/architecture) to learn about Registry and AMACI contract design.
