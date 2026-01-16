@@ -7,13 +7,13 @@ MACI SDK 提供了丰富的查询功能来获取各种信息。
 ### 通过 ID 查询 Round
 
 ```typescript
-// 方式1：使用 getRoundInfo（推荐，返回完整的 Round 信息）
+// 方式1：使用 getRoundInfo（推荐）
 const round = await client.getRoundInfo({ contractAddress: 'dora1contractaddress...' });
 
 // 方式2：使用 indexer 查询
 const round = await client.indexer.getRoundById('dora1contractaddress...');
 
-console.log('Round 信息:', {
+console.log('Round info:', {
   title: round.title,
   description: round.description,
   status: round.status,
@@ -37,7 +37,6 @@ rounds.forEach(round => {
 ### 按状态查询
 
 ```typescript
-// 查询所有进行中的投票
 const activeRounds = await client.indexer.getRoundsByStatus(
   'Voting',
   'first',
@@ -82,7 +81,7 @@ const p1vRounds = await client.indexer.getRoundsByCircuitName(
 ```typescript
 const operator = await client.indexer.getOperatorByAddress('dora1operator...');
 
-console.log('Operator 信息:', {
+console.log('Operator info:', {
   address: operator.address,
   pubkey: operator.pubkey,
   identity: operator.identity,
@@ -107,7 +106,7 @@ operators.forEach(op => {
 ```typescript
 const circuit = await client.indexer.getCircuitByName('amaci-qv');
 
-console.log('Circuit 信息:', {
+console.log('Circuit info:', {
   name: circuit.name,
   type: circuit.type,
   description: circuit.description
@@ -131,7 +130,7 @@ circuits.forEach(circuit => {
 ```typescript
 const tx = await client.indexer.getTransactionByHash('ABCD1234...');
 
-console.log('交易信息:', {
+console.log('Transaction info:', {
   hash: tx.hash,
   height: tx.height,
   success: tx.success,
@@ -167,7 +166,7 @@ const recentTxs = await client.indexer.getTransactions('first', 20);
 ```typescript
 const proof = await client.indexer.getProofByContractAddress('dora1contract...');
 
-console.log('证明信息:', {
+console.log('Proof info:', {
   contractAddress: proof.contractAddress,
   hasProcessMessagesProof: proof.hasProcessMessagesProof,
   hasTallyProof: proof.hasTallyProof,
@@ -183,7 +182,7 @@ console.log('证明信息:', {
 ```typescript
 const balance = await client.indexer.balanceOf('dora1address...');
 
-console.log('余额:', {
+console.log('Balance:', {
   amount: balance.amount,
   denom: balance.denom
 });
@@ -211,10 +210,8 @@ const page0 = await client.getRounds('before', 10, page1[0].id);
 
 ```typescript
 async function findActiveQVRounds(client: MaciClient) {
-  // 1. 获取所有 QV 电路的投票
   const qvRounds = await client.indexer.getRoundsByCircuitName('amaci-qv', 'first', 100);
   
-  // 2. 过滤出进行中的投票
   const activeRounds = qvRounds.filter(round => {
     const now = Date.now() / 1000;
     return (
@@ -224,15 +221,13 @@ async function findActiveQVRounds(client: MaciClient) {
     );
   });
   
-  // 3. 按参与人数排序
   activeRounds.sort((a, b) => b.numSignups - a.numSignups);
   
   return activeRounds;
 }
 
-// 使用
 const popularRounds = await findActiveQVRounds(client);
-console.log(`找到 ${popularRounds.length} 个活跃的 QV 投票`);
+console.log(`Found ${popularRounds.length} active QV rounds`);
 ```
 
 ### 监听 Round 状态
@@ -242,25 +237,18 @@ async function waitForRoundToFinish(
   client: MaciClient,
   contractAddress: string
 ): Promise<void> {
-  console.log('等待投票结束...');
-  
   while (true) {
     const round = await client.getRoundInfo({ contractAddress });
     
     if (round.status === 'Tallied') {
-      console.log('✅ 投票已完成！');
+      console.log('Round finished');
       break;
     }
     
-    console.log(`当前状态: ${round.status}`);
-    
-    // 等待 10 秒后再次检查
+    console.log(`Current status: ${round.status}`);
     await new Promise(resolve => setTimeout(resolve, 10000));
   }
 }
-
-// 使用
-await waitForRoundToFinish(client, 'dora1contract...');
 ```
 
 ## 错误处理
@@ -272,12 +260,11 @@ async function safeQuery<T>(
   try {
     return await queryFn();
   } catch (error) {
-    console.error('查询失败:', error);
+    console.error('Query failed:', error);
     return null;
   }
 }
 
-// 使用
 const round = await safeQuery(() => 
   client.getRoundInfo({ contractAddress: 'dora1contract...' })
 );
@@ -285,7 +272,7 @@ const round = await safeQuery(() =>
 if (round) {
   console.log('Round:', round.title);
 } else {
-  console.log('Round 不存在或查询失败');
+  console.log('Round not found or query failed');
 }
 ```
 
@@ -296,7 +283,7 @@ if (round) {
 ```typescript
 class CachedMaciClient {
   private cache = new Map<string, { data: any; expiry: number }>();
-  private cacheDuration = 60000;  // 1 分钟
+  private cacheDuration = 60000;
   
   constructor(private client: MaciClient) {}
   
@@ -305,11 +292,9 @@ class CachedMaciClient {
     const cached = this.cache.get(key);
     
     if (cached && cached.expiry > Date.now()) {
-      console.log('使用缓存数据');
       return cached.data;
     }
     
-    console.log('从链上查询');
     const data = await this.client.getRoundInfo({ contractAddress });
     
     this.cache.set(key, {
@@ -321,16 +306,13 @@ class CachedMaciClient {
   }
 }
 
-// 使用
 const cachedClient = new CachedMaciClient(client);
-const round1 = await cachedClient.getRoundById('dora1...');  // 链上查询
+const round1 = await cachedClient.getRoundById('dora1...');
 const round2 = await cachedClient.getRoundById('dora1...');  // 使用缓存
 ```
 
-## 下一步
+## 相关文档
 
-了解查询 API 后，您可以：
-
-- 🚀 [探索高级功能](/docs/sdk/advanced) - 了解更多 SDK 功能
-- 💡 [查看示例](/docs/examples/basic-voting) - 完整的应用示例
-- 📖 [回到概览](/docs/sdk/installation) - SDK 文档首页
+- [高级功能](/docs/sdk/advanced) - 探索更多 SDK 功能
+- [完整示例](/docs/examples/basic-voting) - 查看实际应用代码
+- [SDK 概览](/docs/sdk/installation) - 回到 SDK 文档首页

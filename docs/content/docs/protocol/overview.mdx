@@ -1,574 +1,277 @@
-# AMACI 协议概览
+# 协议概览
 
-AMACI（Anonymous MACI）是一个基于零知识证明的匿名抗串谋投票协议。它在原始 MACI 基础上增加了**身份匿名化**功能，使得即使是 Operator 也无法确定投票者的真实身份。
+AMACI (Anonymous MACI) 在原始 MACI 基础上增加了身份匿名化能力。本文通过一个完整案例讲解 AMACI 的工作原理。
+
+## 从一个实际案例开始
+
+假设 Alice 想为她的 DAO 创建一个匿名提案投票。她不希望社区成员因为投了反对票而受到压力，也担心有人贿选。让我们看看 AMACI 如何保护这次投票。
 
 ## AMACI vs MACI
 
-### 技术演进
+**MACI** 通过加密保护投票内容，但处理投票的 operator 能通过链上 signup 交易看到"Alice (地址 dora1abc...) 投给了提案 A"。
 
-**MACI（第一版本）：**
-- 提供基础的隐私保护（投票内容加密）
-- 抗串谋机制（密钥更改）
-- Operator 可以关联投票者身份
+**AMACI** 更进一步。使用匿名注册后，operator 只能看到"state index 5 投给了提案 A"，但无法确定 state index 5 对应哪个地址。即使 operator 想贿赂或报复投票者，也找不到目标。
 
-**AMACI（当前版本）：**
-- 继承 MACI 的所有功能
-- **新增身份匿名化**（add-new-key / pre-add-new-key）
-- **新增 Process Deactivate** 流程
-- Operator 无法确定投票者身份
+## 完整投票流程
 
-### 核心区别
+### 阶段 1：Alice 创建投票
 
-```mermaid
-graph TD
-    subgraph maciFlow [MACI流程]
-        M1[Signup] -->|链上交易公开| M2[公钥+钱包地址]
-        M2 -->|Operator可关联| M3[知道具体是谁投票]
-    end
-    
-    subgraph amaciFlow [AMACI流程]
-        A1[Add-new-key] -->|ZK证明| A2[只有公钥]
-        A2 -->|无法关联| A3[只知道有人投票]
-    end
+Alice 选择一个已注册的 operator，配置投票参数：
+
+```typescript
+const round = await client.createAMaciRound({
+  operator: 'dora1operator...',
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  voteOptionMap: ['提案 A', '提案 B', '提案 C'],
+  circuitType: MaciCircuitType.QV,
+  whitelist: { addresses: [...] }
+});
 ```
 
-## AMACI 工作原理
+Registry 合约验证 operator，实例化 AMACI 合约，返回合约地址给 Alice。
 
-AMACI 的核心思想是：**链上加密 + 身份匿名 + 链下处理 + 零知识证明验证**。
+### 阶段 2：Bob 匿名注册（使用 add-new-key）
 
-### 链上阶段：加密和匿名
+Bob 想完全匿名投票。他先用现有身份提交 deactivate 消息：
 
-```mermaid
-graph TD
-    A[投票者] -->|选择| B{注册方式}
-    B -->|简单| C[Signup]
-    B -->|匿名| D[Add-new-key]
-    B -->|快速匿名| E[Pre-add-new-key]
-    C -->|暴露身份| F[获得State Index]
-    D -->|ZK证明| F
-    E -->|ZK证明| F
-    F --> G[加密投票消息]
-    G --> H[提交到链上]
+```typescript
+await client.deactivate({
+  signer: bobWallet,
+  address: bobAddress,
+  contractAddress,
+  maciKeypair: bobOldKeypair
+});
 ```
 
-**特点：**
-- 投票内容使用 Operator 公钥加密
-- 身份通过 ZK 证明匿名化（可选）
-- 消息存储在区块链上不可篡改
-- 任何人都可以验证消息完整性
+等待 operator 处理这些 deactivate 消息后，Bob 生成零知识证明：
 
-### 链下阶段：处理和证明
+```typescript
+const voterClient = new VoterClient({
+  secretKey: bobOldPrivateKey
+});
 
-Operator 在链下处理消息并生成证明：
-
-```mermaid
-graph TD
-    A[Operator] -->|1.下载| B[加密消息]
-    B -->|2.解密| C[明文消息]
-    C -->|3.验证| D[有效消息]
-    D -->|4.处理| E[更新状态]
-    E -->|5.生成| F[ZK证明]
-    F -->|6.提交| G[链上验证]
+const payload = await voterClient.buildAddNewKeyPayload({
+  stateTreeDepth: 10,
+  coordinatorPubkey: operatorPubkey,
+  deactivates: deactivateLeaves,
+  wasmFile: './addNewKey.wasm',
+  zkeyFile: './addNewKey.zkey'
+});
 ```
 
-**特点：**
-- Operator 能看到投票内容
-- 但无法确定具体是谁（使用 add-new-key 时）
-- 零知识证明确保处理正确性
-- 无法篡改或隐藏投票
+这个证明表示："我知道 deactivate tree 中某个条目的私钥，但我不告诉你是哪个。"
 
-## AMACI 生命周期
+Bob 用新钱包发送 add-new-key 交易：
 
-一个完整的 AMACI 投票轮次包含以下阶段：
-
-### 1. 准备阶段
-
-**目标：** 设置投票环境和 Operator
-
-**操作：**
-- Operator 注册到 Registry（许可制，由 Dora Factory 管理）
-- Operator 生成密钥对并公布公钥
-- 可选：配置 pre-deactivate root（用于 pre-add-new-key）
-
-```mermaid
-sequenceDiagram
-    participant Op as Operator
-    participant Registry as Registry合约
-    Op->>Registry: 注册Operator
-    Op->>Registry: 设置公钥
-    Op->>Registry: 设置身份信息
-    Registry-->>Op: 注册成功
+```typescript
+await client.addNewKey({
+  signer: newWallet,  // 不同的钱包地址
+  contractAddress,
+  d: payload.d,
+  proof: payload.proof,
+  nullifier: payload.nullifier,
+  newMaciKeypair: newKeypair
+});
 ```
 
-### 2. 创建阶段
+Operator 看到链上有人用 add-new-key 注册了，但无法确定是 Bob 还是其他任何 deactivate 过的用户。
 
-**目标：** 用户创建投票轮次
+### 阶段 3：Carol 快速注册（使用 signup）
 
-**操作：**
-- 用户选择一个已注册的 Operator
-- 配置投票参数（选项、时间、白名单等）
-- 通过 Registry 一键创建 AMACI 合约实例
-- 支付 Operator 服务费用
+Carol 不在意隐私，直接用 signup 注册：
 
-```mermaid
-sequenceDiagram
-    participant User as 用户
-    participant Registry as Registry合约
-    participant AMACI as AMACI合约
-    User->>Registry: CreateRound(选择Operator)
-    Registry->>Registry: 验证Operator
-    Registry->>AMACI: 实例化合约
-    AMACI->>AMACI: 初始化状态
-    Registry-->>User: 返回合约地址
+```typescript
+const maciKeypair = await client.genKeypairFromSign({ 
+  signer: carolWallet, 
+  address: carolAddress 
+});
+
+await client.signup({
+  signer: carolWallet,
+  address: carolAddress,
+  contractAddress,
+  maciKeypair
+});
 ```
 
-### 3. 注册阶段
+这种方式最快，但 operator 能看到 Carol 的地址。
 
-**目标：** 投票者选择注册方式
+### 阶段 4：投票
 
-AMACI 提供三种注册方式，用户可根据隐私需求选择：
+Bob 和 Carol 都创建加密的投票消息：
 
-**方式 1: Signup（标准，快速）**
+```typescript
+// Bob 用新密钥投票
+await client.vote({
+  signer: newWallet,
+  contractAddress,
+  selectedOptions: [
+    { idx: 0, vc: 8 },  // 提案 A: 8 票
+    { idx: 2, vc: 6 }   // 提案 C: 6 票
+  ],
+  operatorCoordPubKey: [...],
+  maciKeypair: newKeypair  // Bob 的新密钥
+});
 
-```mermaid
-sequenceDiagram
-    participant Voter as 投票者
-    participant Oracle as Oracle服务
-    participant AMACI as AMACI合约
-    Voter->>Voter: 生成密钥对
-    Voter->>Oracle: 请求证书
-    Oracle-->>Voter: 返回证书
-    Voter->>AMACI: Signup(公钥+证书)
-    AMACI-->>Voter: 分配State Index
-    Note over Voter,AMACI: Operator可通过链上交易关联身份
+// Carol 投票
+await client.vote({
+  signer: carolWallet,
+  contractAddress,
+  selectedOptions: [{ idx: 1, vc: 10 }],  // 提案 B: 10 票
+  operatorCoordPubKey: [...],
+  maciKeypair: carolKeypair
+});
 ```
 
-**方式 2: Add-new-key（匿名，需等待）**
+投票消息用 operator 公钥加密后上链。任何人都能看到链上有加密消息，但无法解密内容。
 
-```mermaid
-sequenceDiagram
-    participant Old as 老用户
-    participant AMACI as AMACI合约
-    participant Op as Operator
-    participant New as 新用户
-    Old->>AMACI: 1. Deactivate
-    Op->>AMACI: 2. ProcessDeactivate
-    Note over Op: 生成deactivate tree
-    New->>New: 3. 生成ZK证明
-    New->>AMACI: 4. Add-new-key+proof
-    AMACI-->>New: 分配新State Index
-    Note over AMACI: Operator无法关联新旧身份
+Bob 改变主意，重新投票：
+
+```typescript
+await client.vote({
+  selectedOptions: [{ idx: 1, vc: 14 }],  // 改投提案 B
+  // nonce 自动 +1，覆盖之前的投票
+  ...
+});
 ```
 
-**方式 3: Pre-add-new-key（匿名，即时）**
+### 阶段 5：Operator 处理投票
 
-```mermaid
-sequenceDiagram
-    participant New as 新用户
-    participant AMACI as AMACI合约
-    Note over AMACI: Round已配置pre-deactivate root
-    New->>New: 生成ZK证明
-    New->>AMACI: Pre-add-new-key+proof
-    AMACI-->>New: 立即分配State Index
-    Note over AMACI: 无需等待，立即匿名
-```
+投票期结束后，operator 开始工作。
 
-### 4. 投票阶段
+**5.1 处理 deactivate 消息（AMACI 特有）**
 
-**目标：** 投票者提交加密的投票消息
+Operator 下载所有 deactivate 消息，解密它们，构建 deactivate tree。这个 tree 成为匿名集：任何后续使用 add-new-key 的用户都是这个集合中的一员，但 operator 无法确定具体是谁。
 
-**操作：**
-- 投票者创建投票消息（选项 + 权重）
-- 使用 Operator 公钥加密消息
-- 使用自己的私钥签名
-- 提交加密消息到链上
-- 可以多次投票覆盖之前的投票
+**5.2 处理投票消息**
 
-```mermaid
-sequenceDiagram
-    participant Voter as 投票者
-    participant AMACI as AMACI合约
-    loop 投票期间
-        Voter->>Voter: 创建投票消息
-        Voter->>Voter: 加密并签名
-        Voter->>AMACI: PublishMessage
-        AMACI->>AMACI: 存储到消息队列
-        opt 改变主意
-            Voter->>AMACI: 提交新消息（nonce+1）
-        end
-    end
-    Note over AMACI: 投票期结束
-```
-
-**匿名性：**
-- 使用 signup：Operator 知道是谁投的
-- 使用 add-new-key：Operator 只知道有人投票，不知道是谁
-
-### 5. 处理阶段（AMACI 特色）
-
-AMACI 的处理分为两步：**Process Deactivate**（可选）→ **Process Messages**
-
-#### 步骤 5.1: Process Deactivate（AMACI 独有）
-
-**目标：** 生成 deactivate tree，为 add-new-key 做准备
-
-```mermaid
-sequenceDiagram
-    participant Op as Operator
-    participant AMACI as AMACI合约
-    Note over AMACI: 收集了deactivate消息
-    Op->>AMACI: 下载deactivate消息
-    Op->>Op: 解密并处理
-    Op->>Op: 生成deactivate tree
-    Op->>Op: 生成ZK证明
-    Op->>AMACI: ProcessDeactivate(root, proof)
-    AMACI->>AMACI: 验证证明
-    AMACI->>AMACI: 更新deactivate commitment
-    Note over AMACI: 后续用户可使用add-new-key
-```
-
-**重要性：**
-- 只有处理了 deactivate，才能使用 add-new-key
-- 为身份匿名化提供基础
-- Operator 生成的 deactivate tree 是匿名集
-
-#### 步骤 5.2: Process Messages
-
-**目标：** 处理投票消息并生成证明
-
-```mermaid
-sequenceDiagram
-    participant Op as Operator
-    participant AMACI as AMACI合约
-    participant Circuit as ZK电路
-    Op->>AMACI: 下载投票消息
-    Op->>Op: 解密消息
-    Op->>Op: 验证签名
-    Op->>Op: 按Nonce处理
-    Op->>Op: 更新状态树
-    Op->>Circuit: 生成ProcessMessages证明
-    Circuit-->>Op: 返回证明
-    Op->>AMACI: 提交证明
-    AMACI->>AMACI: 验证并更新状态
-```
-
-**AMACI 的特殊性：**
-- State Leaf 包含 d1, d2 字段（用于 add-new-key）
-- 需要维护 active state tree 和 deactivate tree
-- 电路更复杂，但隐私性更强
-
-#### 步骤 5.3: Process Tally
-
-**目标：** 统计结果并生成证明
-
-```mermaid
-sequenceDiagram
-    participant Op as Operator
-    participant AMACI as AMACI合约
-    Op->>Op: 遍历状态树
-    Op->>Op: 统计各选项票数
-    Op->>Op: 生成Tally证明
-    Op->>AMACI: ProcessTally(results, proof)
-    AMACI->>AMACI: 验证证明
-    AMACI->>AMACI: 发布结果
-```
-
-### 6. 验证和结果阶段
-
-**目标：** 链上验证证明并公布结果
-
-**自动化处理：**
-- AMACI 合约自动验证 Operator 提交的证明
-- 验证通过后更新状态根
-- 发布最终投票结果
-- 任何人都可以验证证明有效性
-
-```mermaid
-graph TD
-    A[Operator提交证明] --> B{链上验证}
-    B -->|有效| C[更新状态]
-    B -->|无效| D[拒绝+惩罚]
-    C --> E[发布结果]
-    E --> F[任何人可验证]
-    D --> G[Operator需重新处理]
-```
-
-**用户视角：**
-- 用户只需等待
-- Operator 自动完成所有处理
-- 收到结果通知（如果配置）
-- 可查询验证结果
-
-## 参与角色
-
-AMACI 系统中有三个关键角色：
-
-### 投票者（Voter）
-
-**职责：**
-- 生成和管理密钥对
-- 选择注册方式（signup / add-new-key / pre-add-new-key）
-- 提交加密投票消息
-- 可选：deactivate 为他人创建匿名身份
-
-**能力：**
-- 查看自己的公钥和状态索引
-- 多次投票修改选择
-- 使用 add-new-key 创建匿名身份
-- 验证投票是否被包含
-
-**隐私选择：**
-- 使用 signup：快速但 Operator 知道身份
-- 使用 add-new-key：完全匿名但需要等待
-- 使用 pre-add-new-key：完全匿名且即时
-
-### Operator（协调者）
-
-**职责：**
-- 注册到 Registry 成为 Operator
-- 生成密钥对并公布公钥
-- 下载和解密投票消息
-- 处理 deactivate 消息（AMACI 独有）
-- 处理投票消息并更新状态树
-- 生成零知识证明
-- 提交证明到链上
-
-**能力：**
-- 可以解密所有投票消息内容
-- 可以看到每个 State Index 的投票
-
-**无法做到（AMACI 保护）：**
-- ❌ 无法确定 State Index 对应哪个钱包地址（使用 add-new-key 时）
-- ❌ 无法关联 add-new-key 的新旧身份
-- ❌ 无法进行针对性的贿赂或报复
-
-**限制（ZK 证明约束）：**
-- 不能伪造投票消息
-- 不能修改投票内容
-- 不能忽略或隐藏投票
-- 不能改变处理顺序（必须按 Nonce）
-- 必须正确统计结果
-
-**专业网络：**
-- 许可制，由 Dora Factory 管理
-- 查看列表：https://vota.dorafactory.org/operators
-- 有奖罚机制保证服务质量
-- 用户只需选择 Operator，无需自己运行
-
-### 智能合约
-
-**职责：**
-- 存储加密的投票消息
-- 管理投票者状态
-- 验证零知识证明
-- 发布投票结果
-
-**能力：**
-- 验证投票者的签名
-- 验证白名单资格
-- 验证零知识证明
-- 强制执行投票规则
-
-**限制：**
-- 不能解密投票消息
-- 不能直接统计投票结果
-- 依赖 Coordinator 提交证明
-
-## AMACI 状态管理
-
-AMACI 使用多个 Merkle Tree 来管理投票者状态：
-
-### 状态树（State Tree）
-
-AMACI 的状态树比 MACI 更复杂，包含额外的匿名化字段：
+Operator 下载所有投票消息，用自己的私钥解密：
 
 ```
-                   Root
-                  /    \
-                /        \
-              /            \
-         [Leaf 0]       [Leaf 1]
-         (User A)       (User B)
-         
-AMACI State Leaf 包含：
-- 公钥（Public Key）
-- 余额（Voice Credits Balance）
-- 投票树根（Vote Option Tree Root）
-- Nonce（消息序号）
-- d1[2]（用于 add-new-key 的匿名化数据）
-- d2[2]（用于 add-new-key 的匿名化数据）
+State Index 3 (Carol): 提案 B = 10 票
+State Index 5 (Bob): 提案 B = 14 票
+State Index 8 (Alice): 提案 A = 5 票, 提案 C = 5 票
+...
 ```
 
-**AMACI vs MACI State Leaf：**
+Operator 能看到每个 state index 投了什么，但对于使用 add-new-key 的 Bob，operator 不知道 state index 5 对应哪个真实地址。
 
-| 字段 | MACI | AMACI |
-|------|------|-------|
-| pubKey | ✅ | ✅ |
-| voiceCreditBalance | ✅ | ✅ |
-| voteOptionTreeRoot | ✅ | ✅ |
-| nonce | ✅ | ✅ |
-| d1[2] | ❌ | ✅（add-new-key用） |
-| d2[2] | ❌ | ✅（add-new-key用） |
+Operator 按 nonce 顺序处理消息，更新状态树。对于 Bob 的两次投票，第二次（nonce=1）覆盖第一次（nonce=0）。
 
-**d1, d2 的作用：**
-- 用于 rerandomization（重新随机化）
-- 使得 add-new-key 可以证明身份但不透露具体是谁
-- 包含加密的去活化标志
+**5.3 生成零知识证明**
 
-### Deactivate Tree（AMACI 独有）
+Operator 生成 ZK 证明，证明：
+- 处理了所有消息
+- 没有篡改任何投票
+- 正确更新了状态树
+- 正确统计了结果
 
-用于 add-new-key 机制的匿名集：
+如果 operator 试图作弊（比如忽略某些投票或修改结果），ZK 证明会验证失败。
 
-```
-            Deactivate Root
-              /          \
-            /              \
-      [Deactivate 0]  [Deactivate 1]
-      [c1,c2,hash]    [c1,c2,hash]
-```
+### 阶段 6：链上验证和结果
 
-**结构：**
-- 每个 deactivate 消息对应一个 leaf
-- Leaf = [c1[0], c1[1], c2[0], c2[1], sharedKeyHash]
-- c1, c2 是加密的去活化标志
-- sharedKeyHash = hash(ecdh(userPrivKey, coordPubKey))
+Operator 提交证明到 AMACI 合约：
 
-**匿名性：**
-- 树中有 N 个条目
-- Add-new-key 用户是这 N 个用户之一
-- Operator 无法确定具体是哪一个
-- 匿名集大小 = N
+```rust
+ProcessMessages {
+  new_state_root: "0x...",
+  proof: [...],
+  ...
+}
 
-### Active State Tree（AMACI 独有）
-
-跟踪哪些用户已经去活化：
-
-```
-            Active State Root
-              /          \
-            /              \
-         [0 = active]  [5 = deactivated]
+ProcessTally {
+  results: [
+    { option: 0, votes: "250" },  // 提案 A
+    { option: 1, votes: "384" },  // 提案 B (Carol 100 + Bob 196 + ...)
+    { option: 2, votes: "181" }   // 提案 C
+  ],
+  proof: [...]
+}
 ```
 
-**作用：**
-- 记录每个 State Index 的去活化状态
-- 在 Process Deactivate 时更新
-- 防止已去活化用户继续投票
+合约验证 ZK 证明。验证通过后，结果发布到链上。任何人都可以：
+- 验证证明有效性
+- 确认结果正确
+- 但看不到个人投票（除非用 signup 注册）
 
-### 投票选项树（Vote Option Tree）
+## 三种注册方式对比
 
-每个投票者有一个投票选项树，记录对每个选项的投票：
+**Signup** 最简单。直接用钱包地址注册，适合公开投票。Operator 能看到你的地址。
 
-```
-       VO Root
-        /    \
-      /        \
-   [Option 0] [Option 1]
-   (5 votes)  (3 votes)
-```
+**Add-new-key** 完全匿名。通过 ZK 证明创建新身份，operator 无法关联。需要等待 operator 处理 deactivate（通常几小时）。
 
-**特点：**
-- 记录每个选项的投票权重
-- 更新投票时只修改相关选项
-- 树根存储在状态树的 Leaf 中
-
-### 消息树（Message Tree）
-
-所有投票消息组成一个 Merkle Tree：
-
-```
-                Message Root
-                  /      \
-                /          \
-         [Message 0]    [Message 1]
-         (User A Vote)  (User B Vote)
-```
-
-**特点：**
-- 按提交顺序组织消息
-- 消息树根用于验证所有消息被处理
-- 保证消息的完整性和顺序
+**Pre-add-new-key** 兼具匿名和速度。投票创建时预先配置好 deactivate tree，用户可以立即匿名注册。
 
 ## 关键机制
 
-### Nonce 机制
+### 密钥更改防贿选
 
-Nonce 是每个投票者的消息序号：
+即使贿赂者要求 Bob 投给提案 A，Bob 可以：
+1. 先用旧密钥投给 A，提供证明给贿赂者
+2. 秘密更改密钥
+3. 用新密钥投给 B
 
-- 初始 Nonce = 0
-- 每处理一条有效消息，Nonce +1
-- 只有 Nonce 正确的消息才会被处理
-- Nonce 确保消息按正确顺序处理
+最终只有 B 有效。贿赂者无法验证 Bob 的最终投票。
 
-**示例：**
-
-```
-用户 A 提交了 3 条消息：
-- 消息 1: nonce=0 (处理, 新 nonce=1)
-- 消息 2: nonce=1 (处理, 新 nonce=2)
-- 消息 3: nonce=1 (无效, nonce 已过期)
-```
-
-### 密钥更改机制
-
-投票者可以更改密钥来使之前的投票失效：
-
-1. 投票者用旧密钥 K1 投票
-2. 投票者提交消息更改密钥为 K2
-3. 状态 Leaf 中的公钥更新为 K2
-4. 后续消息必须用 K2 签名
-5. 用 K1 签名的消息变为无效
-
-**防止贿选：**
-- 贿赂者要求用 K1 投票给选项 A
-- 投票者提供用 K1 投的票的证明
-- 投票者秘密更改密钥为 K2
-- 投票者用 K2 重新投给选项 B
-- 最终只有选项 B 的投票有效
+如果 Bob 使用 add-new-key，贿赂者连贿赂对象都找不到。
 
 ### 消息加密
 
-投票消息使用 ECDH 和 Poseidon 加密：
+投票消息使用 ECDH + Poseidon 加密：
 
-1. **ECDH 密钥交换**：
-   - 投票者私钥 × Coordinator 公钥 = 共享密钥
-   - Coordinator 私钥 × 投票者公钥 = 相同共享密钥
+1. Bob 用自己的私钥和 operator 公钥生成共享密钥
+2. 用共享密钥加密投票内容
+3. 用 EdDSA 签名证明消息来自 Bob
+4. Operator 用自己的私钥和 Bob 的公钥生成相同的共享密钥解密
 
-2. **Poseidon 加密**：
-   - 使用共享密钥派生加密密钥
-   - 使用 Poseidon 加密消息字段
+### Nonce 顺序保证
 
-3. **EdDSA 签名**：
-   - 对消息哈希签名
-   - 证明消息来自投票者
+每个投票者有一个 nonce，从 0 开始：
+- 第一条消息 nonce=0，处理后 nonce 变为 1
+- 第二条消息 nonce=1，处理后 nonce 变为 2
+- 如果提交 nonce=0 的消息，会被忽略（已过期）
+
+这确保投票按正确顺序处理，最新的投票有效。
+
+## 状态管理
+
+AMACI 维护几个 Merkle tree：
+
+**State Tree** 存储所有投票者状态。每个 leaf 包含：公钥、voice credit 余额、投票树根、nonce，以及 AMACI 特有的 d1/d2 字段（用于 add-new-key 的匿名化）。
+
+**Deactivate Tree** 存储所有 deactivate 消息，形成匿名集。Add-new-key 用户证明自己属于这个集合，但不透露具体身份。
+
+**Message Tree** 存储所有投票消息，确保 operator 处理了全部消息。
+
+**Vote Option Tree** 每个投票者有一个，记录对各选项的投票权重。
 
 ## 安全保证
 
-MACI 提供以下安全保证：
+**投票内容隐私** - 只有 operator 能解密，但 operator 被 ZK 证明约束，无法作弊。
 
-### 隐私保证
+**身份隐私** - 使用 add-new-key 时，即使 operator 也不知道你是谁。
 
-✅ **投票内容隐私**：只有 Coordinator 能看到投票内容  
-✅ **投票者匿名性**：可以使用 AMACI 增强匿名性  
-✅ **不可关联性**：密钥更改打破投票关联  
+**抗贿选** - 密钥更改机制 + 身份匿名化，双重保护。
 
-### 完整性保证
+**可验证性** - 任何人都能验证 ZK 证明，确认结果正确。
 
-✅ **不可伪造**：所有消息必须有有效的 EdDSA 签名  
-✅ **不可篡改**：消息存储在区块链上  
-✅ **正确处理**：零知识证明确保 Coordinator 正确处理  
+**不可篡改** - 消息存储在区块链上，operator 无法删除或修改。
 
-### 抗串谋保证
+## 设计权衡
 
-✅ **防止贿选**：密钥更改使投票证明无效  
-✅ **防止强制**：可以重新投票  
-✅ **无法证明投票**：投票者无法向第三方证明最终投票  
+**Operator 依赖** - Operator 能看到投票内容（但使用 add-new-key 时不知道是谁投的），也可能拒绝处理。权衡是：用户无需运行复杂软件，ZK 证明确保 operator 无法作弊。
+
+**处理延迟** - 结果不是实时的，通常需要几小时。这是隐私保护的必要代价。
+
+**Gas 成本** - ZK 证明验证需要较多链上计算。通过 Gas Station 补贴用户，创建投票时支付 operator 费用。
 
 ## 下一步
 
-现在您已经了解了 AMACI 协议的整体架构，接下来可以深入学习：
+**理解注册方式** - 阅读[核心概念](/docs/protocol/core-concepts)深入了解三种注册方式的技术细节。
 
-- 🔑 [核心概念](/docs/protocol/core-concepts) - 详细了解三种注册方式和状态管理
-- 🔐 [隐私保护](/docs/protocol/privacy-protection) - 理解 AMACI 的身份解耦机制
-- 📨 [消息流程](/docs/protocol/message-flow) - 理解消息的生成和处理
-- 🏗️ [合约架构](/docs/contracts/architecture) - 了解合约设计和 Operator 网络
+**学习密码学** - 查看[密码学机制](/docs/protocol/cryptography)了解 EdDSA、Poseidon 和 ZK 证明。
+
+**隐私设计** - 阅读[隐私保护](/docs/protocol/privacy-protection)理解身份匿名化原理。
+
+**合约实现** - 查看[合约架构](/docs/contracts/architecture)了解 Registry 和 AMACI 合约设计。

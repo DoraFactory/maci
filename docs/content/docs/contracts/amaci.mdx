@@ -143,7 +143,7 @@ fn verify_oracle_signature(
 
 ### Signup 隐私级别
 
-**隐私级别：** ⭐⭐（低）
+**隐私级别：** （低）
 
 **Operator 可以看到：**
 - 钱包地址（通过链上 signup 交易）
@@ -179,7 +179,7 @@ ExecuteMsg::AddNewKey {
 
 ### 完整流程
 
-**步骤 1: 老用户 Deactivate**
+**老用户 Deactivate**
 
 ```typescript
 // 老用户提交 deactivate 消息
@@ -197,7 +197,7 @@ await client.deactivate({
 // - newPubKey = [0, 0]（表示最后一条消息）
 ```
 
-**步骤 2: Operator 处理 Deactivate**
+**Operator 处理 Deactivate**
 
 ```typescript
 // Operator 处理所有 deactivate 消息
@@ -217,7 +217,7 @@ await contract.execute({
 });
 ```
 
-**步骤 3: 新用户生成 ZK 证明**
+**新用户生成 ZK 证明**
 
 ```typescript
 // 使用 VoterClient 生成 payload
@@ -248,7 +248,7 @@ const payload = await voterClient.buildAddNewKeyPayload({
 // }
 ```
 
-**步骤 4: 提交 Add-new-key**
+**提交 Add-new-key**
 
 ```typescript
 // 使用新钱包提交（重要！）
@@ -357,7 +357,7 @@ template AddNewKey(stateTreeDepth) {
 
 ### Add-new-key 隐私级别
 
-**隐私级别：** ⭐⭐⭐⭐⭐（最高）
+**隐私级别：** （最高）
 
 **Operator 只能看到：**
 - 新钱包地址（可能是全新的）
@@ -367,10 +367,10 @@ template AddNewKey(stateTreeDepth) {
 - ZK 证明（已验证通过）
 
 **Operator 无法确定：**
-- ❌ 新用户是 deactivate 树中的第几个
-- ❌ 对应哪个钱包地址
-- ❌ 与哪个老身份关联
-- ❌ oldPrivateKey 是什么
+- 新用户是 deactivate 树中的第几个
+- 对应哪个钱包地址
+- 与哪个老身份关联
+- oldPrivateKey 是什么
 
 **匿名集：**
 - 匿名集大小 = deactivate 树中的条目数
@@ -439,7 +439,7 @@ await client.createOracleMaciRound({
 
 ### Pre-add-new-key 隐私级别
 
-**隐私级别：** ⭐⭐⭐⭐⭐（最高）
+**隐私级别：** （最高）
 
 与 add-new-key 相同的隐私保护，但无需等待。
 
@@ -1127,9 +1127,9 @@ await userC.vote({...});
 
 ## 下一步
 
-现在您已经了解了 AMACI 合约的所有注册方式，接下来可以：
+完成后，您可以了解了 AMACI 合约的所有注册方式，接下来可以：
 
-- 🔐 [AMACI 隐私机制](/docs/protocol/amaci-privacy) - 深入理解身份匿名化原理
+- [AMACI 隐私机制](/docs/protocol/amaci-privacy) - 深入理解身份匿名化原理
 - 🔄 [完整工作流程](/docs/contracts/workflow) - 理解从创建到结果的全流程
 - 💻 [SDK 使用指南](/docs/sdk/voting-guide) - 使用 SDK 与 AMACI 交互
-- 💡 [示例代码](/docs/examples/basic-voting) - 查看完整的投票示例
+- [示例代码](/docs/examples/basic-voting) - 查看完整的投票示例

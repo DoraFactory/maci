@@ -1,37 +1,35 @@
 const INTRODUCTION_ITEMS = {
-  'what-is-maci': 'MACI 投票系统',
-  'key-features': 'AMACI 核心特性',
+  'what-is-maci': '什么是 MACI',
+  'key-features': '核心特性',
   'quick-start': '快速开始'
 };
 
 const PROTOCOL_ITEMS = {
-  overview: 'AMACI 协议概览',
-  'core-concepts': '三种注册方式',
-  'privacy-protection': '身份匿名化',
-  'amaci-privacy': 'Operator 视角分析',
+  overview: '协议概览',
+  'core-concepts': '核心概念',
+  'privacy-protection': '隐私保护',
   'message-flow': '消息流程',
-  cryptography: '密码学机制'
+  cryptography: '密码学'
 };
 
 const CONTRACTS_ITEMS = {
   architecture: '架构设计',
-  registry: 'Operator 网络',
+  registry: 'Registry 合约',
   amaci: 'AMACI 合约',
-  workflow: '完整工作流程'
+  workflow: '工作流程'
 };
 
 const SDK_ITEMS = {
-  installation: '安装 SDK',
-  'client-setup': '客户端初始化',
-  'create-round': '创建投票轮次',
-  'voting-guide': '投票操作指南',
-  'query-api': '查询 API',
+  installation: '安装与配置',
+  'create-round': '创建投票',
+  'voting-guide': '投票指南',
+  'query-api': 'Query API',
   advanced: '高级功能'
 };
 
 const EXAMPLES_ITEMS = {
-  'basic-voting': '基础投票示例',
-  'pre-addnewkey-round': '匿名投票示例'
+  'basic-voting': '基础投票',
+  'pre-addnewkey-round': '匿名投票'
 };
 
 const DOCS_ITEMS = {
@@ -75,13 +73,7 @@ const DOCS_ITEMS = {
   examples: {
     title: '示例代码',
     items: EXAMPLES_ITEMS
-  },
-  '---resources-separator': {
-    type: 'separator',
-    title: '资源'
-  },
-  navigation: '导航指南',
-  tips: '使用技巧'
+  }
 };
 
 export default {

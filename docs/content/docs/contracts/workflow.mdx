@@ -130,7 +130,7 @@ const round = await client.createOracleMaciRound({
   }
 });
 
-console.log('✅ Round 创建成功！');
+console.log('Round 创建成功！');
 console.log('AMACI 合约地址:', round.contractAddress);
 console.log('交易哈希:', round.transactionHash);
 console.log('Operator 将自动监控此 Round');
@@ -157,13 +157,13 @@ console.log('Round 信息:', {
 ```typescript
 console.log('=== 用户 A: 使用 Signup（快速但Operator知道身份）===\n');
 
-// 步骤 1: 生成 MACI 账户
+// 生成 MACI 账户
 const userAKeypair = await client.genKeypairFromSign({
   signer: walletA,
   address: addressA
 });
 
-// 步骤 2: 等待 Gas Station
+// 等待 Gas Station
 let hasFeegrant = false;
 while (!hasFeegrant) {
   hasFeegrant = await client.hasFeegrant({
@@ -175,7 +175,7 @@ while (!hasFeegrant) {
   }
 }
 
-// 步骤 3: Signup（仅白名单地址可用）
+// Signup（仅白名单地址可用）
 await client.signup({
   signer: walletA,
   address: addressA,
@@ -184,10 +184,10 @@ await client.signup({
   gasStation: true
 });
 
-console.log('✅ 用户 A 签到成功');
+console.log('用户 A 签到成功');
 console.log('⚠️  注意：用户 A 的地址必须在白名单中');
 
-// 步骤 4: 投票
+// 投票
 const roundInfo = await client.getRoundInfo({ contractAddress: round.contractAddress });
 
 await client.vote({
@@ -206,7 +206,7 @@ await client.vote({
   gasStation: true
 });
 
-console.log('✅ 用户 A 投票成功');
+console.log('用户 A 投票成功');
 console.log('⚠️  注意：Operator 可以通过链上交易知道用户 A 的身份');
 ```
 
@@ -218,15 +218,15 @@ console.log('\n=== 用户 B: 使用 Add-new-key（完全匿名）===\n');
 // 前提：用户 B 已经有一个老账户并已 deactivate
 // 或者等待其他人 deactivate
 
-// 步骤 1: 等待 Operator 处理 deactivate
+// 等待 Operator 处理 deactivate
 console.log('等待 Operator 处理 deactivate 消息...');
 // （这个由 Operator 自动完成）
 
-// 步骤 2: 获取 deactivate 数据
+// 获取 deactivate 数据
 const deactivates = await client.fetchAllDeactivateLogs(round.contractAddress);
 console.log(`Deactivate 数据获取成功，匿名集大小: ${deactivates.length}`);
 
-// 步骤 3: 生成 add-new-key payload
+// 生成 add-new-key payload
 import { VoterClient } from '@dorafactory/maci-sdk';
 
 const voterClient = new VoterClient({
@@ -244,7 +244,7 @@ const addKeyPayload = await voterClient.buildAddNewKeyPayload({
 
 console.log('ZK 证明生成成功');
 
-// 步骤 4: 使用新钱包提交 add-new-key
+// 使用新钱包提交 add-new-key
 const newKeypair = genKeypair();
 
 await client.addNewKey({
@@ -257,10 +257,10 @@ await client.addNewKey({
   fee: 'auto'
 });
 
-console.log('✅ 用户 B 匿名注册成功');
-console.log('✅ Operator 无法确定用户 B 的真实身份');
+console.log('用户 B 匿名注册成功');
+console.log('Operator 无法确定用户 B 的真实身份');
 
-// 步骤 5: 投票
+// 投票
 await client.vote({
   signer: newWalletB,
   address: newAddressB,
@@ -277,7 +277,7 @@ await client.vote({
   gasStation: true
 });
 
-console.log('✅ 用户 B 投票成功（完全匿名）');
+console.log('用户 B 投票成功（完全匿名）');
 ```
 
 ### 3.3 投票期间的查询
@@ -305,7 +305,7 @@ console.log('- 状态:', currentInfo.status);
 ```typescript
 console.log('=== Operator 自动处理流程 ===\n');
 
-// 步骤 1: 下载 deactivate 消息
+// 下载 deactivate 消息
 const deactivateMessages = await contract.query({
   get_deactivate_messages: {}
 });
@@ -313,11 +313,11 @@ const deactivateMessages = await contract.query({
 if (deactivateMessages.length > 0) {
   console.log(`发现 ${deactivateMessages.length} 条 deactivate 消息`);
   
-  // 步骤 2: 处理并生成 deactivate tree
+  // 处理并生成 deactivate tree
   // （Operator 使用专业工具自动完成）
   
-  // 步骤 3: 提交 ProcessDeactivate 证明
-  console.log('✅ ProcessDeactivate 完成');
+  // 提交 ProcessDeactivate 证明
+  console.log('ProcessDeactivate 完成');
   console.log(`生成匿名集，大小: ${deactivateMessages.length}`);
 }
 ```
@@ -338,7 +338,7 @@ console.log('\nOperator: 处理投票消息...');
 
 // （这些都由 Operator 自动完成，用户无需操作）
 
-console.log('✅ ProcessMessages 完成');
+console.log('ProcessMessages 完成');
 ```
 
 ### 4.3 Process Tally
@@ -353,8 +353,8 @@ console.log('\nOperator: 统计投票结果...');
 // 4. 提交到链上
 // 5. 发布结果
 
-console.log('✅ ProcessTally 完成');
-console.log('✅ 投票结果已发布！');
+console.log('ProcessTally 完成');
+console.log('投票结果已发布！');
 ```
 
 ### Operator 处理时间
@@ -412,7 +412,7 @@ Operator 知道：
 - 投给了哪个选项
 - 投了多少票
 
-隐私级别：⭐⭐
+隐私级别：
 ```
 
 **用户 B（使用 Add-new-key）：**
@@ -432,7 +432,7 @@ Operator 不知道：
 - 对应哪个钱包地址
 - 真实身份是谁
 
-隐私级别：⭐⭐⭐⭐⭐
+隐私级别：
 ```
 
 ## 完整时间线
@@ -664,26 +664,26 @@ completeVotingRound().catch(console.error);
 ### 关键优势
 
 **用户体验：**
-- ✅ 无需运行 Operator 软件
-- ✅ 无需学习 ZK 电路
-- ✅ 无需监控处理进度
-- ✅ 只需等待结果
+- 无需运行 Operator 软件
+- 无需学习 ZK 电路
+- 无需监控处理进度
+- 只需等待结果
 
 **隐私保护：**
-- ✅ 可选择隐私级别（signup / add-new-key）
-- ✅ Operator 专业处理
-- ✅ 零知识证明保证正确性
+- 可选择隐私级别（signup / add-new-key）
+- Operator 专业处理
+- 零知识证明保证正确性
 
 **系统可靠性：**
-- ✅ 专业 Operator 网络
-- ✅ 奖罚机制约束
-- ✅ 透明的历史记录
+- 专业 Operator 网络
+- 奖罚机制约束
+- 透明的历史记录
 
 ## 下一步
 
-现在您已经理解了 AMACI 的完整工作流程，接下来可以：
+完成后，您可以理解了 AMACI 的完整工作流程，接下来可以：
 
 - 💻 [SDK 使用指南](/docs/sdk/installation) - 详细学习 SDK 的使用
-- 🔐 [AMACI 隐私机制](/docs/protocol/amaci-privacy) - 深入理解身份匿名化
-- 💡 [示例代码](/docs/examples/basic-voting) - 查看更多示例
-- 🚀 [快速开始](/docs/introduction/quick-start) - 快速上手 AMACI
+- [AMACI 隐私机制](/docs/protocol/amaci-privacy) - 深入理解身份匿名化
+- [示例代码](/docs/examples/basic-voting) - 查看更多示例
+- [快速开始](/docs/introduction/quick-start) - 快速上手 AMACI

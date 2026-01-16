@@ -1,69 +1,136 @@
-# 安装
+# SDK 安装与配置
 
-开始使用 MACI SDK 来构建支持隐私保护和抗串谋的投票应用。
+安装 MACI SDK 并初始化客户端。
 
 ## 环境要求
 
-在开始之前，请确保您的开发环境满足以下要求：
+- Node.js 16+
+- npm 7+ (或 pnpm/yarn)
+- TypeScript 4+ (推荐)
 
-- **Node.js**: 16.x 或更高版本
-- **npm**: 7.x 或更高版本（或使用 pnpm/yarn）
-- **TypeScript**: 4.x 或更高版本（推荐）
-
-## 安装 SDK
-
-### 使用 npm
+## 安装
 
 ```bash
-npm install @dorafactory/maci-sdk
+npm install @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate
 ```
 
-### 使用 pnpm
+或使用 pnpm：
 
 ```bash
-pnpm add @dorafactory/maci-sdk
+pnpm add @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate
 ```
 
-### 使用 yarn
+## 初始化客户端
 
-```bash
-yarn add @dorafactory/maci-sdk
-```
-
-## 安装依赖
-
-MACI SDK 依赖于 CosmJS，用于与 Cosmos 链交互：
-
-```bash
-npm install @cosmjs/proto-signing @cosmjs/stargate
-```
-
-## 验证安装
-
-创建一个测试文件来验证安装：
+### 基本用法
 
 ```typescript
-// test.ts
 import { MaciClient } from '@dorafactory/maci-sdk';
 
-const client = new MaciClient({
-  network: 'testnet'
-});
-
-console.log('MACI SDK 安装成功！');
+const client = new MaciClient({ network: 'testnet' });
 ```
 
-运行测试：
+### 配置钱包
+
+```typescript
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+
+const wallet = await DirectSecp256k1Wallet.fromKey(
+  Buffer.from(privateKeyHex, 'hex'),
+  'dora'
+);
+
+const [account] = await wallet.getAccounts();
+console.log('地址:', account.address);
+```
+
+### 完整示例
+
+```typescript
+import { MaciClient } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+
+async function setup() {
+  const client = new MaciClient({ network: 'testnet' });
+  
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.PRIVATE_KEY, 'hex'),
+    'dora'
+  );
+  
+  const [account] = await wallet.getAccounts();
+  
+  return { client, wallet, address: account.address };
+}
+
+setup().then(({ client, wallet, address }) => {
+  console.log('准备就绪:', address);
+});
+```
+
+## 网络配置
+
+### 测试网
+
+```typescript
+const client = new MaciClient({ network: 'testnet' });
+// RPC: https://vota-testnet-rpc.dorafactory.org
+// Chain ID: vota-testnet
+```
+
+### 主网
+
+```typescript
+const client = new MaciClient({ network: 'mainnet' });
+// RPC: https://vota-rpc.dorafactory.org
+// Chain ID: vota-ash
+```
+
+### 自定义配置
+
+```typescript
+const client = new MaciClient({
+  network: 'testnet',
+  rpcEndpoint: 'https://your-rpc.example.com',
+  chainId: 'custom-chain'
+});
+```
+
+## 环境变量
+
+使用环境变量存储敏感信息：
 
 ```bash
-npx ts-node test.ts
+# .env
+PRIVATE_KEY=your_private_key_hex
+NETWORK=testnet
 ```
 
-如果看到 "MACI SDK 安装成功！" 输出，说明安装成功。
+安装 dotenv：
+
+```bash
+npm install dotenv
+```
+
+在代码中使用：
+
+```typescript
+import dotenv from 'dotenv';
+dotenv.config();
+
+const client = new MaciClient({
+  network: process.env.NETWORK as 'testnet' | 'mainnet'
+});
+
+const wallet = await DirectSecp256k1Wallet.fromKey(
+  Buffer.from(process.env.PRIVATE_KEY, 'hex'),
+  'dora'
+);
+```
 
 ## TypeScript 配置
 
-如果您使用 TypeScript，建议添加以下 `tsconfig.json` 配置：
+推荐的 `tsconfig.json`：
 
 ```json
 {
@@ -75,7 +142,6 @@ npx ts-node test.ts
     "skipLibCheck": true,
     "strict": true,
     "resolveJsonModule": true,
-    "declaration": true,
     "outDir": "./dist"
   },
   "include": ["src/**/*"],
@@ -83,10 +149,65 @@ npx ts-node test.ts
 }
 ```
 
+## 从助记词创建钱包
+
+```typescript
+const wallet = await DirectSecp256k1Wallet.fromMnemonic(
+  "your twelve word mnemonic phrase",
+  { prefix: 'dora' }
+);
+```
+
+## 常见问题
+
+### "Module not found" 错误
+
+确保安装了所有依赖：
+
+```bash
+npm install @dorafactory/maci-sdk @cosmjs/proto-signing @cosmjs/stargate
+```
+
+### "Invalid private key" 错误
+
+私钥应该是 64 位十六进制字符串（32 字节）。检查：
+- 是否包含 "0x" 前缀（应该去掉）
+- 长度是否正确
+- 是否从正确的源复制
+
+### 连接超时
+
+测试网或主网 RPC 可能偶尔不可用。尝试：
+- 等待几分钟后重试
+- 使用自定义 RPC 端点
+- 检查网络连接
+
+## 验证安装
+
+创建测试文件：
+
+```typescript
+// test.ts
+import { MaciClient } from '@dorafactory/maci-sdk';
+
+const client = new MaciClient({ network: 'testnet' });
+console.log('MACI SDK 安装成功');
+```
+
+运行：
+
+```bash
+npx ts-node test.ts
+```
+
+看到 "MACI SDK 安装成功" 说明安装正确。
+
 ## 下一步
 
-现在您已经成功安装了 MACI SDK，接下来可以：
+**创建投票** - 查看[创建轮次](/docs/sdk/create-round)学习如何创建投票。
 
-- 📖 [客户端初始化](/docs/sdk/client-setup) - 学习如何初始化客户端
-- 🚀 [快速开始](/docs/introduction/quick-start) - 快速上手教程
-- 💡 [示例代码](/docs/examples/basic-voting) - 查看完整示例
+**参与投票** - 阅读[投票指南](/docs/sdk/voting-guide)了解投票流程。
+
+**查询数据** - 参考 [Query API](/docs/sdk/query-api)学习数据查询。
+
+**完整示例** - 查看[基础示例](/docs/examples/basic-voting)了解端到端流程。

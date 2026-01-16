@@ -372,7 +372,7 @@ ExecuteMsg::UpdateAmaciCodeId {
 
 ## 部署流程
 
-### 步骤 1: 部署 AMACI 合约代码
+### 部署 AMACI 合约代码
 
 ```bash
 # 编译 AMACI 合约
@@ -391,7 +391,7 @@ dorad tx wasm store artifacts/amaci.wasm \
 # 获得 Code ID（例如：123）
 ```
 
-### 步骤 2: 部署 Registry 合约
+### 部署 Registry 合约
 
 ```bash
 # 实例化 Registry
@@ -408,7 +408,7 @@ dorad tx wasm instantiate 123 \
 # 获得 Registry 地址（例如：dora1registry...）
 ```
 
-### 步骤 3: 注册 Operator
+### 注册 Operator
 
 ```bash
 # Operator 注册
@@ -435,7 +435,7 @@ dorad tx wasm execute dora1registry... \
   --gas auto
 ```
 
-### 步骤 4: 创建投票轮次
+### 创建投票轮次
 
 现在用户可以通过 Registry 创建 AMACI 实例：
 
@@ -454,12 +454,12 @@ console.log('AMACI 合约地址:', round.contractAddress);
 
 ### 1. 简化部署
 
-❌ **传统方式：**
+**传统方式：**
 ```
 用户 → 编译合约 → 上传代码 → 实例化合约 → 配置参数
 ```
 
-✅ **Registry 方式：**
+**Registry 方式：**
 ```
 用户 → 调用 CreateRound → 完成
 ```
@@ -484,8 +484,8 @@ console.log('AMACI 合约地址:', round.contractAddress);
 
 ## 下一步
 
-现在您已经了解了整体架构，接下来可以深入学习：
+完成后，您可以了解了整体架构，接下来可以深入学习：
 
-- 📋 [Registry 合约](/docs/contracts/registry) - 详细了解 Registry 的功能
+- [Registry 合约](/docs/contracts/registry) - 详细了解 Registry 的功能
 - 🗳️ [AMACI 合约](/docs/contracts/amaci) - 学习 AMACI 的投票逻辑
 - 🔄 [完整工作流程](/docs/contracts/workflow) - 理解从创建到结果的全流程

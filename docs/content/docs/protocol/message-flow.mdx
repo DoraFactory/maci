@@ -1,6 +1,6 @@
 # 消息流程
 
-本节详细介绍 MACI 中消息的完整生命周期，从投票者生成消息到 Coordinator 处理消息并生成证明的全过程。
+MACI 中消息的完整生命周期，从投票者生成消息到 Coordinator 处理消息并生成证明的全过程。
 
 ## 消息生命周期概览
 
@@ -22,7 +22,7 @@ graph TD
 
 ## 投票者端：消息生成
 
-### 步骤 1: 准备投票数据
+### 准备投票数据
 
 投票者首先需要准备要投票的数据：
 
@@ -44,7 +44,7 @@ if (totalCost > voiceCredits) {
 }
 ```
 
-### 步骤 2: 构造命令
+### 构造命令
 
 ```typescript
 function createVoteCommand(
@@ -65,7 +65,7 @@ function createVoteCommand(
 }
 ```
 
-### 步骤 3: 打包和哈希
+### 打包和哈希
 
 ```typescript
 // 打包命令字段
@@ -102,7 +102,7 @@ function hashCommand(command: Command): bigint {
 }
 ```
 
-### 步骤 4: 签名
+### 签名
 
 ```typescript
 // 使用私钥对命令哈希签名
@@ -116,7 +116,7 @@ const signature = sign(voterPrivateKey, commandHash);
 // }
 ```
 
-### 步骤 5: 加密
+### 加密
 
 ```typescript
 // 生成 ECDH 共享密钥
@@ -139,7 +139,7 @@ const encryptedData = encrypt(
 );
 ```
 
-### 步骤 6: 提交到链上
+### 提交到链上
 
 ```typescript
 // 构造消息
@@ -220,7 +220,7 @@ async function generateAndSubmitVote(
 
 ## Coordinator 端：消息处理
 
-### 步骤 1: 下载消息
+### 下载消息
 
 投票期结束后，Coordinator 从链上下载所有消息：
 
@@ -237,7 +237,7 @@ async function downloadMessages(
 }
 ```
 
-### 步骤 2: 解密消息
+### 解密消息
 
 ```typescript
 function decryptMessage(
@@ -261,7 +261,7 @@ function decryptMessage(
 }
 ```
 
-### 步骤 3: 验证签名
+### 验证签名
 
 ```typescript
 function validateCommand(
@@ -287,7 +287,7 @@ function validateCommand(
 }
 ```
 
-### 步骤 4: 按序处理消息
+### 按序处理消息
 
 ```typescript
 async function processMessages(
@@ -344,7 +344,7 @@ async function processMessages(
 }
 ```
 
-### 步骤 5: 更新状态
+### 更新状态
 
 ```typescript
 function applyCommand(
@@ -613,8 +613,8 @@ if (voterPubKey !== currentState.pubKey) {
 
 ## 下一步
 
-现在您已经理解了消息的完整流程，接下来可以学习：
+完成后，您可以理解了消息的完整流程，接下来可以学习：
 
-- 🛡️ [隐私保护机制](/docs/protocol/privacy-protection) - 了解如何保护投票隐私
+- [隐私保护机制](/docs/protocol/privacy-protection) - 了解如何保护投票隐私
 - 🏗️ [合约设计](/docs/contracts/architecture) - 学习合约如何存储和验证消息
 - 💻 [SDK 使用指南](/docs/sdk/installation) - 使用 SDK 创建和提交消息

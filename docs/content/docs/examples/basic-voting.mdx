@@ -12,33 +12,24 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 async function main() {
-  // === 初始化 ===
-  console.log('=== 初始化 MACI 客户端 ===\n');
-  
   const client = new MaciClient({ network: 'testnet' });
   
-  // 创建钱包
   const creatorWallet = await DirectSecp256k1Wallet.fromKey(
     Buffer.from(process.env.CREATOR_PRIVATE_KEY!, 'hex'),
     'dora'
   );
   
   const [creatorAccount] = await creatorWallet.getAccounts();
-  console.log('创建者地址:', creatorAccount.address);
+  console.log('Creator:', creatorAccount.address);
   
-  // === 步骤 1: 查询并选择 Operator ===
-  console.log('\n=== 步骤 1: 查询 Operator ===\n');
-  
+  // 查询并选择 Operator
   const operators = await client.indexer.getOperators();
   const activeOperators = operators.filter(op => op.status === 'Active');
   const selectedOperator = activeOperators[0];
   
-  console.log('选择 Operator:', selectedOperator.identity);
-  console.log('Operator 地址:', selectedOperator.address);
+  console.log('Selected Operator:', selectedOperator.identity);
   
-  // === 步骤 2: 创建投票轮次 ===
-  console.log('\n=== 步骤 2: 创建 AMACI 投票轮次 ===\n');
-  
+  // 创建投票轮次
   const round = await client.createAMaciRound({
     signer: creatorWallet,
     operator: selectedOperator.address,
@@ -46,23 +37,21 @@ async function main() {
     startVoting: new Date(),
     endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     
-    title: '社区提案投票示例',
-    description: '这是一个使用 AMACI 的投票示例',
+    title: 'Community Proposal Vote',
+    description: 'Example AMACI voting round',
     link: 'https://example.com',
     
     voteOptionMap: [
-      '提案 A: 增加社区资金',
-      '提案 B: 改进技术基础设施',
-      '提案 C: 扩大市场推广',
-      '提案 D: 教育和培训项目'
+      'Proposal A: Increase community fund',
+      'Proposal B: Improve technical infrastructure',
+      'Proposal C: Expand marketing',
+      'Proposal D: Education and training'
     ],
     
     circuitType: MaciCircuitType.QV,
-    
     maxVoter: 100,
     voiceCreditAmount: '100',
     
-    // 白名单列表模式
     whitelist: {
       addresses: [
         process.env.VOTER_A_ADDRESS!,
@@ -72,19 +61,14 @@ async function main() {
     }
   });
   
-  console.log('✅ Round 创建成功！');
-  console.log('合约地址:', round.contractAddress);
-  console.log('交易哈希:', round.transactionHash);
+  console.log('Round created:', round.contractAddress);
+  console.log('Transaction hash:', round.transactionHash);
   
   const contractAddress = round.contractAddress;
   
-  // 等待合约初始化
-  console.log('\n等待合约初始化...');
   await new Promise(resolve => setTimeout(resolve, 5000));
   
-  // === 步骤 3: 用户 A 投票 ===
-  console.log('\n=== 步骤 3: 用户 A 投票 ===\n');
-  
+  // 用户 A 投票
   const voterAWallet = await DirectSecp256k1Wallet.fromKey(
     Buffer.from(process.env.VOTER_A_PRIVATE_KEY!, 'hex'),
     'dora'
@@ -97,14 +81,12 @@ async function main() {
     voterA.address,
     contractAddress,
     [
-      { idx: 0, vc: 8 },  // 提案 A: 8 票 (消耗 64 credits)
-      { idx: 2, vc: 6 }   // 提案 C: 6 票 (消耗 36 credits)
+      { idx: 0, vc: 8 },
+      { idx: 2, vc: 6 }
     ]
   );
   
-  // === 步骤 4: 用户 B 投票 ===
-  console.log('\n=== 步骤 4: 用户 B 投票 ===\n');
-  
+  // 用户 B 投票
   const voterBWallet = await DirectSecp256k1Wallet.fromKey(
     Buffer.from(process.env.VOTER_B_PRIVATE_KEY!, 'hex'),
     'dora'
@@ -117,38 +99,33 @@ async function main() {
     voterB.address,
     contractAddress,
     [
-      { idx: 1, vc: 9 },  // 提案 B: 9 票 (消耗 81 credits)
-      { idx: 3, vc: 4 }   // 提案 D: 4 票 (消耗 16 credits)
+      { idx: 1, vc: 9 },
+      { idx: 3, vc: 4 }
     ]
   );
   
-  // === 步骤 4: 用户 A 改变主意 ===
-  console.log('\n=== 步骤 4: 用户 A 重新投票 ===\n');
-  
+  // 用户 A 改变主意
   await revote(
     client,
     voterAWallet,
     voterA.address,
     contractAddress,
     [
-      { idx: 1, vc: 10 }  // 改投提案 B: 10 票 (消耗 100 credits)
+      { idx: 1, vc: 10 }
     ]
   );
   
-  // === 步骤 6: 查询当前状态 ===
-  console.log('\n=== 步骤 6: 查询当前状态 ===\n');
-  
+  // 查询当前状态
   const roundInfo = await client.getRoundInfo({ contractAddress });
   
-  console.log('Round 信息:');
-  console.log('- 标题:', roundInfo.title);
-  console.log('- 状态:', roundInfo.status);
-  console.log('- 签到人数:', roundInfo.numSignups);
-  console.log('- 消息数量:', roundInfo.numMessages);
-  console.log('- 选项:', roundInfo.voteOptionMap);
+  console.log('Round info:');
+  console.log('- Title:', roundInfo.title);
+  console.log('- Status:', roundInfo.status);
+  console.log('- Signups:', roundInfo.numSignups);
+  console.log('- Messages:', roundInfo.numMessages);
   
-  console.log('\n✅ 示例完成！');
-  console.log('\n注意: 实际结果需要等待 Operator 处理和统计');
+  console.log('Example completed');
+  console.log('Note: Final results require Operator processing');
 }
 
 async function voteAsUser(
@@ -158,18 +135,11 @@ async function voteAsUser(
   contractAddress: string,
   options: { idx: number; vc: number }[]
 ) {
-  console.log(`用户 ${address.slice(0, 10)}... 开始投票`);
+  console.log(`User ${address.slice(0, 10)}... voting`);
   
-  // 1. 生成 MACI 账户
-  console.log('  1/4 生成 MACI 账户...');
   const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
-  
-  // 2. 等待 Gas Station
-  console.log('  2/4 等待 Gas Station...');
   const hasGasStation = await waitForGasStation(client, address, contractAddress);
   
-  // 3. 签到（仅白名单地址可用）
-  console.log('  3/4 签到中...');
   await client.signup({
     signer: wallet,
     address,
@@ -177,10 +147,7 @@ async function voteAsUser(
     maciKeypair,
     gasStation: hasGasStation
   });
-  console.log('     签到成功（需要在白名单中）！');
   
-  // 4. 投票
-  console.log('  4/4 投票中...');
   const roundInfo = await client.getRoundInfo({ contractAddress });
   
   await client.vote({
@@ -196,13 +163,11 @@ async function voteAsUser(
     gasStation: hasGasStation
   });
   
-  console.log(`✅ ${address.slice(0, 10)}... 投票成功！`);
+  console.log(`User ${address.slice(0, 10)}... voted successfully`);
   
-  // 显示投票详情
-  console.log('   投票详情:');
   options.forEach(opt => {
-    const cost = opt.vc * opt.vc;  // QV 模式
-    console.log(`   - 选项 ${opt.idx}: ${opt.vc} 票 (消耗 ${cost} credits)`);
+    const cost = opt.vc * opt.vc;
+    console.log(`   - Option ${opt.idx}: ${opt.vc} votes (cost ${cost} credits)`);
   });
 }
 
@@ -213,11 +178,9 @@ async function revote(
   contractAddress: string,
   options: { idx: number; vc: number }[]
 ) {
-  console.log(`用户 ${address.slice(0, 10)}... 重新投票`);
+  console.log(`User ${address.slice(0, 10)}... changing vote`);
   
-  // 使用之前的 MACI 账户
   const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
-  
   const roundInfo = await client.getRoundInfo({ contractAddress });
   const hasGasStation = await waitForGasStation(client, address, contractAddress);
   
@@ -234,7 +197,7 @@ async function revote(
     gasStation: hasGasStation
   });
   
-  console.log(`✅ ${address.slice(0, 10)}... 重新投票成功！`);
+  console.log(`User ${address.slice(0, 10)}... vote changed successfully`);
 }
 
 async function waitForGasStation(
@@ -261,7 +224,6 @@ async function waitForGasStation(
   return hasFeegrant;
 }
 
-// 运行主函数
 main().catch(console.error);
 ```
 
@@ -290,54 +252,37 @@ npx ts-node basic-voting.ts
 ## 预期输出
 
 ```
-=== 初始化 MACI 客户端 ===
+Creator: dora1creator...
 
-创建者地址: dora1creator...
+Selected Operator: Dora Foundation
 
-=== 步骤 1: 查询 Operator ===
+Round created: dora1contract...
+Transaction hash: ABCD1234...
 
-选择 Operator: Dora Foundation
-Operator 地址: dora1operator...
+User dora1voter... voting
+User dora1voter... voted successfully
+   - Option 0: 8 votes (cost 64 credits)
+   - Option 2: 6 votes (cost 36 credits)
 
-=== 步骤 2: 创建 AMACI 投票轮次 ===
+User dora1voter... voting
+User dora1voter... voted successfully
+   - Option 1: 9 votes (cost 81 credits)
+   - Option 3: 4 votes (cost 16 credits)
 
-✅ Round 创建成功！
-合约地址: dora1contract...
-交易哈希: ABCD1234...
+User dora1voter... changing vote
+User dora1voter... vote changed successfully
 
-等待合约初始化...
+Round info:
+- Title: Community Proposal Vote
+- Status: Voting
+- Signups: 2
+- Messages: 3
 
-=== 步骤 3: 用户 A 投票 ===
-
-用户 dora1voter... 开始投票
-  1/4 生成 MACI 账户...
-  2/4 等待 Gas Station...
-  3/4 签到中...
-     签到成功（需要在白名单中）！
-  4/4 投票中...
-✅ dora1voter... 投票成功！
-   投票详情:
-   - 选项 0: 8 票 (消耗 64 credits)
-   - 选项 2: 6 票 (消耗 36 credits)
-
-=== 步骤 4: 用户 B 投票 ===
-
-...
-
-=== 步骤 6: 查询当前状态 ===
-
-Round 信息:
-- 标题: 社区提案投票示例
-- 状态: Voting
-- 签到人数: 2
-- 消息数量: 3
-- 选项: [...]
-
-✅ 示例完成！
+Example completed
 ```
 
-## 下一步
+## 相关文档
 
-- 📖 [Pre-add-new-key 示例](/docs/examples/pre-addnewkey-round) - 匿名投票示例
-- 🚀 [SDK 文档](/docs/sdk/installation) - 学习更多 SDK 功能
-- 📚 [协议详解](/docs/protocol/overview) - 深入理解 MACI
+- [Pre-add-new-key 示例](/docs/examples/pre-addnewkey-round) - 匿名投票示例
+- [SDK 文档](/docs/sdk/installation) - 学习更多 SDK 功能
+- [协议详解](/docs/protocol/overview) - 深入理解 MACI
