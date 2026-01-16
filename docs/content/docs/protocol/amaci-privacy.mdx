@@ -1,0 +1,784 @@
+# AMACI 身份匿名化深度解析
+
+本文档从技术角度深入分析 AMACI 的身份匿名化机制，特别是从 Operator 视角说明为什么 add-new-key 能够有效保护隐私。
+
+## Operator 视角：能看到什么
+
+### 在 MACI 中
+
+Operator 拥有完整的信息链，可以关联投票者身份：
+
+**1. 链上公开数据**
+
+```typescript
+// Signup 交易（任何人都可以查询）
+{
+  txHash: "0xabc123...",
+  blockHeight: 12345,
+  sender: "dora1abc...",           // 钱包地址
+  msgType: "signup",
+  msgData: {
+    pubkey: {
+      x: "0x123...",
+      y: "0x456..."
+    }
+  }
+}
+```
+
+**2. 合约状态查询**
+
+```typescript
+// Operator 查询合约
+const stateIdx = await contract.query({
+  signuped: {
+    pubkey: { x: "0x123...", y: "0x456..." }
+  }
+});
+// 返回：State Index = 5
+```
+
+**3. 解密投票消息**
+
+```typescript
+// Operator 下载并解密消息
+const messages = await contract.query({ get_messages: {} });
+
+// 使用 Operator 私钥解密
+const decrypted = messages.map(msg => {
+  const sharedKey = ecdh(operatorPrivKey, msg.encPubKey);
+  const command = poseidonDecrypt(msg.data, sharedKey);
+  
+  return {
+    stateIdx: command.stateIdx,       // 5
+    voteOptionIdx: command.voIdx,     // 0 (选项A)
+    newVotes: command.newVotes,       // 10
+    nonce: command.nonce
+  };
+});
+```
+
+**4. 关联结果**
+
+```
+完整的信息链：
+┌──────────────┐
+│ dora1abc...  │ 钱包地址（链上公开）
+└──────┬───────┘
+       │
+       │ signup 交易
+       ▼
+┌──────────────┐
+│ pubkey 0x123 │ MACI公钥（链上公开）
+└──────┬───────┘
+       │
+       │ 合约映射
+       ▼
+┌──────────────┐
+│State Index 5 │ 状态索引
+└──────┬───────┘
+       │
+       │ Operator解密
+       ▼
+┌──────────────┐
+│投给选项A,10票│ 投票内容
+└──────────────┘
+
+结论：Operator 确定知道
+"dora1abc... 投给了选项A，10票"
+```
+
+**风险：**
+- Operator 可以针对性联系 `dora1abc...` 进行贿赂
+- Operator 可以将信息出售给利益相关方
+- 可能对特定投票者进行报复
+
+---
+
+### 在 AMACI 中（使用 add-new-key）
+
+Operator 的信息链被 ZK 证明打断：
+
+**1. 链上公开数据**
+
+```typescript
+// Add-new-key 交易
+{
+  txHash: "0xdef789...",
+  blockHeight: 12350,
+  sender: "dora1xyz...",           // 新钱包地址
+  msgType: "add_new_key",
+  msgData: {
+    pubkey: {
+      x: "0x789...",               // 新公钥
+      y: "0xabc..."
+    },
+    nullifier: "0xnull...",
+    d: ["0xd1_0", "0xd1_1", "0xd2_0", "0xd2_1"],
+    proof: {                        // ZK证明
+      a: "0x...",
+      b: "0x...",
+      c: "0x..."
+    }
+  }
+}
+```
+
+**2. ZK 证明验证**
+
+```typescript
+// 合约验证 ZK 证明（Operator 可以看到验证过程）
+const publicInputs = [
+  deactivateRoot,      // deactivate树的根
+  coordPubKeyHash,     // Operator公钥哈希
+  nullifier,           // 防重放
+  d[0], d[1], d[2], d[3]
+];
+
+// 证明声称：
+// "我知道 deactivate 树中某个条目对应的私钥"
+// 
+// 但不透露：
+// - 是第几个条目
+// - 私钥是什么
+// - 老身份是谁
+```
+
+**3. Operator 可以推断的信息**
+
+```
+Operator 知道：
+1. Deactivate 树有 100 个条目
+2. 新用户是这 100 个用户之一
+3. 新用户的 State Index 是 8
+
+Operator 不知道：
+1. 新用户是 100 个中的第几个
+2. 对应哪个钱包地址
+3. 与哪个老身份关联
+```
+
+**4. 断裂的信息链**
+
+```
+Operator 的信息：
+┌──────────────┐
+│ dora1xyz...  │ 新钱包地址（可能是新的）
+└──────┬───────┘
+       │
+       │ add-new-key 交易
+       │ （包含 ZK 证明）
+       ▼
+┌──────────────┐
+│ pubkey 0x789 │ 新MACI公钥
+└──────┬───────┘
+       │
+       │ 合约分配
+       ▼
+┌──────────────┐
+│State Index 8 │ 新状态索引
+└──────┬───────┘
+       │
+       │ Operator解密
+       ▼
+┌──────────────┐
+│投给选项A,10票│ 投票内容
+└──────────────┘
+       ▲
+       │
+       │ 无法关联！
+       ▼
+┌──────────────┐
+│  100个用户   │ Deactivate树
+│  之中的一个  │ 匿名集
+└──────────────┘
+
+结论：Operator 只知道
+"100个已deactivate用户中的某一个投给了选项A"
+但不知道具体是谁
+```
+
+**隐私提升：**
+- ✅ 无法进行针对性贿赂（不知道找谁）
+- ✅ 无法进行针对性报复（不知道是谁）
+- ✅ 信息对外出售价值低（不知道身份）
+- ✅ 无法与链外数据关联
+
+---
+
+## Add-new-key ZK 电路详解
+
+### 电路输入
+
+```circom
+template AddNewKey(stateTreeDepth) {
+    // 公开输入（Operator 可见）
+    signal input inputHash;  // 下面所有输入的哈希
+    signal input coordPubKey[2];
+    signal input deactivateRoot;
+    signal input nullifier;
+    signal input d1[2];
+    signal input d2[2];
+    
+    // 私有输入（不公开）
+    signal input oldPrivateKey;      // 老用户的私钥
+    signal input deactivateIndex;    // 在树中的位置（关键！）
+    signal input deactivateLeaf;
+    signal input c1[2];
+    signal input c2[2];
+    signal input randomVal;          // 随机化用的随机数
+    signal input deactivateLeafPathElements[...];  // Merkle证明路径
+    
+    // ... 验证逻辑
+}
+```
+
+### 电路验证步骤
+
+**步骤 1: 验证 Nullifier**
+
+```circom
+// 防止同一个老身份重复使用 add-new-key
+component nullifierHasher = HashLeftRight();
+nullifierHasher.left <== oldPrivateKey;
+nullifierHasher.right <== 1444992409218394441042;  // 常量 "NULLIFIER"
+nullifierHasher.hash === nullifier;
+
+// Operator 看到 nullifier，但无法反推 oldPrivateKey
+```
+
+**步骤 2: 验证 Deactivate Leaf**
+
+```circom
+// 计算 sharedKeyHash
+component ecdh = Ecdh();
+ecdh.privKey <== oldPrivateKey;
+ecdh.pubKey <== coordPubKey;
+
+component sharedKeyHasher = HashLeftRight();
+sharedKeyHasher.left <== ecdh.sharedKey[0];
+sharedKeyHasher.right <== ecdh.sharedKey[1];
+
+// 验证 deactivate leaf 格式
+component deactivateLeafHasher = Hasher5();
+deactivateLeafHasher.in[0] <== c1[0];
+deactivateLeafHasher.in[1] <== c1[1];
+deactivateLeafHasher.in[2] <== c2[0];
+deactivateLeafHasher.in[3] <== c2[1];
+deactivateLeafHasher.in[4] <== sharedKeyHasher.hash;
+
+deactivateLeafHasher.hash === deactivateLeaf;
+```
+
+**步骤 3: 验证 Merkle 路径**
+
+```circom
+// 证明 deactivateLeaf 在 deactivateRoot 树中
+component deactivateQie = QuinLeafExists(deactivateTreeDepth);
+deactivateQie.leaf <== deactivateLeaf;
+deactivateQie.root <== deactivateRoot;
+deactivateQie.path_index <== deactivateIndex;  // 私有！不公开
+deactivateQie.path_elements <== deactivateLeafPathElements;
+
+// 这一步证明：
+// "我知道树中某个位置的leaf，并且我知道去那里的路径"
+// 但不公开具体是第几个位置
+```
+
+**步骤 4: 重新随机化**
+
+```circom
+// 使用随机值重新随机化 c1, c2
+component rerandomize = ElGamalReRandomize();
+rerandomize.c1 <== c1;
+rerandomize.c2 <== c2;
+rerandomize.randomVal <== randomVal;  // 私有！
+rerandomize.pubKey <== coordPubKey;
+
+// 验证输出的 d1, d2 是正确的重新随机化结果
+rerandomize.d1 === d1;
+rerandomize.d2 === d2;
+
+// d1, d2 与 c1, c2 在数学上相关，但看起来完全不同
+// Operator 无法从 d1, d2 推断出是哪个 c1, c2
+```
+
+**步骤 5: 验证公开输入哈希**
+
+```circom
+component inputHasher = AddNewKeyInputHasher();
+inputHasher.deactivateRoot <== deactivateRoot;
+inputHasher.coordPubKey <== coordPubKey;
+inputHasher.nullifier <== nullifier;
+inputHasher.d1 <== d1;
+inputHasher.d2 <== d2;
+
+inputHasher.hash === inputHash;
+
+// 确保公开输入没有被篡改
+```
+
+### 为什么 Operator 无法追踪
+
+**数学层面：**
+
+```
+给定：
+- deactivateRoot（N个leaf的Merkle根）
+- d1, d2（重新随机化后的值）
+
+Operator 想要确定：
+- 新用户是N个用户中的第几个
+
+问题：
+1. d1 = c1 + r * G
+   d2 = c2 + r * H
+   其中 r 是随机数（私有）
+   
+2. 从 d1, d2 反推 c1, c2 需要：
+   c1 = d1 - r * G
+   但 Operator 不知道 r
+   
+3. 暴力枚举所有可能：
+   - 需要枚举 N 个可能的原始条目
+   - 对每个条目计算所有可能的 r 值
+   - r 的空间是 2^256，计算上不可行
+   
+4. 即使知道新旧用户可能相关：
+   - 无法证明关联关系
+   - 无法确定具体对应关系
+```
+
+**信息论层面：**
+
+```
+Operator 的信息熵：
+- 在 MACI 中：H = 0（确定性知道）
+- 在 AMACI 中：H = log₂(N)（N 是匿名集大小）
+
+例如：
+- N = 100: H = 6.64 bits（Operator需要猜测）
+- N = 1000: H = 9.97 bits（更难猜测）
+- N = 10000: H = 13.29 bits（几乎不可能）
+```
+
+## Deactivate 树的构建
+
+### Operator 生成 Deactivate Leaf
+
+当 Operator 处理 deactivate 消息时：
+
+```typescript
+// 对每个 deactivate 消息
+for (let i = 0; i < deactivateMessages.length; i++) {
+  const msg = deactivateMessages[i];
+  
+  // 1. 解密消息获得 stateIdx
+  const command = decrypt(msg, operatorPrivKey);
+  const stateIdx = command.stateIdx;
+  
+  // 2. 获取用户公钥
+  const userPubKey = stateTree.getLeaf(stateIdx).pubKey;
+  
+  // 3. 计算 shared key hash
+  const sharedKey = ecdh(operatorPrivKey, userPubKey);
+  const sharedKeyHash = poseidon(sharedKey);
+  
+  // 4. 生成加密的去活化标志
+  const randomVal = deterministicRandom(operatorPrivKey, i);
+  const encrypted = encryptDeactivateFlag(
+    true,  // 该用户已 deactivate
+    operatorPubKey,
+    randomVal
+  );
+  
+  // 5. 构建 deactivate leaf
+  const leaf = [
+    encrypted.c1[0],
+    encrypted.c1[1],
+    encrypted.c2[0],
+    encrypted.c2[1],
+    sharedKeyHash    // Operator 用这个识别是哪个用户
+  ];
+  
+  deactivateLeaves.push(leaf);
+}
+
+// 6. 构建 Merkle 树
+const deactivateTree = new MerkleTree(deactivateLeaves);
+const deactivateRoot = deactivateTree.root;
+```
+
+**Operator 知道的映射：**
+
+```typescript
+// Operator 内部记录（不公开）
+const mapping = {
+  // sharedKeyHash → 原始用户信息
+  "0xhash1...": {
+    stateIdx: 3,
+    walletAddress: "dora1aaa...",
+    pubkey: "0xpub1..."
+  },
+  "0xhash2...": {
+    stateIdx: 7,
+    walletAddress: "dora1bbb...",
+    pubkey: "0xpub2..."
+  },
+  // ... 100 个条目
+};
+```
+
+### 用户使用 Add-new-key
+
+当用户使用 add-new-key 时：
+
+```typescript
+// 用户（比如 dora1aaa...）知道自己的 oldPrivateKey
+// 用户计算自己的 sharedKeyHash
+const mySharedKeyHash = poseidon(ecdh(oldPrivateKey, operatorPubKey));
+
+// 用户在 deactivate 树中找到自己的 leaf
+const myIndex = deactivateLeaves.findIndex(
+  leaf => leaf[4] === mySharedKeyHash
+);
+// 假设 myIndex = 23
+
+// 用户生成 ZK 证明，证明知道第 23 个条目的私钥
+// 但证明中不公开 myIndex = 23
+const proof = generateZKProof({
+  deactivateIndex: 23,  // 私有输入
+  deactivateLeaf: deactivateLeaves[23],
+  oldPrivateKey,
+  // ...
+});
+
+// 用户用新钱包提交
+await newWallet.execute({
+  add_new_key: {
+    pubkey: newPubKey,  // 全新的公钥
+    proof,
+    nullifier,
+    d
+  }
+});
+```
+
+**Operator 收到 add-new-key 后：**
+
+```typescript
+// Operator 看到：
+{
+  sender: "dora1xyz...",      // 新钱包（可能完全陌生）
+  newPubkey: "0x999...",      // 新公钥
+  nullifier: "0xnull...",     // 只是个哈希
+  d: [d1, d2],                // 重新随机化的值
+  proof: {...}                // ZK证明（已验证通过）
+}
+
+// Operator 尝试分析：
+// 1. 查看 nullifier：只是个哈希，无法反推私钥
+// 2. 查看 d1, d2：重新随机化的值，无法反推原始 c1, c2
+// 3. 查看 proof：已通过验证，但不包含私有输入
+// 4. 查看 sender：dora1xyz... 可能是新钱包，没有历史记录
+
+// Operator 只能知道：
+// "这是 deactivate 树中 100 个用户之一"
+// "但具体是第几个，完全不知道"
+
+// Operator 的映射表无法使用：
+mapping = {
+  "0xhash1...": { stateIdx: 3, wallet: "dora1aaa..." },
+  "0xhash2...": { stateIdx: 7, wallet: "dora1bbb..." },
+  // ...
+  // 新用户可能是任意一个，无法确定
+};
+```
+
+**信息断裂：**
+
+```
+Operator 的信息链：
+┌──────────────┐
+│ dora1xyz...  │ 新钱包地址
+└──────┬───────┘
+       │
+       │ add-new-key（ZK证明）
+       ▼
+       ╳  <-- 信息链在这里断裂！
+       ╳  <-- ZK 证明不透露原始身份
+       ╳
+       ▼
+┌──────────────┐
+│State Index 8 │ 新状态索引
+└──────┬───────┘
+       │
+       │ Operator解密
+       ▼
+┌──────────────┐
+│投给选项A,10票│ 投票内容
+└──────────────┘
+       ▲
+       │ 可能来自 100 个用户之一
+       ▼
+┌──────────────────────┐
+│ dora1aaa... (3%)     │
+│ dora1bbb... (3%)     │
+│ dora1ccc... (3%)     │
+│ ... 97 other (91%)   │ 匿名集 = 100
+└──────────────────────┘
+
+Operator 无法确定具体是谁
+```
+
+## 隐私性量化分析
+
+### 匿名集大小的影响
+
+```typescript
+// 计算 Operator 确定身份的概率
+
+// Deactivate 树大小 = 10
+const anonymitySet10 = 10;
+const probability10 = 1 / anonymitySet10;
+console.log('Operator 猜对概率:', probability10);  // 10%
+
+// Deactivate 树大小 = 100
+const anonymitySet100 = 100;
+const probability100 = 1 / anonymitySet100;
+console.log('Operator 猜对概率:', probability100);  // 1%
+
+// Deactivate 树大小 = 1000
+const anonymitySet1000 = 1000;
+const probability1000 = 1 / anonymitySet1000;
+console.log('Operator 猜对概率:', probability1000);  // 0.1%
+```
+
+**实际意义：**
+
+```
+匿名集 = 10:
+- Operator 有 10% 概率猜对
+- 仍有一定风险
+
+匿名集 = 100:
+- Operator 只有 1% 概率猜对
+- 基本安全
+
+匿名集 = 1000:
+- Operator 只有 0.1% 概率猜对
+- 非常安全，即使 Operator 想攻击也无从下手
+```
+
+### 攻击成本分析
+
+假设 Operator 想通过贿赂影响投票：
+
+**MACI 中：**
+```
+成本模型：
+- 确定目标：O(1)，直接知道
+- 单个贿赂：$1000
+- 总成本：$1000 × 目标人数
+
+例如要影响 10 个人：
+- 总成本：$10,000
+- 成功率：接近 100%（能确定联系谁）
+```
+
+**AMACI 中：**
+```
+成本模型：
+- 确定目标：不可能（匿名集 = 1000）
+- 盲目贿赂：需要联系匿名集中所有人
+- 单个贿赂：$1000
+- 总成本：$1000 × 匿名集大小
+
+例如匿名集 = 1000，想影响其中 10 个人：
+- 需要盲目贿赂所有 1000 人才能确保覆盖
+- 总成本：$1,000,000
+- 成功率：不确定（无法验证）
+
+结论：经济上不可行
+```
+
+## Operator 的能力边界
+
+### Operator 能做什么
+
+**技术上可以：**
+- ✅ 解密所有投票消息内容
+- ✅ 看到每个 State Index 的投票
+- ✅ 统计投票结果
+- ✅ 生成零知识证明
+
+**技术上不能（AMACI 保护）：**
+- ❌ 确定 State Index 对应的钱包地址（add-new-key 用户）
+- ❌ 关联新旧身份
+- ❌ 从 ZK 证明中提取私有输入
+- ❌ 从 d1, d2 反推原始 c1, c2
+- ❌ 从 nullifier 反推 oldPrivateKey
+
+### Operator 的诚实性保证
+
+即使 Operator 想作恶：
+
+**1. 无法篡改投票（ZK 证明约束）**
+```
+如果 Operator 修改投票：
+- 状态树根会改变
+- 无法生成有效的 ZK 证明
+- 链上验证会失败
+- Operator 无法获得费用
+```
+
+**2. 无法针对性攻击（身份匿名）**
+```
+如果 Operator 想贿赂特定投票者：
+- 不知道是谁
+- 无法联系目标
+- 攻击无从下手
+```
+
+**3. 信息泄露价值低**
+```
+如果 Operator 想出售信息：
+- 能卖的信息："某人投了选项A"
+- 但买家无法确定是谁
+- 信息价值很低
+```
+
+## 极端场景分析
+
+### 场景 1: Operator 和用户串谋
+
+**问题：** 用户主动告诉 Operator 自己的身份
+
+```
+用户说："我是 dora1abc...，用了 add-new-key"
+
+Operator 仍然无法验证：
+1. 无法证明该用户的 add-new-key 交易是哪个
+2. 无法关联到具体的 State Index  
+3. 除非用户提供 oldPrivateKey（但这违背了匿名初衷）
+
+结论：即使用户主动泄露，Operator 也难以确认
+```
+
+### 场景 2: 链上数据分析
+
+**问题：** 通过时间、金额等链上数据分析关联
+
+**AMACI 抵抗：**
+```
+链上可见：
+- Time T1: dora1old... deactivate
+- Time T2: dora1new... add-new-key
+- Time差很小，可能相关？
+
+但是：
+1. Deactivate 树有 1000 个用户
+2. 可能同时有很多人 deactivate
+3. Add-new-key 可以在任何时间使用
+4. 使用新钱包，与老钱包无资金往来
+
+结论：时间关联不可靠
+```
+
+### 场景 3: Sybil 攻击
+
+**问题：** 攻击者创建大量假身份污染匿名集
+
+**AMACI 防护：**
+```
+1. Deactivate 需要先 signup
+2. Signup 需要满足白名单条件：
+   - Oracle 证书
+   - 代币持有量
+   - 其他准入条件
+   
+3. 创建大量假身份的成本高
+4. 即使创建，也扩大了匿名集（反而有利）
+
+结论：Sybil 攻击成本高且效果有限
+```
+
+## 最佳实践
+
+### 为投票者
+
+**高隐私场景：**
+```typescript
+// 1. 使用全新钱包
+const newWallet = await DirectSecp256k1Wallet.generate();
+
+// 2. 使用 add-new-key
+await client.addNewKey({
+  signer: newWallet,
+  // ...
+});
+
+// 3. 避免链上关联
+// - 不要从老钱包转账到新钱包
+// - 不要在相同时间操作
+// - 使用不同的 IP/网络
+```
+
+**中等隐私场景：**
+```typescript
+// 直接使用 signup，但注意：
+// - Operator 会知道你的身份
+// - 适合可信的 Operator
+```
+
+### 为 Operator
+
+**✓ 不保留身份映射**
+```typescript
+// 处理完成后删除映射
+// 不保存 sharedKeyHash → wallet 的关系
+// 降低数据泄露风险
+```
+
+**✓ 最小化日志**
+```typescript
+// 只记录必要的处理日志
+// 不记录敏感的身份信息
+```
+
+## 总结
+
+### AMACI 隐私优势
+
+**对比 MACI：**
+
+| 隐私方面 | MACI | AMACI |
+|---------|------|-------|
+| 投票内容 | ✅ 加密 | ✅ 加密 |
+| 投票者身份（对公众） | ✅ 不可见 | ✅ 不可见 |
+| 投票者身份（对Operator） | ❌ 可关联 | ✅ 不可关联 |
+| 防针对性攻击 | ⚠️ 弱 | ✅ 强 |
+| 信息泄露风险 | ⚠️ 中 | ✅ 低 |
+
+### 匿名性保证
+
+```
+AMACI 的匿名性 ∝ Deactivate 树大小
+
+建议的匿名集大小：
+- 低风险投票：≥ 10 人
+- 中风险投票：≥ 100 人
+- 高风险投票：≥ 1000 人
+
+实际上，随着系统使用，deactivate 树会自然增长，
+匿名性会越来越强
+```
+
+## 下一步
+
+深入了解 AMACI 隐私机制后，您可以：
+
+- 🔑 [核心概念](/docs/protocol/core-concepts) - 学习三种注册方式的详细实现
+- 📨 [消息流程](/docs/protocol/message-flow) - 理解 deactivate 消息的处理
+- 💻 [SDK 使用](/docs/sdk/voting-guide) - 使用 add-new-key 创建匿名投票
+- 🏗️ [合约实现](/docs/contracts/amaci) - 了解合约如何验证 ZK 证明

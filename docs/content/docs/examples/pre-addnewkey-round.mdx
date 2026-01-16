@@ -1,0 +1,495 @@
+# Pre-add-new-key 匿名投票示例
+
+本示例展示如何使用 Pre-add-new-key 模式创建完全匿名的投票轮次，包括平台预生成、密钥分发和用户匿名投票的完整流程。
+
+## 完整代码
+
+### 平台端：预生成和创建 Round
+
+```typescript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { genKeypair } from 'maci-crypto';
+import { buildPreDeactivateTree } from '@dorafactory/maci-sdk';
+import fs from 'fs';
+
+async function platformPrepareRound() {
+  console.log('=== 平台端：预生成密钥对和创建 Round ===\n');
+  
+  const client = new MaciClient({ network: 'testnet' });
+  
+  // 创建平台钱包
+  const platformWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(process.env.PLATFORM_PRIVATE_KEY!, 'hex'),
+    'dora'
+  );
+  
+  // === 步骤 1: 生成密钥对 ===
+  console.log('步骤 1: 为用户生成密钥对...');
+  
+  const userCount = 100;  // 为100个用户预生成
+  const userPreKeys = [];
+  
+  for (let i = 0; i < userCount; i++) {
+    const keypair = genKeypair();
+    userPreKeys.push({
+      id: `user_${i}`,
+      privateKey: keypair.privateKey.toString(16),
+      publicKey: {
+        x: keypair.publicKey[0].toString(16),
+        y: keypair.publicKey[1].toString(16)
+      }
+    });
+  }
+  
+  console.log(`✅ 已生成 ${userCount} 个密钥对\n`);
+  
+  // === 步骤 2: 生成 pre-deactivate tree ===
+  console.log('步骤 2: 生成 pre-deactivate tree...');
+  
+  const platformCoordKeypair = genKeypair();
+  const preDeactivateTree = buildPreDeactivateTree(
+    userPreKeys,
+    platformCoordKeypair
+  );
+  
+  console.log('✅ Pre-deactivate tree 生成成功');
+  console.log('Root:', preDeactivateTree.root);
+  console.log('');
+  
+  // === 步骤 3: 查询并选择 Operator ===
+  console.log('步骤 3: 查询 Operator...');
+  
+  const operators = await client.indexer.getOperators();
+  const activeOperators = operators.filter(op => op.status === 'Active');
+  const selectedOperator = activeOperators[0];
+  
+  console.log('✅ 选择 Operator:', selectedOperator.identity);
+  console.log('');
+  
+  // === 步骤 4: 创建 Round ===
+  console.log('步骤 4: 创建匿名投票 Round...');
+  
+  const round = await client.createAMaciRound({
+    signer: platformWallet,
+    operator: selectedOperator.address,
+    
+    startVoting: new Date(),
+    endVoting: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),  // 14天
+    
+    title: '匿名社区投票示例',
+    description: '使用 Pre-add-new-key 的完全匿名投票',
+    link: 'https://forum.example.com/anonymous-vote',
+    
+    voteOptionMap: [
+      '方案 A: 技术升级',
+      '方案 B: 社区发展',
+      '方案 C: 市场推广',
+      '方案 D: 教育培训'
+    ],
+    
+    circuitType: MaciCircuitType.QV,
+    
+    maxVoter: 100,
+    voiceCreditAmount: '100',
+    
+    // Pre-add-new-key 配置
+    preDeactivateRoot: preDeactivateTree.root,
+    preDeactivateCoordinator: [
+      platformCoordKeypair.publicKey[0],
+      platformCoordKeypair.publicKey[1]
+    ]
+  });
+  
+  console.log('✅ Round 创建成功！');
+  console.log('合约地址:', round.contractAddress);
+  console.log('');
+  
+  // === 步骤 5: 保存数据 ===
+  console.log('步骤 5: 保存数据...');
+  
+  const dataToSave = {
+    contractAddress: round.contractAddress,
+    preDeactivateData: {
+      root: preDeactivateTree.root,
+      leaves: preDeactivateTree.leaves,
+      coordinatorPubkey: {
+        x: platformCoordKeypair.publicKey[0].toString(16),
+        y: platformCoordKeypair.publicKey[1].toString(16)
+      }
+    },
+    userKeys: userPreKeys
+  };
+  
+  fs.writeFileSync('round_data.json', JSON.stringify(dataToSave, null, 2));
+  
+  console.log('✅ 数据已保存到 round_data.json');
+  console.log('');
+  console.log('下一步：将密钥对分发给用户');
+  
+  return dataToSave;
+}
+
+// 运行
+platformPrepareRound().catch(console.error);
+```
+
+### 用户端：匿名注册和投票
+
+```typescript
+import { MaciClient, VoterClient } from '@dorafactory/maci-sdk';
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { genKeypair } from 'maci-crypto';
+import fs from 'fs';
+
+async function userAnonymousVote(
+  userIndex: number,  // 用户编号
+  anyWalletPrivateKey: string  // 用户可以用任意钱包
+) {
+  console.log(`\n=== 用户 ${userIndex}: 匿名投票 ===\n`);
+  
+  const client = new MaciClient({ network: 'testnet' });
+  
+  // === 步骤 1: 加载平台分发的数据 ===
+  console.log('步骤 1: 加载平台分发的数据...');
+  
+  const roundData = JSON.parse(fs.readFileSync('round_data.json', 'utf-8'));
+  const contractAddress = roundData.contractAddress;
+  const preDeactivateData = roundData.preDeactivateData;
+  
+  // 获取该用户的密钥对
+  const myPreKey = roundData.userKeys[userIndex];
+  console.log(`✅ 已加载用户 ${myPreKey.id} 的数据`);
+  console.log('');
+  
+  // === 步骤 2: 本地生成证明和新密钥 ===
+  console.log('步骤 2: 本地生成 ZK 证明和新密钥...');
+  
+  const voterClient = new VoterClient({
+    network: 'testnet',
+    secretKey: myPreKey.privateKey  // 平台分发的私钥
+  });
+  
+  // ⭐ 用户生成自己的新密钥对（完全由用户控制）
+  const myNewKeypair = genKeypair();
+  console.log('✅ 新密钥已在本地生成，只有我知道');
+  
+  // 生成 pre-add-new-key payload
+  const payload = await voterClient.buildPreAddNewKeyPayload({
+    stateTreeDepth: 10,
+    coordinatorPubkey: preDeactivateData.coordinatorPubkey,
+    deactivates: preDeactivateData.leaves,
+    wasmFile: './circuits/addNewKey.wasm',
+    zkeyFile: './circuits/addNewKey.zkey'
+  });
+  
+  console.log('✅ ZK 证明生成完成');
+  console.log('');
+  
+  // === 步骤 3: 用任意地址发送 Pre-add-new-key ===
+  console.log('步骤 3: 匿名注册（用任意地址）...');
+  
+  // ⭐ 用户可以用任意钱包
+  const anyWallet = await DirectSecp256k1Wallet.fromKey(
+    Buffer.from(anyWalletPrivateKey, 'hex'),
+    'dora'
+  );
+  const [anyAccount] = await anyWallet.getAccounts();
+  
+  console.log('使用地址:', anyAccount.address);
+  
+  await client.rawPreAddNewKey({
+    signer: anyWallet,
+    contractAddress,
+    d: payload.d,
+    proof: payload.proof,
+    nullifier: payload.nullifier,
+    newPubkey: {
+      x: myNewKeypair.publicKey[0].toString(16),
+      y: myNewKeypair.publicKey[1].toString(16)
+    },
+    gasStation: true
+  });
+  
+  console.log('✅ 匿名注册成功');
+  console.log('✅ Operator 不知道具体是谁');
+  console.log('');
+  
+  // === 步骤 4: 投票 ===
+  console.log('步骤 4: 投票...');
+  
+  const roundInfo = await client.getRoundInfo({ contractAddress });
+  
+  // 随机选择投票选项（模拟用户偏好）
+  const voteOptions = [
+    { idx: userIndex % 4, vc: 7 },
+    { idx: (userIndex + 1) % 4, vc: 5 }
+  ];
+  
+  await client.vote({
+    signer: anyWallet,
+    address: anyAccount.address,
+    contractAddress,
+    selectedOptions: voteOptions,
+    operatorCoordPubKey: [
+      BigInt(roundInfo.coordinatorPubkeyX),
+      BigInt(roundInfo.coordinatorPubkeyY)
+    ],
+    maciKeypair: myNewKeypair,  // 只有用户知道
+    gasStation: true
+  });
+  
+  console.log('✅ 投票完成，完全匿名');
+  console.log('投票详情:');
+  voteOptions.forEach(opt => {
+    const cost = opt.vc * opt.vc;
+    console.log(`  - 选项 ${opt.idx}: ${opt.vc} 票 (消耗 ${cost} credits)`);
+  });
+}
+
+// === 模拟多个用户投票 ===
+async function multipleUsersVote() {
+  // 用户 0 用钱包 A 投票
+  await userAnonymousVote(0, process.env.WALLET_A_KEY!);
+  
+  // 用户 1 用钱包 B 投票
+  await userAnonymousVote(1, process.env.WALLET_B_KEY!);
+  
+  // 用户 2 用钱包 C 投票
+  await userAnonymousVote(2, process.env.WALLET_C_KEY!);
+  
+  console.log('\n✅ 所有用户投票完成！');
+}
+
+// 运行
+multipleUsersVote().catch(console.error);
+```
+
+---
+
+## 代码说明
+
+### 平台端职责
+
+1. **预生成密钥对**
+   - 为大量用户批量生成 EdDSA-Poseidon 密钥对
+   - 保存密钥对数据
+
+2. **生成 pre-deactivate tree**
+   - 使用预生成的密钥对构建 deactivate tree
+   - 生成 root 和 coordinator 公钥
+
+3. **查询并选择 Operator**
+   - 从 Registry 查询活跃的 Operator 列表
+   - 选择评分高、信誉好的 Operator
+
+4. **创建 Round**
+   - 使用 `createAMaciRound` API
+   - 配置 `operator` 地址
+   - 配置 `preDeactivateRoot` 和 `preDeactivateCoordinator`
+   - Round 创建后立即可用
+
+5. **分发密钥**
+   - 通过安全渠道将密钥对分发给用户
+   - 可以通过 API、加密邮件等方式
+
+### 用户端流程
+
+1. **接收密钥**
+   - 从平台获取预生成的密钥对
+   - 获取 pre-deactivate 数据
+
+2. **本地生成证明**
+   - 使用平台分发的私钥
+   - 生成自己的新密钥对（完全由用户控制）
+   - 生成 ZK 证明
+
+3. **匿名注册**
+   - 可以用任意 dora 地址发送交易
+   - Operator 无法确定具体是谁
+
+4. **投票**
+   - 使用自己的新密钥对投票
+   - 保持完全匿名
+
+---
+
+## 环境变量配置
+
+创建 `.env` 文件：
+
+```bash
+# 平台端
+PLATFORM_PRIVATE_KEY=your_platform_private_key
+
+# 用户端（可以是任意钱包）
+WALLET_A_KEY=user_wallet_a_key
+WALLET_B_KEY=user_wallet_b_key
+WALLET_C_KEY=user_wallet_c_key
+```
+
+注意：不再需要 `OPERATOR_PUBKEY`，而是通过 SDK 查询 Operator 列表并选择。
+
+---
+
+## 预期输出
+
+### 平台端输出
+
+```
+=== 平台端：预生成密钥对和创建 Round ===
+
+步骤 1: 为用户生成密钥对...
+✅ 已生成 100 个密钥对
+
+步骤 2: 生成 pre-deactivate tree...
+✅ Pre-deactivate tree 生成成功
+Root: 0x1234567890abcdef...
+
+步骤 3: 查询 Operator...
+✅ 选择 Operator: Dora Foundation
+
+步骤 4: 创建匿名投票 Round...
+✅ Round 创建成功！
+合约地址: dora1contract...
+
+步骤 5: 保存数据...
+✅ 数据已保存到 round_data.json
+
+下一步：将密钥对分发给用户
+```
+
+### 用户端输出
+
+```
+=== 用户 0: 匿名投票 ===
+
+步骤 1: 加载平台分发的数据...
+✅ 已加载用户 user_0 的数据
+
+步骤 2: 本地生成 ZK 证明和新密钥...
+✅ 新密钥已在本地生成，只有我知道
+✅ ZK 证明生成完成
+
+步骤 3: 匿名注册（用任意地址）...
+使用地址: dora1abc...
+✅ 匿名注册成功
+✅ Operator 不知道具体是谁
+
+步骤 4: 投票...
+✅ 投票完成，完全匿名
+投票详情:
+  - 选项 0: 7 票 (消耗 49 credits)
+  - 选项 1: 5 票 (消耗 25 credits)
+
+=== 用户 1: 匿名投票 ===
+...
+
+✅ 所有用户投票完成！
+```
+
+---
+
+## 隐私分析
+
+### 平台知道什么
+
+✅ 预生成的密钥对（已分发）  
+✅ Pre-deactivate tree  
+❌ 用户的新密钥对（用户本地生成）  
+❌ 用户用哪个地址发送交易  
+❌ 用户的投票内容
+
+### Operator 知道什么
+
+✅ 有人用 pre-add-new-key 注册了  
+✅ 是 pre-deactivate tree 中的某一个  
+❌ 具体是第几个用户  
+❌ 发送交易的地址是谁  
+❌ 用户的真实身份
+
+### 用户控制什么
+
+✅ 新密钥对完全由用户本地生成  
+✅ 可以用任意地址发送交易  
+✅ Operator 和平台都无法确定身份  
+✅ 匿名集大小 = pre-deactivate tree 用户数
+
+---
+
+## 安全最佳实践
+
+### 平台端
+
+1. **密钥存储**
+   - 加密存储预生成的密钥对
+   - 分发后可以选择删除（进一步增强隐私）
+
+2. **分发渠道**
+   - 使用加密通道分发密钥
+   - API 返回时使用 HTTPS
+   - 可以使用用户的公钥加密
+
+3. **批量生成**
+   - 预生成足够多的密钥对
+   - 考虑预留余量
+
+### 用户端
+
+1. **本地操作**
+   - 证明生成在本地完成
+   - 新密钥对不要泄露给任何人
+
+2. **钱包选择**
+   - 可以使用新钱包增加匿名性
+   - 可以使用混币服务进一步隐藏
+
+3. **网络安全**
+   - 使用 VPN 增加网络层匿名
+   - 避免在不安全的网络环境操作
+
+---
+
+## 数据结构
+
+### round_data.json
+
+```json
+{
+  "contractAddress": "dora1contract...",
+  "preDeactivateData": {
+    "root": "0x1234567890abcdef...",
+    "leaves": [
+      {
+        "leaf": "0xabcd...",
+        "path": ["0x...", "0x...", ...]
+      },
+      ...
+    ],
+    "coordinatorPubkey": {
+      "x": "0xabc...",
+      "y": "0xdef..."
+    }
+  },
+  "userKeys": [
+    {
+      "id": "user_0",
+      "privateKey": "0x123...",
+      "publicKey": {
+        "x": "0xabc...",
+        "y": "0xdef..."
+      }
+    },
+    ...
+  ]
+}
+```
+
+---
+
+## 下一步
+
+- 📝 [基础投票示例](/docs/examples/basic-voting) - 白名单模式示例
+- 🚀 [SDK 文档](/docs/sdk/installation) - 学习更多 SDK 功能
+- 📚 [隐私保护](/docs/protocol/privacy-protection) - 深入理解 AMACI 隐私机制
+- 🔐 [Operator 视角](/docs/protocol/amaci-privacy) - 从 Operator 视角理解匿名性

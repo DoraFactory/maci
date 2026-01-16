@@ -1,0 +1,543 @@
+# 创建投票轮次
+
+学习如何使用 SDK 创建 MACI 投票轮次。
+
+## 两种创建方式
+
+AMACI 支持两种 Round 创建方式：
+
+1. **白名单列表模式** - 简单直接，适合已知用户列表
+2. **Pre-add-new-key 模式** - 完全匿名，适合平台批量准备
+
+---
+
+## 方式 1: 白名单列表模式
+
+### 基础用法
+
+创建一个使用白名单地址列表的投票轮次：
+
+```typescript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+
+const client = new MaciClient({ network: 'testnet' });
+
+// 步骤 1: 查询 Operator 列表
+const operators = await client.indexer.getOperators();
+const activeOperators = operators.filter(op => op.status === 'Active');
+const selectedOperator = activeOperators[0];  // 选择第一个活跃的 Operator
+
+console.log('选择的 Operator:', selectedOperator.identity);
+console.log('Operator 地址:', selectedOperator.address);
+
+// 步骤 2: 创建 AMACI Round
+const round = await client.createAMaciRound({
+  signer: wallet,
+  operator: selectedOperator.address,  // Operator 地址
+  
+  // 投票时间
+  startVoting: new Date('2024-02-01T00:00:00Z'),
+  endVoting: new Date('2024-02-07T23:59:59Z'),
+  
+  // 轮次信息
+  title: '社区提案投票',
+  description: '投票决定社区下一步发展方向',
+  link: 'https://forum.example.com/proposal',
+  
+  // 投票选项
+  voteOptionMap: [
+    '提案 A: 增加社区资金',
+    '提案 B: 改进技术基础设施',
+    '提案 C: 扩大市场推广'
+  ],
+  
+  // 投票类型
+  circuitType: MaciCircuitType.QV,  // 二次方投票
+  
+  // Round 配置
+  maxVoter: 1000,  // 最大投票人数
+  voiceCreditAmount: '100',  // 每个用户的投票权重
+  
+  // 白名单地址列表（可选）
+  whitelist: {
+    addresses: [
+      'dora1abc...',
+      'dora1def...',
+      'dora1ghi...'
+    ]
+  }
+});
+
+console.log('✅ AMACI Round 创建成功！');
+console.log('合约地址:', round.contractAddress);
+```
+
+### 白名单配置说明
+
+**whitelist (string[])**
+
+白名单地址列表，只有这些地址可以 signup：
+
+```typescript
+whitelist: [
+  'dora1user1...',
+  'dora1user2...',
+  'dora1user3...'
+  // 可以有任意数量的地址
+]
+```
+
+**voiceCreditsPerUser (number)**
+
+每个白名单用户的投票权重：
+
+```typescript
+// 固定权重模式：所有用户相同权重
+voiceCreditsPerUser: 100  // 每人100投票权重
+
+// 或者基于其他逻辑（需要合约支持）
+voiceCreditsPerUser: 50   // 每人50投票权重
+```
+
+---
+
+## 方式 2: Pre-add-new-key 模式
+
+### 基础用法
+
+创建一个使用预生成密钥对的匿名投票轮次：
+
+```typescript
+import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
+
+const client = new MaciClient({ network: 'testnet' });
+
+// 步骤 1: 查询并选择 Operator
+const operators = await client.indexer.getOperators();
+const selectedOperator = operators.filter(op => op.status === 'Active')[0];
+
+// 步骤 2: 前提 - 平台已经预生成了密钥对和 deactivate tree
+const round = await client.createAMaciRound({
+  signer: wallet,
+  operator: selectedOperator.address,
+  
+  // 投票时间
+  startVoting: new Date('2024-02-01T00:00:00Z'),
+  endVoting: new Date('2024-02-07T23:59:59Z'),
+  
+  // 轮次信息
+  title: '匿名社区投票',
+  description: '完全匿名的投票轮次',
+  link: 'https://forum.example.com/proposal',
+  
+  // 投票选项
+  voteOptionMap: [
+    '选项 A',
+    '选项 B',
+    '选项 C'
+  ],
+  
+  // 投票类型
+  circuitType: MaciCircuitType.QV,
+  
+  // Round 配置
+  maxVoter: 1000,
+  voiceCreditAmount: '100',
+  
+  // Pre-add-new-key 配置
+  preDeactivateRoot: '0x1234567890abcdef...',  // 预生成的 root
+  preDeactivateCoordinator: [
+    BigInt('0xabcd...'),  // 平台 coordinator 公钥 x
+    BigInt('0x1234...')   // 平台 coordinator 公钥 y
+  ]
+});
+
+console.log('匿名 Round 创建成功！');
+console.log('合约地址:', round.contractAddress);
+```
+
+### 预生成流程
+
+平台需要提前生成密钥对和 deactivate tree：
+
+```typescript
+import { genKeypair } from 'maci-crypto';
+import { buildPreDeactivateTree } from '@dorafactory/maci-sdk';
+
+// 步骤 1: 生成密钥对
+const userCount = 1000;
+const userPreKeys = [];
+
+for (let i = 0; i < userCount; i++) {
+  const keypair = genKeypair();
+  userPreKeys.push({
+    id: `user_${i}`,
+    privateKey: keypair.privateKey.toString(16),
+    publicKey: [
+      keypair.publicKey[0].toString(16),
+      keypair.publicKey[1].toString(16)
+    ]
+  });
+}
+
+// 步骤 2: 生成 deactivate tree
+const platformCoordKeypair = genKeypair();  // 平台的 coordinator 密钥对
+
+const preDeactivateTree = buildPreDeactivateTree(
+  userPreKeys,
+  platformCoordKeypair
+);
+
+console.log('预生成完成:');
+console.log('- 用户数量:', userCount);
+console.log('- Root:', preDeactivateTree.root);
+console.log('- Coordinator:', platformCoordKeypair.publicKey);
+
+// 步骤 3: 将密钥对分发给用户
+// 步骤 4: 使用 root 和 coordinator 创建 Round
+```
+
+---
+
+## 参数详解
+
+### 必需参数
+
+#### signer (Wallet)
+
+签名交易的钱包：
+
+```typescript
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+
+const wallet = await DirectSecp256k1Wallet.fromKey(
+  Buffer.from(privateKey, 'hex'),
+  'dora'
+);
+```
+
+#### operator (string)
+
+Operator 的地址。从 Registry 合约查询活跃的 Operator：
+
+```typescript
+const operators = await client.indexer.getOperators();
+const activeOperators = operators.filter(op => op.status === 'Active');
+
+// 选择评分最高的 Operator
+const bestOperator = activeOperators.sort((a, b) => b.score - a.score)[0];
+
+console.log('选择 Operator:', bestOperator.identity);
+console.log('Operator 地址:', bestOperator.address);
+```
+
+#### startVoting & endVoting (Date)
+
+投票的开始和结束时间：
+
+```typescript
+// 立即开始，7 天后结束
+startVoting: new Date(),
+endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+// 指定具体时间
+startVoting: new Date('2024-02-01T00:00:00Z'),
+endVoting: new Date('2024-02-07T23:59:59Z')
+```
+
+#### title, description, link (string)
+
+轮次的基本信息：
+
+```typescript
+title: '社区提案投票',
+description: '详细描述投票的目的和规则',
+link: 'https://forum.example.com/proposal-123'
+```
+
+#### voteOptionMap (string[])
+
+投票选项列表：
+
+```typescript
+voteOptionMap: [
+  '选项 1: 描述',
+  '选项 2: 描述',
+  '选项 3: 描述'
+  // 可以有任意数量的选项
+]
+```
+
+#### maxVoter (number)
+
+最大投票人数：
+
+```typescript
+maxVoter: 1000  // 允许最多 1000 人投票
+```
+
+#### voiceCreditAmount (string)
+
+每个用户的投票权重（voice credits）：
+
+```typescript
+voiceCreditAmount: '100'  // 每人 100 投票权重
+```
+
+#### circuitType (MaciCircuitType)
+
+投票类型：
+
+```typescript
+import { MaciCircuitType } from '@dorafactory/maci-sdk';
+
+// 一人一票
+circuitType: MaciCircuitType.IP1V
+
+// 二次方投票
+circuitType: MaciCircuitType.QV
+```
+
+---
+
+## 投票类型对比
+
+### 1P1V（一人一票）
+
+每个 voice credit 直接计为 1 票：
+
+```typescript
+circuitType: MaciCircuitType.IP1V
+
+// 用户有 100 voice credits
+// 投票：[{ idx: 0, vc: 50 }, { idx: 1, vc: 30 }]
+// 结果：选项 0 获得 50 票，选项 1 获得 30 票
+// 消耗：80 voice credits
+```
+
+### QV（二次方投票）
+
+voice credit 的平方作为消耗：
+
+```typescript
+circuitType: MaciCircuitType.QV
+
+// 用户有 100 voice credits
+// 投票：[{ idx: 0, vc: 8 }, { idx: 1, vc: 6 }]
+// 结果：选项 0 获得 8 票，选项 1 获得 6 票
+// 消耗：8² + 6² = 64 + 36 = 100 voice credits
+```
+
+---
+
+## 完整示例
+
+### 创建白名单 1P1V 投票
+
+```typescript
+// 查询 Operator
+const operators = await client.indexer.getOperators();
+const operator = operators.filter(op => op.status === 'Active')[0];
+
+const round1p1v = await client.createAMaciRound({
+  signer: wallet,
+  operator: operator.address,
+  
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  
+  title: 'DAO 提案投票（一人一票）',
+  description: '每个成员一票，多数获胜',
+  link: 'https://dao.example.com',
+  
+  voteOptionMap: ['赞成', '反对', '弃权'],
+  
+  circuitType: MaciCircuitType.IP1V,
+  
+  maxVoter: 100,
+  voiceCreditAmount: '1',  // 每人1票
+  
+  // 白名单列表
+  whitelist: {
+    addresses: [
+      'dora1member1...',
+      'dora1member2...',
+      'dora1member3...'
+    ]
+  }
+});
+```
+
+### 创建白名单 QV 投票
+
+```typescript
+// 查询 Operator
+const operators = await client.indexer.getOperators();
+const operator = operators.filter(op => op.status === 'Active')[0];
+
+const roundQV = await client.createAMaciRound({
+  signer: wallet,
+  operator: operator.address,
+  
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+  
+  title: '公共物品资金分配（二次方投票）',
+  description: '使用二次方投票分配资金',
+  link: 'https://gitcoin.example.com',
+  
+  voteOptionMap: [
+    '项目 A: DeFi 工具',
+    '项目 B: 教育内容',
+    '项目 C: 基础设施',
+    '项目 D: 社区活动'
+  ],
+  
+  circuitType: MaciCircuitType.QV,
+  
+  maxVoter: 500,
+  voiceCreditAmount: '100',
+  
+  // 白名单列表
+  whitelist: {
+    addresses: whitelistAddresses  // 从外部导入
+  }
+});
+```
+
+### 创建匿名 Pre-add-new-key 投票
+
+```typescript
+// 完整的平台准备流程
+import { genKeypair } from 'maci-crypto';
+import { buildPreDeactivateTree } from '@dorafactory/maci-sdk';
+
+// 1. 平台生成密钥对
+const userPreKeys = [];
+for (let i = 0; i < 500; i++) {
+  const keypair = genKeypair();
+  userPreKeys.push({
+    id: `user_${i}`,
+    privateKey: keypair.privateKey.toString(16),
+    publicKey: [
+      keypair.publicKey[0].toString(16),
+      keypair.publicKey[1].toString(16)
+    ]
+  });
+}
+
+// 2. 生成 deactivate tree
+const platformCoordKeypair = genKeypair();
+const preDeactivateTree = buildPreDeactivateTree(
+  userPreKeys,
+  platformCoordKeypair
+);
+
+// 3. 查询并选择 Operator
+const operators = await client.indexer.getOperators();
+const operator = operators.filter(op => op.status === 'Active')[0];
+
+// 4. 创建 Round
+const roundAnonymous = await client.createAMaciRound({
+  signer: wallet,
+  operator: operator.address,
+  
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+  
+  title: '匿名社区投票',
+  description: '完全匿名的投票，用户用任意地址发送交易',
+  link: 'https://vote.example.com',
+  
+  voteOptionMap: [
+    '方案 A',
+    '方案 B',
+    '方案 C'
+  ],
+  
+  circuitType: MaciCircuitType.QV,
+  
+  maxVoter: 500,
+  voiceCreditAmount: '100',
+  
+  // Pre-add-new-key 配置
+  preDeactivateRoot: preDeactivateTree.root,
+  preDeactivateCoordinator: [
+    platformCoordKeypair.publicKey[0],
+    platformCoordKeypair.publicKey[1]
+  ]
+});
+
+console.log('✅ 匿名 Round 创建成功');
+console.log('合约地址:', roundAnonymous.contractAddress);
+
+// 4. 将密钥对分发给用户（通过安全渠道）
+// userPreKeys 需要分发给每个用户
+```
+
+---
+
+## 错误处理
+
+```typescript
+try {
+  const round = await client.createAMaciRound({
+    // ... 参数
+  });
+  console.log('✅ 创建成功:', round.contractAddress);
+} catch (error) {
+  if (error.message.includes('Operator not found')) {
+    console.error('❌ Operator 不存在');
+  } else if (error.message.includes('Operator not active')) {
+    console.error('❌ Operator 未激活');
+  } else if (error.message.includes('Insufficient funds')) {
+    console.error('❌ 余额不足');
+  } else if (error.message.includes('Invalid whitelist')) {
+    console.error('❌ 白名单格式错误');
+  } else {
+    console.error('❌ 创建失败:', error);
+  }
+}
+```
+
+---
+
+## 验证创建
+
+创建后验证 Round 信息：
+
+```typescript
+const roundInfo = await client.getRoundInfo({ 
+  contractAddress: round.contractAddress 
+});
+
+console.log('Round 验证:');
+console.log('- 标题:', roundInfo.title);
+console.log('- 状态:', roundInfo.status);
+console.log('- 开始时间:', new Date(roundInfo.votingTime.startTime * 1000));
+console.log('- 结束时间:', new Date(roundInfo.votingTime.endTime * 1000));
+console.log('- 选项数量:', roundInfo.voteOptionMap.length);
+```
+
+---
+
+## 模式对比
+
+| 特性 | 白名单列表模式 | Pre-add-new-key 模式 |
+|------|--------------|-------------------|
+| 配置复杂度 | ⭐ 简单 | ⭐⭐⭐ 需要预生成 |
+| 用户注册 | 白名单地址 signup | 任意地址发送交易 |
+| 隐私级别 | ⭐⭐ 低 | ⭐⭐⭐⭐⭐ 最高 |
+| Operator 知道身份 | ✅ 是 | ❌ 否 |
+| 适用场景 | 已知用户列表 | 匿名投票，平台运营 |
+| 灵活性 | 中 | 高 |
+
+---
+
+## 下一步
+
+Round 创建成功后：
+
+- 📝 [参与投票](/docs/sdk/voting-guide) - 学习如何投票
+- 🔍 [查询信息](/docs/sdk/query-api) - 查询 Round 信息
+- 💡 [查看示例](/docs/examples/pre-addnewkey-round) - 完整示例代码

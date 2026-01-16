@@ -19,7 +19,7 @@ async function monitorTransaction(
   
   while (!confirmed && attempts < maxAttempts) {
     try {
-      const tx = await client.getTransactionByHash(txHash);
+      const tx = await client.indexer.getTransactionByHash(txHash);
       
       if (tx.success) {
         console.log('✅ 交易成功确认');
@@ -70,7 +70,15 @@ async function retryTransaction<T>(
 
 // 使用
 const round = await retryTransaction(() =>
-  client.createOracleMaciRound({ /* 参数 */ })
+  // 查询 Operator
+  const operators = await client.indexer.getOperators();
+  const operator = operators.filter(op => op.status === 'Active')[0];
+  
+  // 创建 AMACI Round
+  await client.createAMaciRound({
+    operator: operator.address,
+    /* 其他参数 */
+  })
 );
 ```
 
@@ -84,7 +92,7 @@ async function batchGetRounds(
   contractAddresses: string[]
 ): Promise<Round[]> {
   const promises = contractAddresses.map(addr =>
-    client.getRoundById(addr).catch(error => {
+    client.getRoundInfo({ contractAddress: addr }).catch(error => {
       console.error(`获取 ${addr} 失败:`, error.message);
       return null;
     })
@@ -165,7 +173,7 @@ class MultiNetworkClient {
     for (const network of ['mainnet', 'testnet', 'local'] as const) {
       try {
         const client = this.getClient(network);
-        const round = await client.getRoundById(contractAddress);
+        const round = await client.getRoundInfo({ contractAddress });
         return { network, round };
       } catch (error) {
         continue;
@@ -295,7 +303,7 @@ class RoundWatcher {
     
     const checkStatus = async () => {
       try {
-        const round = await client.getRoundById(contractAddress);
+        const round = await client.getRoundInfo({ contractAddress });
         
         if (round.status !== lastStatus) {
           lastStatus = round.status;
@@ -446,6 +454,6 @@ const [round1, round2, round3] = await Promise.all([
 
 探索了高级功能后，您可以：
 
-- 💡 [查看完整示例](/examples/basic-voting) - 学习实际应用
-- 📖 [回到 SDK 首页](/sdk/installation) - 查看所有 SDK 文档
-- 🚀 [快速开始](/introduction/quick-start) - 快速上手 MACI
+- 💡 [查看完整示例](/docs/examples/basic-voting) - 学习实际应用
+- 📖 [回到 SDK 首页](/docs/sdk/installation) - 查看所有 SDK 文档
+- 🚀 [快速开始](/docs/introduction/quick-start) - 快速上手 MACI

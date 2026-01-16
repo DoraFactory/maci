@@ -7,7 +7,11 @@ MACI SDK 提供了丰富的查询功能来获取各种信息。
 ### 通过 ID 查询 Round
 
 ```typescript
-const round = await client.getRoundById('dora1contractaddress...');
+// 方式1：使用 getRoundInfo（推荐，返回完整的 Round 信息）
+const round = await client.getRoundInfo({ contractAddress: 'dora1contractaddress...' });
+
+// 方式2：使用 indexer 查询
+const round = await client.indexer.getRoundById('dora1contractaddress...');
 
 console.log('Round 信息:', {
   title: round.title,
@@ -34,7 +38,7 @@ rounds.forEach(round => {
 
 ```typescript
 // 查询所有进行中的投票
-const activeRounds = await client.getRoundsByStatus(
+const activeRounds = await client.indexer.getRoundsByStatus(
   'Voting',
   'first',
   10
@@ -46,7 +50,7 @@ const activeRounds = await client.getRoundsByStatus(
 ### 按 Operator 查询
 
 ```typescript
-const operatorRounds = await client.getRoundsByOperator(
+const operatorRounds = await client.indexer.getRoundsByOperator(
   'dora1operator...',
   'first',
   10
@@ -57,14 +61,14 @@ const operatorRounds = await client.getRoundsByOperator(
 
 ```typescript
 // 查询所有 QV 投票
-const qvRounds = await client.getRoundsByCircuitName(
+const qvRounds = await client.indexer.getRoundsByCircuitName(
   'amaci-qv',
   'first',
   10
 );
 
 // 查询所有 1P1V 投票
-const p1vRounds = await client.getRoundsByCircuitName(
+const p1vRounds = await client.indexer.getRoundsByCircuitName(
   'amaci-1p1v',
   'first',
   10
@@ -76,7 +80,7 @@ const p1vRounds = await client.getRoundsByCircuitName(
 ### 通过地址查询 Operator
 
 ```typescript
-const operator = await client.getOperatorByAddress('dora1operator...');
+const operator = await client.indexer.getOperatorByAddress('dora1operator...');
 
 console.log('Operator 信息:', {
   address: operator.address,
@@ -89,7 +93,7 @@ console.log('Operator 信息:', {
 ### 获取 Operator 列表
 
 ```typescript
-const operators = await client.getOperators('first', 10);
+const operators = await client.indexer.getOperators('first', 10);
 
 operators.forEach(op => {
   console.log(`- ${op.identity || op.address}`);
@@ -101,7 +105,7 @@ operators.forEach(op => {
 ### 通过名称查询 Circuit
 
 ```typescript
-const circuit = await client.getCircuitByName('amaci-qv');
+const circuit = await client.indexer.getCircuitByName('amaci-qv');
 
 console.log('Circuit 信息:', {
   name: circuit.name,
@@ -113,7 +117,7 @@ console.log('Circuit 信息:', {
 ### 获取所有 Circuits
 
 ```typescript
-const circuits = await client.getCircuits();
+const circuits = await client.indexer.getCircuits();
 
 circuits.forEach(circuit => {
   console.log(`- ${circuit.name}: ${circuit.description}`);
@@ -125,7 +129,7 @@ circuits.forEach(circuit => {
 ### 通过哈希查询交易
 
 ```typescript
-const tx = await client.getTransactionByHash('ABCD1234...');
+const tx = await client.indexer.getTransactionByHash('ABCD1234...');
 
 console.log('交易信息:', {
   hash: tx.hash,
@@ -139,7 +143,7 @@ console.log('交易信息:', {
 ### 按合约地址查询交易
 
 ```typescript
-const transactions = await client.getTransactionsByContractAddress(
+const transactions = await client.indexer.getTransactionsByContractAddress(
   'dora1contract...',
   'first',
   10
@@ -153,7 +157,7 @@ transactions.forEach(tx => {
 ### 获取交易列表
 
 ```typescript
-const recentTxs = await client.getTransactions('first', 20);
+const recentTxs = await client.indexer.getTransactions('first', 20);
 ```
 
 ## 证明查询
@@ -161,7 +165,7 @@ const recentTxs = await client.getTransactions('first', 20);
 ### 查询证明信息
 
 ```typescript
-const proof = await client.getProofByContractAddress('dora1contract...');
+const proof = await client.indexer.getProofByContractAddress('dora1contract...');
 
 console.log('证明信息:', {
   contractAddress: proof.contractAddress,
@@ -177,7 +181,7 @@ console.log('证明信息:', {
 ### 查询账户余额
 
 ```typescript
-const balance = await client.balanceOf('dora1address...');
+const balance = await client.indexer.balanceOf('dora1address...');
 
 console.log('余额:', {
   amount: balance.amount,
@@ -208,7 +212,7 @@ const page0 = await client.getRounds('before', 10, page1[0].id);
 ```typescript
 async function findActiveQVRounds(client: MaciClient) {
   // 1. 获取所有 QV 电路的投票
-  const qvRounds = await client.getRoundsByCircuitName('amaci-qv', 'first', 100);
+  const qvRounds = await client.indexer.getRoundsByCircuitName('amaci-qv', 'first', 100);
   
   // 2. 过滤出进行中的投票
   const activeRounds = qvRounds.filter(round => {
@@ -241,7 +245,7 @@ async function waitForRoundToFinish(
   console.log('等待投票结束...');
   
   while (true) {
-    const round = await client.getRoundById(contractAddress);
+    const round = await client.getRoundInfo({ contractAddress });
     
     if (round.status === 'Tallied') {
       console.log('✅ 投票已完成！');
@@ -275,7 +279,7 @@ async function safeQuery<T>(
 
 // 使用
 const round = await safeQuery(() => 
-  client.getRoundById('dora1contract...')
+  client.getRoundInfo({ contractAddress: 'dora1contract...' })
 );
 
 if (round) {
@@ -306,7 +310,7 @@ class CachedMaciClient {
     }
     
     console.log('从链上查询');
-    const data = await this.client.getRoundById(contractAddress);
+    const data = await this.client.getRoundInfo({ contractAddress });
     
     this.cache.set(key, {
       data,
@@ -327,6 +331,6 @@ const round2 = await cachedClient.getRoundById('dora1...');  // 使用缓存
 
 了解查询 API 后，您可以：
 
-- 🚀 [探索高级功能](/sdk/advanced) - 了解更多 SDK 功能
-- 💡 [查看示例](/examples/basic-voting) - 完整的应用示例
-- 📖 [回到概览](/sdk/installation) - SDK 文档首页
+- 🚀 [探索高级功能](/docs/sdk/advanced) - 了解更多 SDK 功能
+- 💡 [查看示例](/docs/examples/basic-voting) - 完整的应用示例
+- 📖 [回到概览](/docs/sdk/installation) - SDK 文档首页

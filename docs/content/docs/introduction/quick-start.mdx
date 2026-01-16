@@ -137,27 +137,17 @@ async function participateInVoting(contractAddress) {
   try {
     // 5.1 生成 MACI 账户
     console.log('正在生成 MACI 账户...');
-    const maciAccount = await client.circom.genKeypairFromSign(wallet, address);
+    const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
     console.log('✅ MACI 账户生成成功');
     
-    // 5.2 获取 Oracle 证书
-    console.log('正在获取投票资格证书...');
-    const certificate = await client.maci.requestOracleCertificate({
-      signer: wallet,
-      ecosystem: 'cosmoshub',
-      address,
-      contractAddress,
-    });
-    console.log('✅ 证书获取成功，投票权重:', certificate.amount);
-    
-    // 5.3 等待 Gas Station 启用
+    // 5.2 等待 Gas Station 启用
     console.log('正在等待 Gas Station...');
     let hasFeegrant = false;
     let attempts = 0;
     const maxAttempts = 30;
     
     while (!hasFeegrant && attempts < maxAttempts) {
-      hasFeegrant = await client.maci.hasFeegrant({
+      hasFeegrant = await client.hasFeegrant({
         address,
         contractAddress,
       });
@@ -174,28 +164,24 @@ async function participateInVoting(contractAddress) {
       console.log('✅ Gas Station 已启用');
     }
     
-    // 5.4 签到
+    // 5.3 签到（仅白名单地址可用）
     console.log('正在签到...');
-    await client.maci.signup({
+    await client.signup({
       signer: wallet,
       address,
       contractAddress,
-      maciAccount,
-      oracleCertificate: {
-        amount: certificate.amount,
-        signature: certificate.signature,
-      },
-      gasStation: hasFeegrant,
+      maciKeypair,
+      gasStation: hasFeegrant
     });
-    console.log('✅ 签到成功');
+    console.log('✅ 签到成功（需要在白名单中）');
     
     // 5.5 投票
     console.log('正在投票...');
     
     // 获取 Operator 公钥
-    const roundInfo = await client.getRoundById(contractAddress);
+    const roundInfo = await client.getRoundInfo({ contractAddress });
     
-    await client.maci.vote({
+    await client.vote({
       signer: wallet,
       address,
       contractAddress,
@@ -208,7 +194,7 @@ async function participateInVoting(contractAddress) {
         BigInt(roundInfo.coordinatorPubkeyX),
         BigInt(roundInfo.coordinatorPubkeyY),
       ],
-      maciAccount,
+      maciKeypair,
       gasStation: hasFeegrant,
     });
     
@@ -326,13 +312,13 @@ const votes = [
 
 ```javascript
 // 第一次投票
-await client.maci.vote({
+await client.vote({
   selectedOptions: [{ idx: 0, vc: 5 }],
   // ... 其他参数
 });
 
 // 改变主意，重新投票
-await client.maci.vote({
+await client.vote({
   selectedOptions: [{ idx: 1, vc: 5 }],
   // ... 其他参数
 });
@@ -343,7 +329,7 @@ await client.maci.vote({
 **A:** 投票结束后，Operator 会处理消息并发布结果。您可以查询合约获取结果：
 
 ```javascript
-const round = await client.getRoundById(contractAddress);
+const round = await client.getRoundInfo({ contractAddress });
 console.log('投票状态:', round.status);
 console.log('投票结果:', round.results);
 ```
@@ -363,16 +349,16 @@ console.log('投票结果:', round.results);
 
 恭喜！您已经成功创建并参与了第一个 MACI 投票。接下来您可以：
 
-- 📖 [深入了解协议](/protocol/overview) - 学习 MACI 的工作原理
-- 🔧 [探索 SDK API](/sdk/installation) - 了解更多 SDK 功能
-- 💼 [查看完整示例](/examples/basic-voting) - 学习更复杂的使用场景
-- 🏗️ [了解合约设计](/contracts/architecture) - 理解系统架构
+- 📖 [深入了解协议](/docs/protocol/overview) - 学习 MACI 的工作原理
+- 🔧 [探索 SDK API](/docs/sdk/installation) - 了解更多 SDK 功能
+- 💼 [查看完整示例](/docs/examples/basic-voting) - 学习更复杂的使用场景
+- 🏗️ [了解合约设计](/docs/contracts/architecture) - 理解系统架构
 
 ## 额外资源
 
 - [SDK GitHub 仓库](https://github.com/DoraFactory/maci)
 - [示例代码](https://github.com/DoraFactory/maci/tree/main/packages/sdk/examples)
-- [API 文档](/sdk/query-api)
+- [API 文档](/docs/sdk/query-api)
 
 ## 获取帮助
 
