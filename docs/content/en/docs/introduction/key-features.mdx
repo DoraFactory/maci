@@ -1,0 +1,85 @@
+# Key Features
+
+Main features and advantages of AMACI.
+
+## Identity Anonymization
+
+AMACI's most important innovation. Using the add-new-key mechanism, even the operator cannot determine voter identity.
+
+Create a new identity through zero-knowledge proofs, breaking the link with the original wallet address. The operator only knows "someone voted" but doesn't know who specifically, preventing targeted bribery or retaliation.
+
+Provides three registration methods: signup (fast but not anonymous), add-new-key (fully anonymous but requires waiting), pre-add-new-key (anonymous and instant). Choose based on privacy needs.
+
+## Vote Content Encryption
+
+All voting messages are encrypted with the operator's public key before being submitted on-chain. Blockchain observers can only see encrypted data and cannot know who voted for what.
+
+Uses ECDH + Poseidon encryption. Only the operator can decrypt message content, but the operator is constrained by zero-knowledge proofs and must correctly process all votes.
+
+## Anti-Bribery Mechanism
+
+Key change functionality prevents voters from proving their final vote to third parties.
+
+Even if accepting a bribe and voting with the old key, you can still secretly change keys and revote. Only the new vote counts; bribers cannot verify. Combined with add-new-key, bribers can't even find bribery targets.
+
+## Revotable
+
+Voters can vote multiple times; the last vote counts.
+
+Prevents forced voting: after being forced to vote for a certain option, you can secretly revote. Also allows changing your mind or correcting mistakes. Through nonce mechanism, ensures sequential processing with old votes being overwritten.
+
+## Zero-Knowledge Proof Verification
+
+After processing votes, operators must generate ZK proofs proving correct processing of all votes.
+
+Proofs ensure: processed all messages, did not tamper with votes, correctly updated state tree, correctly tallied results. Anyone can verify the proof to confirm correct results. Contracts automatically verify proofs; verification failure results in rejection.
+
+## Multiple Voting Modes
+
+Supports different voting rules:
+
+**One Person One Vote (1P1V)** - Voice credits directly count as votes. Suitable for simple democratic voting.
+
+**Quadratic Voting (QV)** - Square of votes is the consumption amount. Encourages distributed voting, prevents whale monopoly. Suitable for public goods funding, priority ranking, etc.
+
+## Flexible Whitelists
+
+Multiple ways to restrict voting participants:
+
+**Address List** - Specify specific addresses; only addresses on the list can signup. Suitable for known user groups.
+
+**Token Holders** - Based on on-chain token holdings. Can set minimum thresholds and weight calculation rules. Suitable for token-weighted voting.
+
+**Snapshot Height** - Uses token balance at a specific block height, preventing temporary token purchases for voting followed by selling.
+
+## Professional Operator Network
+
+Permissioned professional nodes provide services; users don't need to run operator software themselves.
+
+Operators handle message processing, proof generation, and result submission. Select operator and pay service fee when creating rounds. Operator network managed by Dora Factory, ensuring service quality.
+
+## Gas Station Support
+
+Automatically subsidizes user transaction fees.
+
+Users can participate in voting without holding native tokens. Configure gas station when creating rounds; contracts automatically subsidize gas for whitelisted users. Lowers participation barriers, improves user experience.
+
+## Cross-Chain Support
+
+Supports tokens and data from Cosmos ecosystem chains.
+
+Can set whitelists based on token holdings from chains like Cosmos Hub, Osmosis, etc. Supports cross-chain voting and governance. Connects multiple chains through IBC protocol.
+
+## TypeScript SDK
+
+Complete SDK simplifies integration.
+
+Provides multiple modules including client, operator, voter, etc. Includes complete type definitions and documentation. Supports all major features: creating rounds, user registration, voting, queries, etc.
+
+## Next Steps
+
+**Quick Experience** - Check out [Quick Start](/docs/introduction/quick-start) to create your first vote.
+
+**Deep Understanding** - Read [Protocol Overview](/docs/protocol/overview) to understand how AMACI works.
+
+**Integrate Application** - Refer to [SDK Documentation](/docs/sdk/installation) to start development.

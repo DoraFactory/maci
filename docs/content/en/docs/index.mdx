@@ -1,0 +1,84 @@
+# MACI Documentation
+
+MACI (Minimal Anti-Collusion Infrastructure) is a cryptography-based on-chain voting system that provides privacy protection and anti-collusion capabilities through zero-knowledge proofs.
+
+## Quick Navigation
+
+**New to MACI?** Read [What is MACI](/docs/introduction/what-is-maci) to understand core concepts, then follow the [Quick Start Guide](/docs/introduction/quick-start) to create your first vote.
+
+**Need to integrate into your app?** Check out [SDK Installation](/docs/sdk/installation) and [Complete Examples](/docs/examples/basic-voting).
+
+**Want to understand technical details?** Start with [Protocol Overview](/docs/protocol/overview) to learn how MACI works.
+
+## Learning by Role
+
+### Application Developers
+
+You want to integrate MACI voting functionality into your application:
+
+1. [What is MACI](/docs/introduction/what-is-maci) - Understand basic concepts
+2. [Quick Start](/docs/introduction/quick-start) - Run your first example in five minutes
+3. [SDK Installation](/docs/sdk/installation) - Configure development environment
+4. [Create Round](/docs/sdk/create-round) - Learn to create voting rounds
+5. [Voting Guide](/docs/sdk/voting-guide) - Implement user voting flow
+
+### Protocol Researchers
+
+You want to understand MACI's cryptographic mechanisms and design philosophy:
+
+1. [Protocol Overview](/docs/protocol/overview) - Overall architecture
+2. [Core Concepts](/docs/protocol/core-concepts) - Key components and data structures
+3. [Cryptography](/docs/protocol/cryptography) - EdDSA, Poseidon, ZK proofs
+4. [Privacy Protection](/docs/protocol/privacy-protection) - Identity anonymization and anti-collusion design
+5. [Message Flow](/docs/protocol/message-flow) - Lifecycle of voting messages
+
+### Contract Developers
+
+You want to understand MACI contract implementation or perform secondary development:
+
+1. [Architecture](/docs/contracts/architecture) - Contract system architecture
+2. [Registry Contract](/docs/contracts/registry) - Operator and round management
+3. [AMACI Contract](/docs/contracts/amaci) - Anonymous voting implementation
+4. [Workflow](/docs/contracts/workflow) - Complete voting lifecycle
+
+### Operators
+
+You want to run a MACI Operator node:
+
+1. [Protocol Overview](/docs/protocol/overview) - Understand operator responsibilities
+2. [Message Flow](/docs/protocol/message-flow) - Learn message processing
+3. [Workflow](/docs/contracts/workflow) - Understand processing timing and requirements
+
+## Core Components
+
+### Smart Contracts
+
+- **Registry** - Manages operator registration and voting round creation
+- **AMACI** - Anonymous voting contract instance, handles user registration and voting
+
+### SDK and Tools
+
+- **@dorafactory/maci-sdk** - TypeScript client SDK
+- **@dorafactory/maci-operator** - Operator system
+- **maci-crypto** - Rust cryptography library
+
+### Zero-Knowledge Circuits
+
+ZK circuits implemented using Circom, supporting Groth16 and PLONK proof systems.
+
+## Use Cases
+
+- **DAO Governance** - Community proposals and protocol parameter voting
+- **Quadratic Funding** - Gitcoin Grants-style public goods funding
+- **Organization Elections** - Internal elections and representative selection
+- **Token Voting** - Weighted voting based on token holdings
+
+## Technical Resources
+
+- [Minimal anti-collusion infrastructure](https://ethresear.ch/t/minimal-anti-collusion-infrastructure/5413) - Original proposal
+- [MACI anonymization](https://ethresear.ch/t/maci-anonymization-using-rerandomizable-encryption/7054) - Anonymization design
+- [GitHub Repository](https://github.com/DoraFactory/maci) - Source code and examples
+
+## Getting Help
+
+Having issues? Check [GitHub Issues](https://github.com/DoraFactory/maci/issues) or submit a new issue.

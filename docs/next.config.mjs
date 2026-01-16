@@ -11,8 +11,18 @@ export default withNextra({
         return [
             {
                 source: '/',
-                destination: '/docs',
-                permanent: true,
+                destination: '/en/docs',
+                permanent: false,
+            },
+            {
+                source: '/docs',
+                destination: '/en/docs',
+                permanent: false,
+            },
+            {
+                source: '/docs/:path*',
+                destination: '/en/docs/:path*',
+                permanent: false,
             },
         ];
     },

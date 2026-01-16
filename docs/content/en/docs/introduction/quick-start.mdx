@@ -1,0 +1,149 @@
+# Quick Start
+
+This guide will help you create your first MACI voting round in 5 minutes.
+
+## Overview
+
+We'll create a simple anonymous voting round where users can vote on their favorite programming language. You'll learn:
+
+- How to install and configure the SDK
+- How to create a voting round
+- How to register and vote
+- How to query results
+
+## Prerequisites
+
+- Node.js 16+ installed
+- A Cosmos wallet with test tokens
+- Basic knowledge of TypeScript
+
+## Step 1: Install SDK
+
+```bash
+npm install @dorafactory/maci-sdk
+```
+
+Or using yarn:
+
+```bash
+yarn add @dorafactory/maci-sdk
+```
+
+## Step 2: Initialize Client
+
+```typescript
+import { MACIClient } from '@dorafactory/maci-sdk';
+
+const client = await MACIClient.connect({
+  endpoint: 'https://rpc.dora.com',
+  chainId: 'dora-1',
+  wallet: yourWallet,
+});
+```
+
+## Step 3: Create Voting Round
+
+```typescript
+const result = await client.createRound({
+  title: 'Favorite Programming Language',
+  description: 'Vote for your favorite language',
+  options: ['JavaScript', 'Python', 'Rust', 'Go'],
+  duration: 7 * 24 * 60 * 60, // 7 days
+  votingMode: 'qv', // Quadratic voting
+  operatorAddress: 'dora1...', // Select operator
+});
+
+console.log('Round created:', result.roundId);
+```
+
+## Step 4: Register to Vote
+
+```typescript
+// Option 1: Fast signup (not anonymous)
+await client.signup(roundId);
+
+// Option 2: Anonymous registration (requires waiting)
+await client.addNewKey(roundId);
+
+// Option 3: Pre-configured anonymous (instant)
+await client.preAddNewKey(roundId, anonymitySetId);
+```
+
+## Step 5: Submit Vote
+
+```typescript
+await client.vote({
+  roundId: roundId,
+  votes: [
+    { option: 0, credits: 9 }, // JavaScript - 9 credits = 3 votes
+    { option: 2, credits: 4 }, // Rust - 4 credits = 2 votes
+  ],
+});
+```
+
+## Step 6: Query Results
+
+```typescript
+// Wait for operator to process
+const status = await client.getRoundStatus(roundId);
+
+if (status === 'tallied') {
+  const results = await client.getResults(roundId);
+  console.log('Results:', results);
+}
+```
+
+## Complete Example
+
+```typescript
+import { MACIClient } from '@dorafactory/maci-sdk';
+
+async function main() {
+  // Connect
+  const client = await MACIClient.connect({
+    endpoint: 'https://rpc.dora.com',
+    chainId: 'dora-1',
+    wallet: yourWallet,
+  });
+
+  // Create round
+  const { roundId } = await client.createRound({
+    title: 'Favorite Programming Language',
+    options: ['JavaScript', 'Python', 'Rust', 'Go'],
+    duration: 7 * 24 * 60 * 60,
+    votingMode: 'qv',
+  });
+
+  // Register
+  await client.signup(roundId);
+
+  // Vote
+  await client.vote({
+    roundId,
+    votes: [{ option: 0, credits: 9 }],
+  });
+
+  // Query results
+  const results = await client.getResults(roundId);
+  console.log(results);
+}
+
+main();
+```
+
+## Next Steps
+
+- [Learn more about registration methods](/docs/sdk/voting-guide)
+- [Understand voting modes](/docs/protocol/core-concepts)
+- [Explore complete examples](/docs/examples/basic-voting)
+- [Configure whitelists and permissions](/docs/sdk/advanced)
+
+## Troubleshooting
+
+**Transaction failed?** Check if you have sufficient gas fees and tokens.
+
+**Cannot register?** Verify if you meet whitelist requirements.
+
+**Results not appearing?** Wait for operator processing, usually 1-3 hours.
+
+For more help, check [GitHub Issues](https://github.com/DoraFactory/maci/issues).
