@@ -59,7 +59,7 @@ pub use rerandomize::{
     decode_message, decrypt, encode_to_message, encrypt, encrypt_odevity, rerandomize_ciphertext,
     Ciphertext, Message,
 };
-pub use tree::{biguint_to_node, node_to_biguint, Tree};
+pub use tree::{biguint_to_node, node_to_biguint, LeanTree, Tree};
 pub use utils::{bigint_to_bytes, bigint_to_hex, bytes_to_bigint, hex_to_bigint};
 
 // Re-export error types

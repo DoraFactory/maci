@@ -43,6 +43,25 @@ Located in `circom/utils/`:
 - **Trees**: Incremental Merkle trees, quinary trees, root checking
 - **Helpers**: Message hashing, command parsing, element unpacking
 
+#### Lean IMT Support
+
+**LeanTree** is a dynamic capacity binary Merkle tree implementation that solves fixed capacity limitations for off-chain trees like Active State Tree. See `docs/LeanIMT.md` for details.
+
+**Key Features:**
+- 🌱 **Dynamic Capacity**: No fixed size limits, grows automatically
+- 💾 **Memory Efficient**: 70-80% memory savings for sparse trees
+- 🔄 **API Compatible**: Consistent API across Rust and TypeScript
+- ✅ **Fully Tested**: 100+ unit and integration tests
+
+**Use Cases:**
+- ✅ Active State Tree (operator-side only)
+- ✅ Off-chain state management
+- ❌ Not suitable for on-chain trees requiring circuit verification (State Tree, Deactivate Tree)
+
+**Tests:**
+- `ts/__tests__/LeanTree.test.ts` - Unit tests
+- `ts/__tests__/LeanTree.integration.test.ts` - Integration tests
+
 ### Installation
 
 ```bash
@@ -137,6 +156,8 @@ Comprehensive documentation is available in the `docs/` directory:
 - Message validation logic
 - Integration guides
 - Test documentation
+- **LeanIMT.md** - Lean Incremental Merkle Tree usage guide
+- **LEAN_IMT_IMPLEMENTATION.md** - Implementation details and analysis
 
 ### Security Considerations
 

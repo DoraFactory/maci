@@ -5,34 +5,31 @@ include "../../utils/messageHasher.circom";
 include "../../utils/messageToCommand.circom";
 include "../../utils/privToPubKey.circom";
 include "./stateLeafTransformer.circom";
-include "../../utils/trees/incrementalQuinTree.circom";
+include "../../utils/trees/binaryLeanTree.circom";
 include "../../utils/trees/zeroRoot.circom";
 include "../../../node_modules/circomlib/circuits/mux1.circom";
 
 /*
  * Proves the correctness of processing a batch of messages.
+ * MODIFIED: Using binary trees instead of quinary trees
  */
 template ProcessMessages(
     stateTreeDepth,
     voteOptionTreeDepth,
     batchSize
 ) {
-    // stateTreeDepth: the depth of the state tree
-    // voteOptionTreeDepth: depth of the vote option tree
+    // stateTreeDepth: the depth of the state tree (binary tree)
+    // voteOptionTreeDepth: depth of the vote option tree (binary tree)
     // batchSize: number of messages processed at one time
 
     assert(stateTreeDepth > 0);
     assert(voteOptionTreeDepth > 0);
     assert(batchSize > 0);
 
-    var TREE_ARITY = 5;
+    var TREE_ARITY = 2;  // Changed from 5 to 2 for binary trees
 
     var MSG_LENGTH = 7;
     var PACKED_CMD_LENGTH = 3;
-
-    // var BALLOT_LENGTH = 2;
-    // var BALLOT_NONCE_IDX = 0;
-    // var BALLOT_VO_ROOT_IDX = 1;
 
     var STATE_LEAF_LENGTH = 10;
 
@@ -46,7 +43,6 @@ template ProcessMessages(
     var STATE_LEAF_C1_1_IDX = 6;
     var STATE_LEAF_C2_0_IDX = 7;
     var STATE_LEAF_C2_1_IDX = 8;
-    // var STATE_LEAF_X_INCREMENT_IDX = 9;
 
     
     // Note that we sha256 hash some values from the contract, pass in the hash
@@ -82,14 +78,9 @@ template ProcessMessages(
     signal input currentStateRoot;
 
     // The state leaves upon which messages are applied.
-    //     transform(currentStateLeaf[4], message5) => newStateLeaf4
-    //     transform(currentStateLeaf[3], message4) => newStateLeaf3
-    //     transform(currentStateLeaf[2], message3) => newStateLeaf2
-    //     transform(currentStateLeaf[1], message1) => newStateLeaf1
-    //     transform(currentStateLeaf[0], message0) => newStateLeaf0
-    //     ...
     // Likewise, currentStateLeavesPathElements contains the Merkle path to
     // each incremental new state root.
+    // MODIFIED: Path elements now [depth][1] for binary trees (not [depth][4])
     signal input currentStateLeaves[batchSize][STATE_LEAF_LENGTH];
     signal input currentStateLeavesPathElements[batchSize][stateTreeDepth][TREE_ARITY - 1];
 
@@ -299,10 +290,11 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
         genIndices(isValid0, cmd0) -> pathIndices0
         verify(currentStateRoot, pathElements0, pathIndices0, currentStateLeaves0)
         qip(newStateLeaves0, pathElements0) -> newStateRoot0
+        MODIFIED: Using binary trees instead of quinary trees
     */
     var MSG_LENGTH = 7;
     var PACKED_CMD_LENGTH = 3;
-    var TREE_ARITY = 5;
+    var TREE_ARITY = 2;  // Changed from 5 to 2 for binary trees
 
     var MAX_INDEX = TREE_ARITY ** stateTreeDepth;
 
@@ -397,12 +389,12 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
     stateIndexMux.c[0] <== MAX_INDEX - 1;
     stateIndexMux.c[1] <== cmdStateIndex;
 
-    component stateLeafPathIndices = QuinGeneratePathIndices(stateTreeDepth);
+    component stateLeafPathIndices = BinaryGeneratePathIndices(stateTreeDepth);
     stateLeafPathIndices.in <== stateIndexMux.out;
 
     //  ----------------------------------------------------------------------- 
     // 3. Verify that the original state leaf exists in the given state root
-    component stateLeafQip = QuinTreeInclusionProof(stateTreeDepth);
+    component stateLeafQip = BinaryTreeInclusionProof(stateTreeDepth);
     component stateLeafHasher = Hasher10();
     for (var i = 0; i < STATE_LEAF_LENGTH; i++) {
         stateLeafHasher.in[i] <== stateLeaf[i];
@@ -418,7 +410,7 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
 
     //  ----------------------------------------------------------------------- 
     // 3.1. Verify that the deactivate leaf exists in the given state root
-    component activeStateLeafQip = QuinTreeInclusionProof(stateTreeDepth);
+    component activeStateLeafQip = BinaryTreeInclusionProof(stateTreeDepth);
     activeStateLeafQip.leaf <== activeStateLeaf;
     for (var i = 0; i < stateTreeDepth; i ++) {
         activeStateLeafQip.path_index[i] <== stateLeafPathIndices.out[i];
@@ -437,10 +429,10 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
     cmdVoteOptionIndexMux.c[0] <== 0;
     cmdVoteOptionIndexMux.c[1] <== cmdVoteOptionIndex;
 
-    component currentVoteWeightPathIndices = QuinGeneratePathIndices(voteOptionTreeDepth);
+    component currentVoteWeightPathIndices = BinaryGeneratePathIndices(voteOptionTreeDepth);
     currentVoteWeightPathIndices.in <== cmdVoteOptionIndexMux.out;
 
-    component currentVoteWeightQip = QuinTreeInclusionProof(voteOptionTreeDepth);
+    component currentVoteWeightQip = BinaryTreeInclusionProof(voteOptionTreeDepth);
     currentVoteWeightQip.leaf <== currentVoteWeight;
     for (var i = 0; i < voteOptionTreeDepth; i ++) {
         currentVoteWeightQip.path_index[i] <== currentVoteWeightPathIndices.out[i];
@@ -464,7 +456,7 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
 
     //  ----------------------------------------------------------------------- 
     // 5.1. Update vote option root with the new vote weight
-    component newVoteOptionTreeQip = QuinTreeInclusionProof(voteOptionTreeDepth);
+    component newVoteOptionTreeQip = BinaryTreeInclusionProof(voteOptionTreeDepth);
     newVoteOptionTreeQip.leaf <== voteWeightMux.out;
     for (var i = 0; i < voteOptionTreeDepth; i ++) {
         newVoteOptionTreeQip.path_index[i] <== currentVoteWeightPathIndices.out[i];
@@ -509,7 +501,7 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
     newStateLeafHasher.in[STATE_LEAF_C2_1_IDX] <== stateLeaf[STATE_LEAF_C2_1_IDX];
     newStateLeafHasher.in[9] <== 0;
 
-    component newStateLeafQip = QuinTreeInclusionProof(stateTreeDepth);
+    component newStateLeafQip = BinaryTreeInclusionProof(stateTreeDepth);
     newStateLeafQip.leaf <== newStateLeafHasher.hash;
     for (var i = 0; i < stateTreeDepth; i ++) {
         newStateLeafQip.path_index[i] <== stateLeafPathIndices.out[i];

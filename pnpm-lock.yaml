@@ -223,6 +223,9 @@ importers:
       '@zk-kit/eddsa-poseidon':
         specifier: ^1.1.0
         version: 1.1.0
+      '@zk-kit/lean-imt':
+        specifier: ^2.0.0
+        version: 2.2.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@zk-kit/poseidon-cipher':
         specifier: ^0.3.2
         version: 0.3.2
@@ -1471,6 +1474,9 @@ packages:
 
   '@zk-kit/eddsa-poseidon@1.1.0':
     resolution: {integrity: sha512-Djc+zOZjd73FpLLf32/XeVZi8GX4ShPQJGS4Iig1QMAR/2CggEi++6Jrkr9N2FM3M4MRCH1qxz2u22DjOLtASg==}
+
+  '@zk-kit/lean-imt@2.2.4':
+    resolution: {integrity: sha512-uoRl99DID9Z5EuhfecDuIGP0KLrGEndVH0+texwVQBmlXTvve+grkKT4w06C+VFzRmfYNVuRo9tXvqIzQ3dqPA==}
 
   '@zk-kit/poseidon-cipher@0.3.2':
     resolution: {integrity: sha512-Ezz1e0mj/GRDlHdU5m0uhj5iHY72zWJU0BP8DsCCvPubU7LPI2tVaPpxrAjT4JQqatbVRQHLIhixW7F7BPzaFg==}
@@ -6789,6 +6795,13 @@ snapshots:
       blakejs: 1.2.1
       buffer: 6.0.3
       poseidon-lite: 0.3.0
+
+  '@zk-kit/lean-imt@2.2.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@zk-kit/utils': 1.4.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@zk-kit/poseidon-cipher@0.3.2':
     dependencies:

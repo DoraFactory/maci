@@ -57,6 +57,9 @@ once_cell = "1.19"
 # zkkit IMT (Incremental Merkle Tree with N-ary support)
 zk-kit-imt = "0.0.7"
 
+# Lean IMT (Lean Incremental Merkle Tree for dynamic capacity)
+zk-kit-lean-imt = "0.1"
+
 [dev-dependencies]
 criterion = "0.5"
 

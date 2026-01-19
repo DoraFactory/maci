@@ -237,7 +237,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -529,7 +529,7 @@ dependencies = [
  "ed25519-zebra",
  "k256",
  "rand_core 0.6.4",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -551,7 +551,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -584,7 +584,7 @@ dependencies = [
  "serde-json-wasm",
  "sha2 0.10.9",
  "static_assertions",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -820,7 +820,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.9.9",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -849,7 +849,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -875,7 +875,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.9.9",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -899,7 +899,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -914,7 +914,7 @@ dependencies = [
  "cw-utils",
  "schemars",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -934,7 +934,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha2 0.10.9",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -978,7 +978,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -993,7 +993,7 @@ dependencies = [
  "schemars",
  "semver",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1008,7 +1008,7 @@ dependencies = [
  "schemars",
  "semver",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1126,7 +1126,7 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1535,7 +1535,7 @@ dependencies = [
  "ark-bn254",
  "ark-ff",
  "num-bigint",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1568,9 +1568,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "thiserror",
+ "thiserror 1.0.69",
  "tiny-keccak 2.0.2",
  "zk-kit-imt",
+ "zk-kit-lean-imt",
 ]
 
 [[package]]
@@ -2295,7 +2296,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f63587ca0f12b72a0600bcba1d40081f830876000bb46dd2337a3051618f4fc8"
+dependencies = [
+ "thiserror-impl 2.0.17",
 ]
 
 [[package]]
@@ -2303,6 +2313,17 @@ name = "thiserror-impl"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.104",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ff15c8ecd7de3849db632e14d18d2571fa09dfc5ed93479bc4485c7a517c913"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2594,4 +2615,13 @@ checksum = "76a40d2f9afd345a14a304ad2ced6dbff4c17a0e5c533a3bd5f64fd04dcb2531"
 dependencies = [
  "hex",
  "tiny-keccak 2.0.2",
+]
+
+[[package]]
+name = "zk-kit-lean-imt"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f0c91d9944d156160791b6b30631f2bfa504d1bc0252a065a5d5d9e1f341693"
+dependencies = [
+ "thiserror 2.0.17",
 ]
