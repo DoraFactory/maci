@@ -101,9 +101,9 @@ import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
 
 const client = new MaciClient({ network: 'mainnet' });
 
-const round = await client.createOracleMaciRound({
+const round = await client.createAMaciRound({
   signer: creatorWallet,
-  operatorPubkey: bestOperator.pubkey,  // Use selected Operator
+  operator: bestOperator.address,  // Use selected Operator
   
   startVoting: new Date('2024-03-01T00:00:00Z'),
   endVoting: new Date('2024-03-07T23:59:59Z'),
@@ -121,12 +121,8 @@ const round = await client.createOracleMaciRound({
   
   circuitType: MaciCircuitType.QV,
   
-  whitelistEcosystem: 'cosmoshub',
-  whitelistSnapshotHeight: '0',
-  whitelistVotingPowerArgs: {
-    mode: 'slope',
-    slope: '1000000',
-    threshold: '1000000'
+  whitelist: {
+    addresses: ['dora1...', 'dora1...']  // Whitelist addresses
   }
 });
 
@@ -163,25 +159,12 @@ const userAKeypair = await client.genKeypairFromSign({
   address: addressA
 });
 
-// Wait for Gas Station
-let hasFeegrant = false;
-while (!hasFeegrant) {
-  hasFeegrant = await client.hasFeegrant({
-    address: addressA,
-    contractAddress: round.contractAddress
-  });
-  if (!hasFeegrant) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-}
-
 // Signup (whitelist addresses only)
 await client.signup({
   signer: walletA,
   address: addressA,
   contractAddress: round.contractAddress,
-  maciKeypair: userAKeypair,
-  gasStation: true
+  maciKeypair: userAKeypair
 });
 
 console.log('User A signup successful');
@@ -202,8 +185,7 @@ await client.vote({
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
   ],
-  maciKeypair: userAKeypair,
-  gasStation: true
+  maciKeypair: userAKeypair
 });
 
 console.log('User A voted successfully');
@@ -273,8 +255,7 @@ await client.vote({
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
   ],
-  maciKeypair: newKeypair,
-  gasStation: true
+  maciKeypair: newKeypair
 });
 
 console.log('User B voted successfully (fully anonymous)');
@@ -473,9 +454,9 @@ async function completeVotingRound() {
   
   // === Phase 1: Create Round ===
   console.log('\n=== Phase 1: Create Voting Round ===');
-  const round = await client.createOracleMaciRound({
+  const round = await client.createAMaciRound({
     signer: creatorWallet,
-    operatorPubkey: operatorPubkey,
+    operator: operatorAddress,
     startVoting: new Date(),
     endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     title: 'Community Fund Allocation',
@@ -483,12 +464,8 @@ async function completeVotingRound() {
     link: 'https://forum.example.com',
     voteOptionMap: ['Project A', 'Project B', 'Project C', 'Project D'],
     circuitType: MaciCircuitType.QV,
-    whitelistEcosystem: 'cosmoshub',
-    whitelistSnapshotHeight: '0',
-    whitelistVotingPowerArgs: {
-      mode: 'slope',
-      slope: '1000000',
-      threshold: '0',
+    whitelist: {
+      addresses: [addressA, addressB]  // Whitelist addresses
     },
   });
   
@@ -541,25 +518,12 @@ async function voteWithSignup(
     address
   });
   
-  // Get certificate
-  const certificate = await client.requestOracleCertificate({
-    signer: wallet,
-    ecosystem: 'cosmoshub',
-    address,
-    contractAddress
-  });
-  
-  // Wait for Gas Station
-  await waitForGasStation(client, address, contractAddress);
-  
   // Signup
   await client.signup({
     signer: wallet,
     address,
     contractAddress,
-    maciKeypair,
-    oracleCertificate: certificate,
-    gasStation: true
+    maciKeypair
   });
   
   // Vote
@@ -574,8 +538,7 @@ async function voteWithSignup(
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair,
-    gasStation: true
+    maciKeypair
   });
   
   console.log(`User ${address} voted successfully (Signup mode)`);
@@ -632,8 +595,7 @@ async function voteWithAddNewKey(
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair: newKeypair,
-    gasStation: true
+    maciKeypair: newKeypair
   });
   
   console.log(`User ${newAddress} voted successfully (Anonymous mode)`);

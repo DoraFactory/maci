@@ -207,8 +207,7 @@ async function userAnonymousVote(
     newPubkey: {
       x: myNewKeypair.publicKey[0].toString(16),
       y: myNewKeypair.publicKey[1].toString(16)
-    },
-    gasStation: true
+    }
   });
   
   console.log(' Anonymous registration successful');
@@ -235,8 +234,7 @@ async function userAnonymousVote(
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair: myNewKeypair,  // Only user knows
-    gasStation: true
+    maciKeypair: myNewKeypair  // Only user knows
   });
   
   console.log(' Voting complete, fully anonymous');

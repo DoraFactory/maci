@@ -67,27 +67,6 @@ whitelist: {
 }
 ```
 
-### Token Holder Mode
-
-Based on token holdings:
-
-```typescript
-whitelist: {
-  ecosystem: 'cosmoshub',
-  snapshotHeight: '12345678',  // Block height
-  votingPowerArgs: {
-    mode: 'slope',
-    slope: '1000000',      // 1 ATOM = 1 voice credit
-    threshold: '1000000'   // Minimum 1 ATOM to participate
-  }
-}
-```
-
-Voting power calculation:
-
-- **mode: 'slope'** - `voiceCredits = (balance - threshold) / slope`
-- **mode: 'constant'** - Same weight for everyone
-
 ## Voting Modes
 
 ### Quadratic Voting (QV)
@@ -234,7 +213,7 @@ Once created, configuration cannot be modified. If changes needed, must create n
 
 ### Can I add more whitelist addresses?
 
-No. Whitelist is fixed at creation. If need dynamic addition, consider using on-chain data mode (based on token holdings, etc.).
+No. Whitelist is fixed at creation and cannot be added or modified during voting period.
 
 ### Can voting period be extended?
 

@@ -67,27 +67,6 @@ whitelist: {
 }
 ```
 
-### 代币持有者模式
-
-基于代币持有量：
-
-```typescript
-whitelist: {
-  ecosystem: 'cosmoshub',
-  snapshotHeight: '12345678',  // 区块高度
-  votingPowerArgs: {
-    mode: 'slope',
-    slope: '1000000',      // 每 1 ATOM = 1 voice credit
-    threshold: '1000000'   // 最低 1 ATOM 可参与
-  }
-}
-```
-
-voting power 计算：
-
-- **mode: 'slope'** - `voiceCredits = (balance - threshold) / slope`
-- **mode: 'constant'** - 所有人相同权重
-
 ## 投票模式
 
 ### 二次方投票 (QV)
@@ -234,7 +213,7 @@ Operator 列表也可以在 https://vota.dorafactory.org/operators 查看。
 
 ### 可以添加更多白名单地址吗？
 
-不可以。白名单在创建时固定。如果需要动态添加，考虑使用链上数据模式（基于代币持有等）。
+不可以。白名单在创建时固定，无法在投票期间添加或修改。
 
 ### 投票期可以延长吗？
 

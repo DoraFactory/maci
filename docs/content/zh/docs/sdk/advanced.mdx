@@ -179,23 +179,6 @@ async function estimateGas(
 }
 ```
 
-### Gas 价格优化
-
-```typescript
-async function optimizedTransaction<T>(
-  client: MaciClient,
-  txFn: () => Promise<T>,
-  useGasStation: boolean = true
-): Promise<T> {
-  if (useGasStation) {
-    return await txFn();
-  } else {
-    // 自己支付 Gas，可根据网络情况动态调整价格
-    return await txFn();
-  }
-}
-```
-
 ## 错误处理最佳实践
 
 ### 统一错误处理

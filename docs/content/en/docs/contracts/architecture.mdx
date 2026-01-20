@@ -118,18 +118,8 @@ pub enum CircuitType {
     QV = 1,    // Quadratic voting
 }
 
-// Certification system
-pub enum CertificationSystem {
-    Oracle = 0,     // Oracle whitelist
-    OnChain = 1,    // On-chain whitelist
-}
-
 // Whitelist configuration
-pub struct WhitelistBase {
-    ecosystem: String,        // cosmoshub / doravota
-    snapshot_height: String,  // Snapshot height
-    voting_power_args: VotingPowerArgs,
-}
+// Whitelist addresses are configured when creating Round, only whitelisted addresses can participate
 ```
 
 ## Contract Relationships
@@ -441,9 +431,9 @@ Now users can create AMACI instances through Registry:
 
 ```typescript
 // Using SDK
-const round = await client.createOracleMaciRound({
+const round = await client.createAMaciRound({
   signer: wallet,
-  operatorPubkey: '0x...',
+  operator: 'dora1...',
   // ... other parameters
 });
 

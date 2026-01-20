@@ -92,8 +92,7 @@ async function castVote() {
     signer: wallet,
     address: account.address,
     contractAddress,
-    maciKeypair,
-    gasStation: true
+    maciKeypair
   });
   
   // Get operator public key
@@ -112,8 +111,7 @@ async function castVote() {
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair,
-    gasStation: true
+    maciKeypair
   });
   
   console.log('Vote submitted successfully');
@@ -158,8 +156,7 @@ async function anonymousVote() {
     newPubkey: {
       x: myKeypair.publicKey[0].toString(16),
       y: myKeypair.publicKey[1].toString(16)
-    },
-    gasStation: true
+    }
   });
   
   // Vote with new keypair
@@ -169,8 +166,7 @@ async function anonymousVote() {
     contractAddress,
     selectedOptions: [{ idx: 0, vc: 10 }],
     operatorCoordPubKey: [...],
-    maciKeypair: myKeypair,
-    gasStation: true
+    maciKeypair: myKeypair
   });
 }
 ```
@@ -197,7 +193,6 @@ if (round.results) {
 Your address is not whitelisted. Check:
 - Did you configure the whitelist correctly when creating the vote?
 - Is the address you're using in the whitelist?
-- If using Oracle mode, do you meet token holding requirements?
 
 ### "Insufficient voice credits" Error
 
@@ -206,12 +201,6 @@ Vote consumption exceeds available credits. In QV mode, the square of votes is t
 - 8 votes costs 64 credits
 
 Check your voice credit balance and voting allowance.
-
-### Gas Station Unavailable
-
-If `hasFeegrant` returns false:
-- Wait a few minutes and retry, Gas Station may still be configuring
-- Or ensure wallet has sufficient balance to pay gas fees, set `gasStation: false`
 
 ### Operator Public Key Error
 

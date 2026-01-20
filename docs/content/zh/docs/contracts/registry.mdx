@@ -218,7 +218,7 @@ sequenceDiagram
     participant SDK as MACI SDK
     participant Registry as Registry合约
     participant AMACI as AMACI合约实例
-    User->>SDK: createOracleMaciRound(参数)
+    User->>SDK: createAMaciRound(参数)
     SDK->>Registry: CreateRound消息
     Registry->>Registry: 验证Operator
     Registry->>Registry: 计算费用
@@ -380,7 +380,6 @@ graph LR
 **一次性支付：**
 - 创建 Round 时一次性支付全部费用
 - 包含整个 Round 的处理成本
-- 用户后续投票无需额外支付（使用 Gas Station）
 - Operator 承担所有处理和 Gas 成本
 
 ### 费用查询
@@ -396,7 +395,6 @@ console.log('创建 Round 费用:', fee);
 console.log('包含:');
 console.log('- Operator 服务费');
 console.log('- 整个 Round 的处理成本');
-console.log('- 用户 Gas Station 补贴');
 ```
 
 ### 费用支付

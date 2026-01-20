@@ -35,8 +35,6 @@ The simplest and fastest registration method, suitable for scenarios where you d
 ```rust
 ExecuteMsg::Signup {
     pubkey: PubKey,                    // User public key
-    amount: Option<Uint128>,           // Voting weight (Oracle mode)
-    signature: Option<String>,         // Oracle signature
     data: Option<SignupDataDora>,      // Additional data
 }
 ```
@@ -46,23 +44,19 @@ ExecuteMsg::Signup {
 ```mermaid
 sequenceDiagram
     participant User as User
-    participant Oracle as Oracle Service
     participant AMACI as AMACI Contract
     participant Storage as State Tree
-    User->>Oracle: 1. Request certificate
-    Oracle->>Oracle: Verify whitelist eligibility
-    Oracle-->>User: Return (amount, signature)
-    User->>AMACI: 2. Signup(pubkey, amount, signature)
-    AMACI->>AMACI: 3. Verify signature
-    alt Invalid signature
-        AMACI-->>User: Error: Signature verification failed
+    User->>AMACI: 1. Signup(pubkey)
+    AMACI->>AMACI: 2. Check whitelist
+    alt Not in whitelist
+        AMACI-->>User: Error: Not in whitelist
     end
-    AMACI->>AMACI: 4. Check voting period
+    AMACI->>AMACI: 3. Check voting period
     alt Not in voting period
         AMACI-->>User: Error: Not in voting period
     end
-    AMACI->>Storage: 5. Add user to state tree
-    AMACI->>AMACI: 6. Assign state index
+    AMACI->>Storage: 4. Add user to state tree
+    AMACI->>AMACI: 5. Assign state index
     AMACI-->>User: Success, state_index = N
 ```
 
@@ -81,8 +75,7 @@ await client.signup({
   signer: wallet,
   address: userAddress,
   contractAddress: amaciAddress,
-  maciKeypair,
-  gasStation: true
+  maciKeypair
 });
 ```
 
@@ -92,11 +85,6 @@ The contract verifies if the sender address is in the whitelist:
 - Configure whitelist address list when creating Round
 - Only whitelist addresses can signup
 - Voting weight can be fixed or calculated based on on-chain data
-
-**Two Whitelist Modes:**
-
-1. **Fixed Weight Mode**: All whitelist users get same voting weight
-2. **Dynamic Weight Mode**: Weight calculated based on token holdings or other on-chain data
 
 ```typescript
 // Configure whitelist when creating Round
@@ -109,36 +97,6 @@ await client.createMaciRound({
   ],
   voiceCreditsPerUser: 100  // Fixed weight mode
 });
-```
-
-### Signature Verification
-
-AMACI contract verifies Oracle signature:
-
-```rust
-// Verification logic
-fn verify_oracle_signature(
-    pubkey: &PubKey,
-    amount: Uint128,
-    signature: &str,
-    oracle_pubkey: &str
-) -> Result<bool, ContractError> {
-    // Construct message
-    let message = format!("{}{}{}", 
-        pubkey.x, 
-        pubkey.y, 
-        amount
-    );
-    
-    // Verify signature
-    let is_valid = verify_signature(
-        message,
-        signature,
-        oracle_pubkey
-    );
-    
-    Ok(is_valid)
-}
 ```
 
 ### Signup Privacy Level
@@ -187,8 +145,7 @@ await client.deactivate({
   signer: oldWallet,
   address: oldAddress,
   contractAddress,
-  maciKeypair: oldKeypair,
-  gasStation: true
+  maciKeypair: oldKeypair
 });
 
 // This generates a special vote message:
@@ -425,7 +382,7 @@ input[1] = PRE_DEACTIVATE_COORDINATOR_HASH.load(...)?;  // May be different
 
 ```typescript
 // Configure when creating Round
-await client.createOracleMaciRound({
+await client.createAMaciRound({
   // ... other parameters
   
   // Configure pre-deactivate
@@ -469,8 +426,7 @@ ExecuteMsg::ProcessDeactivate {
 await client.deactivate({
   signer: wallet,
   contractAddress,
-  maciKeypair,
-  gasStation: true
+  maciKeypair
 });
 
 // Generated as special vote message:
@@ -714,8 +670,7 @@ await client.vote({
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
   ],
-  maciKeypair: keypair,
-  gasStation: true
+  maciKeypair: keypair
 });
 ```
 
