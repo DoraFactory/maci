@@ -218,7 +218,7 @@ sequenceDiagram
     participant SDK as MACI SDK
     participant Registry as Registry Contract
     participant AMACI as AMACI Contract Instance
-    User->>SDK: createOracleMaciRound(params)
+    User->>SDK: createAMaciRound(params)
     SDK->>Registry: CreateRound message
     Registry->>Registry: Verify Operator
     Registry->>Registry: Calculate fee
@@ -380,7 +380,6 @@ graph LR
 **One-Time Payment:**
 - Pay all fees when creating Round
 - Covers entire Round processing costs
-- Users don't pay extra for subsequent voting (uses Gas Station)
 - Operator bears all processing and gas costs
 
 ### Fee Query
@@ -396,7 +395,6 @@ console.log('Create Round fee:', fee);
 console.log('Includes:');
 console.log('- Operator service fee');
 console.log('- Entire Round processing costs');
-console.log('- User Gas Station subsidy');
 ```
 
 ### Fee Payment

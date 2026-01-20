@@ -207,8 +207,7 @@ async function userAnonymousVote(
     newPubkey: {
       x: myNewKeypair.publicKey[0].toString(16),
       y: myNewKeypair.publicKey[1].toString(16)
-    },
-    gasStation: true
+    }
   });
   
   console.log(' 匿名注册成功');
@@ -235,8 +234,7 @@ async function userAnonymousVote(
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair: myNewKeypair,  // 只有用户知道
-    gasStation: true
+    maciKeypair: myNewKeypair  // 只有用户知道
   });
   
   console.log(' 投票完成，完全匿名');

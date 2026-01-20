@@ -35,8 +35,6 @@ AMACI 支持三种注册方式，用户可根据隐私需求选择。
 ```rust
 ExecuteMsg::Signup {
     pubkey: PubKey,                    // 用户公钥
-    amount: Option<Uint128>,           // 投票权重（Oracle 模式）
-    signature: Option<String>,         // Oracle 签名
     data: Option<SignupDataDora>,      // 额外数据
 }
 ```
@@ -46,23 +44,19 @@ ExecuteMsg::Signup {
 ```mermaid
 sequenceDiagram
     participant User as 用户
-    participant Oracle as Oracle 服务
     participant AMACI as AMACI 合约
     participant Storage as 状态树
-    User->>Oracle: 1. 请求证书
-    Oracle->>Oracle: 验证白名单资格
-    Oracle-->>User: 返回 (amount, signature)
-    User->>AMACI: 2. Signup(pubkey, amount, signature)
-    AMACI->>AMACI: 3. 验证签名
-    alt 签名无效
-        AMACI-->>User: 错误：签名验证失败
+    User->>AMACI: 1. Signup(pubkey)
+    AMACI->>AMACI: 2. 检查白名单
+    alt 不在白名单
+        AMACI-->>User: 错误：不在白名单
     end
-    AMACI->>AMACI: 4. 检查投票期
+    AMACI->>AMACI: 3. 检查投票期
     alt 不在投票期
         AMACI-->>User: 错误：不在投票期
     end
-    AMACI->>Storage: 5. 添加用户到状态树
-    AMACI->>AMACI: 6. 分配状态索引
+    AMACI->>Storage: 4. 添加用户到状态树
+    AMACI->>AMACI: 5. 分配状态索引
     AMACI-->>User: 成功，state_index = N
 ```
 
@@ -81,8 +75,7 @@ await client.signup({
   signer: wallet,
   address: userAddress,
   contractAddress: amaciAddress,
-  maciKeypair,
-  gasStation: true
+  maciKeypair
 });
 ```
 
@@ -91,54 +84,21 @@ await client.signup({
 合约会验证发送者地址是否在白名单中：
 - 创建 Round 时配置白名单地址列表
 - 只有白名单地址可以 signup
-- 投票权重可以是固定值或基于链上数据计算
-
-**两种白名单模式：**
-
-1. **固定权重模式**：所有白名单用户获得相同投票权重
-2. **动态权重模式**：基于代币持有量等链上数据计算权重
+- 所有白名单用户获得相同投票权重
 
 ```typescript
 // 创建 Round 时配置白名单
-await client.createMaciRound({
+await client.createAMaciRound({
   // ...
-  whitelist: [
-    'dora1abc...',
-    'dora1def...',
-    'dora1ghi...'
-  ],
-  voiceCreditsPerUser: 100  // 固定权重模式
+  whitelist: {
+    addresses: [
+      'dora1abc...',
+      'dora1def...',
+      'dora1ghi...'
+    ]
+  },
+  voiceCreditAmount: '100'  // 每个用户的投票额度
 });
-```
-
-### 签名验证
-
-AMACI 合约验证 Oracle 签名：
-
-```rust
-// 验证逻辑
-fn verify_oracle_signature(
-    pubkey: &PubKey,
-    amount: Uint128,
-    signature: &str,
-    oracle_pubkey: &str
-) -> Result<bool, ContractError> {
-    // 构造消息
-    let message = format!("{}{}{}", 
-        pubkey.x, 
-        pubkey.y, 
-        amount
-    );
-    
-    // 验证签名
-    let is_valid = verify_signature(
-        message,
-        signature,
-        oracle_pubkey
-    );
-    
-    Ok(is_valid)
-}
 ```
 
 ### Signup 隐私级别
@@ -187,8 +147,7 @@ await client.deactivate({
   signer: oldWallet,
   address: oldAddress,
   contractAddress,
-  maciKeypair: oldKeypair,
-  gasStation: true
+  maciKeypair: oldKeypair
 });
 
 // 这会生成一个特殊的投票消息：
@@ -425,7 +384,7 @@ input[1] = PRE_DEACTIVATE_COORDINATOR_HASH.load(...)?;  // 可能不同
 
 ```typescript
 // 创建 Round 时配置
-await client.createOracleMaciRound({
+await client.createAMaciRound({
   // ... 其他参数
   
   // 配置 pre-deactivate
@@ -469,8 +428,7 @@ ExecuteMsg::ProcessDeactivate {
 await client.deactivate({
   signer: wallet,
   contractAddress,
-  maciKeypair,
-  gasStation: true
+  maciKeypair
 });
 
 // 生成的是特殊的投票消息：
@@ -714,8 +672,7 @@ await client.vote({
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
   ],
-  maciKeypair: keypair,
-  gasStation: true
+  maciKeypair: keypair
 });
 ```
 

@@ -138,14 +138,12 @@ async function voteAsUser(
   console.log(`User ${address.slice(0, 10)}... voting`);
   
   const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
-  const hasGasStation = await waitForGasStation(client, address, contractAddress);
   
   await client.signup({
     signer: wallet,
     address,
     contractAddress,
-    maciKeypair,
-    gasStation: hasGasStation
+    maciKeypair
   });
   
   const roundInfo = await client.getRoundInfo({ contractAddress });
@@ -159,8 +157,7 @@ async function voteAsUser(
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair,
-    gasStation: hasGasStation
+    maciKeypair
   });
   
   console.log(`User ${address.slice(0, 10)}... voted successfully`);
@@ -182,7 +179,6 @@ async function revote(
   
   const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
   const roundInfo = await client.getRoundInfo({ contractAddress });
-  const hasGasStation = await waitForGasStation(client, address, contractAddress);
   
   await client.vote({
     signer: wallet,
@@ -193,35 +189,10 @@ async function revote(
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair,
-    gasStation: hasGasStation
+    maciKeypair
   });
   
   console.log(`User ${address.slice(0, 10)}... vote changed successfully`);
-}
-
-async function waitForGasStation(
-  client: MaciClient,
-  address: string,
-  contractAddress: string
-): Promise<boolean> {
-  let hasFeegrant = false;
-  let attempts = 0;
-  const maxAttempts = 30;
-  
-  while (!hasFeegrant && attempts < maxAttempts) {
-    hasFeegrant = await client.hasFeegrant({
-      address,
-      contractAddress
-    });
-    
-    if (!hasFeegrant) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      attempts++;
-    }
-  }
-  
-  return hasFeegrant;
 }
 
 main().catch(console.error);

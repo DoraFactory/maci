@@ -179,23 +179,6 @@ async function estimateGas(
 }
 ```
 
-### Gas Price Optimization
-
-```typescript
-async function optimizedTransaction<T>(
-  client: MaciClient,
-  txFn: () => Promise<T>,
-  useGasStation: boolean = true
-): Promise<T> {
-  if (useGasStation) {
-    return await txFn();
-  } else {
-    // Pay gas yourself, can dynamically adjust price based on network conditions
-    return await txFn();
-  }
-}
-```
-
 ## Error Handling Best Practices
 
 ### Unified Error Handling

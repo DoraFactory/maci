@@ -118,18 +118,8 @@ pub enum CircuitType {
     QV = 1,    // 二次方投票
 }
 
-// 认证系统
-pub enum CertificationSystem {
-    Oracle = 0,     // Oracle 白名单
-    OnChain = 1,    // 链上白名单
-}
-
 // 白名单配置
-pub struct WhitelistBase {
-    ecosystem: String,        // cosmoshub / doravota
-    snapshot_height: String,  // 快照高度
-    voting_power_args: VotingPowerArgs,
-}
+// 白名单地址在创建 Round 时配置，只有白名单地址可以参与投票
 ```
 
 ## 合约关系
@@ -441,9 +431,9 @@ dorad tx wasm execute dora1registry... \
 
 ```typescript
 // 使用 SDK
-const round = await client.createOracleMaciRound({
+const round = await client.createAMaciRound({
   signer: wallet,
-  operatorPubkey: '0x...',
+  operator: 'dora1...',
   // ... 其他参数
 });
 

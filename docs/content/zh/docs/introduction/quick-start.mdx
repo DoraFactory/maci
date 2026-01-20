@@ -92,8 +92,7 @@ async function castVote() {
     signer: wallet,
     address: account.address,
     contractAddress,
-    maciKeypair,
-    gasStation: true
+    maciKeypair
   });
   
   // Get operator public key
@@ -112,8 +111,7 @@ async function castVote() {
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair,
-    gasStation: true
+    maciKeypair
   });
   
   console.log('投票成功');
@@ -158,8 +156,7 @@ async function anonymousVote() {
     newPubkey: {
       x: myKeypair.publicKey[0].toString(16),
       y: myKeypair.publicKey[1].toString(16)
-    },
-    gasStation: true
+    }
   });
   
   // 用新密钥投票
@@ -169,8 +166,7 @@ async function anonymousVote() {
     contractAddress,
     selectedOptions: [{ idx: 0, vc: 10 }],
     operatorCoordPubKey: [...],
-    maciKeypair: myKeypair,
-    gasStation: true
+    maciKeypair: myKeypair
   });
 }
 ```
@@ -197,7 +193,6 @@ if (round.results) {
 你的地址不在白名单中。检查：
 - 创建投票时是否正确配置白名单
 - 使用的地址是否在白名单列表里
-- 如果使用 Oracle 模式，是否满足持币要求
 
 ### "Insufficient voice credits" 错误
 
@@ -206,12 +201,6 @@ if (round.results) {
 - 投 8 票消耗 64 credits
 
 检查你的 voice credit 余额和投票配额。
-
-### Gas Station 不可用
-
-如果 `hasFeegrant` 返回 false：
-- 等待几分钟后重试，Gas Station 可能还在配置
-- 或者确保钱包有足够余额支付 gas 费用，设置 `gasStation: false`
 
 ### Operator 公钥错误
 

@@ -41,8 +41,7 @@ await client.signup({
   signer: wallet,
   address: userAddress,
   contractAddress: amaciContractAddress,
-  maciKeypair: maciKeypair,
-  gasStation: true
+  maciKeypair: maciKeypair
 });
 ```
 
@@ -65,8 +64,7 @@ await client.vote({
     { idx: 1, vc: 3 }
   ],
   operatorCoordPubKey: coordinatorPubKey,
-  maciKeypair: maciKeypair,
-  gasStation: true
+  maciKeypair: maciKeypair
 });
 ```
 
@@ -142,8 +140,7 @@ await client.rawPreAddNewKey({
   newPubkey: {
     x: myNewKeypair.publicKey[0].toString(16),
     y: myNewKeypair.publicKey[1].toString(16)
-  },
-  gasStation: true
+  }
 });
 ```
 
@@ -164,41 +161,8 @@ await client.vote({
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
   ],
-  maciKeypair: myNewKeypair,
-  gasStation: true
+  maciKeypair: myNewKeypair
 });
-```
-
-## Gas Station 处理
-
-Gas Station 可以为用户支付交易费用。如果启用了 `gasStation: true`，需要等待 Gas Station 授权：
-
-```typescript
-async function waitForGasStation(
-  client: MaciClient,
-  address: string,
-  contractAddress: string
-): Promise<boolean> {
-  let hasFeegrant = false;
-  let attempts = 0;
-  const maxAttempts = 30;
-
-  while (!hasFeegrant && attempts < maxAttempts) {
-    hasFeegrant = await client.hasFeegrant({
-      address,
-      contractAddress
-    });
-
-    if (!hasFeegrant) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      attempts++;
-    }
-  }
-
-  return hasFeegrant;
-}
-
-const hasGasStation = await waitForGasStation(client, address, contractAddress);
 ```
 
 ## 投票规则
@@ -271,8 +235,7 @@ async function whitelistVoting(
       signer: wallet,
       address,
       contractAddress,
-      maciKeypair,
-      gasStation: true
+      maciKeypair
     });
     
     const roundInfo = await client.getRoundInfo({ contractAddress });
@@ -286,8 +249,7 @@ async function whitelistVoting(
         BigInt(roundInfo.coordinatorPubkeyX),
         BigInt(roundInfo.coordinatorPubkeyY)
       ],
-      maciKeypair,
-      gasStation: true
+      maciKeypair
     });
     
     return true;
@@ -335,8 +297,7 @@ async function anonymousVoting(
       newPubkey: {
         x: myNewKeypair.publicKey[0].toString(16),
         y: myNewKeypair.publicKey[1].toString(16)
-      },
-      gasStation: true
+      }
     });
     
     const roundInfo = await client.getRoundInfo({ contractAddress });
@@ -350,8 +311,7 @@ async function anonymousVoting(
         BigInt(roundInfo.coordinatorPubkeyX),
         BigInt(roundInfo.coordinatorPubkeyY)
       ],
-      maciKeypair: myNewKeypair,
-      gasStation: true
+      maciKeypair: myNewKeypair
     });
     
     return true;
@@ -389,7 +349,6 @@ const maxVotes = Math.floor(Math.sqrt(voiceCredits));  // 100 credits = 10 票
 2. 白名单模式：地址是否在白名单中
 3. 匿名模式：是否有平台分发的密钥
 4. voice credits 是否足够
-5. Gas Station 是否已启用（如果使用）
 
 **可以同时投给多个选项吗？**
 

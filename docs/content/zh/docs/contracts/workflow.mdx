@@ -101,9 +101,9 @@ import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
 
 const client = new MaciClient({ network: 'mainnet' });
 
-const round = await client.createOracleMaciRound({
+const round = await client.createAMaciRound({
   signer: creatorWallet,
-  operatorPubkey: bestOperator.pubkey,  // 使用选择的 Operator
+  operator: bestOperator.address,  // 使用选择的 Operator
   
   startVoting: new Date('2024-03-01T00:00:00Z'),
   endVoting: new Date('2024-03-07T23:59:59Z'),
@@ -121,12 +121,8 @@ const round = await client.createOracleMaciRound({
   
   circuitType: MaciCircuitType.QV,
   
-  whitelistEcosystem: 'cosmoshub',
-  whitelistSnapshotHeight: '0',
-  whitelistVotingPowerArgs: {
-    mode: 'slope',
-    slope: '1000000',
-    threshold: '1000000'
+  whitelist: {
+    addresses: ['dora1...', 'dora1...']  // 白名单地址列表
   }
 });
 
@@ -163,25 +159,12 @@ const userAKeypair = await client.genKeypairFromSign({
   address: addressA
 });
 
-// 等待 Gas Station
-let hasFeegrant = false;
-while (!hasFeegrant) {
-  hasFeegrant = await client.hasFeegrant({
-    address: addressA,
-    contractAddress: round.contractAddress
-  });
-  if (!hasFeegrant) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-}
-
 // Signup（仅白名单地址可用）
 await client.signup({
   signer: walletA,
   address: addressA,
   contractAddress: round.contractAddress,
-  maciKeypair: userAKeypair,
-  gasStation: true
+  maciKeypair: userAKeypair
 });
 
 console.log('用户 A 签到成功');
@@ -202,8 +185,7 @@ await client.vote({
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
   ],
-  maciKeypair: userAKeypair,
-  gasStation: true
+  maciKeypair: userAKeypair
 });
 
 console.log('用户 A 投票成功');
@@ -273,8 +255,7 @@ await client.vote({
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
   ],
-  maciKeypair: newKeypair,
-  gasStation: true
+  maciKeypair: newKeypair
 });
 
 console.log('用户 B 投票成功（完全匿名）');
@@ -473,9 +454,9 @@ async function completeVotingRound() {
   
   // === 阶段 1: 创建 Round ===
   console.log('\n=== 阶段 1: 创建投票轮次 ===');
-  const round = await client.createOracleMaciRound({
+  const round = await client.createAMaciRound({
     signer: creatorWallet,
-    operatorPubkey: operatorPubkey,
+    operator: operatorAddress,
     startVoting: new Date(),
     endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     title: '社区资金分配',
@@ -483,12 +464,8 @@ async function completeVotingRound() {
     link: 'https://forum.example.com',
     voteOptionMap: ['项目 A', '项目 B', '项目 C', '项目 D'],
     circuitType: MaciCircuitType.QV,
-    whitelistEcosystem: 'cosmoshub',
-    whitelistSnapshotHeight: '0',
-    whitelistVotingPowerArgs: {
-      mode: 'slope',
-      slope: '1000000',
-      threshold: '0',
+    whitelist: {
+      addresses: [addressA, addressB]  // 白名单地址
     },
   });
   
@@ -541,25 +518,12 @@ async function voteWithSignup(
     address
   });
   
-  // 获取证书
-  const certificate = await client.requestOracleCertificate({
-    signer: wallet,
-    ecosystem: 'cosmoshub',
-    address,
-    contractAddress
-  });
-  
-  // 等待 Gas Station
-  await waitForGasStation(client, address, contractAddress);
-  
   // Signup
   await client.signup({
     signer: wallet,
     address,
     contractAddress,
-    maciKeypair,
-    oracleCertificate: certificate,
-    gasStation: true
+    maciKeypair
   });
   
   // 投票
@@ -574,8 +538,7 @@ async function voteWithSignup(
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair,
-    gasStation: true
+    maciKeypair
   });
   
   console.log(`用户 ${address} 投票成功（Signup模式）`);
@@ -632,8 +595,7 @@ async function voteWithAddNewKey(
       BigInt(roundInfo.coordinatorPubkeyX),
       BigInt(roundInfo.coordinatorPubkeyY)
     ],
-    maciKeypair: newKeypair,
-    gasStation: true
+    maciKeypair: newKeypair
   });
   
   console.log(`用户 ${newAddress} 投票成功（匿名模式）`);
