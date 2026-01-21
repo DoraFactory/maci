@@ -32,7 +32,7 @@ AMACI 提供三种注册方式：
 
 **Signup** 最快捷。直接用你的钱包地址注册，适合公开投票场景。缺点是 operator 能看到你的地址。
 
-**Add-new-key** 完全匿名。通过零知识证明创建新身份，operator 无法关联到你的原始地址。需要等待 operator 处理 deactivate 消息，通常几小时。
+**Add-new-key** 完全匿名。通过零知识证明创建新身份，operator 无法关联到你的原始地址。需要等待 operator 处理 deactivate 消息。
 
 **Pre-add-new-key** 兼具匿名性和速度。投票组织者预先配置好匿名集，你可以立即匿名注册。
 
@@ -87,7 +87,7 @@ AMACI 适合需要强隐私保护和抗串谋的投票：
 
 AMACI 是一套完整的技术栈：
 
-- 智能合约 (Rust/CosmWasm) - 部署在 Cosmos 链上
+- 智能合约 (Rust/CosmWasm) - 部署在 [Dora Vota 链](http://vota-explorer.dorafactory.org/)上
 - 零知识电路 (Circom) - 生成和验证证明
 - 密码学库 - EdDSA 签名、Poseidon 加密
 - TypeScript SDK - 方便开发者集成

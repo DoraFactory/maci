@@ -168,7 +168,7 @@ await client.signup({
 });
 
 console.log('User A signup successful');
-console.log('⚠️  Note: User A\'s address must be in whitelist');
+console.log('Note: User A\'s address must be in whitelist');
 
 // Vote
 const roundInfo = await client.getRoundInfo({ contractAddress: round.contractAddress });
@@ -189,7 +189,7 @@ await client.vote({
 });
 
 console.log('User A voted successfully');
-console.log('⚠️  Note: Operator can know User A\'s identity through on-chain transactions');
+console.log('Note: Operator can know User A\'s identity through on-chain transactions');
 ```
 
 ### 3.2 User B: Using Add-new-key (Anonymous Mode)

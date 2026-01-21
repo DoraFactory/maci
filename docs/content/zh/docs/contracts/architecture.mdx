@@ -159,6 +159,79 @@ graph TD
 - 创建后，用户直接与 AMACI 合约交互
 - Registry 不参与投票过程
 
+## 投票生命周期
+
+### 轮次状态机
+
+AMACI 合约的每个投票轮次都遵循严格的状态转换规则：
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: 创建 Round
+    Pending --> Voting: 开始投票时间
+    Voting --> Processing: 投票时间结束
+    Processing --> Tallying: 消息处理完成
+    Tallying --> Ended: 计票完成
+    Ended --> [*]
+    
+    note right of Pending
+        初始化状态
+        配置参数
+        等待开始
+    end note
+    
+    note right of Voting
+        用户签到
+        发布投票消息
+        无法修改配置
+    end note
+    
+    note right of Processing
+        Operator 处理消息
+        验证和解密
+        更新状态树
+    end note
+    
+    note right of Tallying
+        Operator 计算结果
+        生成证明
+        链上验证
+    end note
+```
+
+### 状态转换条件
+
+每个状态转换都有明确的触发条件和验证规则：
+
+```rust
+// 1. Pending → Voting
+// 条件：当前时间 >= voting_start_time
+pub fn check_voting_start(voting_time: &VotingTime, current_time: u64) -> bool {
+    current_time >= voting_time.start_time
+}
+
+// 2. Voting → Processing
+// 条件：当前时间 >= voting_end_time
+pub fn check_voting_end(voting_time: &VotingTime, current_time: u64) -> bool {
+    current_time >= voting_time.end_time
+}
+
+// 3. Processing → Tallying
+// 条件：所有消息批次都已处理完成
+pub fn check_all_messages_processed(
+    num_messages: u64,
+    num_processed: u64,
+) -> bool {
+    num_messages == num_processed
+}
+
+// 4. Tallying → Ended
+// 条件：计票证明已验证通过
+pub fn check_tally_completed(tally_result: &TallyResult) -> bool {
+    tally_result.is_verified
+}
+```
+
 ## 数据流
 
 ### 完整数据流图
@@ -197,6 +270,155 @@ flowchart TD
     K --> L
     L --> M
     C -.配置.-> D
+```
+
+### 消息处理详解
+
+AMACI 的核心是链上链下协作的消息处理机制：
+
+#### 1. 链上存储
+
+```rust
+// 用户发布加密投票消息到链上
+pub struct Message {
+    // 加密的投票数据
+    data: [Uint256; 7],
+    // 加密密钥（使用 Coordinator 公钥加密）
+    enc_pub_key: PubKey,
+}
+
+// 链上只存储加密数据，保护隐私
+messages.push(Message {
+    data: encrypted_vote_data,
+    enc_pub_key: ephemeral_public_key,
+});
+```
+
+#### 2. 链下处理
+
+Operator 在本地执行以下步骤：
+
+```
+1. 下载所有加密消息
+   messages = query_all_messages(amaci_contract)
+
+2. 使用私钥解密消息
+   for msg in messages:
+       decrypted = decrypt(msg, coordinator_private_key)
+       
+3. 验证消息有效性
+   - 检查签名
+   - 验证发送者资格
+   - 检查投票选项合法性
+   
+4. 更新状态树
+   - 根据解密的消息更新用户状态
+   - 计算新的状态树根
+   
+5. 生成零知识证明
+   - 证明状态转换的正确性
+   - 无需透露具体投票内容
+```
+
+#### 3. 链上验证
+
+```rust
+// Operator 提交处理结果和证明
+pub fn process_messages(
+    deps: DepsMut,
+    info: MessageInfo,
+    // 新的状态树根
+    new_state_root: Uint256,
+    // 零知识证明
+    groth16_proof: Groth16ProofType,
+) -> Result<Response, ContractError> {
+    // 验证调用者是 Operator
+    ensure_operator(&deps, &info.sender)?;
+    
+    // 验证零知识证明
+    let public_inputs = prepare_public_inputs(
+        old_state_root,
+        new_state_root,
+        message_batch,
+    );
+    
+    verify_groth16_proof(
+        deps.api,
+        &groth16_proof,
+        &public_inputs,
+    )?;
+    
+    // 验证通过，更新状态
+    STATE_ROOT.save(deps.storage, &new_state_root)?;
+    
+    Ok(Response::new()
+        .add_attribute("action", "process_messages")
+        .add_attribute("new_state_root", new_state_root.to_string()))
+}
+```
+
+### 零知识证明系统
+
+MACI 使用 Groth16 零知识证明保证计算正确性：
+
+#### 证明内容
+
+```
+公开输入（Public Inputs）：
+- 旧状态树根（Old State Root）
+- 新状态树根（New State Root）
+- 消息批次哈希（Message Batch Hash）
+- Coordinator 公钥哈希
+
+私有输入（Private Witness）：
+- 所有投票消息的明文
+- 用户状态
+- 状态树的 Merkle 路径
+- Coordinator 私钥
+```
+
+#### 证明验证流程
+
+```mermaid
+sequenceDiagram
+    participant O as Operator
+    participant C as 电路
+    participant A as AMACI 合约
+    participant V as Verifier 合约
+    
+    O->>O: 解密消息
+    O->>C: 生成见证（witness）
+    C->>C: 执行电路约束
+    C->>O: 生成 Groth16 证明
+    O->>A: 提交证明和新状态根
+    A->>V: 调用验证合约
+    V->>V: 验证证明有效性
+    V-->>A: 返回验证结果
+    A->>A: 更新状态树根
+    A-->>O: 返回成功
+```
+
+#### 电路约束
+
+电路确保以下约束条件：
+
+```
+1. 消息解密正确性
+   - ECDH 解密使用正确的私钥
+   - 明文消息格式正确
+
+2. 状态树更新正确性
+   - 每条消息都正确更新了对应的用户状态
+   - 新状态树根由正确的 Merkle 树计算得出
+
+3. 投票规则遵守
+   - 用户没有超支 voice credits
+   - 投票选项在允许范围内
+   - 二次方投票规则正确应用
+
+4. 签名验证
+   - 每条消息的签名有效
+   - 签名者与声称的身份一致
 ```
 
 ## 状态管理
@@ -260,6 +482,115 @@ pub struct AMACIState {
     
     // 白名单
     whitelist: Option<WhitelistBase>,
+}
+```
+
+### 状态树机制
+
+AMACI 使用 Merkle 树管理用户状态，实现高效的状态验证：
+
+#### 树结构
+
+```mermaid
+graph TD
+    Root[状态树根<br/>State Root] --> L1A[内部节点]
+    Root --> L1B[内部节点]
+    L1A --> L2A[内部节点]
+    L1A --> L2B[内部节点]
+    L1B --> L2C[内部节点]
+    L1B --> L2D[内部节点]
+    L2A --> U1[用户 1 状态]
+    L2A --> U2[用户 2 状态]
+    L2B --> U3[用户 3 状态]
+    L2B --> U4[用户 4 状态]
+    L2C --> U5[用户 5 状态]
+    L2C --> U6[用户 6 状态]
+    L2D --> U7[用户 7 状态]
+    L2D --> U8[用户 8 状态]
+```
+
+#### 用户状态叶子节点
+
+```rust
+// 每个用户在状态树中的数据
+pub struct UserState {
+    // 用户公钥
+    pub_key: PubKey,
+    // 剩余语音积分
+    voice_credit_balance: Uint256,
+    // 用户索引
+    user_index: u64,
+    // 每个选项的投票数
+    vote_option_tree_root: Uint256,
+}
+
+// 叶子节点哈希计算
+leaf_hash = hash(
+    pub_key.x,
+    pub_key.y,
+    voice_credit_balance,
+    vote_option_tree_root,
+)
+```
+
+#### 状态更新流程
+
+当用户发布投票消息时，状态树如何更新：
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant A as AMACI 合约
+    participant O as Operator
+    participant C as 电路
+    
+    U->>A: PublishMessage(encrypted_vote)
+    A->>A: 存储加密消息
+    Note over A: 状态树暂不更新
+    
+    Note over O: 投票期结束后
+    O->>A: 查询所有消息
+    O->>O: 解密消息
+    O->>C: 输入旧状态 + 消息
+    C->>C: 验证约束:<br/>1. 解密正确<br/>2. 签名有效<br/>3. 积分充足
+    C->>C: 计算新用户状态
+    C->>C: 计算新状态树根
+    C->>O: 生成证明
+    O->>A: ProcessMessages(new_root, proof)
+    A->>A: 验证证明
+    A->>A: 更新状态树根
+```
+
+#### 状态一致性保证
+
+```rust
+// 链上只存储状态树根，保证存储效率
+pub struct StateTreeInfo {
+    // 当前状态树根
+    current_root: Uint256,
+    // 树的深度（决定最大用户数 = 2^depth）
+    depth: u8,
+    // 已处理的消息数量
+    num_processed_messages: u64,
+}
+
+// 验证状态更新的正确性
+pub fn verify_state_transition(
+    old_root: Uint256,
+    new_root: Uint256,
+    messages: &[Message],
+    proof: &Groth16ProofType,
+) -> Result<bool, ContractError> {
+    // 准备公开输入
+    let public_inputs = vec![
+        old_root,
+        new_root,
+        hash_messages(messages),
+        coordinator_pubkey_hash,
+    ];
+    
+    // 使用 Groth16 验证
+    verify_groth16_proof(proof, &public_inputs)
 }
 ```
 
@@ -360,84 +691,269 @@ ExecuteMsg::UpdateAmaciCodeId {
 // 已存在的实例不受影响
 ```
 
-## 部署流程
+### 4. 错误处理机制
 
-### 部署 AMACI 合约代码
+MACI 合约实现了完善的错误处理，确保系统的健壮性：
 
-```bash
-# 编译 AMACI 合约
-cd contracts/amaci
-cargo wasm
+#### Registry 合约错误
 
-# 优化 wasm
-docker run --rm -v "$(pwd)":/code \
-  cosmwasm/rust-optimizer:0.12.11
+```rust
+pub enum RegistryError {
+    // 权限相关错误
+    Unauthorized {},
+    OperatorNotRegistered {},
+    
+    // 参数验证错误
+    InvalidMaxVoter {},
+    InvalidVotingTime {},
+    InvalidCircuitType {},
+    
+    // 资源错误
+    InsufficientFee { required: Uint128, provided: Uint128 },
+    CodeIdNotFound {},
+    
+    // 状态错误
+    OperatorAlreadyRegistered {},
+    ValidatorAlreadyExists {},
+}
 
-# 上传到链上
-dorad tx wasm store artifacts/amaci.wasm \
-  --from deployer \
-  --gas auto
-
-# 获得 Code ID（例如：123）
-```
-
-### 部署 Registry 合约
-
-```bash
-# 实例化 Registry
-dorad tx wasm instantiate 123 \
-  '{
-    "admin": "dora1...",
-    "operator": "dora1...",
-    "amaci_code_id": 123
-  }' \
-  --from deployer \
-  --label "MACI Registry" \
-  --gas auto
-
-# 获得 Registry 地址（例如：dora1registry...）
-```
-
-### 注册 Operator
-
-```bash
-# Operator 注册
-dorad tx wasm execute dora1registry... \
-  '{
-    "set_maci_operator": {
-      "operator": "dora1operator..."
+// 错误处理示例
+pub fn create_round(
+    deps: DepsMut,
+    info: MessageInfo,
+    params: CreateRoundParams,
+) -> Result<Response, RegistryError> {
+    // 验证时间参数
+    if params.voting_start >= params.voting_end {
+        return Err(RegistryError::InvalidVotingTime {});
     }
-  }' \
-  --from operator \
-  --gas auto
-
-# 设置 Operator 公钥
-dorad tx wasm execute dora1registry... \
-  '{
-    "set_maci_operator_pubkey": {
-      "pubkey": {
-        "x": "0x...",
-        "y": "0x..."
-      }
+    
+    // 验证费用
+    let required_fee = calculate_circuit_fee(&params);
+    let provided_fee = info.funds.get(0).map(|c| c.amount).unwrap_or_default();
+    
+    if provided_fee < required_fee {
+        return Err(RegistryError::InsufficientFee {
+            required: required_fee,
+            provided: provided_fee,
+        });
     }
-  }' \
-  --from operator \
-  --gas auto
+    
+    // 继续处理...
+}
 ```
 
-### 创建投票轮次
+#### AMACI 合约错误
 
-现在用户可以通过 Registry 创建 AMACI 实例：
+```rust
+pub enum AMACIError {
+    // 状态错误
+    InvalidPeriod { expected: String, current: String },
+    VotingNotStarted {},
+    VotingEnded {},
+    AlreadyProcessed {},
+    
+    // 用户操作错误
+    AlreadySignedUp {},
+    NotSignedUp {},
+    InsufficientVoiceCredits {},
+    InvalidVoteOption {},
+    
+    // 证明验证错误
+    InvalidProof {},
+    ProofVerificationFailed { reason: String },
+    StateRootMismatch {},
+    
+    // 权限错误
+    NotCoordinator {},
+    NotWhitelisted {},
+}
 
-```typescript
-// 使用 SDK
-const round = await client.createAMaciRound({
-  signer: wallet,
-  operator: 'dora1...',
-  // ... 其他参数
-});
+// 状态检查示例
+pub fn publish_message(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    message: Message,
+) -> Result<Response, AMACIError> {
+    let state = STATE.load(deps.storage)?;
+    
+    // 检查投票期
+    let current_time = env.block.time.seconds();
+    if current_time < state.voting_time.start_time {
+        return Err(AMACIError::VotingNotStarted {});
+    }
+    if current_time >= state.voting_time.end_time {
+        return Err(AMACIError::VotingEnded {});
+    }
+    
+    // 检查白名单
+    if let Some(whitelist) = &state.whitelist {
+        if !whitelist.is_whitelisted(&info.sender) {
+            return Err(AMACIError::NotWhitelisted {});
+        }
+    }
+    
+    // 存储消息
+    MESSAGES.push(deps.storage, &message)?;
+    Ok(Response::new())
+}
+```
 
-console.log('AMACI 合约地址:', round.contractAddress);
+#### 证明验证错误处理
+
+```rust
+pub fn process_messages(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_state_root: Uint256,
+    proof: Groth16ProofType,
+) -> Result<Response, AMACIError> {
+    // 验证 Operator 身份
+    ensure_coordinator(&deps, &info.sender)?;
+    
+    let state = STATE.load(deps.storage)?;
+    
+    // 准备公开输入
+    let public_inputs = vec![
+        state.state_tree_root,  // 旧状态根
+        new_state_root,          // 新状态根
+        get_message_batch_hash(deps.storage)?,
+    ];
+    
+    // 验证零知识证明
+    match verify_groth16_proof(deps.api, &proof, &public_inputs) {
+        Ok(true) => {
+            // 验证通过，更新状态
+            STATE.update(deps.storage, |mut s| -> StdResult<_> {
+                s.state_tree_root = new_state_root;
+                s.num_processed_messages += proof.batch_size;
+                Ok(s)
+            })?;
+            
+            Ok(Response::new()
+                .add_attribute("action", "process_messages")
+                .add_attribute("new_root", new_state_root.to_string()))
+        }
+        Ok(false) => {
+            Err(AMACIError::InvalidProof {})
+        }
+        Err(e) => {
+            Err(AMACIError::ProofVerificationFailed {
+                reason: e.to_string(),
+            })
+        }
+    }
+}
+```
+
+### 5. 安全边界
+
+系统设计了多层安全边界，防止各类攻击：
+
+#### 时间边界
+
+```rust
+// 严格的时间窗口控制
+pub struct VotingTime {
+    // 投票开始时间（Unix 时间戳）
+    start_time: u64,
+    // 投票结束时间
+    end_time: u64,
+}
+
+// 只能在投票期内发布消息
+if !(start_time <= current_time && current_time < end_time) {
+    return Err(AMACIError::InvalidPeriod {});
+}
+
+// 只能在投票期结束后处理消息
+if current_time < end_time {
+    return Err(AMACIError::VotingNotEnded {});
+}
+```
+
+#### 数量边界
+
+```rust
+// 限制参与人数（由状态树深度决定）
+pub fn signup(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> Result<Response, AMACIError> {
+    let state = STATE.load(deps.storage)?;
+    let max_users = 2u64.pow(state.state_tree_depth as u32);
+    
+    if state.num_sign_ups >= max_users {
+        return Err(AMACIError::MaxSignupsReached {});
+    }
+    
+    // 继续处理...
+}
+
+// 限制投票选项数量
+if vote_option_index >= state.max_vote_options {
+    return Err(AMACIError::InvalidVoteOption {});
+}
+
+// 限制消息批次大小（防止 gas 耗尽）
+const MAX_BATCH_SIZE: usize = 100;
+if messages.len() > MAX_BATCH_SIZE {
+    return Err(AMACIError::BatchTooLarge {});
+}
+```
+
+#### 加密边界
+
+```rust
+// 所有投票消息必须加密
+pub struct Message {
+    // 7 个字段的加密数据
+    // [nonce, pub_key_x, pub_key_y, vote_option, vote_weight, ...]
+    data: [Uint256; 7],
+    // 临时公钥（ECDH 加密）
+    enc_pub_key: PubKey,
+}
+
+// 只有 Coordinator 可以解密
+// 链上永远不存储明文投票数据
+// 保证投票隐私和防审查性
+```
+
+#### 权限边界
+
+```rust
+// Registry 合约权限分级
+pub enum Permission {
+    Admin,      // 可以更新 Code ID、费用配置
+    Operator,   // 可以创建 Round、设置公钥
+    Validator,  // 可以验证操作
+    User,       // 可以使用系统
+}
+
+// AMACI 合约权限分级
+pub fn check_permission(
+    action: &str,
+    caller: &Addr,
+    state: &AMACIState,
+) -> Result<(), AMACIError> {
+    match action {
+        "process_messages" | "process_tally" => {
+            if caller != &state.coordinator {
+                return Err(AMACIError::NotCoordinator {});
+            }
+        }
+        "signup" | "publish_message" => {
+            if let Some(whitelist) = &state.whitelist {
+                if !whitelist.contains(caller) {
+                    return Err(AMACIError::NotWhitelisted {});
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
 ```
 
 ## 优势
@@ -477,5 +993,5 @@ console.log('AMACI 合约地址:', round.contractAddress);
 完成后，您可以了解了整体架构，接下来可以深入学习：
 
 - [Registry 合约](/docs/contracts/registry) - 详细了解 Registry 的功能
-- 🗳️ [AMACI 合约](/docs/contracts/amaci) - 学习 AMACI 的投票逻辑
-- 🔄 [完整工作流程](/docs/contracts/workflow) - 理解从创建到结果的全流程
+- [AMACI 合约](/docs/contracts/amaci) - 学习 AMACI 的投票逻辑
+- [完整工作流程](/docs/contracts/workflow) - 理解从创建到结果的全流程

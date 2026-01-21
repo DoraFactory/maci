@@ -537,20 +537,20 @@ Carol.vote([
 const messages = await downloadMessages();
 
 // 消息 1: Alice vote (nonce=0)
-processMessage(messages[0]);  // ✓ 有效
+processMessage(messages[0]);  // 有效
 // 状态更新: Alice nonce -> 1, 选项 0: +5, 选项 1: +3
 
 // 消息 2: Bob vote (nonce=0)
-processMessage(messages[1]);  // ✓ 有效
+processMessage(messages[1]);  // 有效
 // 状态更新: Bob nonce -> 1, 选项 1: +7
 
 // 消息 3: Alice revote (nonce=1)
-processMessage(messages[2]);  // ✓ 有效 (nonce 匹配)
+processMessage(messages[2]);  // 有效 (nonce 匹配)
 // 状态更新: Alice nonce -> 2, 选项 0: 0, 选项 1: 0, 选项 2: +8
 // 注意: Alice 之前的投票被完全覆盖
 
 // 消息 4: Carol vote (nonce=0)
-processMessage(messages[3]);  // ✓ 有效
+processMessage(messages[3]);  // 有效
 // 状态更新: Carol nonce -> 1, 选项 0: +4, 选项 3: +6
 ```
 
@@ -616,5 +616,5 @@ if (voterPubKey !== currentState.pubKey) {
 完成后，您可以理解了消息的完整流程，接下来可以学习：
 
 - [隐私保护机制](/docs/protocol/privacy-protection) - 了解如何保护投票隐私
-- 🏗️ [合约设计](/docs/contracts/architecture) - 学习合约如何存储和验证消息
-- 💻 [SDK 使用指南](/docs/sdk/installation) - 使用 SDK 创建和提交消息
+- [合约设计](/docs/contracts/architecture) - 学习合约如何存储和验证消息
+- [SDK 使用指南](/docs/sdk/installation) - 使用 SDK 创建和提交消息

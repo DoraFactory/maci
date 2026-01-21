@@ -32,7 +32,7 @@ AMACI provides three registration methods:
 
 **Signup** is the fastest. Register directly with your wallet address, suitable for public voting scenarios. The downside is the operator can see your address.
 
-**Add-new-key** is fully anonymous. Create a new identity through zero-knowledge proofs; the operator cannot link it to your original address. Requires waiting for the operator to process deactivate messages, usually a few hours.
+**Add-new-key** is fully anonymous. Create a new identity through zero-knowledge proofs; the operator cannot link it to your original address. Requires waiting for the operator to process deactivate messages.
 
 **Pre-add-new-key** combines anonymity and speed. Vote organizers pre-configure an anonymity set, allowing immediate anonymous registration.
 
@@ -87,7 +87,7 @@ AMACI is suitable for voting that requires strong privacy protection and anti-co
 
 AMACI is a complete technology stack:
 
-- Smart Contracts (Rust/CosmWasm) - Deployed on Cosmos chains
+- Smart Contracts (Rust/CosmWasm) - Deployed on [Dora Vota chain](http://vota-explorer.dorafactory.org/)
 - Zero-Knowledge Circuits (Circom) - Generate and verify proofs
 - Cryptography Library - EdDSA signatures, Poseidon encryption
 - TypeScript SDK - Easy integration for developers
