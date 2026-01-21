@@ -537,20 +537,20 @@ Carol.vote([
 const messages = await downloadMessages();
 
 // Message 1: Alice vote (nonce=0)
-processMessage(messages[0]);  // ✓ Valid
+processMessage(messages[0]);  // Valid
 // State update: Alice nonce -> 1, option 0: +5, option 1: +3
 
 // Message 2: Bob vote (nonce=0)
-processMessage(messages[1]);  // ✓ Valid
+processMessage(messages[1]);  // Valid
 // State update: Bob nonce -> 1, option 1: +7
 
 // Message 3: Alice revote (nonce=1)
-processMessage(messages[2]);  // ✓ Valid (nonce matches)
+processMessage(messages[2]);  // Valid (nonce matches)
 // State update: Alice nonce -> 2, option 0: 0, option 1: 0, option 2: +8
 // Note: Alice's previous vote completely overwritten
 
 // Message 4: Carol vote (nonce=0)
-processMessage(messages[3]);  // ✓ Valid
+processMessage(messages[3]);  // Valid
 // State update: Carol nonce -> 1, option 0: +4, option 3: +6
 ```
 

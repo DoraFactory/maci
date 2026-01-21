@@ -159,6 +159,79 @@ graph TD
 - After creation, users interact directly with AMACI contract
 - Registry does not participate in the voting process
 
+## Voting Lifecycle
+
+### Round State Machine
+
+Each voting round in AMACI contracts follows strict state transition rules:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Create Round
+    Pending --> Voting: Voting starts
+    Voting --> Processing: Voting ends
+    Processing --> Tallying: Messages processed
+    Tallying --> Ended: Tallying complete
+    Ended --> [*]
+    
+    note right of Pending
+        Initialization
+        Parameter setup
+        Waiting to start
+    end note
+    
+    note right of Voting
+        User signup
+        Publish messages
+        Config locked
+    end note
+    
+    note right of Processing
+        Operator processes
+        Verify & decrypt
+        Update state tree
+    end note
+    
+    note right of Tallying
+        Calculate results
+        Generate proofs
+        On-chain verify
+    end note
+```
+
+### State Transition Conditions
+
+Each state transition has clear trigger conditions and validation rules:
+
+```rust
+// 1. Pending → Voting
+// Condition: current_time >= voting_start_time
+pub fn check_voting_start(voting_time: &VotingTime, current_time: u64) -> bool {
+    current_time >= voting_time.start_time
+}
+
+// 2. Voting → Processing
+// Condition: current_time >= voting_end_time
+pub fn check_voting_end(voting_time: &VotingTime, current_time: u64) -> bool {
+    current_time >= voting_time.end_time
+}
+
+// 3. Processing → Tallying
+// Condition: all message batches processed
+pub fn check_all_messages_processed(
+    num_messages: u64,
+    num_processed: u64,
+) -> bool {
+    num_messages == num_processed
+}
+
+// 4. Tallying → Ended
+// Condition: tally proof verified
+pub fn check_tally_completed(tally_result: &TallyResult) -> bool {
+    tally_result.is_verified
+}
+```
+
 ## Data Flow
 
 ### Complete Data Flow Diagram
@@ -197,6 +270,155 @@ flowchart TD
     K --> L
     L --> M
     C -.Configuration.-> D
+```
+
+### Message Processing Deep Dive
+
+AMACI's core is the on-chain/off-chain collaborative message processing mechanism:
+
+#### 1. On-chain Storage
+
+```rust
+// Users publish encrypted voting messages on-chain
+pub struct Message {
+    // Encrypted vote data
+    data: [Uint256; 7],
+    // Encryption key (encrypted with Coordinator public key)
+    enc_pub_key: PubKey,
+}
+
+// Only encrypted data stored on-chain, protecting privacy
+messages.push(Message {
+    data: encrypted_vote_data,
+    enc_pub_key: ephemeral_public_key,
+});
+```
+
+#### 2. Off-chain Processing
+
+Operator executes the following steps locally:
+
+```
+1. Download all encrypted messages
+   messages = query_all_messages(amaci_contract)
+
+2. Decrypt messages with private key
+   for msg in messages:
+       decrypted = decrypt(msg, coordinator_private_key)
+       
+3. Validate message validity
+   - Check signature
+   - Verify sender eligibility
+   - Check vote option legality
+   
+4. Update state tree
+   - Update user state based on decrypted messages
+   - Calculate new state tree root
+   
+5. Generate zero-knowledge proof
+   - Prove correctness of state transition
+   - Without revealing specific vote content
+```
+
+#### 3. On-chain Verification
+
+```rust
+// Operator submits processing results and proof
+pub fn process_messages(
+    deps: DepsMut,
+    info: MessageInfo,
+    // New state tree root
+    new_state_root: Uint256,
+    // Zero-knowledge proof
+    groth16_proof: Groth16ProofType,
+) -> Result<Response, ContractError> {
+    // Verify caller is Operator
+    ensure_operator(&deps, &info.sender)?;
+    
+    // Verify zero-knowledge proof
+    let public_inputs = prepare_public_inputs(
+        old_state_root,
+        new_state_root,
+        message_batch,
+    );
+    
+    verify_groth16_proof(
+        deps.api,
+        &groth16_proof,
+        &public_inputs,
+    )?;
+    
+    // Verification passed, update state
+    STATE_ROOT.save(deps.storage, &new_state_root)?;
+    
+    Ok(Response::new()
+        .add_attribute("action", "process_messages")
+        .add_attribute("new_state_root", new_state_root.to_string()))
+}
+```
+
+### Zero-Knowledge Proof System
+
+MACI uses Groth16 zero-knowledge proofs to ensure computational correctness:
+
+#### Proof Contents
+
+```
+Public Inputs:
+- Old State Root
+- New State Root
+- Message Batch Hash
+- Coordinator Public Key Hash
+
+Private Witness:
+- Plaintext of all voting messages
+- User states
+- Merkle paths of state tree
+- Coordinator private key
+```
+
+#### Proof Verification Flow
+
+```mermaid
+sequenceDiagram
+    participant O as Operator
+    participant C as Circuit
+    participant A as AMACI Contract
+    participant V as Verifier Contract
+    
+    O->>O: Decrypt messages
+    O->>C: Generate witness
+    C->>C: Execute circuit constraints
+    C->>O: Generate Groth16 proof
+    O->>A: Submit proof & new state root
+    A->>V: Call verifier contract
+    V->>V: Verify proof validity
+    V-->>A: Return verification result
+    A->>A: Update state tree root
+    A-->>O: Return success
+```
+
+#### Circuit Constraints
+
+The circuit ensures the following constraints:
+
+```
+1. Message Decryption Correctness
+   - ECDH decryption uses correct private key
+   - Plaintext message format is valid
+
+2. State Tree Update Correctness
+   - Each message correctly updates corresponding user state
+   - New state root correctly calculated from Merkle tree
+
+3. Voting Rules Compliance
+   - Users don't overspend voice credits
+   - Vote options within allowed range
+   - Quadratic voting rules correctly applied
+
+4. Signature Verification
+   - Each message signature is valid
+   - Signer matches claimed identity
 ```
 
 ## State Management
@@ -260,6 +482,115 @@ pub struct AMACIState {
     
     // Whitelist
     whitelist: Option<WhitelistBase>,
+}
+```
+
+### State Tree Mechanism
+
+AMACI uses Merkle trees to manage user states, enabling efficient state verification:
+
+#### Tree Structure
+
+```mermaid
+graph TD
+    Root[State Root] --> L1A[Internal Node]
+    Root --> L1B[Internal Node]
+    L1A --> L2A[Internal Node]
+    L1A --> L2B[Internal Node]
+    L1B --> L2C[Internal Node]
+    L1B --> L2D[Internal Node]
+    L2A --> U1[User 1 State]
+    L2A --> U2[User 2 State]
+    L2B --> U3[User 3 State]
+    L2B --> U4[User 4 State]
+    L2C --> U5[User 5 State]
+    L2C --> U6[User 6 State]
+    L2D --> U7[User 7 State]
+    L2D --> U8[User 8 State]
+```
+
+#### User State Leaf Node
+
+```rust
+// Each user's data in the state tree
+pub struct UserState {
+    // User public key
+    pub_key: PubKey,
+    // Remaining voice credits
+    voice_credit_balance: Uint256,
+    // User index
+    user_index: u64,
+    // Vote option tree root
+    vote_option_tree_root: Uint256,
+}
+
+// Leaf node hash calculation
+leaf_hash = hash(
+    pub_key.x,
+    pub_key.y,
+    voice_credit_balance,
+    vote_option_tree_root,
+)
+```
+
+#### State Update Flow
+
+How the state tree updates when users publish voting messages:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as AMACI Contract
+    participant O as Operator
+    participant C as Circuit
+    
+    U->>A: PublishMessage(encrypted_vote)
+    A->>A: Store encrypted message
+    Note over A: State tree not updated yet
+    
+    Note over O: After voting period ends
+    O->>A: Query all messages
+    O->>O: Decrypt messages
+    O->>C: Input old state + messages
+    C->>C: Verify constraints:<br/>1. Decryption correct<br/>2. Signature valid<br/>3. Credits sufficient
+    C->>C: Calculate new user state
+    C->>C: Calculate new state root
+    C->>O: Generate proof
+    O->>A: ProcessMessages(new_root, proof)
+    A->>A: Verify proof
+    A->>A: Update state tree root
+```
+
+#### State Consistency Guarantee
+
+```rust
+// Only state tree root stored on-chain for storage efficiency
+pub struct StateTreeInfo {
+    // Current state tree root
+    current_root: Uint256,
+    // Tree depth (determines max users = 2^depth)
+    depth: u8,
+    // Number of processed messages
+    num_processed_messages: u64,
+}
+
+// Verify correctness of state update
+pub fn verify_state_transition(
+    old_root: Uint256,
+    new_root: Uint256,
+    messages: &[Message],
+    proof: &Groth16ProofType,
+) -> Result<bool, ContractError> {
+    // Prepare public inputs
+    let public_inputs = vec![
+        old_root,
+        new_root,
+        hash_messages(messages),
+        coordinator_pubkey_hash,
+    ];
+    
+    // Verify using Groth16
+    verify_groth16_proof(proof, &public_inputs)
 }
 ```
 
@@ -360,84 +691,269 @@ ExecuteMsg::UpdateAmaciCodeId {
 // Existing instances remain unaffected
 ```
 
-## Deployment Process
+### 4. Error Handling Mechanism
 
-### Deploy AMACI Contract Code
+MACI contracts implement comprehensive error handling to ensure system robustness:
 
-```bash
-# Compile AMACI contract
-cd contracts/amaci
-cargo wasm
+#### Registry Contract Errors
 
-# Optimize wasm
-docker run --rm -v "$(pwd)":/code \
-  cosmwasm/rust-optimizer:0.12.11
+```rust
+pub enum RegistryError {
+    // Permission-related errors
+    Unauthorized {},
+    OperatorNotRegistered {},
+    
+    // Parameter validation errors
+    InvalidMaxVoter {},
+    InvalidVotingTime {},
+    InvalidCircuitType {},
+    
+    // Resource errors
+    InsufficientFee { required: Uint128, provided: Uint128 },
+    CodeIdNotFound {},
+    
+    // State errors
+    OperatorAlreadyRegistered {},
+    ValidatorAlreadyExists {},
+}
 
-# Upload to chain
-dorad tx wasm store artifacts/amaci.wasm \
-  --from deployer \
-  --gas auto
-
-# Get Code ID (e.g.: 123)
-```
-
-### Deploy Registry Contract
-
-```bash
-# Instantiate Registry
-dorad tx wasm instantiate 123 \
-  '{
-    "admin": "dora1...",
-    "operator": "dora1...",
-    "amaci_code_id": 123
-  }' \
-  --from deployer \
-  --label "MACI Registry" \
-  --gas auto
-
-# Get Registry address (e.g.: dora1registry...)
-```
-
-### Register Operator
-
-```bash
-# Operator registration
-dorad tx wasm execute dora1registry... \
-  '{
-    "set_maci_operator": {
-      "operator": "dora1operator..."
+// Error handling example
+pub fn create_round(
+    deps: DepsMut,
+    info: MessageInfo,
+    params: CreateRoundParams,
+) -> Result<Response, RegistryError> {
+    // Validate time parameters
+    if params.voting_start >= params.voting_end {
+        return Err(RegistryError::InvalidVotingTime {});
     }
-  }' \
-  --from operator \
-  --gas auto
-
-# Set Operator public key
-dorad tx wasm execute dora1registry... \
-  '{
-    "set_maci_operator_pubkey": {
-      "pubkey": {
-        "x": "0x...",
-        "y": "0x..."
-      }
+    
+    // Validate fee
+    let required_fee = calculate_circuit_fee(&params);
+    let provided_fee = info.funds.get(0).map(|c| c.amount).unwrap_or_default();
+    
+    if provided_fee < required_fee {
+        return Err(RegistryError::InsufficientFee {
+            required: required_fee,
+            provided: provided_fee,
+        });
     }
-  }' \
-  --from operator \
-  --gas auto
+    
+    // Continue processing...
+}
 ```
 
-### Create Voting Round
+#### AMACI Contract Errors
 
-Now users can create AMACI instances through Registry:
+```rust
+pub enum AMACIError {
+    // State errors
+    InvalidPeriod { expected: String, current: String },
+    VotingNotStarted {},
+    VotingEnded {},
+    AlreadyProcessed {},
+    
+    // User operation errors
+    AlreadySignedUp {},
+    NotSignedUp {},
+    InsufficientVoiceCredits {},
+    InvalidVoteOption {},
+    
+    // Proof verification errors
+    InvalidProof {},
+    ProofVerificationFailed { reason: String },
+    StateRootMismatch {},
+    
+    // Permission errors
+    NotCoordinator {},
+    NotWhitelisted {},
+}
 
-```typescript
-// Using SDK
-const round = await client.createAMaciRound({
-  signer: wallet,
-  operator: 'dora1...',
-  // ... other parameters
-});
+// State check example
+pub fn publish_message(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    message: Message,
+) -> Result<Response, AMACIError> {
+    let state = STATE.load(deps.storage)?;
+    
+    // Check voting period
+    let current_time = env.block.time.seconds();
+    if current_time < state.voting_time.start_time {
+        return Err(AMACIError::VotingNotStarted {});
+    }
+    if current_time >= state.voting_time.end_time {
+        return Err(AMACIError::VotingEnded {});
+    }
+    
+    // Check whitelist
+    if let Some(whitelist) = &state.whitelist {
+        if !whitelist.is_whitelisted(&info.sender) {
+            return Err(AMACIError::NotWhitelisted {});
+        }
+    }
+    
+    // Store message
+    MESSAGES.push(deps.storage, &message)?;
+    Ok(Response::new())
+}
+```
 
-console.log('AMACI contract address:', round.contractAddress);
+#### Proof Verification Error Handling
+
+```rust
+pub fn process_messages(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_state_root: Uint256,
+    proof: Groth16ProofType,
+) -> Result<Response, AMACIError> {
+    // Verify Operator identity
+    ensure_coordinator(&deps, &info.sender)?;
+    
+    let state = STATE.load(deps.storage)?;
+    
+    // Prepare public inputs
+    let public_inputs = vec![
+        state.state_tree_root,  // Old state root
+        new_state_root,          // New state root
+        get_message_batch_hash(deps.storage)?,
+    ];
+    
+    // Verify zero-knowledge proof
+    match verify_groth16_proof(deps.api, &proof, &public_inputs) {
+        Ok(true) => {
+            // Verification passed, update state
+            STATE.update(deps.storage, |mut s| -> StdResult<_> {
+                s.state_tree_root = new_state_root;
+                s.num_processed_messages += proof.batch_size;
+                Ok(s)
+            })?;
+            
+            Ok(Response::new()
+                .add_attribute("action", "process_messages")
+                .add_attribute("new_root", new_state_root.to_string()))
+        }
+        Ok(false) => {
+            Err(AMACIError::InvalidProof {})
+        }
+        Err(e) => {
+            Err(AMACIError::ProofVerificationFailed {
+                reason: e.to_string(),
+            })
+        }
+    }
+}
+```
+
+### 5. Security Boundaries
+
+The system implements multiple layers of security boundaries to prevent various attacks:
+
+#### Time Boundaries
+
+```rust
+// Strict time window control
+pub struct VotingTime {
+    // Voting start time (Unix timestamp)
+    start_time: u64,
+    // Voting end time
+    end_time: u64,
+}
+
+// Messages can only be published during voting period
+if !(start_time <= current_time && current_time < end_time) {
+    return Err(AMACIError::InvalidPeriod {});
+}
+
+// Messages can only be processed after voting period ends
+if current_time < end_time {
+    return Err(AMACIError::VotingNotEnded {});
+}
+```
+
+#### Quantity Boundaries
+
+```rust
+// Limit number of participants (determined by state tree depth)
+pub fn signup(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> Result<Response, AMACIError> {
+    let state = STATE.load(deps.storage)?;
+    let max_users = 2u64.pow(state.state_tree_depth as u32);
+    
+    if state.num_sign_ups >= max_users {
+        return Err(AMACIError::MaxSignupsReached {});
+    }
+    
+    // Continue processing...
+}
+
+// Limit vote option count
+if vote_option_index >= state.max_vote_options {
+    return Err(AMACIError::InvalidVoteOption {});
+}
+
+// Limit message batch size (prevent gas exhaustion)
+const MAX_BATCH_SIZE: usize = 100;
+if messages.len() > MAX_BATCH_SIZE {
+    return Err(AMACIError::BatchTooLarge {});
+}
+```
+
+#### Encryption Boundaries
+
+```rust
+// All voting messages must be encrypted
+pub struct Message {
+    // Encrypted data in 7 fields
+    // [nonce, pub_key_x, pub_key_y, vote_option, vote_weight, ...]
+    data: [Uint256; 7],
+    // Ephemeral public key (ECDH encryption)
+    enc_pub_key: PubKey,
+}
+
+// Only Coordinator can decrypt
+// No plaintext voting data ever stored on-chain
+// Ensures voting privacy and censorship resistance
+```
+
+#### Permission Boundaries
+
+```rust
+// Registry contract permission hierarchy
+pub enum Permission {
+    Admin,      // Can update Code ID, fee config
+    Operator,   // Can create Round, set public key
+    Validator,  // Can verify operations
+    User,       // Can use system
+}
+
+// AMACI contract permission hierarchy
+pub fn check_permission(
+    action: &str,
+    caller: &Addr,
+    state: &AMACIState,
+) -> Result<(), AMACIError> {
+    match action {
+        "process_messages" | "process_tally" => {
+            if caller != &state.coordinator {
+                return Err(AMACIError::NotCoordinator {});
+            }
+        }
+        "signup" | "publish_message" => {
+            if let Some(whitelist) = &state.whitelist {
+                if !whitelist.contains(caller) {
+                    return Err(AMACIError::NotWhitelisted {});
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
 ```
 
 ## Advantages

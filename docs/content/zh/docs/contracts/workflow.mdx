@@ -168,7 +168,7 @@ await client.signup({
 });
 
 console.log('用户 A 签到成功');
-console.log('⚠️  注意：用户 A 的地址必须在白名单中');
+console.log('注意：用户 A 的地址必须在白名单中');
 
 // 投票
 const roundInfo = await client.getRoundInfo({ contractAddress: round.contractAddress });
@@ -189,7 +189,7 @@ await client.vote({
 });
 
 console.log('用户 A 投票成功');
-console.log('⚠️  注意：Operator 可以通过链上交易知道用户 A 的身份');
+console.log('注意：Operator 可以通过链上交易知道用户 A 的身份');
 ```
 
 ### 3.2 用户 B：使用 Add-new-key（匿名模式）
@@ -645,7 +645,7 @@ completeVotingRound().catch(console.error);
 
 完成后，您可以理解了 AMACI 的完整工作流程，接下来可以：
 
-- 💻 [SDK 使用指南](/docs/sdk/installation) - 详细学习 SDK 的使用
+- [SDK 使用指南](/docs/sdk/installation) - 详细学习 SDK 的使用
 - [AMACI 隐私机制](/docs/protocol/amaci-privacy) - 深入理解身份匿名化
 - [示例代码](/docs/examples/basic-voting) - 查看更多示例
 - [快速开始](/docs/introduction/quick-start) - 快速上手 AMACI
