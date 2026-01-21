@@ -5,6 +5,7 @@ import '../globals.css';
 import { Metadata } from 'next';
 import { NextraSearchDialog } from '@/components/nextra-search-dialog';
 import { getPagesFromPageMap } from '@/lib/getPagesFromPageMap';
+import { Logo } from '@/components/Logo';
 
 export const metadata: Metadata = {
   // Define your metadata here
@@ -18,7 +19,7 @@ export function generateStaticParams() {
 const navbar = (
   <Navbar
     projectLink="https://github.com/DoraFactory/maci"
-    logo={<img src="/images/general/logo.svg" alt="Logo" width={100} height={20} />}
+    logo={<Logo />}
     // ... Your additional navbar options
   />
 );
