@@ -124,9 +124,12 @@ pub enum QueryMsg {
 
     #[returns(u64)]
     GetNextPollId {},
-    
+
     #[returns(u64)]
     GetMaciCodeId {},
+
+    #[returns(u64)]
+    GetAmaciCodeId {},
 }
 
 #[cw_serde]

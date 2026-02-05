@@ -175,3 +175,21 @@ export function getAMaciRoundCircuitFee(
 
   return requiredFee;
 }
+
+export function getMaciRoundCircuitFee(
+  network: 'mainnet' | 'testnet',
+  maxVoter: number,
+  maxOption: number
+) {
+  // MACI round fee is 10% of AMACI round fee (management fee)
+  const amaciRoundFee = getAMaciRoundCircuitFee(network, maxVoter, maxOption);
+  
+  // Calculate 10% of the AMACI fee
+  const feeAmount = BigInt(amaciRoundFee.amount);
+  const maciRoundFeeAmount = (feeAmount * BigInt(1)) / BigInt(10); // 10% of AMACI fee
+  
+  return {
+    denom: 'peaka',
+    amount: maciRoundFeeAmount.toString()
+  };
+}

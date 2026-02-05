@@ -680,6 +680,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetNextPollId {} => to_json_binary(&NEXT_POLL_ID.load(deps.storage)?),
         QueryMsg::GetMaciCodeId {} => to_json_binary(&MACI_CODE_ID.load(deps.storage)?),
+        QueryMsg::GetAmaciCodeId {} => to_json_binary(&AMACI_CODE_ID.load(deps.storage)?),
     }
 }
 

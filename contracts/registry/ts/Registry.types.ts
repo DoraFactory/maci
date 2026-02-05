@@ -145,6 +145,8 @@ export type QueryMsg = {
   get_next_poll_id: {};
 } | {
   get_maci_code_id: {};
+} | {
+  get_amaci_code_id: {};
 };
 export interface AdminResponse {
   admin: Addr;

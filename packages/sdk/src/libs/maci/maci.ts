@@ -8,9 +8,8 @@ import { GasPrice, calculateFee, StdFee } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 import { CertificateEcosystem, ErrorResponse, RoundType } from '../../types';
 import { SignatureResponse } from '../oracle-certificate/types';
-import { OracleWhitelistConfig } from '../contract/ts/OracleMaci.types';
 import { getAMaciRoundCircuitFee } from '../contract/utils';
-import { Groth16ProofType } from '../contract/ts/Maci.types';
+import { Groth16ProofType, OracleWhitelistConfig } from '../contract/ts/Maci.types';
 
 export function isErrorResponse(response: unknown): response is ErrorResponse {
   return (
@@ -46,13 +45,7 @@ export class MACI {
     this.maciKeypair = maciKeypair;
   }
 
-  async getPollId({
-    signer,
-    contractAddress
-  }: {
-    signer: OfflineSigner;
-    contractAddress: string;
-  }) {
+  async getPollId({ signer, contractAddress }: { signer: OfflineSigner; contractAddress: string }) {
     const client = await this.contract.amaciClient({
       signer,
       contractAddress
@@ -207,31 +200,22 @@ export class MACI {
       }
     }
 
-    if (certificate) {
-      const client = await this.contract.oracleMaciClient({
-        signer,
-        contractAddress
-      });
+    // Use unified MACI client (now supports Oracle whitelist)
+    const client = await this.contract.maciClient({
+      signer,
+      contractAddress
+    });
 
-      const balance = await client.whiteBalanceOf({
-        amount: certificate.amount,
-        certificate: certificate.signature,
-        sender: address
-      });
+    const balance = await client.whiteBalanceOf({
+      amount: certificate?.amount || '0',
+      certificate: certificate?.signature || '',
+      pubkey: {
+        x: '0',
+        y: '0'
+      }
+    });
 
-      return balance;
-    } else {
-      const client = await this.contract.maciClient({
-        signer,
-        contractAddress
-      });
-
-      const balance = await client.whiteBalanceOf({
-        sender: address
-      });
-
-      return balance;
-    }
+    return balance;
   }
 
   async isWhitelisted({
@@ -266,7 +250,7 @@ export class MACI {
     signer: OfflineSigner;
     contractAddress: string;
   }): Promise<OracleWhitelistConfig> {
-    const client = await this.contract.oracleMaciClient({
+    const client = await this.contract.maciClient({
       signer,
       contractAddress
     });
@@ -413,18 +397,15 @@ export class MACI {
     signer,
     ecosystem,
     address,
-    contractAddress
+    contractAddress,
+    height
   }: {
     signer: OfflineSigner;
     ecosystem: CertificateEcosystem;
     address?: string;
     contractAddress: string;
+    height?: string;
   }): Promise<SignatureResponse> {
-    const oracleWhitelistConfig = await this.getOracleWhitelistConfig({
-      signer,
-      contractAddress
-    });
-
     if (!address) {
       address = (await signer.getAccounts())[0].address;
     }
@@ -433,7 +414,7 @@ export class MACI {
       ecosystem,
       address,
       contractAddress,
-      height: oracleWhitelistConfig.snapshot_height
+      height: height || '0'
     });
 
     return signResponse;
@@ -466,39 +447,59 @@ export class MACI {
 
       if (maciKeypair === undefined) {
         maciKeypair = this.maciKeypair;
-        // maciKeypair = await this.crypto.genKeypairFromSign(signer, address);
       }
 
       const client = await this.contract.contractClient({
         signer
       });
 
-      // If oracleCertificate has data and amount has data, use signupOracle
-      if (oracleCertificate && oracleCertificate.amount) {
-        return await this.signupOracle({
-          client,
-          address,
-          pubKey: maciKeypair.pubKey,
-          contractAddress,
-          oracleCertificate: {
-            amount: oracleCertificate.amount,
-            signature: oracleCertificate.signature
+      // Unified signup using MACI client (supports Oracle whitelist)
+      const msg = {
+        sign_up: {
+          pubkey: {
+            x: maciKeypair.pubKey[0].toString(),
+            y: maciKeypair.pubKey[1].toString()
           },
-          gasStation,
-          fee
-        });
-      } else {
-        // If oracleCertificate has data but amount is missing, or oracleCertificate is missing, use signupSimple
-        return await this.signupSimple({
-          client,
+          amount: oracleCertificate?.amount || '0',
+          certificate: oracleCertificate?.signature || ''
+        }
+      };
+
+      if (gasStation === true && typeof fee !== 'object') {
+        // When gasStation is true and fee is not StdFee, simulate first then add granter
+        const gasEstimation = await client.simulate(
           address,
-          pubKey: maciKeypair.pubKey,
-          contractAddress,
-          certificate: oracleCertificate?.signature,
-          gasStation,
-          fee
-        });
+          [
+            {
+              typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+              value: {
+                sender: address,
+                contract: contractAddress,
+                msg: new TextEncoder().encode(JSON.stringify(msg))
+              }
+            }
+          ],
+          ''
+        );
+        const multiplier = typeof fee === 'number' ? fee : 1.8;
+        const gasPrice = GasPrice.fromString('10000000000peaka');
+        const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+        const grantFee: StdFee = {
+          amount: calculatedFee.amount,
+          gas: calculatedFee.gas,
+          granter: contractAddress
+        };
+        return client.execute(address, contractAddress, msg, grantFee);
+      } else if (gasStation === true && typeof fee === 'object') {
+        // When gasStation is true and fee is StdFee, add granter
+        const grantFee: StdFee = {
+          ...fee,
+          granter: contractAddress
+        };
+        return client.execute(address, contractAddress, msg, grantFee);
       }
+
+      return client.execute(address, contractAddress, msg, fee || 'auto');
     } catch (error) {
       throw Error(`Signup failed! ${error}`);
     }
@@ -535,34 +536,53 @@ export class MACI {
         signer
       });
 
-      // If oracleCertificate has data and amount has data, use signupOracle
-      if (oracleCertificate && oracleCertificate.amount) {
-        return await this.signupOracle({
-          client,
-          address,
-          pubKey,
-          contractAddress,
-          oracleCertificate: {
-            amount: oracleCertificate.amount,
-            signature: oracleCertificate.signature
+      // Unified signup using MACI client (supports Oracle whitelist)
+      const msg = {
+        sign_up: {
+          pubkey: {
+            x: pubKey[0].toString(),
+            y: pubKey[1].toString()
           },
-          gasStation,
-          granter,
-          fee
-        });
-      } else {
-        // If oracleCertificate has data but amount is missing, or oracleCertificate is missing, use signupSimple
-        return await this.signupSimple({
-          client,
+          amount: oracleCertificate?.amount || '0',
+          certificate: oracleCertificate?.signature || ''
+        }
+      };
+
+      if (gasStation === true && typeof fee !== 'object') {
+        // When gasStation is true and fee is not StdFee, simulate first then add granter
+        const gasEstimation = await client.simulate(
           address,
-          pubKey,
-          contractAddress,
-          certificate: oracleCertificate?.signature,
-          gasStation,
-          granter,
-          fee
-        });
+          [
+            {
+              typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+              value: {
+                sender: address,
+                contract: contractAddress,
+                msg: new TextEncoder().encode(JSON.stringify(msg))
+              }
+            }
+          ],
+          ''
+        );
+        const multiplier = typeof fee === 'number' ? fee : 1.8;
+        const gasPrice = GasPrice.fromString('10000000000peaka');
+        const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+        const grantFee: StdFee = {
+          amount: calculatedFee.amount,
+          gas: calculatedFee.gas,
+          granter: granter || contractAddress
+        };
+        return client.execute(address, contractAddress, msg, grantFee);
+      } else if (gasStation === true && typeof fee === 'object') {
+        // When gasStation is true and fee is StdFee, add granter
+        const grantFee: StdFee = {
+          ...fee,
+          granter: granter || contractAddress
+        };
+        return client.execute(address, contractAddress, msg, grantFee);
       }
+
+      return client.execute(address, contractAddress, msg, fee || 'auto');
     } catch (error) {
       throw Error(`Signup failed! ${error}`);
     }
@@ -690,7 +710,13 @@ export class MACI {
         contractAddress
       });
 
-      const payload = batchGenMessage(stateIdx, maciKeypair, operatorCoordPubKey, plan, Number(pollId));
+      const payload = batchGenMessage(
+        stateIdx,
+        maciKeypair,
+        operatorCoordPubKey,
+        plan,
+        Number(pollId)
+      );
 
       // Use batch publish for amaci
       if (round.data.round.maciType === 'aMACI') {
@@ -864,6 +890,9 @@ export class MACI {
         string,
         string,
         string,
+        string,
+        string,
+        string,
         string
       ]
     }));
@@ -881,7 +910,7 @@ export class MACI {
         y: p.encPubkeys[1]
       }));
       const messagesBigInt = payload.map((p) => ({
-        data: p.msg
+        data: p.msg as [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint]
       }));
       const msg: MsgExecuteContractEncodeObject = {
         typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
@@ -920,142 +949,6 @@ export class MACI {
     }
 
     return amaciClient.publishMessageBatch({ encPubKeys, messages }, fee);
-  }
-
-  async signupSimple({
-    client,
-    address,
-    pubKey,
-    contractAddress,
-    certificate,
-    gasStation,
-    granter,
-    fee = 1.8
-  }: {
-    client: SigningCosmWasmClient;
-    address: string;
-    pubKey: PubKey;
-    contractAddress: string;
-    certificate?: string;
-    gasStation?: boolean;
-    granter?: string;
-    fee?: StdFee | 'auto' | number;
-  }) {
-    const msg = {
-      sign_up: {
-        certificate,
-        pubkey: {
-          x: pubKey[0].toString(),
-          y: pubKey[1].toString()
-        }
-      }
-    };
-
-    if (gasStation === true && typeof fee !== 'object') {
-      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
-      const gasEstimation = await client.simulate(
-        address,
-        [
-          {
-            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-            value: {
-              sender: address,
-              contract: contractAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg))
-            }
-          }
-        ],
-        ''
-      );
-      const multiplier = typeof fee === 'number' ? fee : 1.8;
-      const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-      const grantFee: StdFee = {
-        amount: calculatedFee.amount,
-        gas: calculatedFee.gas,
-        granter: granter || contractAddress
-      };
-      return client.execute(address, contractAddress, msg, grantFee);
-    } else if (gasStation === true && typeof fee === 'object') {
-      // When gasStation is true and fee is StdFee, add granter
-      const grantFee: StdFee = {
-        ...fee,
-        granter: granter || contractAddress
-      };
-      return client.execute(address, contractAddress, msg, grantFee);
-    }
-
-    return client.execute(address, contractAddress, msg, fee);
-  }
-
-  async signupOracle({
-    client,
-    address,
-    pubKey,
-    contractAddress,
-    oracleCertificate,
-    gasStation,
-    granter,
-    fee = 1.8
-  }: {
-    client: SigningCosmWasmClient;
-    address: string;
-    pubKey: PubKey;
-    contractAddress: string;
-    oracleCertificate: {
-      amount: string;
-      signature: string;
-    };
-    gasStation?: boolean;
-    granter?: string;
-    fee?: StdFee | 'auto' | number;
-  }) {
-    const msg = {
-      sign_up: {
-        pubkey: {
-          x: pubKey[0].toString(),
-          y: pubKey[1].toString()
-        },
-        amount: oracleCertificate.amount,
-        certificate: oracleCertificate.signature
-      }
-    };
-
-    if (gasStation === true && typeof fee !== 'object') {
-      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
-      const gasEstimation = await client.simulate(
-        address,
-        [
-          {
-            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-            value: {
-              sender: address,
-              contract: contractAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg))
-            }
-          }
-        ],
-        ''
-      );
-      const multiplier = typeof fee === 'number' ? fee : 1.8;
-      const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-      const grantFee: StdFee = {
-        amount: calculatedFee.amount,
-        gas: calculatedFee.gas,
-        granter: granter || contractAddress
-      };
-      return client.execute(address, contractAddress, msg, grantFee);
-    } else if (gasStation === true && typeof fee === 'object') {
-      // When gasStation is true and fee is StdFee, add granter
-      const grantFee: StdFee = {
-        ...fee,
-        granter: granter || contractAddress
-      };
-      return client.execute(address, contractAddress, msg, grantFee);
-    }
-
-    return client.execute(address, contractAddress, msg, fee);
   }
 
   async deactivate({

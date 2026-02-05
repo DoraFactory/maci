@@ -5,9 +5,7 @@ import { getDefaultParams } from './libs/const';
 import {
   CreateAMaciRoundParams,
   CreateApiSaasAmaciRoundParams,
-  CreateMaciRoundParams,
-  CreateOracleMaciRoundParams,
-  CreateSaasOracleMaciRoundParams
+  CreateApiSaasMaciRoundParams
 } from './libs/contract/types';
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import {
@@ -18,10 +16,9 @@ import {
   PubKey,
   unpackPubKey
 } from './libs/crypto';
-import { OracleWhitelistConfig } from './libs/contract/ts/OracleMaci.types';
 import { SignatureResponse } from './libs/oracle-certificate/types';
 import { StdFee } from '@cosmjs/amino';
-import { Groth16ProofType } from './libs/contract/ts/Maci.types';
+import { Groth16ProofType, OracleWhitelistConfig } from './libs/contract/ts/Maci.types';
 import { isErrorResponse } from './libs/maci/maci';
 
 /**
@@ -196,20 +193,6 @@ export class MaciClient {
     return address;
   }
 
-  async oracleMaciClient({
-    signer,
-    contractAddress
-  }: {
-    signer?: OfflineSigner;
-    contractAddress: string;
-  }) {
-    signer = this.getSigner(signer);
-    return await this.contract.oracleMaciClient({
-      signer,
-      contractAddress
-    });
-  }
-
   async registryClient({
     signer,
     contractAddress
@@ -250,27 +233,7 @@ export class MaciClient {
     });
   }
 
-  async createMaciRound(params: CreateMaciRoundParams) {
-    return await this.contract.createMaciRound({
-      signer: this.getSigner(params.signer),
-      ...params
-    });
-  }
-
-  async createOracleMaciRound(params: CreateOracleMaciRoundParams) {
-    return await this.contract.createOracleMaciRound({
-      signer: this.getSigner(params.signer),
-      ...params
-    });
-  }
-
-  async createSaasOracleMaciRound(params: CreateSaasOracleMaciRoundParams) {
-    return await this.contract.createSaasOracleMaciRound({
-      signer: this.getSigner(params.signer),
-      ...params
-    });
-  }
-  async createApiSaasMaciRound(params: CreateSaasOracleMaciRoundParams) {
+  async createApiSaasMaciRound(params: CreateApiSaasMaciRoundParams) {
     return await this.contract.createApiSaasMaciRound({
       signer: this.getSigner(params.signer),
       ...params

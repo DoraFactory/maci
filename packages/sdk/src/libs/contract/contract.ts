@@ -6,18 +6,16 @@ import {
   createApiSaasClientBy,
   createContractClientByWallet,
   createMaciClientBy,
-  createOracleMaciClientBy,
   createRegistryClientBy,
   createSaasClientBy
 } from './config';
 import {
   CreateAMaciRoundParams,
-  CreateMaciRoundParams,
-  CreateOracleMaciRoundParams,
-  CreateSaasOracleMaciRoundParams,
-  CreateApiSaasAmaciRoundParams
+  CreateApiSaasAmaciRoundParams,
+  CreateApiSaasMaciRoundParams,
+  CreateMaciRoundParams
 } from './types';
-import { getAMaciRoundCircuitFee, getContractParams } from './utils';
+import { getAMaciRoundCircuitFee, getMaciRoundCircuitFee, getContractParams } from './utils';
 import { QTR_LIB } from './vars';
 import { MaciRoundType, MaciCertSystemType } from '../../types';
 import { unpackPubKey } from '../crypto';
@@ -153,231 +151,82 @@ export class Contract {
 
   async createMaciRound({
     signer,
-    operatorPubkey,
     startVoting,
     endVoting,
-    whitelist,
+    coordinator,
     title,
     description,
     link,
     maxVoter,
-    maxOption,
+    voteOptionMap,
     circuitType,
-    certSystemType,
+    whitelistBackendPubkey,
+    whitelistVotingPowerMode,
     fee = 'auto'
   }: CreateMaciRoundParams & { signer: OfflineSigner }) {
     const start_time = (startVoting.getTime() * 10 ** 6).toString();
     const end_time = (endVoting.getTime() * 10 ** 6).toString();
-    const [{ address }] = await signer.getAccounts();
-    const client = await createContractClientByWallet(this.rpcEndpoint, signer);
-    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(BigInt(operatorPubkey));
-    const {
-      parameters,
-      groth16ProcessVkey,
-      groth16TallyVkey,
-      plonkProcessVkey,
-      plonkTallyVkey,
-      maciVoteType,
-      maciCertSystem
-    } = getContractParams(MaciRoundType.MACI, circuitType, certSystemType, maxVoter, maxOption);
-
-    const instantiateResponse = await client.instantiate(
-      address,
-      this.maciCodeId,
-      {
-        round_info: { title, description: description || '', link: link || '' },
-        voting_time: {
-          start_time,
-          end_time
-        },
-        parameters,
-        coordinator: {
-          x: operatorPubkeyX.toString(),
-          y: operatorPubkeyY.toString()
-        },
-        groth16_process_vkey: groth16ProcessVkey,
-        groth16_tally_vkey: groth16TallyVkey,
-        plonk_process_vkey: plonkProcessVkey,
-        plonk_tally_vkey: plonkTallyVkey,
-        max_vote_options: maxOption.toString(),
-        whitelist,
-        circuit_type: maciVoteType,
-        certification_system: maciCertSystem,
-        qtr_lib: QTR_LIB
-      },
-      `[MACI] ${title}`,
-      fee
-    );
-
-    return instantiateResponse;
-  }
-
-  async createOracleMaciRound({
-    signer,
-    operatorPubkey,
-    startVoting,
-    endVoting,
-    title,
-    description,
-    link,
-    voteOptionMap,
-    circuitType,
-    whitelistEcosystem,
-    whitelistSnapshotHeight,
-    whitelistVotingPowerArgs,
-    fee = 'auto'
-  }: CreateOracleMaciRoundParams & { signer: OfflineSigner }) {
-    const start_time = (startVoting.getTime() * 1_000_000).toString();
-    const end_time = (endVoting.getTime() * 1_000_000).toString();
-    const [{ address }] = await signer.getAccounts();
-    const client = await createContractClientByWallet(this.rpcEndpoint, signer);
-    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(BigInt(operatorPubkey));
-    const { maciVoteType, maciCertSystem } = getContractParams(
-      MaciRoundType.ORACLE_MACI,
-      circuitType,
-      MaciCertSystemType.GROTH16,
-      0,
-      0
-    );
-
-    const instantiateResponse = await client.instantiate(
-      address,
-      this.oracleCodeId,
-      {
-        round_info: { title, description: description || '', link: link || '' },
-        voting_time: {
-          start_time,
-          end_time
-        },
-        coordinator: {
-          x: operatorPubkeyX.toString(),
-          y: operatorPubkeyY.toString()
-        },
-        vote_option_map: voteOptionMap,
-        whitelist_backend_pubkey: this.whitelistBackendPubkey,
-        whitelist_ecosystem: whitelistEcosystem,
-        whitelist_snapshot_height: whitelistSnapshotHeight,
-        whitelist_voting_power_args: whitelistVotingPowerArgs,
-        circuit_type: maciVoteType,
-        certification_system: maciCertSystem,
-        feegrant_operator: this.feegrantOperator
-      },
-      `[Oracle MACI] ${title}`,
-      fee
-    );
-
-    return instantiateResponse;
-  }
-
-  async createSaasOracleMaciRound({
-    signer,
-    operatorPubkey,
-    startVoting,
-    endVoting,
-    title,
-    description,
-    link,
-    maxVoter,
-    voteOptionMap,
-    whitelistBackendPubkey,
-    gasStation = false,
-    fee = 1.8
-  }: CreateSaasOracleMaciRoundParams & { signer: OfflineSigner }) {
-    const startTime = (startVoting.getTime() * 1_000_000).toString();
-    const endTime = (endVoting.getTime() * 1_000_000).toString();
-
-    const client = await createSaasClientBy({
+    const client = await createRegistryClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
-      contractAddress: this.saasAddress
+      contractAddress: this.registryAddress
     });
-    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(BigInt(operatorPubkey));
 
-    const roundParams = {
-      certificationSystem: '0',
-      circuitType: '0',
-      coordinator: {
-        x: operatorPubkeyX.toString(),
-        y: operatorPubkeyY.toString()
-      },
-      maxVoters: maxVoter,
-      roundInfo: {
-        title,
-        description: description || '',
-        link: link || ''
-      },
-      startTime,
-      endTime,
-      voteOptionMap,
-      whitelistBackendPubkey: whitelistBackendPubkey || this.whitelistBackendPubkey
-    };
+    const requiredFee = getMaciRoundCircuitFee(this.network, maxVoter, voteOptionMap.length);
 
-    let createResponse;
+    // Convert coordinator to {x, y} format
+    let coordinatorX: bigint;
+    let coordinatorY: bigint;
 
-    if (gasStation && typeof fee !== 'object') {
-      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
-      const [{ address }] = await signer.getAccounts();
-      const contractClient = await this.contractClient({ signer });
-      const msg = {
-        create_oracle_maci_round: {
-          certification_system: '0',
-          circuit_type: '0',
-          coordinator: roundParams.coordinator,
-          max_voters: roundParams.maxVoters.toString(),
-          round_info: roundParams.roundInfo,
-          start_time: roundParams.startTime,
-          end_time: roundParams.endTime,
-          vote_option_map: roundParams.voteOptionMap,
-          whitelist_backend_pubkey: roundParams.whitelistBackendPubkey
-        }
-      };
-      const gasEstimation = await contractClient.simulate(
-        address,
-        [
-          {
-            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-            value: {
-              sender: address,
-              contract: this.saasAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg))
-            }
-          }
-        ],
-        ''
-      );
-      const multiplier = typeof fee === 'number' ? fee : 1.8;
-      const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-      const grantFee: StdFee = {
-        amount: calculatedFee.amount,
-        gas: calculatedFee.gas,
-        granter: this.saasAddress
-      };
-      createResponse = await client.createOracleMaciRound(roundParams, grantFee);
-    } else if (gasStation && typeof fee === 'object') {
-      // When gasStation is true and fee is StdFee, add granter
-      const grantFee: StdFee = {
-        ...fee,
-        granter: this.saasAddress
-      };
-      createResponse = await client.createOracleMaciRound(roundParams, grantFee);
+    if (typeof coordinator === 'bigint') {
+      // If it's a packed bigint, unpack it
+      [coordinatorX, coordinatorY] = unpackPubKey(coordinator);
     } else {
-      createResponse = await client.createOracleMaciRound(roundParams, fee);
+      // If it's already a PubKey array [x, y]
+      [coordinatorX, coordinatorY] = coordinator;
     }
 
+    const coordinatorPubKey = {
+      x: coordinatorX.toString(),
+      y: coordinatorY.toString()
+    };
+
+    const res = await client.createMaciRound(
+      {
+        coordinator: coordinatorPubKey,
+        whitelistBackendPubkey,
+        whitelistVotingPowerMode,
+        roundInfo: {
+          title,
+          description: description || '',
+          link: link || ''
+        },
+        votingTime: {
+          start_time: Number(start_time),
+          end_time: Number(end_time)
+        },
+        maxVoters: maxVoter,
+        voteOptionMap,
+        certificationSystem: '0',
+        circuitType
+      },
+      fee,
+      undefined,
+      [requiredFee]
+    );
     let contractAddress = '';
-    createResponse.events.map((event) => {
+    res.events.map((event: any) => {
       if (event.type === 'wasm') {
-        let actionEvent = event.attributes.find((attr) => attr.key === 'action')!;
-        if (actionEvent.value === 'created_oracle_maci_round') {
+        let actionEvent = event.attributes.find((attr: any) => attr.key === 'action')!;
+        if (actionEvent.value === 'created_maci_round') {
           contractAddress = event.attributes
-            .find((attr) => attr.key === 'round_addr')!
+            .find((attr: any) => attr.key === 'round_addr')!
             .value.toString();
         }
       }
     });
     return {
-      ...createResponse,
+      ...res,
       contractAddress
     };
   }
@@ -941,21 +790,6 @@ export class Contract {
     return pollId;
   }
 
-  async oracleMaciClient({
-    signer,
-    contractAddress
-  }: {
-    signer: OfflineSigner;
-    contractAddress: string;
-  }) {
-    const client = await createOracleMaciClientBy({
-      rpcEndpoint: this.rpcEndpoint,
-      wallet: signer,
-      contractAddress
-    });
-    return client;
-  }
-
   async registryClient({
     signer,
     contractAddress
@@ -1043,7 +877,7 @@ export class Contract {
     whitelistBackendPubkey,
     gasStation = false,
     fee = 1.8
-  }: CreateSaasOracleMaciRoundParams & { signer: OfflineSigner }) {
+  }: CreateApiSaasMaciRoundParams & { signer: OfflineSigner }) {
     const startTime = (startVoting.getTime() * 1_000_000).toString();
     const endTime = (endVoting.getTime() * 1_000_000).toString();
 
@@ -1052,7 +886,9 @@ export class Contract {
       wallet: signer,
       contractAddress: this.apiSaasAddress
     });
-    const [operatorPubkeyX, operatorPubkeyY] = unpackPubKey(BigInt(operatorPubkey));
+    const [operatorPubkeyX, operatorPubkeyY] = Array.isArray(operatorPubkey)
+      ? operatorPubkey
+      : unpackPubKey(BigInt(operatorPubkey));
 
     const roundParams = {
       certificationSystem: '0',

@@ -50,6 +50,7 @@ export interface RegistryReadOnlyInterface {
   }) => Promise<NullableAddr>;
   getNextPollId: () => Promise<Uint64>;
   getMaciCodeId: () => Promise<Uint64>;
+  getAmaciCodeId: () => Promise<Uint64>;
 }
 export class RegistryQueryClient implements RegistryReadOnlyInterface {
   client: CosmWasmClient;
@@ -70,6 +71,7 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
     this.getPollAddress = this.getPollAddress.bind(this);
     this.getNextPollId = this.getNextPollId.bind(this);
     this.getMaciCodeId = this.getMaciCodeId.bind(this);
+    this.getAmaciCodeId = this.getAmaciCodeId.bind(this);
   }
   admin = async (): Promise<AdminResponse> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -176,6 +178,11 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
   getMaciCodeId = async (): Promise<Uint64> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_maci_code_id: {}
+    });
+  };
+  getAmaciCodeId = async (): Promise<Uint64> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_amaci_code_id: {}
     });
   };
 }
