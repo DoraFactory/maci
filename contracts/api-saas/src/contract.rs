@@ -442,7 +442,8 @@ pub fn execute_create_maci_round(
     }
 
     // Deduct the fee from SaaS balance
-    TOTAL_BALANCE.save(deps.storage, &(total_balance - required_fee))?;
+    let new_balance = total_balance - required_fee;
+    TOTAL_BALANCE.save(deps.storage, &new_balance)?;
 
     // Create voting time
     let voting_time = VotingTime {
@@ -484,10 +485,13 @@ pub fn execute_create_maci_round(
     Ok(Response::new()
         .add_submessage(submsg)
         .add_attribute("action", "create_maci_round")
-        .add_attribute("caller", info.sender.to_string())
+        .add_attribute("operator", info.sender.to_string())
+        .add_attribute("registry_contract", registry_addr.to_string())
         .add_attribute("round_title", round_info.title)
-        .add_attribute("max_voters", max_voters.to_string())
-        .add_attribute("fee_paid", required_fee.to_string()))
+        .add_attribute("max_voter", max_voters.to_string())
+        .add_attribute("max_option", vote_option_map.len().to_string())
+        .add_attribute("fee_paid", required_fee.to_string())
+        .add_attribute("saas_balance_after", new_balance.to_string()))
 }
 
 pub fn execute_set_round_info(
