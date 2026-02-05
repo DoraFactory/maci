@@ -131,7 +131,7 @@ fn main() {
         println!("✅ Different key pairs produce different shared keys");
     }
 
-    println!("\n".repeat(1));
+    println!();
     println!("{}", "=".repeat(60));
     println!("✅ Example completed!");
 }

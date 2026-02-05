@@ -290,6 +290,9 @@ mod test {
                     uint256_from_decimal_string(&data.msgs[i][4]),
                     uint256_from_decimal_string(&data.msgs[i][5]),
                     uint256_from_decimal_string(&data.msgs[i][6]),
+                    uint256_from_decimal_string(&data.msgs[i][7]),
+                    uint256_from_decimal_string(&data.msgs[i][8]),
+                    uint256_from_decimal_string(&data.msgs[i][9]),
                 ],
             };
 
@@ -574,6 +577,9 @@ mod test {
                     uint256_from_decimal_string(&data.msgs[i][4]),
                     uint256_from_decimal_string(&data.msgs[i][5]),
                     uint256_from_decimal_string(&data.msgs[i][6]),
+                    uint256_from_decimal_string(&data.msgs[i][7]),
+                    uint256_from_decimal_string(&data.msgs[i][8]),
+                    uint256_from_decimal_string(&data.msgs[i][9]),
                 ],
             };
 
@@ -875,6 +881,9 @@ mod test {
                             uint256_from_decimal_string(&data.message[4]),
                             uint256_from_decimal_string(&data.message[5]),
                             uint256_from_decimal_string(&data.message[6]),
+                            uint256_from_decimal_string(&data.message[7]),
+                            uint256_from_decimal_string(&data.message[8]),
+                            uint256_from_decimal_string(&data.message[9]),
                         ],
                     };
 
@@ -963,6 +972,9 @@ mod test {
                             uint256_from_decimal_string(&data.message[4]),
                             uint256_from_decimal_string(&data.message[5]),
                             uint256_from_decimal_string(&data.message[6]),
+                            uint256_from_decimal_string(&data.message[7]),
+                            uint256_from_decimal_string(&data.message[8]),
+                            uint256_from_decimal_string(&data.message[9]),
                         ],
                     };
 
@@ -1289,6 +1301,9 @@ mod test {
                             uint256_from_decimal_string(&data.message[4]),
                             uint256_from_decimal_string(&data.message[5]),
                             uint256_from_decimal_string(&data.message[6]),
+                            uint256_from_decimal_string(&data.message[7]),
+                            uint256_from_decimal_string(&data.message[8]),
+                            uint256_from_decimal_string(&data.message[9]),
                         ],
                     };
 
@@ -1372,6 +1387,9 @@ mod test {
                             uint256_from_decimal_string(&data.message[4]),
                             uint256_from_decimal_string(&data.message[5]),
                             uint256_from_decimal_string(&data.message[6]),
+                            uint256_from_decimal_string(&data.message[7]),
+                            uint256_from_decimal_string(&data.message[8]),
+                            uint256_from_decimal_string(&data.message[9]),
                         ],
                     };
 
@@ -1723,6 +1741,9 @@ mod test {
                             uint256_from_decimal_string(&data.message[4]),
                             uint256_from_decimal_string(&data.message[5]),
                             uint256_from_decimal_string(&data.message[6]),
+                            uint256_from_decimal_string(&data.message[7]),
+                            uint256_from_decimal_string(&data.message[8]),
+                            uint256_from_decimal_string(&data.message[9]),
                         ],
                     };
 

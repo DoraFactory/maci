@@ -33,6 +33,9 @@ pub struct InstantiateMsg {
     pub oracle_whitelist_pubkey: Option<String>,
     // Pre Deactivate Coordinator
     pub pre_deactivate_coordinator: Option<PubKey>,
+
+    // Poll ID assigned by Registry (required)
+    pub poll_id: u64,
 }
 
 #[cw_serde]
@@ -256,6 +259,9 @@ pub enum QueryMsg {
 
     #[returns(Uint256)]
     GetCurrentDeactivateCommitment {},
+
+    #[returns(u64)]
+    GetPollId {},
 }
 
 #[cw_serde]
@@ -285,4 +291,5 @@ pub struct InstantiationData {
     pub penalty_rate: Uint256,
     pub deactivate_timeout: Timestamp,
     pub tally_timeout: Timestamp,
+    pub poll_id: u64, // Poll ID assigned by Registry
 }

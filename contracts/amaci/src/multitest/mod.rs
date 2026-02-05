@@ -346,6 +346,7 @@ impl MaciContract {
             fee_recipient: fee_recipient(),
             oracle_whitelist_pubkey: None,
             pre_deactivate_coordinator: None,
+            poll_id: 1u64,
         };
 
         app.instantiate_contract(
@@ -407,6 +408,7 @@ impl MaciContract {
             fee_recipient: fee_recipient(),
             oracle_whitelist_pubkey: None,
             pre_deactivate_coordinator: None,
+            poll_id: 1u64,
         };
 
         app.instantiate_contract(
@@ -1228,6 +1230,7 @@ impl MaciContract {
             fee_recipient: fee_recipient(),
             oracle_whitelist_pubkey: Some(oracle_whitelist_pubkey),
             pre_deactivate_coordinator: None,
+            poll_id: 1u64,
         };
 
         app.instantiate_contract(

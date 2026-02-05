@@ -136,6 +136,33 @@
     {
       "type": "object",
       "required": [
+        "upload_deactivate_message"
+      ],
+      "properties": {
+        "upload_deactivate_message": {
+          "type": "object",
+          "required": [
+            "deactivate_message"
+          ],
+          "properties": {
+            "deactivate_message": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/Uint256"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "process_deactivate_message"
       ],
       "properties": {
@@ -429,6 +456,7 @@
       "additionalProperties": false
     },
     "MessageData": {
+      "description": "Message data structure for encrypted vote messages Length changed from 7 to 10 to accommodate new command structure: - Command: 7 elements [packed_data, newPubKey_x, newPubKey_y, salt, sig_R8_x, sig_R8_y, sig_S] - Encrypted: roundUp(7, 3) + 1 = 10 elements (Poseidon encryption padding)",
       "type": "object",
       "required": [
         "data"
@@ -439,8 +467,8 @@
           "items": {
             "$ref": "#/definitions/Uint256"
           },
-          "maxItems": 7,
-          "minItems": 7
+          "maxItems": 10,
+          "minItems": 10
         }
       },
       "additionalProperties": false

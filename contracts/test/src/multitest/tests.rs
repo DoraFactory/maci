@@ -108,6 +108,9 @@ mod test {
                 Uint256::from_u128(5u128),
                 Uint256::from_u128(6u128),
                 Uint256::from_u128(7u128),
+                Uint256::from_u128(8u128),
+                Uint256::from_u128(9u128),
+                Uint256::from_u128(10u128),
             ],
         };
         let enc_pub_key = test_pubkey2();
@@ -203,6 +206,9 @@ mod test {
                 Uint256::from_u128(5u128),
                 Uint256::from_u128(6u128),
                 Uint256::from_u128(7u128),
+                Uint256::from_u128(8u128),
+                Uint256::from_u128(9u128),
+                Uint256::from_u128(10u128),
             ],
         };
         let enc_pub_key = test_pubkey2();
@@ -591,6 +597,9 @@ mod test {
                 Uint256::from_u128(5u128),
                 Uint256::from_u128(6u128),
                 Uint256::from_u128(7u128),
+                Uint256::from_u128(8u128),
+                Uint256::from_u128(9u128),
+                Uint256::from_u128(10u128),
             ],
         };
         let enc_pub_key = test_pubkey2();
@@ -698,6 +707,9 @@ mod test {
                     Uint256::from_u128(i + 4),
                     Uint256::from_u128(i + 5),
                     Uint256::from_u128(i + 6),
+                    Uint256::from_u128(i + 7),
+                    Uint256::from_u128(i + 8),
+                    Uint256::from_u128(i + 9),
                 ],
             };
             let enc_pub_key = test_pubkey2();
@@ -749,9 +761,9 @@ mod test {
 
         // Test signup_no_hash
         let start = Instant::now();
-        for pubkey in &pubkeys {
+        for pubkey in pubkeys.iter().cloned() {
             contract
-                .test_signup_no_hash(&mut app, user1(), pubkey.clone())
+                .test_signup_no_hash(&mut app, user1(), pubkey)
                 .unwrap();
         }
         let duration_no_hash = start.elapsed();
@@ -775,9 +787,9 @@ mod test {
         .unwrap();
 
         let start = Instant::now();
-        for pubkey in &pubkeys {
+        for pubkey in pubkeys.iter().cloned() {
             contract2
-                .test_signup_with_hash(&mut app2, user1(), pubkey.clone())
+                .test_signup_with_hash(&mut app2, user1(), pubkey)
                 .unwrap();
         }
         let duration_with_hash = start.elapsed();
@@ -937,10 +949,10 @@ mod test {
 
             // Measure no_hash performance
             let mut no_hash_times = Vec::new();
-            for pubkey in &pubkeys {
+            for pubkey in pubkeys.iter().cloned() {
                 let start = Instant::now();
                 contract
-                    .test_signup_no_hash(&mut app, user1(), pubkey.clone())
+                    .test_signup_no_hash(&mut app, user1(), pubkey)
                     .unwrap();
                 no_hash_times.push(start.elapsed());
             }
@@ -964,10 +976,10 @@ mod test {
             .unwrap();
 
             let mut with_hash_times = Vec::new();
-            for pubkey in &pubkeys {
+            for pubkey in pubkeys.iter().cloned() {
                 let start = Instant::now();
                 contract2
-                    .test_signup_with_hash(&mut app2, user1(), pubkey.clone())
+                    .test_signup_with_hash(&mut app2, user1(), pubkey)
                     .unwrap();
                 with_hash_times.push(start.elapsed());
             }
@@ -1062,10 +1074,10 @@ mod test {
 
         // Measure each signup individually
         let mut times = Vec::new();
-        for (idx, pubkey) in pubkeys.iter().enumerate() {
+        for (idx, pubkey) in pubkeys.iter().cloned().enumerate() {
             let start = Instant::now();
             contract
-                .test_signup_with_hash(&mut app, user1(), pubkey.clone())
+                .test_signup_with_hash(&mut app, user1(), pubkey)
                 .unwrap();
             let duration = start.elapsed();
             times.push(duration);
@@ -1150,10 +1162,10 @@ mod test {
                 .collect();
 
             let mut times = Vec::new();
-            for (idx, pubkey) in pubkeys.iter().enumerate() {
+            for (idx, pubkey) in pubkeys.iter().cloned().enumerate() {
                 let start = Instant::now();
                 contract
-                    .test_signup_with_hash(&mut app, user1(), pubkey.clone())
+                    .test_signup_with_hash(&mut app, user1(), pubkey)
                     .unwrap();
                 let duration = start.elapsed();
                 times.push(duration);

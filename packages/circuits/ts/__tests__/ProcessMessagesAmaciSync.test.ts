@@ -5,7 +5,6 @@ import {
   poseidon,
   hash2,
   hash5,
-  genKeypair,
   encryptOdevity
 } from '@dorafactory/maci-sdk';
 
@@ -48,6 +47,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -170,6 +170,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -182,10 +183,11 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
 
       // Submit and process a vote
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints(),
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: operator.getPubkey().toPoints(),
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -219,6 +221,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -233,7 +236,8 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       // Deactivate
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints()
+        operatorPubkey: operator.getPubkey().toPoints(),
+        pollId: 1
       });
 
       const message = deactivatePayload.msg.map((m: string) => BigInt(m));
@@ -315,6 +319,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -323,10 +328,11 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints(),
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: operator.getPubkey().toPoints(),
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -354,6 +360,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -362,10 +369,11 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
 
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints(),
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: operator.getPubkey().toPoints(),
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -413,6 +421,7 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -435,10 +444,11 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       // Checkpoint 2: Send Vote Message (before endVotePeriod)
       console.log('\n📍 Checkpoint 2: Send Vote Message');
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -451,7 +461,8 @@ describe('AMACI ProcessMessages SDK-Circuit Sync Tests', function () {
       console.log('\n📍 Checkpoint 3: Send Deactivate Message');
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
 
       const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));

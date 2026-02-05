@@ -129,7 +129,7 @@ pub fn pack_pub_key(pub_key: &PubKey) -> BigUint {
 /// ```
 pub fn unpack_pub_key(packed: &BigUint) -> Result<PubKey> {
     // Use eddsa-poseidon's unpack_public_key
-    let point = unpack_public_key(packed).map_err(|e| CryptoError::InvalidPackedPublicKey(e))?;
+    let point = unpack_public_key(packed).map_err(CryptoError::InvalidPackedPublicKey)?;
 
     // Convert EdwardsAffine point to PubKey (BigUint array)
     let x_bytes = point.x.into_bigint().to_bytes_le();

@@ -1,13 +1,13 @@
-.PHONY: wasm wasm-amaci wasm-registry wasm-api-maci wasm-api-saas wasm-test
-.PHONY: schema schema-amaci schema-registry schema-api-maci schema-api-saas
+.PHONY: wasm wasm-amaci wasm-maci wasm-registry wasm-api-saas wasm-test
+.PHONY: schema schema-amaci schema-maci schema-registry schema-api-saas
 .PHONY: test unit-test clean optimize help
 
 # Compile all contracts to wasm
 wasm:
 	@echo "Building all contracts..."
 	@cd contracts/amaci && cargo wasm
+	@cd contracts/maci && cargo wasm
 	@cd contracts/registry && cargo wasm
-	@cd contracts/api-maci && cargo wasm
 	@cd contracts/api-saas && cargo wasm
 	@cd contracts/test && cargo wasm
 	@echo "✅ All contracts built successfully"
@@ -16,11 +16,11 @@ wasm:
 wasm-amaci:
 	@cd contracts/amaci && cargo wasm
 
+wasm-maci:
+	@cd contracts/maci && cargo wasm
+
 wasm-registry:
 	@cd contracts/registry && cargo wasm
-
-wasm-api-maci:
-	@cd contracts/api-maci && cargo wasm
 
 wasm-api-saas:
 	@cd contracts/api-saas && cargo wasm
@@ -32,8 +32,8 @@ wasm-test:
 schema:
 	@echo "Generating schemas..."
 	@cd contracts/amaci && cargo schema
+	@cd contracts/maci && cargo schema
 	@cd contracts/registry && cargo schema
-	@cd contracts/api-maci && cargo schema
 	@cd contracts/api-saas && cargo schema
 	@echo "✅ All schemas generated"
 
@@ -41,11 +41,11 @@ schema:
 schema-amaci:
 	@cd contracts/amaci && cargo schema
 
+schema-maci:
+	@cd contracts/maci && cargo schema
+
 schema-registry:
 	@cd contracts/registry && cargo schema
-
-schema-api-maci:
-	@cd contracts/api-maci && cargo schema
 
 schema-api-saas:
 	@cd contracts/api-saas && cargo schema
@@ -58,8 +58,8 @@ test:
 unit-test:
 	@echo "Running contract unit tests..."
 	@cd contracts/amaci && cargo unit-test
+	@cd contracts/maci && cargo unit-test
 	@cd contracts/registry && cargo unit-test
-	@cd contracts/api-maci && cargo unit-test
 	@cd contracts/api-saas && cargo unit-test
 	@cd contracts/test && cargo unit-test
 	@echo "✅ All contract tests passed"
@@ -96,13 +96,14 @@ help:
 	@echo ""
 	@echo "  make wasm           - Build all contracts to wasm"
 	@echo "  make wasm-amaci     - Build amaci contract"
+	@echo "  make wasm-maci      - Build maci contract"
 	@echo "  make wasm-registry  - Build registry contract"
-	@echo "  make wasm-api-maci  - Build api-maci contract"
 	@echo "  make wasm-api-saas  - Build api-saas contract"
 	@echo "  make wasm-test      - Build test contract"
 	@echo ""
 	@echo "  make schema         - Generate schemas for all contracts"
 	@echo "  make schema-amaci   - Generate schema for amaci"
+	@echo "  make schema-maci    - Generate schema for maci"
 	@echo ""
 	@echo "  make test           - Run all tests (contracts + crates)"
 	@echo "  make unit-test      - Run unit tests for all contracts"

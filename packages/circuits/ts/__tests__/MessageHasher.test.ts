@@ -1,5 +1,6 @@
-import { SNARK_FIELD_SIZE, hash10 } from '@dorafactory/maci-sdk';
+import { SNARK_FIELD_SIZE, hash13 } from '@dorafactory/maci-sdk';
 import { type WitnessTester } from 'circomkit';
+import { expect } from 'chai';
 import fc from 'fast-check';
 
 import { getSignal, circomkitInstance } from './utils/utils';
@@ -24,14 +25,11 @@ const CIRCOM_PATH = './utils/messageHasher';
  * ============================================================================
  *
  * A MACI message consists of:
- * 1. Command data (7 field elements):
- *    - Command type
- *    - State index
- *    - Vote option
- *    - New public key (if key change)
- *    - Nonce
- *    - Salt
- *    - Other parameters
+ * 1. Command data (10 field elements):
+ *    - Encrypted command elements (after poseidon encryption)
+ *    - Message length increased from 7 to 10 due to command structure change
+ *    - Command: [packed_data, salt, new_pubkey_x, new_pubkey_y, sig_R8_x, sig_R8_y, sig_S] (7 elements)
+ *    - Encrypted: roundUp(7, 3) * 3 + 1 = 10 elements
  *
  * 2. Encryption public key (2 field elements):
  *    - encPubKey[0]: x-coordinate
@@ -41,7 +39,7 @@ const CIRCOM_PATH = './utils/messageHasher';
  *    - Links to previous message in chain
  *    - Prevents message reordering
  *
- * Total: 10 field elements → Poseidon hash
+ * Total: 13 field elements → Hasher13 (uses two-level hashing)
  *
  * ============================================================================
  * MESSAGE CHAINING
@@ -67,13 +65,13 @@ const CIRCOM_PATH = './utils/messageHasher';
  * ============================================================================
  *
  * Input:
- *   - in[7]: Message command data (7 field elements)
+ *   - in[10]: Message command data (10 field elements)
  *   - encPubKey[2]: Encryption public key
  *   - prevHash: Hash of previous message (0 for first message)
  *
  * Process:
- *   1. Combine all 10 inputs: [in[0]...in[6], encPubKey[0], encPubKey[1], prevHash]
- *   2. Apply Poseidon hash: hash = Poseidon_10(combined_inputs)
+ *   1. Combine all 13 inputs: [in[0]...in[9], encPubKey[0], encPubKey[1], prevHash]
+ *   2. Apply Hasher13: hash5([hash5(in[0..4]), hash5(in[5..9]), encPubKey[0], encPubKey[1], prevHash])
  *
  * Output:
  *   - hash: Single field element representing message commitment
@@ -128,13 +126,13 @@ describe('MessageHasher circuit', function test() {
        * Test Case: Property-based correctness verification
        *
        * Uses fast-check to test 100+ random input combinations:
-       * - 7 random message field elements
+       * - 10 random message field elements
        * - 2 random encryption public key coordinates
        * - 1 random previous hash value
        *
        * Verifies:
        * - Circuit output matches JavaScript Poseidon implementation
-       * - All 10 inputs are correctly combined and hashed
+       * - All 13 inputs are correctly combined and hashed
        * - Circuit constraints are satisfied for all random inputs
        *
        * This property-based testing approach provides high confidence
@@ -143,8 +141,8 @@ describe('MessageHasher circuit', function test() {
       await fc.assert(
         fc.asyncProperty(
           fc.array(fc.bigInt({ min: 0n, max: SNARK_FIELD_SIZE - 1n }), {
-            minLength: 7,
-            maxLength: 7
+            minLength: 10,
+            maxLength: 10
           }),
           fc.array(fc.bigInt({ min: 0n, max: SNARK_FIELD_SIZE - 1n }), {
             minLength: 2,
@@ -160,15 +158,73 @@ describe('MessageHasher circuit', function test() {
             await circuit.expectConstraintPass(witness);
             const output = await getSignal(circuit, witness, 'hash');
 
-            // Calculate expected output using SDK functions
-            // MessageHasher combines: in[7] + encPubKey[2] + prevHash = 10 elements
+            // Calculate expected output using SDK's hash13 function
+            // MessageHasher combines: in[10] + encPubKey[2] + prevHash = 13 elements
+            // Structure: hash5([hash5(m[0..4]), hash5(m[5..9]), encPubKey[0], encPubKey[1], prevHash])
             const allInputs = [...messageFields, ...encPubKey, prevHash];
-            const outputJS = hash10(allInputs);
+            const outputJS = hash13(allInputs);
 
             return output === outputJS;
           }
         )
       );
+    });
+
+    it('should verify hash13 function matches circuit implementation', async () => {
+      /**
+       * Test Case: SDK hash13 function correctness
+       *
+       * This test explicitly verifies that the SDK's hash13 function
+       * produces the same output as the MessageHasher circuit.
+       *
+       * The hash13 function is critical for:
+       * - Computing message chain hashes off-chain
+       * - Verifying message integrity in the SDK
+       * - Building correct message chains for MACI
+       *
+       * Structure tested:
+       * - Input: 10 message elements + 2 encPubKey elements + 1 prevHash = 13 elements
+       * - Implementation: hash5([hash5(m[0..4]), hash5(m[5..9]), m[10], m[11], m[12]])
+       *
+       * This matches the circuit's Hasher13 template exactly.
+       */
+      const messageFields = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n];
+      const encPubKey = [11n, 12n];
+      const prevHash = 13n;
+
+      // Calculate using circuit
+      const witness = await circuit.calculateWitness({
+        in: messageFields,
+        encPubKey,
+        prevHash
+      });
+      await circuit.expectConstraintPass(witness);
+      const circuitOutput = await getSignal(circuit, witness, 'hash');
+
+      // Calculate using SDK's hash13 function
+      const allInputs = [...messageFields, ...encPubKey, prevHash];
+      const sdkOutput = hash13(allInputs);
+
+      // They should match exactly
+      expect(sdkOutput).to.equal(circuitOutput);
+
+      // Also verify with different values to ensure consistency
+      const messageFields2 = [100n, 200n, 300n, 400n, 500n, 600n, 700n, 800n, 900n, 1000n];
+      const encPubKey2 = [1100n, 1200n];
+      const prevHash2 = 1300n;
+
+      const witness2 = await circuit.calculateWitness({
+        in: messageFields2,
+        encPubKey: encPubKey2,
+        prevHash: prevHash2
+      });
+      await circuit.expectConstraintPass(witness2);
+      const circuitOutput2 = await getSignal(circuit, witness2, 'hash');
+
+      const allInputs2 = [...messageFields2, ...encPubKey2, prevHash2];
+      const sdkOutput2 = hash13(allInputs2);
+
+      expect(sdkOutput2).to.equal(circuitOutput2);
     });
 
     it('should produce consistent hash for same inputs', async () => {
@@ -178,9 +234,9 @@ describe('MessageHasher circuit', function test() {
        * Hashes the same message twice and verifies outputs are identical.
        *
        * Input:
-       * - messageFields: [1, 2, 3, 4, 5, 6, 7]
-       * - encPubKey: [8, 9]
-       * - prevHash: 10
+       * - messageFields: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+       * - encPubKey: [11, 12]
+       * - prevHash: 13
        *
        * This tests:
        * 1. Determinism: Same input → same output (always)
@@ -189,9 +245,9 @@ describe('MessageHasher circuit', function test() {
        *
        * Critical for: Verifiable computation - anyone can reproduce the hash
        */
-      const messageFields = [1n, 2n, 3n, 4n, 5n, 6n, 7n];
-      const encPubKey = [8n, 9n];
-      const prevHash = 10n;
+      const messageFields = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n];
+      const encPubKey = [11n, 12n];
+      const prevHash = 13n;
 
       const witness1 = await circuit.calculateWitness({
         in: messageFields,
@@ -218,8 +274,8 @@ describe('MessageHasher circuit', function test() {
        * even when using the same encryption key and prevHash.
        *
        * Inputs:
-       * - Message 1: [1, 2, 3, 4, 5, 6, 7] (ascending)
-       * - Message 2: [7, 6, 5, 4, 3, 2, 1] (descending - reversed)
+       * - Message 1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] (ascending)
+       * - Message 2: [10, 9, 8, 7, 6, 5, 4, 3, 2, 1] (descending - reversed)
        * - Same encPubKey and prevHash for both
        *
        * Expected: hash1 ≠ hash2
@@ -231,8 +287,8 @@ describe('MessageHasher circuit', function test() {
        *
        * Security implication: Prevents message substitution attacks
        */
-      const messageFields1 = [1n, 2n, 3n, 4n, 5n, 6n, 7n];
-      const messageFields2 = [7n, 6n, 5n, 4n, 3n, 2n, 1n];
+      const messageFields1 = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n];
+      const messageFields2 = [10n, 9n, 8n, 7n, 6n, 5n, 4n, 3n, 2n, 1n];
       const encPubKey = [100n, 200n];
       const prevHash = 300n;
 
@@ -275,7 +331,7 @@ describe('MessageHasher circuit', function test() {
        *
        * Security property: Key commitment - hash commits to specific recipient
        */
-      const messageFields = [1n, 2n, 3n, 4n, 5n, 6n, 7n];
+      const messageFields = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n];
       const encPubKey1 = [100n, 200n];
       const encPubKey2 = [200n, 100n];
       const prevHash = 300n;
@@ -323,7 +379,7 @@ describe('MessageHasher circuit', function test() {
        * - Insertion of messages into existing chain
        * - Removal of messages from chain
        */
-      const messageFields = [1n, 2n, 3n, 4n, 5n, 6n, 7n];
+      const messageFields = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n];
       const encPubKey = [100n, 200n];
       const prevHash1 = 300n;
       const prevHash2 = 400n;
@@ -352,7 +408,7 @@ describe('MessageHasher circuit', function test() {
        * Tests the circuit with minimum possible values (all zeros).
        *
        * Input:
-       * - messageFields: [0, 0, 0, 0, 0, 0, 0]
+       * - messageFields: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
        * - encPubKey: [0, 0]
        * - prevHash: 0
        *
@@ -364,7 +420,7 @@ describe('MessageHasher circuit', function test() {
        *
        * Use case: Initial message in a new chain starts with prevHash = 0
        */
-      const messageFields = [0n, 0n, 0n, 0n, 0n, 0n, 0n];
+      const messageFields = [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
       const encPubKey = [0n, 0n];
       const prevHash = 0n;
 
@@ -376,10 +432,11 @@ describe('MessageHasher circuit', function test() {
       await circuit.expectConstraintPass(witness);
       const output = await getSignal(circuit, witness, 'hash');
 
+      // Calculate expected hash using hash13
       const allInputs = [...messageFields, ...encPubKey, prevHash];
-      const outputJS = hash10(allInputs);
+      const expectedHash = hash13(allInputs);
 
-      return output === outputJS;
+      return output === expectedHash;
     });
 
     it('should handle maximum field values correctly', async () => {
@@ -402,7 +459,7 @@ describe('MessageHasher circuit', function test() {
        * works correctly across the entire valid input range.
        */
       const maxVal = SNARK_FIELD_SIZE - 1n;
-      const messageFields = Array(7).fill(maxVal);
+      const messageFields = Array(10).fill(maxVal);
       const encPubKey = [maxVal, maxVal];
       const prevHash = maxVal;
 
@@ -414,10 +471,11 @@ describe('MessageHasher circuit', function test() {
       await circuit.expectConstraintPass(witness);
       const output = await getSignal(circuit, witness, 'hash');
 
+      // Calculate expected hash using hash13
       const allInputs = [...messageFields, ...encPubKey, prevHash];
-      const outputJS = hash10(allInputs);
+      const expectedHash = hash13(allInputs);
 
-      return output === outputJS;
+      expect(output).to.equal(expectedHash);
     });
 
     it('should create a valid message chain', async () => {
@@ -450,8 +508,8 @@ describe('MessageHasher circuit', function test() {
        * Security guarantee: Any modification to a message breaks all subsequent
        * hashes in the chain, making tampering immediately detectable.
        */
-      const message1Fields = [1n, 2n, 3n, 4n, 5n, 6n, 7n];
-      const message2Fields = [8n, 9n, 10n, 11n, 12n, 13n, 14n];
+      const message1Fields = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n];
+      const message2Fields = [11n, 12n, 13n, 14n, 15n, 16n, 17n, 18n, 19n, 20n];
       const encPubKey = [100n, 200n];
       const initialPrevHash = 0n;
 

@@ -1,9 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_json, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, Timestamp,
-    Uint128, Uint256, WasmMsg,
+    attr, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, Timestamp, Uint128,
+    Uint256, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::{may_pay, parse_instantiate_response_data};
@@ -19,14 +19,7 @@ use prost::Message;
 use cw_amaci::msg::WhitelistBase;
 use cw_amaci::state::{RoundInfo, VotingTime};
 
-use cw_api_maci::msg::{
-    InstantiateMsg as OracleMaciInstantiateMsg, InstantiationData as OracleMaciInstantiationData,
-    VotingPowerArgs,
-};
-use cw_api_maci::state::{
-    PubKey as OracleMaciPubKey, RoundInfo as OracleMaciRoundInfo, VotingPowerMode,
-    VotingTime as OracleMaciVotingTime,
-};
+use cw_maci::state::VotingPowerMode;
 
 use cosmos_sdk_proto::traits::TypeUrl;
 // Local contract types
@@ -378,7 +371,10 @@ pub fn execute_withdraw(
     // Check if sufficient balance
     let total_balance = TOTAL_BALANCE.load(deps.storage)?;
     if total_balance < amount {
-        return Err(ContractError::InsufficientBalance {});
+        return Err(ContractError::InsufficientBalance {
+            required: amount,
+            available: total_balance,
+        });
     }
 
     // Update total balance
@@ -405,7 +401,7 @@ pub fn execute_withdraw(
 
 pub fn execute_create_maci_round(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     coordinator: PubKey,
     max_voters: u128,
@@ -417,68 +413,81 @@ pub fn execute_create_maci_round(
     certification_system: Uint256,
     whitelist_backend_pubkey: String,
 ) -> Result<Response, ContractError> {
-    // Only operators can create API MACI rounds
+    // Only operators can create MACI rounds
     if !OPERATORS.has(deps.storage, &info.sender) {
         return Err(ContractError::Unauthorized {});
     }
 
-    // Create Oracle MACI VotingTime using provided start_time and end_time
-    let oracle_voting_time = OracleMaciVotingTime {
-        start_time: start_time,
-        end_time: end_time,
+    // Calculate required fee based on max_voters and vote_option_map
+    let max_voter = Uint256::from_u128(max_voters);
+    let max_option = Uint256::from_u128(vote_option_map.len() as u128);
+
+    // Calculate base fee using the same calculation as Registry
+    let (base_fee, _) =
+        cw_amaci_registry::utils::calculate_round_fee_and_params(max_voter, max_option)
+            .map_err(|e| ContractError::Std(StdError::generic_err(e.to_string())))?;
+
+    // For MACI, only charge 10% management fee (same as Registry's default fee_rate)
+    // This matches Registry's fee calculation: base_fee * circuit_charge_config.fee_rate
+    let fee_rate = cosmwasm_std::Decimal::from_ratio(1u128, 10u128); // 10% = 0.1
+    let required_fee = base_fee * fee_rate;
+
+    // Check if SaaS contract has sufficient balance
+    let total_balance = TOTAL_BALANCE.load(deps.storage)?;
+    if total_balance < required_fee {
+        return Err(ContractError::InsufficientBalance {
+            required: required_fee,
+            available: total_balance,
+        });
+    }
+
+    // Deduct the fee from SaaS balance
+    TOTAL_BALANCE.save(deps.storage, &(total_balance - required_fee))?;
+
+    // Create voting time
+    let voting_time = VotingTime {
+        start_time,
+        end_time,
     };
 
-    // Create Oracle MACI InstantiateMsg using proper Oracle MACI types (like registry does with AMACI)
-    let oracle_maci_instantiate_msg = OracleMaciInstantiateMsg {
-        coordinator: OracleMaciPubKey {
+    // Load registry contract address
+    let registry_addr = REGISTRY_CONTRACT_ADDR.load(deps.storage)?;
+
+    // Call Registry's CreateMaciRound with coordinator pubkey directly
+    let registry_msg = cw_amaci_registry::msg::ExecuteMsg::CreateMaciRound {
+        coordinator: cw_amaci::state::PubKey {
             x: coordinator.x,
             y: coordinator.y,
         },
         max_voters,
         vote_option_map: vote_option_map.clone(),
-        round_info: OracleMaciRoundInfo {
-            title: round_info.title.clone(),
-            description: round_info.description.clone(),
-            link: round_info.link.clone(),
-        },
-        voting_time: oracle_voting_time,
+        round_info: round_info.clone(),
+        voting_time,
         circuit_type,
         certification_system,
         whitelist_backend_pubkey: whitelist_backend_pubkey.clone(),
-        // Fixed default values - one person one vote system
-        whitelist_voting_power_args: VotingPowerArgs {
-            mode: VotingPowerMode::Slope,
-            slope: Uint256::one(),
-            threshold: Uint256::one(),
-        },
+        whitelist_voting_power_mode: VotingPowerMode::Slope,
     };
 
-    // Validate the message can be serialized properly
-    let serialized_msg = to_json_binary(&oracle_maci_instantiate_msg).map_err(|e| {
-        ContractError::SerializationError {
-            msg: format!("Failed to serialize Oracle MACI InstantiateMsg: {}", e),
-        }
-    })?;
-
-    let maci_code_id = MACI_CODE_ID.load(deps.storage)?;
-
-    // Prepare the instantiate message with SaaS contract as admin and token funds
-    let instantiate_msg = WasmMsg::Instantiate {
-        admin: Some(env.contract.address.to_string()), // SaaS contract as Oracle MACI admin
-        code_id: maci_code_id,
-        msg: serialized_msg,
-        funds: vec![], // No funds needed for MACI contract
-        label: format!("API Maci Round - {}", round_info.title),
+    let wasm_msg = WasmMsg::Execute {
+        contract_addr: registry_addr.to_string(),
+        msg: to_json_binary(&registry_msg)?,
+        funds: vec![Coin {
+            denom: "peaka".to_string(),
+            amount: required_fee,
+        }],
     };
 
-    // Create SubMsg with reply using registry pattern - this allows getting the real contract address
-    let submsg = SubMsg::reply_on_success(instantiate_msg, CREATED_API_MACI_ROUND_REPLY_ID);
+    // Use SubMsg with reply to capture the MACI contract address
+    let submsg = SubMsg::reply_on_success(wasm_msg, CREATED_API_MACI_ROUND_REPLY_ID);
+
     Ok(Response::new()
         .add_submessage(submsg)
-        .add_attribute("action", "create_api_maci_round")
-        .add_attribute("operator", info.sender.to_string())
+        .add_attribute("action", "create_maci_round")
+        .add_attribute("caller", info.sender.to_string())
         .add_attribute("round_title", round_info.title)
-        .add_attribute("max_voters", max_voters.to_string()))
+        .add_attribute("max_voters", max_voters.to_string())
+        .add_attribute("fee_paid", required_fee.to_string()))
 }
 
 pub fn execute_set_round_info(
@@ -598,7 +607,10 @@ pub fn execute_create_amaci_round(
     // Check if SaaS contract has sufficient balance
     let total_balance = TOTAL_BALANCE.load(deps.storage)?;
     if total_balance < required_fee {
-        return Err(ContractError::InsufficientBalance {});
+        return Err(ContractError::InsufficientBalance {
+            required: required_fee,
+            available: total_balance,
+        });
     }
 
     // Deduct fee from SaaS contract balance
@@ -713,112 +725,21 @@ fn reply_created_maci_round(
 
     let contract_address = Addr::unchecked(parsed_response.contract_address.clone());
 
-    let oracle_maci_return_data: OracleMaciInstantiationData = from_json(
-        &parsed_response
-            .data
-            .ok_or_else(|| ContractError::SerializationError {
-                msg: "Missing instantiation data".to_string(),
-            })?,
-    )?;
+    // When creating through Registry, we don't get MACI instantiation data directly
+    // The Registry handles that, we just need to track the created contract address
 
     let maci_code_id = MACI_CODE_ID.load(deps.storage)?;
 
-    // Prepare return data - now contains complete oracle maci instantiation data
+    // Prepare return data
     let saas_instantiation_data = InstantiationData {
         addr: contract_address.clone(),
     };
 
-    let mut response_attrs = vec![
+    let response_attrs = vec![
         attr("action", "created_maci_round"),
         attr("round_addr", &contract_address.to_string()),
         attr("code_id", &maci_code_id.to_string()),
-        attr("caller", &oracle_maci_return_data.caller.to_string()),
-        attr("admin", &oracle_maci_return_data.caller.to_string()),
-        attr("operator", &oracle_maci_return_data.caller.to_string()),
     ];
-
-    // If successfully parsed Oracle MACI instantiation data, add more detailed information
-    // if let Some(ref oracle_maci_data) = oracle_maci_instantiation_data {
-    response_attrs.extend(vec![
-        attr(
-            "voting_start",
-            &oracle_maci_return_data
-                .voting_time
-                .start_time
-                .nanos()
-                .to_string(),
-        ),
-        attr(
-            "voting_end",
-            &oracle_maci_return_data
-                .voting_time
-                .end_time
-                .nanos()
-                .to_string(),
-        ),
-        attr(
-            "round_title",
-            &oracle_maci_return_data.round_info.title.to_string(),
-        ),
-        attr("max_voters", oracle_maci_return_data.max_voters.to_string()),
-        attr(
-            "vote_option_map",
-            serde_json::to_string(&oracle_maci_return_data.vote_option_map)
-                .unwrap_or_else(|_| "[]".to_string()),
-        ),
-        attr("circuit_type", &oracle_maci_return_data.circuit_type),
-        attr(
-            "certification_system",
-            &oracle_maci_return_data.certification_system,
-        ),
-        attr(
-            "coordinator_pubkey_x",
-            oracle_maci_return_data.coordinator.x.to_string(),
-        ),
-        attr(
-            "coordinator_pubkey_y",
-            oracle_maci_return_data.coordinator.y.to_string(),
-        ),
-        attr(
-            "state_tree_depth",
-            oracle_maci_return_data
-                .parameters
-                .state_tree_depth
-                .to_string(),
-        ),
-        attr(
-            "int_state_tree_depth",
-            &oracle_maci_return_data
-                .parameters
-                .int_state_tree_depth
-                .to_string(),
-        ),
-        attr(
-            "vote_option_tree_depth",
-            oracle_maci_return_data
-                .parameters
-                .vote_option_tree_depth
-                .to_string(),
-        ),
-        attr(
-            "message_batch_size",
-            &oracle_maci_return_data
-                .parameters
-                .message_batch_size
-                .to_string(),
-        ),
-    ]);
-
-    if oracle_maci_return_data.round_info.description != "" {
-        response_attrs.push(attr(
-            "round_description",
-            &oracle_maci_return_data.round_info.description,
-        ));
-    }
-
-    if oracle_maci_return_data.round_info.link != "" {
-        response_attrs.push(attr("round_link", &oracle_maci_return_data.round_info.link));
-    }
 
     Ok(Response::new()
         .add_attributes(response_attrs)

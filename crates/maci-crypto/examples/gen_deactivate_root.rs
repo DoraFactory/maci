@@ -26,7 +26,7 @@ fn main() {
 
     // Step 2: Create test account keypairs
     println!("Step 2: Creating test account keypairs...");
-    let account_seeds = vec![11111u64, 22222u64, 33333u64, 44444u64, 55555u64];
+    let account_seeds = [11111u64, 22222u64, 33333u64, 44444u64, 55555u64];
     let accounts: Vec<_> = account_seeds
         .iter()
         .map(|&seed| {

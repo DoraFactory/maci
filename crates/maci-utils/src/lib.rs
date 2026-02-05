@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_sequential_values() {
-        let data: Vec<_> = (0..5).map(|i| Uint256::from_u128(i)).collect();
+        let data: Vec<_> = (0..5).map(Uint256::from_u128).collect();
 
         let hash_result = hash5([data[0], data[1], data[2], data[3], data[4]]);
 

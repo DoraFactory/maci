@@ -10,6 +10,7 @@
     "fee_recipient",
     "operator",
     "parameters",
+    "poll_id",
     "pre_deactivate_root",
     "round_info",
     "voice_credit_amount",
@@ -43,6 +44,11 @@
     },
     "parameters": {
       "$ref": "#/definitions/MaciParameters"
+    },
+    "poll_id": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "pre_deactivate_coordinator": {
       "anyOf": [

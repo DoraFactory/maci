@@ -533,9 +533,9 @@ describe('Crypto Consistency E2E Tests', function () {
           const stateIdx = BigInt(data.input.state_idx);
           const voIdx = BigInt(data.input.vo_idx);
           const newVotes = BigInt(data.input.new_votes);
-          const salt = data.input.salt ? BigInt(data.input.salt) : undefined;
+          const pollId = data.input.poll_id ? BigInt(data.input.poll_id) : 0n;
 
-          const sdkPacked = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+          const sdkPacked = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
           const rustPacked = BigInt(data.packed);
 
           console.log(`\n  ${vector.name}:`);
@@ -553,7 +553,8 @@ describe('Crypto Consistency E2E Tests', function () {
             nonce: BigInt(data.unpacked.nonce),
             stateIdx: BigInt(data.unpacked.state_idx),
             voIdx: BigInt(data.unpacked.vo_idx),
-            newVotes: BigInt(data.unpacked.new_votes)
+            newVotes: BigInt(data.unpacked.new_votes),
+            pollId: BigInt(data.unpacked.poll_id)
           };
 
           expect(sdkUnpacked.nonce).to.equal(rustUnpacked.nonce, 'Unpacked nonce should match');
@@ -565,6 +566,10 @@ describe('Crypto Consistency E2E Tests', function () {
           expect(sdkUnpacked.newVotes).to.equal(
             rustUnpacked.newVotes,
             'Unpacked newVotes should match'
+          );
+          expect(sdkUnpacked.pollId).to.equal(
+            rustUnpacked.pollId,
+            'Unpacked pollId should match'
           );
           console.log('    ✓ Unpacking: MATCH');
         }

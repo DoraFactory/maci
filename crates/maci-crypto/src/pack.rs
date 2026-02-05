@@ -1,6 +1,5 @@
 use crate::constants::{UINT32, UINT96};
 use num_bigint::BigUint;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 /// A packed element containing message fields
@@ -10,36 +9,23 @@ pub struct PackedElement {
     pub state_idx: BigUint,
     pub vo_idx: BigUint,
     pub new_votes: BigUint,
-    pub salt: Option<BigUint>,
+    pub poll_id: BigUint,
 }
 
 /// Pack message fields into a single BigUint
-/// Structure: nonce + (stateIdx << 32) + (voIdx << 64) + (newVotes << 96) + (salt << 192)
+/// Structure: nonce + (stateIdx << 32) + (voIdx << 64) + (newVotes << 96) + (pollId << 192)
+///
+/// Note: In the new format, pollId is 32 bits and is packed at position 192.
+/// This differs from the old format which used a 56-bit salt at the same position.
 pub fn pack_element(
     nonce: &BigUint,
     state_idx: &BigUint,
     vo_idx: &BigUint,
     new_votes: &BigUint,
-    salt: Option<&BigUint>,
+    poll_id: &BigUint,
 ) -> BigUint {
-    let salt = if let Some(s) = salt {
-        s.clone()
-    } else {
-        // Generate random 56-bit salt (7 bytes)
-        let mut rng = rand::thread_rng();
-        let mut bytes = [0u8; 7];
-        rng.fill(&mut bytes);
-        BigUint::from_bytes_be(&bytes)
-    };
-
-    // Pack: nonce + (stateIdx << 32) + (voIdx << 64) + (newVotes << 96) + (salt << 192)
-    let packed = nonce
-        + (state_idx << 32)
-        + (vo_idx << 64)
-        + (new_votes << 96)
-        + (salt << 192);
-
-    packed
+    // Pack: nonce + (stateIdx << 32) + (voIdx << 64) + (newVotes << 96) + (pollId << 192)
+    nonce + (state_idx << 32) + (vo_idx << 64) + (new_votes << 96) + (poll_id << 192)
 }
 
 /// Unpack a BigUint back into its component fields
@@ -48,13 +34,14 @@ pub fn unpack_element(packed: &BigUint) -> PackedElement {
     let state_idx = (packed >> 32) % &*UINT32;
     let vo_idx = (packed >> 64) % &*UINT32;
     let new_votes = (packed >> 96) % &*UINT96;
+    let poll_id = (packed >> 192) % &*UINT32;
 
     PackedElement {
         nonce,
         state_idx,
         vo_idx,
         new_votes,
-        salt: None, // Salt is not recovered in the TS implementation
+        poll_id,
     }
 }
 
@@ -68,31 +55,34 @@ mod tests {
         let state_idx = BigUint::from(456u32);
         let vo_idx = BigUint::from(789u32);
         let new_votes = BigUint::from(1000u32);
-        let salt = BigUint::from(999999u32);
+        let poll_id = BigUint::from(999u32);
 
-        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, Some(&salt));
+        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, &poll_id);
         let unpacked = unpack_element(&packed);
 
         assert_eq!(unpacked.nonce, nonce);
         assert_eq!(unpacked.state_idx, state_idx);
         assert_eq!(unpacked.vo_idx, vo_idx);
         assert_eq!(unpacked.new_votes, new_votes);
+        assert_eq!(unpacked.poll_id, poll_id);
     }
 
     #[test]
-    fn test_pack_without_salt() {
+    fn test_pack_zero_poll_id() {
         let nonce = BigUint::from(123u32);
         let state_idx = BigUint::from(456u32);
         let vo_idx = BigUint::from(789u32);
         let new_votes = BigUint::from(1000u32);
+        let poll_id = BigUint::from(0u32);
 
-        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, None);
+        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, &poll_id);
         let unpacked = unpack_element(&packed);
 
         assert_eq!(unpacked.nonce, nonce);
         assert_eq!(unpacked.state_idx, state_idx);
         assert_eq!(unpacked.vo_idx, vo_idx);
         assert_eq!(unpacked.new_votes, new_votes);
+        assert_eq!(unpacked.poll_id, poll_id);
     }
 
     #[test]
@@ -101,15 +91,16 @@ mod tests {
         let state_idx = BigUint::from(0u32);
         let vo_idx = BigUint::from(0u32);
         let new_votes = BigUint::from(0u32);
-        let salt = BigUint::from(0u32);
+        let poll_id = BigUint::from(0u32);
 
-        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, Some(&salt));
+        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, &poll_id);
         let unpacked = unpack_element(&packed);
 
         assert_eq!(unpacked.nonce, nonce);
         assert_eq!(unpacked.state_idx, state_idx);
         assert_eq!(unpacked.vo_idx, vo_idx);
         assert_eq!(unpacked.new_votes, new_votes);
+        assert_eq!(unpacked.poll_id, poll_id);
     }
 
     #[test]
@@ -119,14 +110,15 @@ mod tests {
         let state_idx = &*UINT32 - BigUint::from(1u32); // 32 bits
         let vo_idx = &*UINT32 - BigUint::from(1u32); // 32 bits
         let new_votes = &*UINT96 - BigUint::from(1u32); // 96 bits
+        let poll_id = &*UINT32 - BigUint::from(1u32); // 32 bits
 
-        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, None);
+        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, &poll_id);
         let unpacked = unpack_element(&packed);
 
         assert_eq!(unpacked.nonce, nonce);
         assert_eq!(unpacked.state_idx, state_idx);
         assert_eq!(unpacked.vo_idx, vo_idx);
         assert_eq!(unpacked.new_votes, new_votes);
+        assert_eq!(unpacked.poll_id, poll_id);
     }
 }
-

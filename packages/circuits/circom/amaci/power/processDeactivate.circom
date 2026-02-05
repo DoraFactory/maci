@@ -24,7 +24,7 @@ template ProcessDeactivateMessages(
 
     var TREE_ARITY = 5;
 
-    var MSG_LENGTH = 7;
+    var MSG_LENGTH = 10;  // Ciphertext length for 7-element command
     var PACKED_CMD_LENGTH = 3;
 
     // var BALLOT_LENGTH = 2;
@@ -86,6 +86,9 @@ template ProcessDeactivateMessages(
 
     signal input deactivateLeavesPathElements[batchSize][deactivateTreeDepth][TREE_ARITY - 1];
 
+    // Expected poll ID for replay attack prevention
+    signal input expectedPollId;
+
     //
     signal input currentDeactivateCommitment;
 
@@ -103,6 +106,7 @@ template ProcessDeactivateMessages(
     inputHasher.currentDeactivateCommitment <== currentDeactivateCommitment;
     inputHasher.newDeactivateCommitment <== newDeactivateCommitment;
     inputHasher.currentStateRoot <== currentStateRoot;
+    inputHasher.expectedPollId <== expectedPollId;
 
     inputHasher.hash === inputHash;
     //  ----------------------------------------------------------------------- 
@@ -228,6 +232,7 @@ template ProcessDeactivateMessages(
         // processors[i].cmdVoteOptionIndex <== commands[i].voteOptionIndex;
         // processors[i].cmdNewVoteWeight <== commands[i].newVoteWeight;
         // processors[i].cmdNonce <== commands[i].nonce;
+        processors[i].cmdPollId <== commands[i].pollId;
         processors[i].cmdSigR8[0] <== commands[i].sigR8[0];
         processors[i].cmdSigR8[1] <== commands[i].sigR8[1];
         processors[i].cmdSigS <== commands[i].sigS;
@@ -235,6 +240,7 @@ template ProcessDeactivateMessages(
             processors[i].packedCmd[j] <== commands[i].packedCommandOut[j];
         }
 
+        processors[i].expectedPollId <== expectedPollId;
         processors[i].deactivateIndex <== i + deactivateIndex0;
 
         activeStateRoot[i + 1] <== processors[i].newActiveStateRoot;
@@ -251,7 +257,7 @@ template ProcessDeactivateMessages(
 }
 
 template ProcessOne(stateTreeDepth, deactivateTreeDepth) {
-    var MSG_LENGTH = 7;
+    var MSG_LENGTH = 10;  // Ciphertext length for 7-element command
     var PACKED_CMD_LENGTH = 3;
     var TREE_ARITY = 5;
 
@@ -293,10 +299,12 @@ template ProcessOne(stateTreeDepth, deactivateTreeDepth) {
     signal input newActiveState;
 
     signal input cmdStateIndex;
+    signal input cmdPollId;
     signal input cmdSigR8[2];
     signal input cmdSigS;
     signal input packedCmd[PACKED_CMD_LENGTH];
 
+    signal input expectedPollId;
     signal input deactivateIndex;
     signal input deactivateLeafPathElements[deactivateTreeDepth][TREE_ARITY - 1];
 
@@ -327,10 +335,16 @@ template ProcessOne(stateTreeDepth, deactivateTreeDepth) {
     // component currentIsActive = IsZero();
     // currentIsActive.in <== decryptCurrentIsActive.out;
 
+    // 1.3 Verify Poll ID matches (prevent replay attacks across different polls)
+    component validPollId = IsEqual();
+    validPollId.in[0] <== cmdPollId;
+    validPollId.in[1] <== expectedPollId;
+
     component valid = IsEqual();
-    valid.in[0] <== 2;
+    valid.in[0] <== 3;
     valid.in[1] <== validSignature.valid +
-                    1 - decryptCurrentIsActive.isOdd;
+                    1 - decryptCurrentIsActive.isOdd +
+                    validPollId.out;
 
     //  ----------------------------------------------------------------------- 
     // . Verify that the state leaf exists in the given state root
@@ -461,6 +475,7 @@ template ProcessDeactivateMessagesInputHasher() {
     signal input currentDeactivateCommitment;
     signal input newDeactivateCommitment;
     signal input currentStateRoot;
+    signal input expectedPollId;
 
     signal output hash;
 
@@ -469,8 +484,8 @@ template ProcessDeactivateMessagesInputHasher() {
     pubKeyHasher.left <== coordPubKey[0];
     pubKeyHasher.right <== coordPubKey[1];
 
-    // 2. Hash the 7 inputs with SHA256
-    component hasher = Sha256Hasher(7);
+    // 2. Hash the 8 inputs with SHA256
+    component hasher = Sha256Hasher(8);
     hasher.in[0] <== newDeactivateRoot;
     hasher.in[1] <== pubKeyHasher.hash;
     hasher.in[2] <== batchStartHash;
@@ -478,6 +493,7 @@ template ProcessDeactivateMessagesInputHasher() {
     hasher.in[4] <== currentDeactivateCommitment;
     hasher.in[5] <== newDeactivateCommitment;
     hasher.in[6] <== currentStateRoot;
+    hasher.in[7] <== expectedPollId;
 
     hash <== hasher.hash;
 }

@@ -62,6 +62,9 @@ pub const ADMIN: Item<Admin> = Item::new("admin");
 pub const PERIOD: Item<Period> = Item::new("period");
 pub const MACIPARAMETERS: Item<MaciParameters> = Item::new("maci_param");
 
+// Poll ID assigned by Registry
+pub const POLL_ID: Item<u64> = Item::new("poll_id");
+
 // the num of signup, the state_key is signupnums.
 pub const NUMSIGNUPS: Item<Uint256> = Item::new("num_sign_ups");
 
@@ -138,8 +141,12 @@ pub const ZEROS: Item<[Uint256; 9]> = Item::new("zeros");
 pub const ZEROS_H10: Item<[Uint256; 7]> = Item::new("zeros_h10");
 
 #[cw_serde]
+/// Message data structure for encrypted vote messages
+/// Length changed from 7 to 10 to accommodate new command structure:
+/// - Command: 7 elements [packed_data, newPubKey_x, newPubKey_y, salt, sig_R8_x, sig_R8_y, sig_S]
+/// - Encrypted: roundUp(7, 3) + 1 = 10 elements (Poseidon encryption padding)
 pub struct MessageData {
-    pub data: [Uint256; 7],
+    pub data: [Uint256; 10],
 }
 
 pub const MSG_HASHES: Map<Vec<u8>, Uint256> = Map::new("msg_hashes");

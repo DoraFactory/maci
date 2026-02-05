@@ -46,6 +46,22 @@ export class MACI {
     this.maciKeypair = maciKeypair;
   }
 
+  async getPollId({
+    signer,
+    contractAddress
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+  }) {
+    const client = await this.contract.amaciClient({
+      signer,
+      contractAddress
+    });
+
+    const pollId = await client.getPollId();
+    return pollId;
+  }
+
   async getStateIdxInc({
     signer,
     address,
@@ -668,7 +684,13 @@ export class MACI {
         return [o.idx, o.vc] as [number, number];
       });
 
-      const payload = batchGenMessage(stateIdx, maciKeypair, operatorCoordPubKey, plan);
+      // Get poll_id from contract
+      const pollId = await this.getPollId({
+        signer,
+        contractAddress
+      });
+
+      const payload = batchGenMessage(stateIdx, maciKeypair, operatorCoordPubKey, plan, Number(pollId));
 
       // Use batch publish for amaci
       if (round.data.round.maciType === 'aMACI') {
@@ -1072,6 +1094,12 @@ export class MACI {
         contractAddress
       });
 
+      // Get poll_id from contract
+      const pollId = await this.getPollId({
+        signer,
+        contractAddress
+      });
+
       const payload = batchGenMessage(
         Number(stateIdx),
         maciKeypair,
@@ -1079,7 +1107,8 @@ export class MACI {
           BigInt(operatorCoordPubKey.coordinatorPubkeyX),
           BigInt(operatorCoordPubKey.coordinatorPubkeyY)
         ],
-        [[0, 0]]
+        [[0, 0]],
+        Number(pollId)
       );
 
       const { msg, encPubkeys } = payload[0];

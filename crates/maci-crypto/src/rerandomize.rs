@@ -131,7 +131,7 @@ pub fn decode_message(message: &Message) -> BigUint {
     //
     // Since xIncrement is not reduced mod r, we must do raw BigUint arithmetic.
     // The result should be the original plaintext.
-    if &message.point[0] >= &message.x_increment {
+    if message.point[0] >= message.x_increment {
         &message.point[0] - &message.x_increment
     } else {
         // This should not happen in normal usage
@@ -415,7 +415,7 @@ mod tests {
         let mut static_random_keys = std::collections::HashMap::new();
 
         for &index in &indices {
-            let random_key = poseidon(&vec![
+            let random_key = poseidon(&[
                 coord_keypair.priv_key.clone(),
                 static_random_salt.clone(),
                 BigUint::from(index),
@@ -426,7 +426,7 @@ mod tests {
 
         // Test 2: encryptOdevity (even/active)
         println!("\nTest 2.1: encryptOdevity (even/active)");
-        let random_key_1 = poseidon(&vec![
+        let random_key_1 = poseidon(&[
             coord_keypair.priv_key.clone(),
             static_random_salt.clone(),
             BigUint::from(1u64),
@@ -451,7 +451,7 @@ mod tests {
 
         // Test 3: encryptOdevity (odd/deactivated)
         println!("\nTest 2.2: encryptOdevity (odd/deactivated)");
-        let random_key_2 = poseidon(&vec![
+        let random_key_2 = poseidon(&[
             coord_keypair.priv_key.clone(),
             static_random_salt.clone(),
             BigUint::from(2u64),

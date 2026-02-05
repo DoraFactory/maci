@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128};
 use cw_amaci::state::PubKey;
 use cw_storage_plus::{Item, Map};
 
@@ -46,6 +46,7 @@ pub const ADMIN: Item<Admin> = Item::new("admin");
 pub const OPERATOR: Item<Addr> = Item::new("operator");
 // pub const CONFIG: Item<Config> = Item::new("config");
 pub const AMACI_CODE_ID: Item<u64> = Item::new("amaci_code_id");
+pub const MACI_CODE_ID: Item<u64> = Item::new("maci_code_id");
 // pub const TOTAL: Item<u128> = Item::new(TOTAL_KEY);
 pub const MACI_VALIDATOR_LIST: Item<ValidatorSet> = Item::new("maci_validator_list"); // ['val1', 'val2', 'val3']
 pub const MACI_VALIDATOR_OPERATOR_SET: Map<&Addr, Addr> = Map::new("maci_validator_operator_set"); // { val1: op1, val2: op2, val3: op3 }
@@ -67,3 +68,17 @@ pub struct CircuitChargeConfig {
 }
 
 pub const CIRCUIT_CHARGE_CONFIG: Item<CircuitChargeConfig> = Item::new("circuit_charge_config");
+
+// Poll ID management
+pub const NEXT_POLL_ID: Item<u64> = Item::new("next_poll_id");
+pub const POLL_ID_TO_ADDRESS: Map<u64, Addr> = Map::new("poll_id_to_address");
+pub const ADDRESS_TO_POLL_ID: Map<&Addr, u64> = Map::new("address_to_poll_id");
+
+#[cw_serde]
+pub struct PollInfo {
+    pub poll_id: u64,
+    pub poll_address: Addr,
+    pub poll_type: String, // "MACI" or "AMACI"
+    pub operator: Addr,
+    pub created_at: Timestamp,
+}

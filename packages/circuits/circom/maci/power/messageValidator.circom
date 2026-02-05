@@ -26,6 +26,15 @@ template MessageValidator() {
     validNonce.in[0] <== originalNonce + 1;
     validNonce.in[1] <== nonce;
 
+    // c2) Whether the pollId matches
+    // This prevents replay attacks across different polls/rounds
+    signal input cmdPollId;
+    signal input expectedPollId;
+    
+    component validPollId = IsEqual();
+    validPollId.in[0] <== cmdPollId;
+    validPollId.in[1] <== expectedPollId;
+
     var PACKED_CMD_LENGTH = 3;
     // d) Whether the signature is correct
     signal input cmd[PACKED_CMD_LENGTH];
@@ -84,14 +93,15 @@ template MessageValidator() {
     newBalance <== currentVoiceCreditBalance + currentCostsForOption.out - cost.out;
 
     component validUpdate = IsEqual();
-    validUpdate.in[0] <== 6;
+    validUpdate.in[0] <== 7;
     validUpdate.in[1] <== validSignature.valid + 
                           sufficientVoiceCredits.out +
                           validVoteWeight.out +
                           validNonce.out +
                           validStateLeafIndex.out +
                         //   validTimestamp.out +
-                          validVoteOptionIndex.out;
+                          validVoteOptionIndex.out +
+                          validPollId.out;
     signal output isValid;
     isValid <== validUpdate.out;
 

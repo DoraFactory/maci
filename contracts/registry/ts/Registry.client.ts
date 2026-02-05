@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Addr, InstantiateMsg, ExecuteMsg, Uint256, Timestamp, Uint64, Decimal, PubKey, RoundInfo, VotingTime, WhitelistBase, WhitelistBaseConfig, ValidatorSet, CircuitChargeConfig, QueryMsg, AdminResponse, String, Boolean } from "./Registry.types";
+import { Addr, InstantiateMsg, ExecuteMsg, Uint256, Timestamp, Uint64, Decimal, PubKey, RoundInfo, VotingTime, WhitelistBase, WhitelistBaseConfig, ValidatorSet, CircuitChargeConfig, QueryMsg, AdminResponse, String, NullableAddr, Boolean } from "./Registry.types";
 export interface RegistryReadOnlyInterface {
   contractAddress: string;
   admin: () => Promise<AdminResponse>;
@@ -38,6 +38,17 @@ export interface RegistryReadOnlyInterface {
     address: Addr;
   }) => Promise<String>;
   getCircuitChargeConfig: () => Promise<CircuitChargeConfig>;
+  getPollId: ({
+    address
+  }: {
+    address: Addr;
+  }) => Promise<Uint64>;
+  getPollAddress: ({
+    pollId
+  }: {
+    pollId: number;
+  }) => Promise<NullableAddr>;
+  getNextPollId: () => Promise<Uint64>;
 }
 export class RegistryQueryClient implements RegistryReadOnlyInterface {
   client: CosmWasmClient;
@@ -54,6 +65,9 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
     this.getMaciOperatorPubkey = this.getMaciOperatorPubkey.bind(this);
     this.getMaciOperatorIdentity = this.getMaciOperatorIdentity.bind(this);
     this.getCircuitChargeConfig = this.getCircuitChargeConfig.bind(this);
+    this.getPollId = this.getPollId.bind(this);
+    this.getPollAddress = this.getPollAddress.bind(this);
+    this.getNextPollId = this.getNextPollId.bind(this);
   }
   admin = async (): Promise<AdminResponse> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -128,6 +142,33 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
   getCircuitChargeConfig = async (): Promise<CircuitChargeConfig> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_circuit_charge_config: {}
+    });
+  };
+  getPollId = async ({
+    address
+  }: {
+    address: Addr;
+  }): Promise<Uint64> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_poll_id: {
+        address
+      }
+    });
+  };
+  getPollAddress = async ({
+    pollId
+  }: {
+    pollId: number;
+  }): Promise<NullableAddr> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_poll_address: {
+        poll_id: pollId
+      }
+    });
+  };
+  getNextPollId = async (): Promise<Uint64> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_next_poll_id: {}
     });
   };
 }

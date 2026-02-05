@@ -32,15 +32,15 @@ export class ContractLoader {
   }
 
   /**
-   * Load API-MACI contract bytecode
+   * Load MACI contract bytecode
    */
-  async loadApiMaciContract(): Promise<Uint8Array> {
-    if (this.cache.apiMaci) {
-      return this.cache.apiMaci;
+  async loadMaciContract(): Promise<Uint8Array> {
+    if (this.cache.maci) {
+      return this.cache.maci;
     }
 
-    this.cache.apiMaci = await this.loadWasmFileWithFallback('cw_api_maci');
-    return this.cache.apiMaci;
+    this.cache.maci = await this.loadWasmFileWithFallback('cw_maci');
+    return this.cache.maci;
   }
 
   /**
@@ -73,7 +73,7 @@ export class ContractLoader {
   async loadAllContracts(): Promise<WasmBytecodeCache> {
     await Promise.all([
       this.loadAmaciContract(),
-      this.loadApiMaciContract(),
+      this.loadMaciContract(),
       this.loadRegistryContract(),
       this.loadApiSaasContract()
     ]);

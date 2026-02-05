@@ -12,7 +12,8 @@ import {
   assertExecuteSuccess,
   log,
   assertBigIntEqual,
-  advanceTime
+  advanceTime,
+  queryPollId
 } from '../src';
 
 /**
@@ -236,20 +237,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     log('✓ SDK clients initialized');
 
-    // Initialize operator AMACI round
-    operator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true
-    });
-
-    log('✓ Operator AMACI round initialized');
-
-    // Deploy AMACI contract
+    // Deploy AMACI contract (need contract to get pollId)
     const contractLoader = new ContractLoader();
     const deployManager = new DeployManager(client, contractLoader);
 
@@ -306,7 +294,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       circuit_type: '1',
       certification_system: '0',
       oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      pre_deactivate_coordinator: null,
+      poll_id: 1 // Poll ID for this round (防止跨 poll 重放攻击)
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -316,6 +305,24 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       operatorAddress
     );
     log(`✓ AMACI contract deployed at: ${contractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const pollId = await queryPollId(amaciContract);
+    log(`✓ Poll ID retrieved from contract: ${pollId}`);
+
+    // Initialize operator AMACI round with pollId (must be after contract deployment)
+    operator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId // From contract query
+    });
+
+    log('✓ Operator AMACI round initialized with pollId');
     log('Test environment setup complete\n');
 
     // Store deactivate data for AddNewKey proof
@@ -323,6 +330,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // ========== Original test logic starts here ==========
     log('\n=== Phase 1: Initial registration and voting ===');
+    log(`Using poll ID ${pollId} for vote and deactivate payloads`);
 
     // Step 1: Register voters (including old key for voter1)
     log('Registering voter1 with old key...');
@@ -358,7 +366,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       selectedOptions: [
         { idx: 0, vc: 5 }, // 5 votes to option 0 (cost: 25)
         { idx: 1, vc: 3 } // 3 votes to option 1 (cost: 9)
-      ]
+      ],
+      pollId
     });
 
     // Reverse payload because buildVotePayload returns messages in reverse nonce order
@@ -387,7 +396,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       selectedOptions: [
         { idx: 1, vc: 4 }, // 4 votes to option 1 (cost: 16)
         { idx: 2, vc: 2 } // 2 votes to option 2 (cost: 4)
-      ]
+      ],
+      pollId
     });
 
     // Reverse payload because buildVotePayload returns messages in reverse nonce order
@@ -414,7 +424,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     log('Voter1 deactivating old key...');
     const deactivatePayload = await voter1.buildDeactivatePayload({
       stateIdx: USER_1_OLD,
-      operatorPubkey: coordPubKey
+      operatorPubkey: coordPubKey,
+      pollId
     });
 
     const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));
@@ -555,7 +566,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       selectedOptions: [
         { idx: 2, vc: 6 }, // 6 votes to option 2 (cost: 36)
         { idx: 3, vc: 5 } // 5 votes to option 3 (cost: 25)
-      ]
+      ],
+      pollId
     });
 
     log(`Generated ${voter1NewVote.length} vote messages`);
@@ -810,16 +822,6 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       secretKey: 123456n
     });
 
-    testOperator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true
-    });
-
     const testVoter1Old = new VoterClient({ network: 'testnet', secretKey: 111222n });
     const testVoter1New = new VoterClient({ network: 'testnet', secretKey: 222333n });
     const testVoter2 = new VoterClient({ network: 'testnet', secretKey: 333444n });
@@ -877,7 +879,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       circuit_type: '1',
       certification_system: '0',
       oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      pre_deactivate_coordinator: null,
+      poll_id: 2 // Poll ID for this test round (using different ID to avoid conflicts)
     };
 
     const testContractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -888,6 +891,24 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     );
 
     log(`Test contract deployed at: ${testContractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const testPollId = await queryPollId(testContract);
+    log(`Poll ID retrieved from test contract: ${testPollId}`);
+
+    // Initialize testOperator with pollId (must be after contract deployment)
+    testOperator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId: testPollId // From contract query
+    });
+
+    log('Test operator initialized with pollId');
 
     // Phase 1: Register voter1 with old key and voter2
     log('\n--- Phase 1: User Registration ---');
@@ -919,7 +940,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter1FirstVote = testVoter1Old.buildVotePayload({
       stateIdx: USER_1_OLD,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 0, vc: 5 }] // Cost: 25 credits
+      selectedOptions: [{ idx: 0, vc: 5 }], // Cost: 25 credits
+      pollId: testPollId
     });
 
     for (const payload of voter1FirstVote.reverse()) {
@@ -944,7 +966,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const deactivatePayload = await testVoter1Old.buildDeactivatePayload({
       stateIdx: USER_1_OLD,
-      operatorPubkey: coordPubKey
+      operatorPubkey: coordPubKey,
+      pollId: testPollId
     });
 
     const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));
@@ -1039,7 +1062,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter1OldSecondVote = testVoter1Old.buildVotePayload({
       stateIdx: USER_1_OLD,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 3 }] // Trying 3 votes to option 1
+      selectedOptions: [{ idx: 1, vc: 3 }], // Trying 3 votes to option 1
+      pollId: testPollId
     });
 
     for (const payload of voter1OldSecondVote.reverse()) {
@@ -1065,7 +1089,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter1NewVote = testVoter1New.buildVotePayload({
       stateIdx: USER_1_NEW,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 6 }] // 6 votes to option 2, cost: 36
+      selectedOptions: [{ idx: 2, vc: 6 }], // 6 votes to option 2, cost: 36
+      pollId: testPollId
     });
 
     for (const payload of voter1NewVote.reverse()) {
@@ -1091,7 +1116,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter2Vote = testVoter2.buildVotePayload({
       stateIdx: USER_2,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 3, vc: 4 }] // 4 votes to option 3, cost: 16
+      selectedOptions: [{ idx: 3, vc: 4 }], // 4 votes to option 3, cost: 16
+      pollId: testPollId
     });
 
     for (const payload of voter2Vote.reverse()) {
@@ -1343,16 +1369,6 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       secretKey: 234567n
     });
 
-    concurrentOperator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true
-    });
-
     const user1Old = new VoterClient({ network: 'testnet', secretKey: 345678n });
     const user1New = new VoterClient({ network: 'testnet', secretKey: 456789n });
     const user2 = new VoterClient({ network: 'testnet', secretKey: 567890n });
@@ -1410,7 +1426,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       circuit_type: '1',
       certification_system: '0',
       oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      pre_deactivate_coordinator: null,
+      poll_id: 3 // Poll ID for this test round (using different ID to avoid conflicts)
     };
 
     const concurrentContractInfo = await deployManager.deployAmaciContract(
@@ -1424,6 +1441,24 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     );
 
     log(`Contract deployed at: ${concurrentContractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const concurrentPollId = await queryPollId(concurrentContract);
+    log(`Poll ID retrieved from concurrent test contract: ${concurrentPollId}`);
+
+    // Initialize concurrentOperator with pollId (must be after contract deployment)
+    concurrentOperator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId: concurrentPollId // From contract query
+    });
+
+    log('Concurrent test operator initialized with pollId');
 
     // Phase 1: Register users (user1 with old key, user2)
     log('\n--- Phase 1: Register users ---');
@@ -1451,7 +1486,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const deactivatePayload = await user1Old.buildDeactivatePayload({
       stateIdx: USER_1_OLD,
-      operatorPubkey: coordPubKey
+      operatorPubkey: coordPubKey,
+      pollId: concurrentPollId
     });
 
     const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));
@@ -1530,7 +1566,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const user1OldVote = user1Old.buildVotePayload({
       stateIdx: USER_1_OLD,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 0, vc: 5 }]
+      selectedOptions: [{ idx: 0, vc: 5 }],
+      pollId: concurrentPollId
     });
 
     for (const payload of user1OldVote.reverse()) {
@@ -1556,7 +1593,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const user1NewVote = user1New.buildVotePayload({
       stateIdx: USER_1_NEW,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 7 }]
+      selectedOptions: [{ idx: 1, vc: 7 }],
+      pollId: concurrentPollId
     });
 
     for (const payload of user1NewVote.reverse()) {
@@ -1582,7 +1620,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const user2Vote = user2.buildVotePayload({
       stateIdx: USER_2,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 6 }]
+      selectedOptions: [{ idx: 2, vc: 6 }],
+      pollId: concurrentPollId
     });
 
     for (const payload of user2Vote.reverse()) {
@@ -1799,17 +1838,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       secretKey: 888888n
     });
 
-    boundaryOperator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true
-    });
-
-    log('✓ Boundary test operator initialized');
+    log('✓ Boundary test operator created');
 
     // Deploy new contract
     const contractLoader = new ContractLoader();
@@ -1864,7 +1893,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       circuit_type: '1', // QV
       certification_system: '0', // Groth16
       oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      pre_deactivate_coordinator: null,
+      poll_id: 5 // Poll ID for boundary test (using different ID to avoid conflicts)
     };
 
     const boundaryContractInfo = await deployManager.deployAmaciContract(
@@ -1877,6 +1907,24 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       operatorAddress
     );
     log(`Boundary test contract deployed at: ${boundaryContractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const boundaryPollId = await queryPollId(boundaryContract);
+    log(`Poll ID retrieved from boundary test contract: ${boundaryPollId}`);
+
+    // Initialize boundaryOperator with pollId (must be after contract deployment)
+    boundaryOperator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId: boundaryPollId // From contract query
+    });
+
+    log('✓ Boundary test operator initialized with pollId');
 
     // Phase 1: Fill the state tree with 1 signup + 24 addNewKey operations
     log('\n=== Phase 1: Filling state tree (25 positions) ===');
@@ -1960,7 +2008,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       // Deactivate the first user
       const deactivatePayload = await firstVoter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: boundaryPollId
       });
 
       const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));

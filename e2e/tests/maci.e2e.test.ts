@@ -6,14 +6,15 @@ import {
   createTestEnvironment,
   ContractLoader,
   DeployManager,
-  ApiMaciContractClient,
+  MaciContractClient,
   formatPubKeyForContract,
   formatMessageForContract,
   assertExecuteSuccess,
   generateCertificateFromBigInt,
   getBackendPublicKey,
   log,
-  advanceTime
+  advanceTime,
+  queryPollId
 } from '../src';
 
 /**
@@ -34,7 +35,7 @@ describe('MACI (Standard) End-to-End Test', function () {
   let client: SimulateCosmWasmClient;
   let operator: OperatorClient;
   let voters: VoterClient[];
-  let maciContract: ApiMaciContractClient;
+  let maciContract: MaciContractClient;
 
   const adminAddress = 'dora1admin000000000000000000000000000000';
   const operatorAddress = 'dora1operator000000000000000000000000';
@@ -89,20 +90,7 @@ describe('MACI (Standard) End-to-End Test', function () {
 
     log(`Initialized ${numVoters} voters`);
 
-    // Initialize operator MACI (1P1V mode, non-anonymous)
-    operator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions: 3, // Must match contract's vote_option_map length
-      isQuadraticCost: false, // 1P1V mode
-      isAmaci: false // API-MACI uses standard MACI (no anonymous keys)
-    });
-
-    log('Operator MACI round initialized (1P1V mode, non-anonymous)');
-
-    // Deploy API-MACI contract
+    // Deploy API-MACI contract (need contract to get pollId)
     const contractLoader = new ContractLoader();
     const deployManager = new DeployManager(client, contractLoader);
 
@@ -148,14 +136,33 @@ describe('MACI (Standard) End-to-End Test', function () {
         mode: 'threshold',
         slope: '0',
         threshold: '1' // Set threshold to 1 to allow any amount >= 1
-      }
+      },
+      poll_id: 1 // Poll ID for this round (防止跨 poll 重放攻击)
     };
 
-    const contractInfo = await deployManager.deployApiMaciContract(adminAddress, instantiateMsg);
+    const contractInfo = await deployManager.deployMaciContract(adminAddress, instantiateMsg);
 
-    maciContract = new ApiMaciContractClient(client, contractInfo.contractAddress, operatorAddress);
+    maciContract = new MaciContractClient(client, contractInfo.contractAddress, operatorAddress);
 
-    log(`API-MACI contract deployed at: ${contractInfo.contractAddress}`);
+    log(`MACI contract deployed at: ${contractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const pollId = await queryPollId(maciContract);
+    log(`Poll ID retrieved from contract: ${pollId}`);
+
+    // Initialize operator MACI with pollId (must be after contract deployment)
+    operator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions: 3, // Must match contract's vote_option_map length
+      isQuadraticCost: false, // 1P1V mode
+      isAmaci: false, // API-MACI uses standard MACI (no anonymous keys)
+      pollId // From contract query
+    });
+
+    log('Operator MACI round initialized with pollId (1P1V mode, non-anonymous)');
   });
 
   it('should complete the full MACI voting flow', async () => {
@@ -166,6 +173,10 @@ describe('MACI (Standard) End-to-End Test', function () {
     } catch (e: any) {
       log(`Failed to query voting_time: ${e.message}`);
     }
+
+    // Query pollId for building vote payloads
+    const pollId = await queryPollId(maciContract);
+    log(`Using poll ID ${pollId} for vote payloads`);
 
     log('\n=== Step 1: Batch User Registration ===\n');
 
@@ -208,7 +219,8 @@ describe('MACI (Standard) End-to-End Test', function () {
     const vote0Payload = voters[0].buildVotePayload({
       stateIdx: 0,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 0, vc: 1 }]
+      selectedOptions: [{ idx: 0, vc: 1 }],
+      pollId
     });
 
     for (const payload of vote0Payload) {
@@ -232,7 +244,8 @@ describe('MACI (Standard) End-to-End Test', function () {
     const vote1Payload = voters[1].buildVotePayload({
       stateIdx: 1,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 1 }]
+      selectedOptions: [{ idx: 1, vc: 1 }],
+      pollId
     });
 
     for (const payload of vote1Payload) {
@@ -256,7 +269,8 @@ describe('MACI (Standard) End-to-End Test', function () {
     const vote2Payload = voters[2].buildVotePayload({
       stateIdx: 2,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 1 }]
+      selectedOptions: [{ idx: 2, vc: 1 }],
+      pollId
     });
 
     for (const payload of vote2Payload) {
@@ -280,7 +294,8 @@ describe('MACI (Standard) End-to-End Test', function () {
     const vote3Payload = voters[3].buildVotePayload({
       stateIdx: 3,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 0, vc: 1 }]
+      selectedOptions: [{ idx: 0, vc: 1 }],
+      pollId
     });
 
     for (const payload of vote3Payload) {
@@ -305,7 +320,8 @@ describe('MACI (Standard) End-to-End Test', function () {
     const vote4InitialPayload = voters[4].buildVotePayload({
       stateIdx: 4,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 1 }]
+      selectedOptions: [{ idx: 1, vc: 1 }],
+      pollId
     });
 
     for (const payload of vote4InitialPayload) {
@@ -328,7 +344,8 @@ describe('MACI (Standard) End-to-End Test', function () {
     const vote4ChangePayload = voters[4].buildVotePayload({
       stateIdx: 4,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 1 }]
+      selectedOptions: [{ idx: 2, vc: 1 }],
+      pollId
     });
 
     for (const payload of vote4ChangePayload) {

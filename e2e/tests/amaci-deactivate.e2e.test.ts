@@ -11,7 +11,8 @@ import {
   formatMessageForContract,
   assertExecuteSuccess,
   log,
-  advanceTime
+  advanceTime,
+  queryPollId
 } from '../src';
 
 /**
@@ -70,22 +71,13 @@ describe('AMACI Deactivate E2E Tests', function () {
 
       const testOperator = new OperatorClient({ network: 'testnet', secretKey: 555555n });
 
-      testOperator.initRound({
-        stateTreeDepth,
-        intStateTreeDepth,
-        voteOptionTreeDepth,
-        batchSize,
-        maxVoteOptions,
-        isQuadraticCost: true,
-        isAmaci: true
-      });
-
       const voter = new VoterClient({ network: 'testnet', secretKey: 666666n });
-      const coordPubKey = testOperator.getPubkey().toPoints();
 
       // Deploy contract
       const contractLoader = new ContractLoader();
       const deployManager = new DeployManager(client, contractLoader);
+
+      const coordPubKey = testOperator.getPubkey().toPoints();
 
       const app: any = client.app;
       const now = BigInt(app.time);
@@ -124,7 +116,8 @@ describe('AMACI Deactivate E2E Tests', function () {
         circuit_type: '1',
         certification_system: '0',
         oracle_whitelist_pubkey: null,
-        pre_deactivate_coordinator: null
+        pre_deactivate_coordinator: null,
+        poll_id: 1 // Poll ID for this round (防止跨 poll 重放攻击)
       };
 
       const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -135,6 +128,24 @@ describe('AMACI Deactivate E2E Tests', function () {
       );
 
       log(`Contract deployed at: ${contractInfo.contractAddress}`);
+
+      // Query pollId from deployed contract
+      const pollId = await queryPollId(testContract);
+      log(`Poll ID retrieved from contract: ${pollId}`);
+
+      // Initialize operator with pollId (must be after contract deployment)
+      testOperator.initRound({
+        stateTreeDepth,
+        intStateTreeDepth,
+        voteOptionTreeDepth,
+        batchSize,
+        maxVoteOptions,
+        isQuadraticCost: true,
+        isAmaci: true,
+        pollId // From contract query
+      });
+
+      log('Test operator initialized with pollId');
 
       // Phase 1: SignUp
       log('\n--- Phase 1: SignUp ---');
@@ -157,7 +168,8 @@ describe('AMACI Deactivate E2E Tests', function () {
 
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId
       });
 
       const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));

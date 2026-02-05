@@ -89,6 +89,14 @@ export interface AMaciReadOnlyInterface {
     pubkey: PubKey;
   }) => Promise<Uint256>;
   queryCurrentStateCommitment: () => Promise<Uint256>;
+  getCoordinatorHash: () => Promise<Uint256>;
+  getMsgHash: ({
+    index
+  }: {
+    index: Uint256;
+  }) => Promise<Uint256>;
+  getCurrentDeactivateCommitment: () => Promise<Uint256>;
+  getPollId: () => Promise<Uint64>;
 }
 export class AMaciQueryClient implements AMaciReadOnlyInterface {
   client: CosmWasmClient;
@@ -132,6 +140,10 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.canSignUpWithOracle = this.canSignUpWithOracle.bind(this);
     this.whiteBalanceOf = this.whiteBalanceOf.bind(this);
     this.queryCurrentStateCommitment = this.queryCurrentStateCommitment.bind(this);
+    this.getCoordinatorHash = this.getCoordinatorHash.bind(this);
+    this.getMsgHash = this.getMsgHash.bind(this);
+    this.getCurrentDeactivateCommitment = this.getCurrentDeactivateCommitment.bind(this);
+    this.getPollId = this.getPollId.bind(this);
   }
   admin = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -377,6 +389,32 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
   queryCurrentStateCommitment = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       query_current_state_commitment: {}
+    });
+  };
+  getCoordinatorHash = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_coordinator_hash: {}
+    });
+  };
+  getMsgHash = async ({
+    index
+  }: {
+    index: Uint256;
+  }): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_msg_hash: {
+        index
+      }
+    });
+  };
+  getCurrentDeactivateCommitment = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_current_deactivate_commitment: {}
+    });
+  };
+  getPollId = async (): Promise<Uint64> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_poll_id: {}
     });
   };
 }

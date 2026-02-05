@@ -588,9 +588,10 @@ describe('UnpackElement circuit', function test() {
       const voIdx = 2;
       const newVotes = 100;
       const salt = 0n; // Use zero salt for deterministic testing
+      const pollId = 1; // Test poll ID
 
       // Pack using SDK
-      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
       // Unpack using circuit
       const witness = await circuit.calculateWitness({ in: packed });
@@ -631,9 +632,9 @@ describe('UnpackElement circuit', function test() {
       const stateIdx = 0xffffffff;
       const voIdx = 0xffffffff;
       const newVotes = 0xffffffff;
-      const salt = 0n;
+      const pollId = 1; // Test poll ID
 
-      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
       const witness = await circuit.calculateWitness({ in: packed });
       await circuit.expectConstraintPass(witness);
@@ -672,9 +673,9 @@ describe('UnpackElement circuit', function test() {
       const stateIdx = 20;
       const voIdx = 30;
       const newVotes = 1_000_000_000_000; // 1 trillion
-      const salt = 0n;
+      const pollId = 1; // Test poll ID
 
-      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
       const witness = await circuit.calculateWitness({ in: packed });
       await circuit.expectConstraintPass(witness);
@@ -715,14 +716,14 @@ describe('UnpackElement circuit', function test() {
       const stateIdx = 2;
       const voIdx = 3;
       const newVotes = (1n << 96n) - 1n; // Max Uint96
-      const salt = 0n;
+      const pollId = 1; // Test poll ID
 
       const packed = packElement({
         nonce,
         stateIdx,
         voIdx,
         newVotes, // Now packElement supports bigint directly
-        salt
+        pollId
       });
 
       const witness = await circuit.calculateWitness({ in: packed });
@@ -756,9 +757,9 @@ describe('UnpackElement circuit', function test() {
       const stateIdx = 123;
       const voIdx = 456;
       const newVotes = 789;
-      const salt = 0x12345678abcdn; // Random 56-bit salt
+      const pollId = 1; // Test poll ID
 
-      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
       const witness = await circuit.calculateWitness({ in: packed });
       await circuit.expectConstraintPass(witness);
@@ -800,10 +801,10 @@ describe('UnpackElement circuit', function test() {
 
       for (const testCase of testCases) {
         const { nonce, stateIdx, voIdx, newVotes } = testCase;
-        const salt = 0n;
+        const pollId = 1; // Test poll ID
 
         // Pack with SDK
-        const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+        const packed = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
         // Unpack with circuit
         const witness = await circuit.calculateWitness({ in: packed });
@@ -846,9 +847,9 @@ describe('UnpackElement circuit', function test() {
       const stateIdx = 0;
       const voIdx = 0;
       const newVotes = 0;
-      const salt = 0n;
+      const pollId = 0; // Test poll ID
 
-      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+      const packed = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
       // Packed value should be 0
       expect(packed).to.equal(0n);

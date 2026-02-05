@@ -16,8 +16,11 @@ pub enum ContractError {
     #[error("Operator already exists")]
     OperatorAlreadyExists {},
 
-    #[error("Insufficient balance in SaaS contract")]
-    InsufficientBalance {},
+    #[error("Insufficient balance in SaaS contract: required {required}, available {available}")]
+    InsufficientBalance {
+        required: cosmwasm_std::Uint128,
+        available: cosmwasm_std::Uint128,
+    },
 
     #[error("Invalid address prefix, expected: {expected}, got: {actual}")]
     InvalidAddressPrefix { expected: String, actual: String },

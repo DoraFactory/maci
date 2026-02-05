@@ -24,6 +24,7 @@ pub struct InstantiateMsg {
     pub operator: Addr,
 
     pub amaci_code_id: u64,
+    pub maci_code_id: u64,
 }
 
 #[cw_serde]
@@ -51,6 +52,17 @@ pub enum ExecuteMsg {
         oracle_whitelist_pubkey: Option<String>,
         pre_deactivate_coordinator: Option<PubKey>,
     },
+    CreateMaciRound {
+        coordinator: PubKey,
+        max_voters: u128,
+        vote_option_map: Vec<String>,
+        round_info: RoundInfo,
+        voting_time: VotingTime,
+        circuit_type: Uint256,
+        certification_system: Uint256,
+        whitelist_backend_pubkey: String,
+        whitelist_voting_power_mode: cw_maci::state::VotingPowerMode,
+    },
     SetValidators {
         addresses: ValidatorSet,
     },
@@ -59,6 +71,9 @@ pub enum ExecuteMsg {
     },
     UpdateAmaciCodeId {
         amaci_code_id: u64,
+    },
+    UpdateMaciCodeId {
+        maci_code_id: u64,
     },
     ChangeOperator {
         address: Addr,
@@ -100,6 +115,18 @@ pub enum QueryMsg {
 
     #[returns(CircuitChargeConfig)]
     GetCircuitChargeConfig {},
+
+    #[returns(u64)]
+    GetPollId { address: Addr },
+
+    #[returns(Option<Addr>)]
+    GetPollAddress { poll_id: u64 },
+
+    #[returns(u64)]
+    GetNextPollId {},
+    
+    #[returns(u64)]
+    GetMaciCodeId {},
 }
 
 #[cw_serde]

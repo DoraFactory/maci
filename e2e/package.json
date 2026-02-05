@@ -31,6 +31,7 @@
     "test:zk-kit": "pnpm run test:baby-jubjub && pnpm run test:eddsa-poseidon",
     "mocha-test": "NODE_OPTIONS=--max-old-space-size=4096 ts-mocha --project tsconfig.test.json --exit --timeout 900000",
     "download-zkeys": "ts-node scripts/downloadZkeys.ts",
+    "copy-circuits": "ts-node scripts/copyLatestCircuits.ts",
     "extract-vkeys": "ts-node scripts/extractVkeys.ts",
     "setup-circuits": "pnpm download-zkeys && pnpm extract-vkeys",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"

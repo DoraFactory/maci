@@ -167,7 +167,7 @@ export type ExecuteMsg =
     };
 export type Uint128 = string;
 export interface MessageData {
-  data: [Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256];
+  data: [Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256];
 }
 export interface Groth16ProofType {
   a: string;

@@ -50,6 +50,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
       'isQuadraticCost',
       'numSignUps',
       'maxVoteOptions',
+      'cmdPollId',
+      'expectedPollId',
       'slPubKey',
       'slVoiceCreditBalance',
       'slNonce',
@@ -91,10 +93,10 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
     newVotes: bigint,
     nonce: number,
     newPubKey: [bigint, bigint] = [0n, 0n],
-    signerKeypair?: any
+    signerKeypair?: any,
+    pollId: number = 1 // Default test poll ID
   ) {
-    const salt = 0n;
-    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
     const cmd = [packaged, newPubKey[0], newPubKey[1]];
     const msgHash = poseidon(cmd);
     const signer = signerKeypair || keypair;
@@ -104,7 +106,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
       cmd,
       sigR8: signature.R8 as [bigint, bigint],
       sigS: signature.S,
-      pubKey: signer.getPublicKey().toPoints() as [bigint, bigint]
+      pubKey: signer.getPublicKey().toPoints() as [bigint, bigint],
+      pollId: BigInt(pollId) // Return pollId for test use
     };
   }
 
@@ -118,6 +121,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -132,7 +136,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n;
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -144,6 +148,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -183,6 +189,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 1n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -196,7 +203,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 5n; // Cost = 5² = 25
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -208,6 +215,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -247,6 +256,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state (already voted before) - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -261,7 +271,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 8n; // New vote weight
         const cmdNonce = 2n; // slNonce + 1
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -273,6 +283,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -309,6 +321,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 1n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -322,7 +335,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 3n; // New vote weight (cost = 3² = 9)
         const cmdNonce = 2n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -334,6 +347,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -365,6 +380,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 1n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -378,7 +394,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 0n; // Withdraw vote
         const cmdNonce = 2n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -390,6 +406,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -427,6 +445,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -440,7 +459,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n;
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -452,6 +471,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -488,6 +509,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -501,7 +523,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n;
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -513,6 +535,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -544,6 +568,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -557,7 +582,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n;
         const cmdNonce = 7n; // Invalid: should be 6 (5 + 1)
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -569,6 +594,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -600,6 +627,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -613,7 +641,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n;
         const cmdNonce = 5n; // Invalid: same as slNonce (should be 6)
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -625,6 +653,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -656,6 +686,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -670,7 +701,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNonce = 1n;
 
         // Create valid command but use wrong signature
-        const { cmd } = createValidCommand(
+        const { cmd, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -686,6 +717,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -717,6 +750,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -730,7 +764,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n; // Requires 10, but only have 5
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -742,6 +776,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -771,6 +807,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 1n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -784,7 +821,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 5n; // Requires 5² = 25, but only have 10
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -796,6 +833,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -833,6 +872,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -846,7 +886,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n;
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -858,6 +898,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -883,6 +925,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -896,7 +939,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n;
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -908,6 +951,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -933,6 +978,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -946,7 +992,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 10n; // Exactly matches balance
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -958,6 +1004,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -989,6 +1037,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -1002,7 +1051,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 0n; // Zero vote weight
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -1014,6 +1063,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -1043,6 +1094,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 0n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -1056,7 +1108,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 0n; // Zero vote weight
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -1068,6 +1120,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -1098,6 +1152,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const isQuadraticCost = 1n;
         const numSignUps = 10n;
         const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
         // Current state leaf - use the actual keypair public key
         const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -1111,7 +1166,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         const cmdNewVoteWeight = 50n; // Large vote weight (cost = 50² = 2500)
         const cmdNonce = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(cmdStateIndex),
           Number(cmdVoteOptionIndex),
           cmdNewVoteWeight,
@@ -1123,6 +1178,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
           isQuadraticCost,
           numSignUps,
           maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
           slPubKey,
           slVoiceCreditBalance,
           slNonce,
@@ -1159,6 +1216,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
       const isQuadraticCost = 0n;
       const numSignUps = 10n;
       const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
       // Current state leaf - use the actual keypair public key
       const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -1168,7 +1226,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
       const cmdNewPubKey: [bigint, bigint] = [999999999n, 888888888n];
       const cmdNonce = 6n;
 
-      const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+      const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
         0,
         1,
         10n,
@@ -1180,6 +1238,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         isQuadraticCost,
         numSignUps,
         maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
         slPubKey,
         slVoiceCreditBalance,
         slNonce,
@@ -1214,6 +1274,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
       const isQuadraticCost = 0n;
       const numSignUps = 10n;
       const maxVoteOptions = 5n;
+        const expectedPollId = 1n;
 
       // Current state leaf - use the actual keypair public key
       const slPubKey = keypair.getPublicKey().toPoints() as [bigint, bigint];
@@ -1223,7 +1284,7 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
       const cmdNewPubKey: [bigint, bigint] = [999999999n, 888888888n];
       const cmdNonce = 7n; // Invalid: should be 6
 
-      const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+      const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
         0,
         1,
         10n,
@@ -1235,6 +1296,8 @@ describe('StateLeafTransformer MACI Circuit Tests', function test() {
         isQuadraticCost,
         numSignUps,
         maxVoteOptions,
+          cmdPollId: pollId,
+          expectedPollId,
         slPubKey,
         slVoiceCreditBalance,
         slNonce,

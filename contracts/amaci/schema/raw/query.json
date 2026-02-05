@@ -558,6 +558,66 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_coordinator_hash"
+      ],
+      "properties": {
+        "get_coordinator_hash": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_msg_hash"
+      ],
+      "properties": {
+        "get_msg_hash": {
+          "type": "object",
+          "required": [
+            "index"
+          ],
+          "properties": {
+            "index": {
+              "$ref": "#/definitions/Uint256"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_current_deactivate_commitment"
+      ],
+      "properties": {
+        "get_current_deactivate_commitment": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_poll_id"
+      ],
+      "properties": {
+        "get_poll_id": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

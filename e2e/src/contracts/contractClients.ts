@@ -362,12 +362,19 @@ export class AmaciContractClient extends BaseContractClient {
   async getDeactivateMessage(): Promise<string[][]> {
     return await this.query({ get_deactivate_message: {} });
   }
+
+  /**
+   * Query: Get poll ID
+   */
+  async getPollId(): Promise<string> {
+    return await this.query({ get_poll_id: {} });
+  }
 }
 
 /**
- * API-MACI contract client
+ * MACI contract client
  */
-export class ApiMaciContractClient extends BaseContractClient {
+export class MaciContractClient extends BaseContractClient {
   /**
    * Sign up a user
    */
@@ -474,6 +481,13 @@ export class ApiMaciContractClient extends BaseContractClient {
    */
   async getPeriod(): Promise<any> {
     return await this.query({ get_period: {} });
+  }
+
+  /**
+   * Query: Get poll ID
+   */
+  async getPollId(): Promise<string> {
+    return await this.query({ get_poll_id: {} });
   }
 }
 

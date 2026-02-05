@@ -5,6 +5,7 @@ import {
   hash3,
   hash10,
   hash12,
+  hash13,
   hashLeftRight
 } from '@dorafactory/maci-sdk';
 import { type WitnessTester } from 'circomkit';
@@ -88,6 +89,7 @@ const CIRCOM_PATH = './utils/hasherPoseidon';
  * - Hasher5: Hash 5 elements (for signature messages)
  * - Hasher10: Hash 10 elements (for message chains)
  * - Hasher12: Hash 12 elements (for large state commits)
+ * - Hasher13: Hash 13 elements (for MACI message hashing with prevHash)
  *
  * Each optimized for specific MACI operations.
  *
@@ -311,6 +313,53 @@ describe('Poseidon hash circuits', function test() {
             await circuit.expectConstraintPass(witness);
             const output = await getSignal(circuit, witness, 'hash');
             const outputJS = hash12(preImages);
+
+            return output === outputJS;
+          }
+        )
+      );
+    });
+  });
+
+  describe('Hasher13', () => {
+    let circuit: WitnessTester<['in'], ['hash']>;
+
+    before(async () => {
+      circuit = await circomkitInstance.WitnessTester('hasher13', {
+        file: CIRCOM_PATH,
+        template: 'Hasher13'
+      });
+    });
+
+    it('correctly hashes 13 random values', async () => {
+      /**
+       * Property-based test: 13-element Poseidon hash verification
+       * 
+       * Used for MACI message hashing with the structure:
+       * - 10 message elements (encrypted command)
+       * - 2 public key elements (encPubKey)
+       * - 1 previous hash (prevHash)
+       * 
+       * This is the core hash function for MessageHasher circuit,
+       * ensuring message chain integrity and preventing tampering.
+       * 
+       * Implementation: hash5([hash5(m[0..4]), hash5(m[5..9]), m[10], m[11], m[12]])
+       */
+      const n = 13;
+
+      await fc.assert(
+        fc.asyncProperty(
+          fc.array(fc.bigInt({ min: 0n, max: SNARK_FIELD_SIZE - 1n }), {
+            minLength: n,
+            maxLength: n
+          }),
+          async (preImages: bigint[]) => {
+            const witness = await circuit.calculateWitness({
+              in: preImages
+            });
+            await circuit.expectConstraintPass(witness);
+            const output = await getSignal(circuit, witness, 'hash');
+            const outputJS = hash13(preImages);
 
             return output === outputJS;
           }

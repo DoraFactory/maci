@@ -17,6 +17,7 @@ export interface InstantiateMsg {
   operator: Addr;
   oracle_whitelist_pubkey?: string | null;
   parameters: MaciParameters;
+  poll_id: number;
   pre_deactivate_coordinator?: PubKey | null;
   pre_deactivate_root: Uint256;
   round_info: RoundInfo;
@@ -126,7 +127,7 @@ export type ExecuteMsg = {
   claim: {};
 };
 export interface MessageData {
-  data: [Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256];
+  data: [Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256];
 }
 export interface Groth16ProofType {
   a: string;
@@ -227,6 +228,16 @@ export type QueryMsg = {
   };
 } | {
   query_current_state_commitment: {};
+} | {
+  get_coordinator_hash: {};
+} | {
+  get_msg_hash: {
+    index: Uint256;
+  };
+} | {
+  get_current_deactivate_commitment: {};
+} | {
+  get_poll_id: {};
 };
 export type Boolean = boolean;
 export type DelayType = "deactivate_delay" | "tally_delay";

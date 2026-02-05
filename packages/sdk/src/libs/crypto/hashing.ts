@@ -157,7 +157,7 @@ export const hash10 = (elements: Plaintext): bigint => {
 
 /**
  * A convenience function to use Poseidon to hash a Plaintext with
- * no more than 13 elements
+ * no more than 12 elements
  * @param elements The elements to hash
  * @returns The hash of the elements
  */
@@ -184,6 +184,52 @@ export const hash12 = (elements: Plaintext): bigint => {
     poseidonT6(elementsPadded.slice(5, 10)),
     elementsPadded[10],
     elementsPadded[11]
+  ]);
+};
+
+/**
+ * A convenience function to use Poseidon to hash a Plaintext with
+ * exactly 13 elements. This is used for hashing MACI messages.
+ * 
+ * Structure: hash5([hash5(m[0..4]), hash5(m[5..9]), m[10], m[11], m[12]])
+ * 
+ * This matches the circuit's Hasher13 implementation:
+ * - First 5 elements (m[0..4]) are hashed with hash5
+ * - Next 5 elements (m[5..9]) are hashed with hash5
+ * - The two hashes plus the last 3 elements (m[10], m[11], m[12]) are hashed with hash5
+ * 
+ * Used in MessageHasher circuit to hash:
+ * - 10 message elements (encrypted command)
+ * - 2 public key elements (encPubKey)
+ * - 1 previous hash (prevHash)
+ * 
+ * @param elements The elements to hash (must be exactly 13 elements)
+ * @returns The hash of the elements
+ */
+export const hash13 = (elements: Plaintext): bigint => {
+  const max = 13;
+  const elementLength = elements.length;
+
+  if (elementLength > max) {
+    throw new TypeError(
+      `the length of the elements array should be at most ${max}; got ${elements.length}`
+    );
+  }
+
+  const elementsPadded = elements.slice();
+
+  if (elementLength < max) {
+    for (let i = elementLength; i < max; i += 1) {
+      elementsPadded.push(BigInt(0));
+    }
+  }
+
+  return poseidonT6([
+    poseidonT6(elementsPadded.slice(0, 5)),
+    poseidonT6(elementsPadded.slice(5, 10)),
+    elementsPadded[10],
+    elementsPadded[11],
+    elementsPadded[12]
   ]);
 };
 

@@ -118,14 +118,15 @@ template EdDSAPoseidonVerifier_patched() {
 }
 
 template VerifySignature() {
-    // Verify the signature of a Command, which has exactly 3 elements in the
-    // hash preimage
+    // Verify the signature of a Command
+    // Signature preimage: [packed_data, newPubKey_x, newPubKey_y] (3 elements)
+    // Salt is NOT included in the signature
     signal input pubKey[2];
     signal input R8[2];
     signal input S;
 
     var k = 3;
-    signal input preimage[k];
+    signal input preimage[k];  // [packed_data, newPubKey_x, newPubKey_y]
 
     signal output valid;
 

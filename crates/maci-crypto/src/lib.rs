@@ -111,15 +111,16 @@ mod tests {
         let state_idx = BigUint::from(456u32);
         let vo_idx = BigUint::from(789u32);
         let new_votes = BigUint::from(1000u32);
-        let salt = BigUint::from(999u32);
+        let poll_id = BigUint::from(0u32);
 
-        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, Some(&salt));
+        let packed = pack_element(&nonce, &state_idx, &vo_idx, &new_votes, &poll_id);
         let unpacked = unpack_element(&packed);
 
         assert_eq!(unpacked.nonce, nonce);
         assert_eq!(unpacked.state_idx, state_idx);
         assert_eq!(unpacked.vo_idx, vo_idx);
         assert_eq!(unpacked.new_votes, new_votes);
+        assert_eq!(unpacked.poll_id, poll_id);
     }
 
     #[test]

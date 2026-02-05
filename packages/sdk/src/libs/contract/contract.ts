@@ -122,8 +122,8 @@ export class Contract {
           link: link || ''
         },
         votingTime: {
-          start_time,
-          end_time
+          start_time: Number(start_time),
+          end_time: Number(end_time)
         },
         maxVoter: maxVoter.toString(),
         voteOptionMap,
@@ -136,12 +136,12 @@ export class Contract {
       [requiredFee]
     );
     let contractAddress = '';
-    res.events.map((event) => {
+    res.events.map((event: any) => {
       if (event.type === 'wasm') {
-        let actionEvent = event.attributes.find((attr) => attr.key === 'action')!;
+        let actionEvent = event.attributes.find((attr: any) => attr.key === 'action')!;
         if (actionEvent.value === 'created_round') {
           contractAddress = event.attributes
-            .find((attr) => attr.key === 'round_addr')!
+            .find((attr: any) => attr.key === 'round_addr')!
             .value.toString();
         }
       }
@@ -927,6 +927,19 @@ export class Contract {
     });
     const stateIdx = await client.signuped({ pubkey });
     return stateIdx;
+  }
+
+  async getPollId({
+    contractAddress
+  }: {
+    contractAddress: string;
+  }) {
+    const client = await createAMaciQueryClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      contractAddress
+    });
+    const pollId = await client.getPollId();
+    return pollId;
   }
 
   async oracleMaciClient({

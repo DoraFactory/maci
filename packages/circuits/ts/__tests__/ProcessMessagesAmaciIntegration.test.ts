@@ -40,6 +40,7 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -73,7 +74,8 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         const votePayload = voter.buildVotePayload({
           stateIdx: idx,
           operatorPubkey: coordPubKey,
-          selectedOptions: [{ idx: 0, vc: 10 }]
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
         });
 
         votePayload.forEach((p) => {
@@ -115,6 +117,7 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -139,7 +142,8 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       console.log('Step 2: User A deactivate');
       const deactivatePayload = await voterA.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
 
       const deactivateMessage = deactivatePayload.msg.map((m) => BigInt(m));
@@ -152,10 +156,11 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       // Step 3: User B votes (User A does not vote)
       console.log('Step 3: User B votes');
       const votePayload = voterB.buildVotePayload({
-        stateIdx: 1,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 1,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -222,7 +227,7 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -257,7 +262,8 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       console.log('Step 2: Deactivate old voter');
       const deactivatePayload = await oldVoter.buildDeactivatePayload({
         stateIdx: OLD_IDX,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
 
       const dMsg = deactivatePayload.msg.map((m) => BigInt(m));
@@ -267,10 +273,11 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       // Step 3: Both voters try to vote
       console.log('Step 3: Old voter attempts to vote (should be rejected)');
       const oldVotePayload = oldVoter.buildVotePayload({
-        stateIdx: OLD_IDX,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: OLD_IDX,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       oldVotePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -281,10 +288,11 @@ describe('AMACI ProcessMessages Integration Tests', function () {
 
       console.log('Step 4: New voter votes (should succeed)');
       const newVotePayload = newVoter.buildVotePayload({
-        stateIdx: NEW_IDX,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 5 }] // vc=5, cost=25 in quadratic mode
-      });
+          stateIdx: NEW_IDX,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 1, vc: 5 }], // vc=5, cost=25 in quadratic mode,
+          pollId: 1
+        });
 
       newVotePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -385,6 +393,7 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         // More slots for multiple cycles
         isQuadraticCost: true,
         isAmaci: true
@@ -403,10 +412,11 @@ describe('AMACI ProcessMessages Integration Tests', function () {
 
       // Vote
       let votePayload = voter1.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
         const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
@@ -417,7 +427,8 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       console.log('Cycle 1: Deactivate');
       const deactivatePayload = await voter1.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
       const deactivateMessage = deactivatePayload.msg.map((m) => BigInt(m));
       const deactivateEncPubKey = deactivatePayload.encPubkeys.map((k) => BigInt(k)) as [
@@ -472,7 +483,7 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -496,7 +507,8 @@ describe('AMACI ProcessMessages Integration Tests', function () {
         const payload = voter.buildVotePayload({
           stateIdx: idx,
           operatorPubkey: coordPubKey,
-          selectedOptions: [{ idx: idx, vc: 10 + idx * 5 }]
+          selectedOptions: [{ idx: idx, vc: 10 + idx * 5 }],
+          pollId: 1
         });
         payload.forEach((p) => {
           const message = p.msg.map((m) => BigInt(m));
@@ -509,7 +521,8 @@ describe('AMACI ProcessMessages Integration Tests', function () {
       console.log('User B deactivates');
       const deactivatePayloadB = await voterB.buildDeactivatePayload({
         stateIdx: 1,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
       const messageB = deactivatePayloadB.msg.map((m) => BigInt(m));
       const encPubKeyB = deactivatePayloadB.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];

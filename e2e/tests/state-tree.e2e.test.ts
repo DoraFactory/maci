@@ -6,7 +6,7 @@ import {
   createTestEnvironment,
   ContractLoader,
   DeployManager,
-  ApiMaciContractClient,
+  MaciContractClient,
   AmaciContractClient,
   formatPubKeyForContract,
   assertExecuteSuccess,
@@ -191,7 +191,7 @@ describe('State Tree Update E2E Test', function () {
   });
 
   describe('MACI Contract State Tree Tests', () => {
-    let maciContract: ApiMaciContractClient;
+    let maciContract: MaciContractClient;
     let voters: VoterClient[];
     const numTestUsers = 5;
 
@@ -214,6 +214,7 @@ describe('State Tree Update E2E Test', function () {
       const votingEndTime = (currentTime + 11 * 60 * 1e9).toString(); // 11 minutes (MACI requires > 10 mins)
 
       const instantiateMsg = {
+        poll_id: 1,
         coordinator: {
           x: coordPubKey[0].toString(),
           y: coordPubKey[1].toString()
@@ -239,8 +240,8 @@ describe('State Tree Update E2E Test', function () {
         }
       };
 
-      const contractInfo = await deployManager.deployApiMaciContract(adminAddress, instantiateMsg);
-      maciContract = new ApiMaciContractClient(client, contractInfo.contractAddress, adminAddress);
+      const contractInfo = await deployManager.deployMaciContract(adminAddress, instantiateMsg);
+      maciContract = new MaciContractClient(client, contractInfo.contractAddress, adminAddress);
 
       // Initialize operator's local state
       operator.initRound({
@@ -250,7 +251,8 @@ describe('State Tree Update E2E Test', function () {
         batchSize,
         maxVoteOptions,
         isQuadraticCost: false,
-        isAmaci: false
+        isAmaci: false,
+        pollId: 1
       });
 
       // Create test voters
@@ -447,7 +449,8 @@ describe('State Tree Update E2E Test', function () {
         batchSize,
         maxVoteOptions,
         isQuadraticCost: false,
-        isAmaci: true // Important!
+        isAmaci: true, // Important!
+        pollId: 1,
       });
 
       operator = operatorAmaci; // Replace operator for AMACI tests
@@ -480,6 +483,7 @@ describe('State Tree Update E2E Test', function () {
       log(`⏰ Using simulated time control - no real waiting needed`);
 
       const instantiateMsg = {
+        poll_id: 1,
         parameters: {
           state_tree_depth: stateTreeDepth.toString(),
           int_state_tree_depth: '1',

@@ -60,7 +60,7 @@ export type ExecuteMsg = {
 };
 export type Uint256 = string;
 export type Timestamp = Uint64;
-export type Uint64 = string;
+export type Uint64 = number;
 export type Decimal = string;
 export interface PubKey {
   x: Uint256;
@@ -115,9 +115,20 @@ export type QueryMsg = {
   };
 } | {
   get_circuit_charge_config: {};
+} | {
+  get_poll_id: {
+    address: Addr;
+  };
+} | {
+  get_poll_address: {
+    poll_id: number;
+  };
+} | {
+  get_next_poll_id: {};
 };
 export interface AdminResponse {
   admin: Addr;
 }
 export type String = string;
+export type NullableAddr = Addr | null;
 export type Boolean = boolean;

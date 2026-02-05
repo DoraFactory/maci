@@ -12,7 +12,8 @@ import {
   assertExecuteSuccess,
   log,
   assertBigIntEqual,
-  advanceTime
+  advanceTime,
+  queryPollId
 } from '../src';
 
 /**
@@ -112,20 +113,7 @@ describe('AMACI End-to-End Test', function () {
 
     log('SDK clients initialized');
 
-    // Initialize operator AMACI (Quadratic Voting with anonymous keys)
-    operator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true // AMACI uses anonymous keys (d1, d2)
-    });
-
-    log('Operator AMACI round initialized');
-
-    // Deploy AMACI contract
+    // Deploy AMACI contract (need contract to get pollId)
     const contractLoader = new ContractLoader();
     const deployManager = new DeployManager(client, contractLoader);
 
@@ -195,7 +183,8 @@ describe('AMACI End-to-End Test', function () {
       circuit_type: '1', // QV
       certification_system: '0', // Groth16
       oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      pre_deactivate_coordinator: null,
+      poll_id: 1 // Poll ID for this round (防止跨 poll 重放攻击)
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -203,6 +192,24 @@ describe('AMACI End-to-End Test', function () {
     amaciContract = new AmaciContractClient(client, contractInfo.contractAddress, operatorAddress);
 
     log(`AMACI contract deployed at: ${contractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const pollId = await queryPollId(amaciContract);
+    log(`Poll ID retrieved from contract: ${pollId}`);
+
+    // Initialize operator AMACI with pollId (must be after contract deployment)
+    operator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true, // AMACI uses anonymous keys (d1, d2)
+      pollId // From contract query
+    });
+
+    log('Operator AMACI round initialized with pollId (Quadratic Voting with anonymous keys)');
   });
 
   it('should complete the full AMACI voting flow', async () => {
@@ -256,6 +263,10 @@ describe('AMACI End-to-End Test', function () {
 
     log('\n=== Step 2: Submit Votes ===\n');
 
+    // Query pollId for building vote payloads
+    const pollId = await queryPollId(amaciContract);
+    log(`Using poll ID ${pollId} for vote payloads`);
+
     const coordPubKey = operator.getPubkey().toPoints();
 
     // User 1's new key votes: option 0(1), option 1(2), option 2(3)
@@ -266,7 +277,8 @@ describe('AMACI End-to-End Test', function () {
         { idx: 0, vc: 1 },
         { idx: 1, vc: 2 },
         { idx: 2, vc: 3 }
-      ]
+      ],
+      pollId
     });
 
     for (const payload of vote3Payload) {

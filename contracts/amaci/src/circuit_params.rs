@@ -46,8 +46,8 @@ pub fn match_vkeys(parameters: &MaciParameters) -> Result<VkeyParams, ContractEr
             vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
             vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
             vk_delta_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
-            vk_ic0: "0f975c069541a0ec7e3ff282873f24fad44b0afd2061ef661da90a759ed8bf09279d2f02b5e22f35123aab12df022240bd22bba246a4c6f85b2d02731364d648".to_string(),
-            vk_ic1: "0daa6e1bf0504c4eae7b692bb9632cae53ece0539542e94927f97193f30a2d4a0215ee422167418c64f01262acc75a7e61bb135e1a132700ad4f5b3db15302b3".to_string(),
+            vk_ic0: "063ad50333482e2f29a36cbfb847dafdba766a58a6165b0ea693feac43417160165e0e036fbc0105cdef72c5cdff80223c2f8226ae10cbc3f3ab6ad9c684ced7".to_string(),
+            vk_ic1: "1e8df3e852c155a3e173e5f7aa07e74accf15894854e20124016e41fa21026e41baf26dec20984679aecfdd0667a137ee746c23c5598cd530618bbbfd61a82e9".to_string(),
         };
 
         let groth16_process_vkeys = format_vkey(&groth16_process_vkey)?;
@@ -66,7 +66,7 @@ pub fn match_vkeys(parameters: &MaciParameters) -> Result<VkeyParams, ContractEr
         };
         let groth16_tally_vkeys = format_vkey(&groth16_tally_vkey)?;
 
-        // Create a tally_vkeys struct from the tally_vkey in the message
+        // Create a deactivate_vkeys struct from the deactivate_vkey in the message
         let groth16_deactivate_vkey =  Groth16VKeyType {
             vk_alpha1:
 					"2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
@@ -76,12 +76,12 @@ pub fn match_vkeys(parameters: &MaciParameters) -> Result<VkeyParams, ContractEr
 					"198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
 				vk_delta_2:
 					"198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
-				vk_ic0: "2be2d65591c4d5fc9159b3193a6145f397b11853e32c32b612ff98f8ec6117d71a83022b620611866d7ef690856fe680f304fc0a6867c2eec5ffb6a05215df41".to_string(),
-				vk_ic1: "19ef52ccb8ff967bb4e21184169341930fe9cb381c6fe4b2dfb93005d48d988d24cadc56c30921f2248dc5bf5286d9f63697174f4d5d4be10da3ff7358bb49c3".to_string(),
+				vk_ic0: "24fcf45858d52df1307621609f9b3458575acdb85e40d5f963865ae9a55490be05d0b31cfefecf6b559403db12de44f7f514f96bfe485549bb15d639bd6ed085".to_string(),
+				vk_ic1: "027a268d55de6d91ad4bb34ff88cb7f41933c1f842f521df118d925947b0252e11bcf96bf4363a1a0bf2c78ab3d8499370dda56d6db5a82f9ccf8303e8edfd38".to_string(),
         };
         let groth16_deactivate_vkeys = format_vkey(&groth16_deactivate_vkey)?;
 
-        // Create a tally_vkeys struct from the tally_vkey in the message
+        // Create an add_new_key_vkeys struct from the add_new_key_vkey in the message
         let groth16_add_new_key_vkey = Groth16VKeyType {
             vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
             vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
@@ -90,7 +90,6 @@ pub fn match_vkeys(parameters: &MaciParameters) -> Result<VkeyParams, ContractEr
             vk_ic0: "2dbbb532c47e57c996a41c322bc54ac68b013ba0ff1771d5b70a4bc48531307812d75438820b13ef0535a5968d2b8b5b2d5e52cafe1c62276b1f4d6c83c49509".to_string(),
             vk_ic1: "1003003b0c3c93ab80b2e37ee1b38f80a769445a49535fd86f86fb07b269073c1059f3de74eb805c960928de9d3cda4416c59dbe39a11f7e6fbbbd5c99e10bff".to_string(),
         };
-        // Create a process_vkeys struct from the process_vkey in the message
         let groth16_add_new_key_vkeys = format_vkey(&groth16_add_new_key_vkey)?;
 
         let vkeys = VkeyParams {

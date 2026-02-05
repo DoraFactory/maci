@@ -12,7 +12,8 @@ import {
   assertExecuteSuccess,
   log,
   assertBigIntEqual,
-  advanceTime
+  advanceTime,
+  queryPollId
 } from '../src';
 
 /**
@@ -90,19 +91,6 @@ describe('Batch Publish Message E2E Test', function () {
 
     log('SDK clients initialized');
 
-    // Initialize operator MACI
-    operator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: false,
-      isAmaci: true
-    });
-
-    log('Operator MACI round initialized');
-
     // Load and deploy contracts
     const contractLoader = new ContractLoader();
     const deployManager = new DeployManager(client, contractLoader);
@@ -164,12 +152,31 @@ describe('Batch Publish Message E2E Test', function () {
       circuit_type: '0', // 1p1v
       certification_system: '0', // Groth16
       oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      pre_deactivate_coordinator: null,
+      poll_id: 1 // Poll ID for this round (防止跨 poll 重放攻击)
     };
 
     const amaciInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
     amaciContract = new AmaciContractClient(client, amaciInfo.contractAddress, adminAddress);
     log(`AMACI contract deployed at: ${amaciInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const pollId = await queryPollId(amaciContract);
+    log(`Poll ID retrieved from contract: ${pollId}`);
+
+    // Initialize operator MACI with pollId (must be after contract deployment)
+    operator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: false,
+      isAmaci: true,
+      pollId // From contract query
+    });
+
+    log('Operator MACI round initialized with pollId (1P1V mode)');
 
     // Register users
     log('\n=== Registering Users ===\n');
@@ -201,6 +208,9 @@ describe('Batch Publish Message E2E Test', function () {
     it('should successfully publish multiple messages in one batch', async () => {
       log('\n=== Test 1: Batch Publish (3 messages) ===\n');
 
+      // Query pollId for building vote payloads
+      const pollId = await queryPollId(amaciContract);
+
       const coordPubKey = operator.getPubkey().toPoints();
 
       // User 1 votes: 3 messages for different options
@@ -211,7 +221,8 @@ describe('Batch Publish Message E2E Test', function () {
           { idx: 0, vc: 1 },
           { idx: 1, vc: 2 },
           { idx: 2, vc: 3 }
-        ]
+        ],
+        pollId
       });
 
       // Format messages for batch publish
@@ -265,6 +276,9 @@ describe('Batch Publish Message E2E Test', function () {
     it('should publish another batch from different user', async () => {
       log('\n=== Test 2: Batch Publish from User 2 (2 messages) ===\n');
 
+      // Query pollId for building vote payloads
+      const pollId = await queryPollId(amaciContract);
+
       const coordPubKey = operator.getPubkey().toPoints();
 
       // User 2 votes: 2 messages
@@ -274,7 +288,8 @@ describe('Batch Publish Message E2E Test', function () {
         selectedOptions: [
           { idx: 3, vc: 4 },
           { idx: 4, vc: 5 }
-        ]
+        ],
+        pollId
       });
 
       const batchMessages = votePayload.map((payload) => ({
@@ -308,13 +323,17 @@ describe('Batch Publish Message E2E Test', function () {
     it('should fail when batch contains duplicate enc_pub_key', async () => {
       log('\n=== Test 3: Error - Duplicate enc_pub_key ===\n');
 
+      // Query pollId for building vote payloads
+      const pollId = await queryPollId(amaciContract);
+
       const coordPubKey = operator.getPubkey().toPoints();
 
       // Create a vote payload
       const votePayload = voter1.buildVotePayload({
         stateIdx: USER_1,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 1 }]
+        selectedOptions: [{ idx: 0, vc: 1 }],
+        pollId
       });
 
       const firstMessage = {
@@ -342,12 +361,16 @@ describe('Batch Publish Message E2E Test', function () {
     it('should handle single message batch', async () => {
       log('\n=== Test 4: Single Message Batch ===\n');
 
+      // Query pollId for building vote payloads
+      const pollId = await queryPollId(amaciContract);
+
       const coordPubKey = operator.getPubkey().toPoints();
 
       const votePayload = voter1.buildVotePayload({
         stateIdx: USER_1,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 1 }]
+        selectedOptions: [{ idx: 0, vc: 1 }],
+        pollId
       });
 
       const singleBatch = [

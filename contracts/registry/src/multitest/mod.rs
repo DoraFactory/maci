@@ -90,9 +90,18 @@ impl AmaciRegistryCodeId {
         app: &mut App,
         sender: Addr,
         amaci_code_id: u64,
+        maci_code_id: u64,
         label: &str,
     ) -> AnyResult<AmaciRegistryContract> {
-        AmaciRegistryContract::instantiate(app, self, sender, operator(), amaci_code_id, label)
+        AmaciRegistryContract::instantiate(
+            app,
+            self,
+            sender,
+            operator(),
+            amaci_code_id,
+            maci_code_id,
+            label,
+        )
     }
 }
 
@@ -119,12 +128,14 @@ impl AmaciRegistryContract {
         sender: Addr,
         operator: Addr,
         amaci_code_id: u64,
+        maci_code_id: u64,
         label: &str,
     ) -> AnyResult<Self> {
         let init_msg = InstantiateMsg {
             admin: admin().clone(),
             operator,
             amaci_code_id,
+            maci_code_id,
         };
         app.instantiate_contract(
             code_id.0,

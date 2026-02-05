@@ -24,7 +24,7 @@ fn main() {
     let mut static_random_keys = serde_json::Map::new();
 
     for &index in &indices {
-        let random_key = poseidon(&vec![
+        let random_key = poseidon(&[
             coord_keypair.priv_key.clone(),
             static_random_salt.clone(),
             BigUint::from(index),
@@ -51,7 +51,7 @@ fn main() {
 
     // === Test 2: encryptOdevity (even/active) ===
     eprintln!("Generating encryptOdevity (even) vector...");
-    let random_key_1 = poseidon(&vec![
+    let random_key_1 = poseidon(&[
         coord_keypair.priv_key.clone(),
         static_random_salt.clone(),
         BigUint::from(1u64),
@@ -87,7 +87,7 @@ fn main() {
 
     // === Test 3: encryptOdevity (odd/deactivated) ===
     eprintln!("Generating encryptOdevity (odd) vector...");
-    let random_key_2 = poseidon(&vec![
+    let random_key_2 = poseidon(&[
         coord_keypair.priv_key.clone(),
         static_random_salt.clone(),
         BigUint::from(2u64),
@@ -223,7 +223,7 @@ fn main() {
     let coordinator_keypair = Keypair::from_priv_key(&coordinator_seed);
 
     // Create multiple account keypairs
-    let account_seeds = vec![11111u64, 22222u64, 33333u64, 44444u64, 55555u64];
+    let account_seeds = [11111u64, 22222u64, 33333u64, 44444u64, 55555u64];
     let account_keypairs: Vec<_> = account_seeds
         .iter()
         .map(|&seed| gen_keypair(Some(BigUint::from(seed))))
@@ -258,7 +258,7 @@ fn main() {
             .collect();
 
         // Serialize leaves
-        let leaves_json: Vec<_> = leaves.iter().map(|leaf| biguint_to_hex(leaf)).collect();
+        let leaves_json: Vec<_> = leaves.iter().map(biguint_to_hex).collect();
 
         // Serialize account public keys
         let accounts_json: Vec<_> = accounts

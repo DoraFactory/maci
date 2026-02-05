@@ -433,7 +433,7 @@ fn create_round_with_reward_should_works() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
+        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -614,7 +614,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
+        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -821,6 +821,9 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -908,6 +911,9 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -1222,7 +1228,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
+        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -1424,6 +1430,9 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -1511,6 +1520,9 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -1825,7 +1837,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
 
     let label = "Dora AMaci Registry Oracle Test";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
+        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -2015,6 +2027,9 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -2102,6 +2117,9 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -2381,7 +2399,7 @@ fn test_create_round_event_data() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
+        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());

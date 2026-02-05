@@ -3,7 +3,7 @@
 //! Run with: cargo run --example poseidon_hashing
 
 use maci_crypto::{
-    hash10, hash12, hash2, hash3, hash4, hash5, hash_left_right, hash_one, poseidon, poseidon_t3,
+    hash10, hash12, hash2, hash5, hash_left_right, hash_one, poseidon, poseidon_t3,
     poseidon_t4, poseidon_t5, poseidon_t6, sha256_hash,
 };
 use num_bigint::BigUint;
@@ -202,7 +202,7 @@ fn main() {
         println!("  Item {}: {:?} -> {}", i, values, hash);
     }
 
-    println!("\n".repeat(1));
+    println!();
     println!("{}", "=".repeat(60));
     println!("✅ Example completed!");
 }

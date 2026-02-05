@@ -15,7 +15,7 @@ use crate::state::{
     GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS, GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS,
     MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR, MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH,
     MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, ORACLE_WHITELIST_PUBKEY,
-    PENALTY_RATE, PERIOD, PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT,
+    PENALTY_RATE, PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT,
     PROCESSED_DMSG_COUNT, PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB, RESULT, ROUNDINFO,
     SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_DELAY_MAX_HOURS, TALLY_TIMEOUT, TOTAL_RESULT,
     USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOTEOPTIONMAP, VOTINGTIME,
@@ -136,12 +136,16 @@ pub fn instantiate(
     match msg.whitelist {
         Some(content) => {
             let max_voter_amount = Uint256::from_u128(
-                5u128.pow(msg.parameters.state_tree_depth.to_string().parse().map_err(
-                    |e| ContractError::ParseError {
-                        value: msg.parameters.state_tree_depth.to_string(),
-                        reason: format!("{}", e),
-                    },
-                )?),
+                5u128.pow(
+                    msg.parameters
+                        .state_tree_depth
+                        .to_string()
+                        .parse()
+                        .map_err(|e| ContractError::ParseError {
+                            value: msg.parameters.state_tree_depth.to_string(),
+                            reason: format!("{}", e),
+                        })?,
+                ),
             );
             if Uint256::from_u128(content.users.len() as u128) > max_voter_amount {
                 return Err(ContractError::MaxVoterExceeded {
@@ -172,6 +176,10 @@ pub fn instantiate(
 
     // Save the MACI parameters to storage
     MACIPARAMETERS.save(deps.storage, &msg.parameters)?;
+
+    // Save poll_id (required, assigned by Registry)
+    POLL_ID.save(deps.storage, &msg.poll_id)?;
+
     let qtr_lab = QuinaryTreeRoot {
         zeros: [
             Uint256::from_u128(0u128),
@@ -227,16 +235,18 @@ pub fn instantiate(
     COORDINATORHASH.save(deps.storage, &coordinator_hash)?;
 
     // Compute the maximum number of leaves based on the state tree depth
-    let max_leaves_count = Uint256::from_u128(5u128.pow(
-        msg.parameters
-            .state_tree_depth
-            .to_string()
-            .parse()
-            .map_err(|e| ContractError::ParseError {
-                value: msg.parameters.state_tree_depth.to_string(),
-                reason: format!("{}", e),
-            })?,
-    ));
+    let max_leaves_count = Uint256::from_u128(
+        5u128.pow(
+            msg.parameters
+                .state_tree_depth
+                .to_string()
+                .parse()
+                .map_err(|e| ContractError::ParseError {
+                    value: msg.parameters.state_tree_depth.to_string(),
+                    reason: format!("{}", e),
+                })?,
+        ),
+    );
     MAX_LEAVES_COUNT.save(deps.storage, &max_leaves_count)?;
 
     // Calculate the index of the first leaf in the tree
@@ -428,6 +438,7 @@ pub fn instantiate(
         penalty_rate: penalty_rate.clone(),
         deactivate_timeout: deactivate_delay.clone(),
         tally_timeout: old_tally_timeout_set.clone(),
+        poll_id: msg.poll_id, // Include poll_id in response (required)
     };
 
     let mut attributes = vec![
@@ -621,15 +632,13 @@ pub fn execute_set_whitelists(
     } else {
         let cfg = MACIPARAMETERS.load(deps.storage)?;
 
-        let max_voter_amount = Uint256::from_u128(5u128.pow(
-            cfg.state_tree_depth
-                .to_string()
-                .parse()
-                .map_err(|e| ContractError::ParseError {
+        let max_voter_amount =
+            Uint256::from_u128(5u128.pow(cfg.state_tree_depth.to_string().parse().map_err(
+                |e| ContractError::ParseError {
                     value: cfg.state_tree_depth.to_string(),
                     reason: format!("{}", e),
-                })?,
-        ));
+                },
+            )?));
         if Uint256::from_u128(whitelists.users.len() as u128) > max_voter_amount {
             return Err(ContractError::MaxVoterExceeded {
                 current: Uint256::from_u128(whitelists.users.len() as u128),
@@ -673,15 +682,17 @@ pub fn execute_set_vote_options_map(
         let cfg = MACIPARAMETERS.load(deps.storage)?;
 
         // An error will be thrown if the number of vote options exceeds the circuit's capacity.
-        let vote_option_max_amount = Uint256::from_u128(5u128.pow(
-            cfg.vote_option_tree_depth
-                .to_string()
-                .parse()
-                .map_err(|e| ContractError::ParseError {
-                    value: cfg.vote_option_tree_depth.to_string(),
-                    reason: format!("{}", e),
-                })?,
-        ));
+        let vote_option_max_amount = Uint256::from_u128(
+            5u128.pow(
+                cfg.vote_option_tree_depth
+                    .to_string()
+                    .parse()
+                    .map_err(|e| ContractError::ParseError {
+                        value: cfg.vote_option_tree_depth.to_string(),
+                        reason: format!("{}", e),
+                    })?,
+            ),
+        );
         if Uint256::from_u128(max_vote_options) > vote_option_max_amount {
             return Err(ContractError::MaxVoteOptionsExceeded {
                 current: Uint256::from_u128(max_vote_options),
@@ -1101,24 +1112,27 @@ pub fn execute_publish_deactivate_message(
         let old_msg_hashes =
             DMSG_HASHES.load(deps.storage, dmsg_chain_length.to_be_bytes().to_vec())?;
 
+        // Hash first 5 elements of the message
         let mut m: [Uint256; 5] = [Uint256::zero(); 5];
         m[0] = message.data[0];
         m[1] = message.data[1];
         m[2] = message.data[2];
         m[3] = message.data[3];
         m[4] = message.data[4];
+        let m_hash = hash5(m);
 
+        // Hash next 5 elements of the message
         let mut n: [Uint256; 5] = [Uint256::zero(); 5];
         n[0] = message.data[5];
         n[1] = message.data[6];
-        n[2] = enc_pub_key.x;
-        n[3] = enc_pub_key.y;
-        n[4] = old_msg_hashes;
-
-        let m_hash = hash5(m);
-
+        n[2] = message.data[7];
+        n[3] = message.data[8];
+        n[4] = message.data[9];
         let n_hash = hash5(n);
-        let m_n_hash = hash2([m_hash, n_hash]);
+
+        // Final hash combining message hashes, public key, and previous hash
+        // This matches the circuit's Hasher13 structure
+        let m_n_hash = hash5([m_hash, n_hash, enc_pub_key.x, enc_pub_key.y, old_msg_hashes]);
 
         // Compute the new message hash using the provided message, encrypted public key, and previous hash
         DMSG_HASHES.save(
@@ -1238,7 +1252,7 @@ pub fn execute_process_deactivate_message(
         Uint256::from_u128(0u128).to_be_bytes().to_vec(),
         &new_deactivate_root,
     )?;
-    let mut input: [Uint256; 7] = [Uint256::zero(); 7];
+    let mut input: [Uint256; 8] = [Uint256::zero(); 8];
     input[0] = new_deactivate_root;
     input[1] = COORDINATORHASH.load(deps.storage)?;
     let batch_start_index = processed_dmsg_count;
@@ -1254,6 +1268,7 @@ pub fn execute_process_deactivate_message(
     input[4] = CURRENT_DEACTIVATE_COMMITMENT.load(deps.storage)?;
     input[5] = new_deactivate_commitment;
     input[6] = STATE_ROOT_BY_DMSG.load(deps.storage, batch_end_index.to_be_bytes().to_vec())?;
+    input[7] = Uint256::from(POLL_ID.load(deps.storage)?); // Poll ID for replay attack prevention
 
     // Load the scalar field value
     let snark_scalar_field =
@@ -1684,7 +1699,7 @@ pub fn execute_process_message(
     );
 
     // Create an array to store the input values for the SNARK proof
-    let mut input: [Uint256; 7] = [Uint256::zero(); 7];
+    let mut input: [Uint256; 8] = [Uint256::zero(); 8];
 
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
     let max_vote_options = MAX_VOTE_OPTIONS.load(deps.storage)?;
@@ -1734,6 +1749,7 @@ pub fn execute_process_message(
     // Set the new state commitment
     input[5] = new_state_commitment;
     input[6] = CURRENT_DEACTIVATE_COMMITMENT.load(deps.storage)?;
+    input[7] = Uint256::from(POLL_ID.load(deps.storage)?); // Poll ID for replay attack prevention
 
     // Load the scalar field value
     let snark_scalar_field =
@@ -2268,13 +2284,12 @@ fn state_update_at(deps: &mut DepsMut, index: Uint256) -> Result<bool, ContractE
         let mut inputs: [Uint256; 5] = [Uint256::zero(); 5];
 
         for i in 0..5 {
-            let node_value = NODES
-                .may_load(
-                    deps.storage,
-                    (children_idx0 + Uint256::from_u128(i as u128))
-                        .to_be_bytes()
-                        .to_vec(),
-                )?;
+            let node_value = NODES.may_load(
+                deps.storage,
+                (children_idx0 + Uint256::from_u128(i as u128))
+                    .to_be_bytes()
+                    .to_vec(),
+            )?;
 
             let child = match node_value {
                 Some(value) => value,
@@ -2316,30 +2331,44 @@ fn check_voting_time(env: Env, voting_time: VotingTime) -> Result<(), ContractEr
     Ok(())
 }
 
+/// Hash a message with its encryption public key and previous hash
+/// This implements the same logic as the circuit's MessageHasher (Hasher13)
+///
+/// Structure mirrors circuit implementation:
+/// - Hash first 5 message elements: hash5(m[0..4])
+/// - Hash next 5 message elements: hash5(m[5..9])
+/// - Hash all together: hash5([m_hash, n_hash, enc_pub_key.x, enc_pub_key.y, prev_hash])
+///
+/// This ensures message chain integrity and prevents replay attacks
 pub fn hash_message_and_enc_pub_key(
     message: &MessageData,
     enc_pub_key: &PubKey,
     prev_hash: Uint256,
 ) -> Uint256 {
+    // Hash first 5 elements of the message
     let mut m: [Uint256; 5] = [Uint256::zero(); 5];
     m[0] = message.data[0];
     m[1] = message.data[1];
     m[2] = message.data[2];
     m[3] = message.data[3];
     m[4] = message.data[4];
+    let m_hash = hash5(m);
 
+    // Hash next 5 elements of the message
     let mut n: [Uint256; 5] = [Uint256::zero(); 5];
     n[0] = message.data[5];
     n[1] = message.data[6];
-    n[2] = enc_pub_key.x;
-    n[3] = enc_pub_key.y;
-    n[4] = prev_hash;
-
-    let m_hash = hash5(m);
-
+    n[2] = message.data[7];
+    n[3] = message.data[8];
+    n[4] = message.data[9];
     let n_hash = hash5(n);
-    let m_n_hash = hash2([m_hash, n_hash]);
-    return m_n_hash;
+
+    // Final hash combining message hashes, public key, and previous hash
+    // This matches the circuit's Hasher13 structure:
+    // hasher5([m_hash, n_hash, encPubKey[0], encPubKey[1], prevHash])
+    let final_hash = hash5([m_hash, n_hash, enc_pub_key.x, enc_pub_key.y, prev_hash]);
+
+    return final_hash;
 }
 
 // Generate storage key for PubKey
@@ -2369,12 +2398,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Admin {} => to_json_binary(&ADMIN.load(deps.storage)?.admin),
         QueryMsg::Operator {} => to_json_binary(&MACI_OPERATOR.load(deps.storage)?),
-        QueryMsg::GetRoundInfo {} => {
-            to_json_binary::<RoundInfo>(&ROUNDINFO.load(deps.storage)?)
-        }
-        QueryMsg::GetVotingTime {} => {
-            to_json_binary::<VotingTime>(&VOTINGTIME.load(deps.storage)?)
-        }
+        QueryMsg::GetRoundInfo {} => to_json_binary::<RoundInfo>(&ROUNDINFO.load(deps.storage)?),
+        QueryMsg::GetVotingTime {} => to_json_binary::<VotingTime>(&VOTINGTIME.load(deps.storage)?),
         QueryMsg::GetPeriod {} => to_json_binary::<Period>(&PERIOD.load(deps.storage)?),
         QueryMsg::GetNumSignUp {} => {
             to_json_binary::<Uint256>(&NUMSIGNUPS.may_load(deps.storage)?.unwrap_or_default())
@@ -2402,9 +2427,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .may_load(deps.storage)?
                 .unwrap_or_default(),
         ),
-        QueryMsg::GetStateTreeRoot {} => {
-            to_json_binary::<Uint256>(&state_root(deps).map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?)
-        }
+        QueryMsg::GetStateTreeRoot {} => to_json_binary::<Uint256>(
+            &state_root(deps).map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?,
+        ),
         QueryMsg::GetNode { index } => {
             let node = NODES
                 .may_load(deps.storage, index.to_be_bytes().to_vec())?
@@ -2521,6 +2546,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let current_deactivate_commitment =
                 CURRENT_DEACTIVATE_COMMITMENT.may_load(deps.storage)?;
             to_json_binary(&current_deactivate_commitment)
+        }
+        QueryMsg::GetPollId {} => {
+            let poll_id = POLL_ID.load(deps.storage)?;
+            to_json_binary(&poll_id)
         }
     }
 }

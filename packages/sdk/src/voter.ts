@@ -185,10 +185,20 @@ export class VoterClient {
     return plan;
   }
 
+  /**
+   * Build vote payload for batch message publishing
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param selectedOptions - The vote options with their vote credits
+   * @param pollId - The poll ID for this round (prevents replay attacks)
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Stringified vote payload ready for submission
+   */
   buildVotePayload({
     stateIdx,
     operatorPubkey,
     selectedOptions,
+    pollId,
     derivePathParams
   }: {
     stateIdx: number;
@@ -197,11 +207,12 @@ export class VoterClient {
       idx: number;
       vc: number;
     }[];
+    pollId: number;
     derivePathParams?: DerivePathParams;
   }) {
     const plan = this.normalizeVoteOptions(selectedOptions);
 
-    const payload = this.batchGenMessage(stateIdx, operatorPubkey, plan, derivePathParams);
+    const payload = this.batchGenMessage(stateIdx, operatorPubkey, pollId, plan, derivePathParams);
 
     return stringizing(payload) as {
       msg: string[];
@@ -209,13 +220,24 @@ export class VoterClient {
     }[];
   }
 
+  /**
+   * Generate multiple encrypted messages in batch
+   * Messages are generated in reverse order for on-chain processing
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param pollId - The poll ID for this round
+   * @param plan - Array of [voteOptionIndex, voteCredit] tuples
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Array of encrypted messages with their encryption public keys
+   */
   batchGenMessage(
     stateIdx: number,
     operatorPubkey: bigint | string | PubKey,
+    pollId: number,
     plan: [number, number][],
     derivePathParams?: DerivePathParams
   ) {
-    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, derivePathParams);
+    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, pollId, derivePathParams);
 
     const payload = [];
     for (let i = plan.length - 1; i >= 0; i--) {
@@ -233,12 +255,19 @@ export class VoterClient {
     return payload;
   }
 
+  /**
+   * Create a message factory for generating encrypted vote messages
+   * The factory returns a function that can generate individual messages
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param pollId - The poll ID for this round (prevents replay attacks across different polls)
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns A function that generates encrypted messages
+   */
   genMessageFactory(
     stateIdx: number,
     operatorPubkey: bigint | string | PubKey,
-    // signPriKey: PrivKey,
-    // signPubKey: PubKey,
-    // coordPubKey: PubKey,
+    pollId: number,
     derivePathParams?: DerivePathParams
   ) {
     return (
@@ -249,41 +278,53 @@ export class VoterClient {
       isLastCmd: boolean,
       salt?: bigint
     ): bigint[] => {
-      // if (!salt) {
-      //   // uint56
-      //   salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
-      // }
+      if (salt === undefined) {
+        // Generate random 56-bit salt
+        salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
+      }
 
-      // const packaged =
-      //   BigInt(nonce) +
-      //   (BigInt(stateIdx) << 32n) +
-      //   (BigInt(voIdx) << 64n) +
-      //   (BigInt(newVotes) << 96n) +
-      //   (BigInt(salt) << 192n);
-
-      const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+      // Pack command data including pollId to prevent replay attacks
+      const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
       const signer = this.getSigner(derivePathParams);
 
       let newPubKey: PubKey;
       if (isLastCmd) {
+        // Last command uses null public key to indicate end of batch
         newPubKey = [0n, 0n];
       } else {
         // For non-last commands, keep the current public key (no rotation)
         newPubKey = [...signer.getPublicKey().toPoints()];
       }
 
+      // Create hash for signing: [packed_data, newPubKey_x, newPubKey_y]
+      // Signature does NOT include salt
       const hash = poseidon([packaged, ...newPubKey]);
-      // const signature = signMessage(bigInt2Buffer(signPriKey), hash);
       const signature = signer.sign(hash);
 
-      const command = [packaged, ...newPubKey, ...signature.R8, signature.S];
+      // Build command array: [packed_data, newPubKey_x, newPubKey_y, salt, sig_R8_x, sig_R8_y, sig_S]
+      const command = [packaged, ...newPubKey, BigInt(salt), ...signature.R8, signature.S];
       const coordPubkey = this.unpackMaciPubkey(operatorPubkey);
 
+      // Encrypt command with shared key derived from encPriKey and coordinator's public key
       const message = poseidonEncrypt(command, genEcdhSharedKey(encPriKey, coordPubkey), 0n);
-
+      console.log("length of message", message.length);
       return message;
     };
+  }
+
+  async getPollId(contractAddress: string): Promise<number> {
+    try {
+      const pollId = await this.contract.getPollId({
+        contractAddress
+      });
+      if (pollId === null) {
+        throw new Error('Poll ID not found');
+      }
+      return Number(pollId);
+    } catch (error) {
+      throw new Error(`Failed to get poll_id from ${contractAddress}: ${error}`);
+    }
   }
 
   async getStateIdx({
@@ -563,20 +604,30 @@ export class VoterClient {
     return input;
   }
 
-  async buildDeactivatePayload({
+  /**
+   * Build deactivate message payload
+   * Deactivate messages use a specific nonce (default 0) and are independent from vote messages
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param pollId - The poll ID for this round
+   * @param nonce - The nonce for deactivation (default: 0)
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Stringified deactivate payload
+   */
+  buildDeactivatePayload({
     stateIdx,
     operatorPubkey,
+    pollId,
     nonce = 0,
     derivePathParams
   }: {
     stateIdx: number;
     operatorPubkey: bigint | string | PubKey;
+    pollId: number;
     nonce?: number;
     derivePathParams?: DerivePathParams;
   }) {
-    // Deactivate messages use nonce=0 (independent from vote messages)
-    // Create a custom message with explicit nonce
-    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, derivePathParams);
+    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, pollId, derivePathParams);
     const encAccount = genKeypair();
     const msg = genMessage(BigInt(encAccount.privKey), nonce, 0, 0, true);
 
@@ -786,10 +837,14 @@ export class VoterClient {
       throw new Error('State index is not set, Please signup or addNewKey first');
     }
 
-    const payload = this.buildVotePayload({
+    // Query pollId at the outermost layer
+    const pollId = await this.getPollId(contractAddress);
+
+    const payload = await this.buildVotePayload({
       stateIdx,
       operatorPubkey,
       selectedOptions,
+      pollId,  // Pass pollId instead of contractAddress
       derivePathParams
     });
 

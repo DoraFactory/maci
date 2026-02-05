@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_hash_256_uint256_list_large() {
-        let arrays: Vec<Uint256> = (0..100).map(|i| Uint256::from_u128(i)).collect();
+        let arrays: Vec<Uint256> = (0..100).map(Uint256::from_u128).collect();
 
         let hash1 = hash_256_uint256_list(&arrays);
         let hash2 = hash_256_uint256_list(&arrays);

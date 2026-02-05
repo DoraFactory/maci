@@ -8,8 +8,8 @@ use crate::multitest::{
     DORA_DEMON,
 };
 use cw_amaci::multitest::uint256_from_decimal_string;
-use cw_api_maci;
-use cw_api_maci::state::RoundInfo as OracleMaciRoundInfo;
+use cw_maci;
+use cw_maci::state::RoundInfo as OracleMaciRoundInfo;
 
 #[test]
 fn test_instantiate_saas_contract() {
@@ -977,11 +977,11 @@ fn test_migration_sets_treasury_manager() {
 // Oracle MACI contract wrapper for testing
 fn oracle_maci_contract() -> Box<dyn Contract<cosmwasm_std::Empty>> {
     let contract = ContractWrapper::new(
-        cw_api_maci::contract::execute,
-        cw_api_maci::contract::instantiate,
-        cw_api_maci::contract::query,
+        cw_maci::contract::execute,
+        cw_maci::contract::instantiate,
+        cw_maci::contract::query,
     )
-    .with_reply(cw_api_maci::contract::reply);
+    .with_reply(cw_maci::contract::reply);
     Box::new(contract)
 }
 

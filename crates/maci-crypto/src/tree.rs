@@ -23,7 +23,7 @@ pub fn node_to_biguint(node: &IMTNode) -> BigUint {
 /// Converts Vec<IMTNode> to BigUint, hashes with Poseidon, and converts result back to IMTNode
 fn hash_function(inputs: Vec<IMTNode>) -> IMTNode {
     // Convert IMTNode inputs to BigUint
-    let big_uints: Vec<BigUint> = inputs.iter().map(|node| node_to_biguint(node)).collect();
+    let big_uints: Vec<BigUint> = inputs.iter().map(node_to_biguint).collect();
 
     // Hash using Poseidon
     let hash_result = poseidon(&big_uints);
@@ -323,10 +323,10 @@ impl Tree {
 
         let mut current_root = small_root.clone();
 
-        for level in from_depth..to_depth {
+        for zero_hash in zero_hashes.iter().take(to_depth).skip(from_depth) {
             let mut siblings = vec![current_root.clone()];
             for _ in 1..degree {
-                siblings.push(zero_hashes[level].clone());
+                siblings.push(zero_hash.clone());
             }
             current_root = hash_function(siblings);
         }

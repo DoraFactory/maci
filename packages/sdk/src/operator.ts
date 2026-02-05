@@ -27,7 +27,7 @@ import {
   PrivKey,
   DeactivateMessage
 } from './types';
-import { Indexer, Http } from './libs';
+import { Indexer, Http, Contract } from './libs';
 import { getDefaultParams } from './libs/const';
 import { isErrorResponse } from './libs/maci/maci';
 
@@ -54,6 +54,7 @@ type Command = {
   voIdx: bigint;
   newVotes: bigint;
   newPubKey: PubKey;
+  pollId: bigint;
   signature: {
     R8: PubKey;
     S: bigint;
@@ -130,6 +131,7 @@ interface DeactivateProcessInput {
   currentDeactivateCommitment: bigint;
   newDeactivateRoot: bigint;
   newDeactivateCommitment: bigint;
+  expectedPollId: bigint;
 }
 
 interface ProcessMessageResult {
@@ -192,6 +194,7 @@ export class OperatorClient {
   public network: 'mainnet' | 'testnet';
 
   public accountManager: MaciAccount;
+  public contract: Contract;
 
   public http: Http;
   public indexer: Indexer;
@@ -212,6 +215,7 @@ export class OperatorClient {
   public numSignUps?: number;
   public isQuadraticCost?: boolean;
   public isAmaci?: boolean; // Flag to distinguish AMACI vs MACI mode
+  public pollId?: number; // Poll ID for replay attack prevention
 
   // Trees
   public voTreeZeroRoot?: bigint;
@@ -269,6 +273,19 @@ export class OperatorClient {
       registryAddress: this.registryAddress,
       http: this.http
     });
+
+    // Initialize Contract instance
+    this.contract = new Contract({
+      network: this.network,
+      rpcEndpoint: defaultParams.rpcEndpoint,
+      registryAddress: this.registryAddress,
+      saasAddress: defaultParams.saasAddress,
+      apiSaasAddress: defaultParams.apiSaasAddress,
+      maciCodeId: defaultParams.maciCodeId,
+      oracleCodeId: defaultParams.oracleCodeId,
+      feegrantOperator: defaultParams.oracleFeegrantOperator,
+      whitelistBackendPubkey: defaultParams.oracleWhitelistBackendPubkey
+    });
   }
 
   /**
@@ -297,10 +314,20 @@ export class OperatorClient {
     return this.accountManager.getKeyPair(derivePathParams).getPublicKey();
   }
 
+  /**
+   * Build vote payload for batch message publishing
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param selectedOptions - The vote options with their vote credits
+   * @param pollId - The poll ID for this round (prevents replay attacks)
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Stringified vote payload ready for submission
+   */
   buildVotePayload({
     stateIdx,
     operatorPubkey,
     selectedOptions,
+    pollId,
     derivePathParams
   }: {
     stateIdx: number;
@@ -309,6 +336,7 @@ export class OperatorClient {
       idx: number;
       vc: number;
     }[];
+    pollId: number;
     derivePathParams?: DerivePathParams;
   }) {
     // Check for duplicate options
@@ -327,7 +355,7 @@ export class OperatorClient {
       return [o.idx, o.vc] as [number, number];
     });
 
-    const payload = this.batchGenMessage(stateIdx, operatorPubkey, plan, derivePathParams);
+    const payload = this.batchGenMessage(stateIdx, operatorPubkey, plan, pollId, derivePathParams);
 
     return stringizing(payload) as {
       msg: string[];
@@ -335,13 +363,24 @@ export class OperatorClient {
     }[];
   }
 
+  /**
+   * Generate multiple encrypted messages in batch
+   * Messages are generated in reverse order for on-chain processing
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param plan - Array of [voteOptionIndex, voteCredit] tuples
+   * @param pollId - The poll ID for this round
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Array of encrypted messages with their encryption public keys
+   */
   batchGenMessage(
     stateIdx: number,
     operatorPubkey: bigint | string | PubKey,
     plan: [number, number][],
+    pollId: number,
     derivePathParams?: DerivePathParams
   ) {
-    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, derivePathParams);
+    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, pollId, derivePathParams);
 
     const payload = [];
     for (let i = plan.length - 1; i >= 0; i--) {
@@ -358,12 +397,19 @@ export class OperatorClient {
     return payload;
   }
 
+  /**
+   * Create a message factory for generating encrypted vote messages
+   * The factory returns a function that can generate individual messages
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param pollId - The poll ID for this round (prevents replay attacks across different polls)
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns A function that generates encrypted messages
+   */
   genMessageFactory(
     stateIdx: number,
     operatorPubkey: bigint | string | PubKey,
-    // signPriKey: PrivKey,
-    // signPubKey: PubKey,
-    // coordPubKey: PubKey,
+    pollId: number,
     derivePathParams?: DerivePathParams
   ) {
     return (
@@ -374,37 +420,49 @@ export class OperatorClient {
       isLastCmd: boolean,
       salt?: bigint
     ): bigint[] => {
-      // if (!salt) {
-      //   // uint56
-      //   salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
-      // }
+      if (!salt) {
+        // Generate random 56-bit salt
+        salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
+      }
 
-      // const packaged =
-      //   BigInt(nonce) +
-      //   (BigInt(stateIdx) << 32n) +
-      //   (BigInt(voIdx) << 64n) +
-      //   (BigInt(newVotes) << 96n) +
-      //   (BigInt(salt) << 192n);
-      const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+      // Pack command data including pollId to prevent replay attacks
+      const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
       const signer = this.getSigner(derivePathParams);
 
       let newPubKey = [...signer.getPublicKey().toPoints()];
       if (isLastCmd) {
+        // Last command uses null public key to indicate end of batch
         newPubKey = [0n, 0n];
       }
 
+      // Create hash of packed data and public key for signing
       const hash = poseidon([packaged, ...newPubKey]);
-      // const signature = signMessage(bigInt2Buffer(signPriKey), hash);
       const signature = signer.sign(hash);
 
-      const command = [packaged, ...newPubKey, ...signature.R8, signature.S];
+      // Build command array: [packed_data, salt, new_pubkey_x, new_pubkey_y, sig_R8_x, sig_R8_y, sig_S]
+      const command = [packaged, BigInt(salt), ...newPubKey, ...signature.R8, signature.S];
       const coordPubkey = this.unpackMaciPubkey(operatorPubkey);
 
+      // Encrypt command with shared key derived from encPriKey and coordinator's public key
       const message = poseidonEncrypt(command, genEcdhSharedKey(encPriKey, coordPubkey), 0n);
 
       return message;
     };
+  }
+
+  async getPollId(contractAddress: string): Promise<number> {
+    try {
+      const pollId = await this.contract.getPollId({
+        contractAddress
+      });
+      if (pollId === null) {
+        throw new Error('Poll ID not found');
+      }
+      return Number(pollId);
+    } catch (error) {
+      throw new Error(`Failed to get poll_id from ${contractAddress}: ${error}`);
+    }
   }
 
   async getStateIdx({
@@ -666,16 +724,27 @@ export class OperatorClient {
     return input;
   }
 
-  async buildDeactivatePayload({
+  /**
+   * Build deactivate message payload
+   * Deactivate messages are used to mark a user as inactive in AMACI
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param pollId - The poll ID for this round
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Stringified deactivate payload
+   */
+  buildDeactivatePayload({
     stateIdx,
     operatorPubkey,
+    pollId,
     derivePathParams
   }: {
     stateIdx: number;
     operatorPubkey: bigint | string | PubKey;
+    pollId: number;
     derivePathParams?: DerivePathParams;
   }) {
-    const payload = this.batchGenMessage(stateIdx, operatorPubkey, [[0, 0]], derivePathParams);
+    const payload = this.batchGenMessage(stateIdx, operatorPubkey, [[0, 0]], pollId, derivePathParams);
     return stringizing(payload[0]) as {
       msg: string[];
       encPubkeys: string[];
@@ -720,6 +789,7 @@ export class OperatorClient {
     voteOptionTreeDepth,
     batchSize,
     maxVoteOptions,
+    pollId,
     isQuadraticCost = false,
     isAmaci = false,
     derivePathParams
@@ -729,6 +799,7 @@ export class OperatorClient {
     voteOptionTreeDepth: number;
     batchSize: number;
     maxVoteOptions: number; // Required: must match contract's vote options count
+    pollId: number; // Required: poll ID for replay attack prevention
     isQuadraticCost?: boolean;
     isAmaci?: boolean;
     derivePathParams?: DerivePathParams;
@@ -743,6 +814,7 @@ export class OperatorClient {
     this.numSignUps = 0; // Auto-increment on each updateStateTree call
     this.isQuadraticCost = isQuadraticCost;
     this.isAmaci = isAmaci;
+    this.pollId = pollId;
 
     const signer = this.getSigner(derivePathParams);
     this.pubKeyHasher = poseidon(signer.getPublicKey().toPoints());
@@ -756,6 +828,7 @@ export class OperatorClient {
     const stateTree = new Tree(5, stateTreeDepth, stateTreeZeroValue);
 
     console.log(`Init ${isAmaci ? 'AMACI' : 'MACI'} Round:`);
+    console.log('- Poll ID:', this.pollId);
     console.log('- Vote option tree root:', emptyVOTree.root);
     console.log('- State tree root:', stateTree.root);
     console.log('- Max vote options:', this.maxVoteOptions);
@@ -784,7 +857,7 @@ export class OperatorClient {
    */
   private emptyMessage(): Message {
     return {
-      ciphertext: [0n, 0n, 0n, 0n, 0n, 0n, 0n],
+      ciphertext: [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n],
       encPubKey: [0n, 0n],
       prevHash: 0n,
       hash: 0n
@@ -811,6 +884,16 @@ export class OperatorClient {
 
   /**
    * Decrypt message to command
+   * 
+   * Message structure after decryption (7 elements):
+   * [packed_data, newPubKey_x, newPubKey_y, salt, sig_R8_x, sig_R8_y, sig_S]
+   * 
+   * Packed data contains (from low to high bits):
+   * - nonce (bits 0-31)
+   * - stateIdx (bits 32-63)
+   * - voIdx (bits 64-95)
+   * - newVotes (bits 96-191, 96 bits)
+   * - pollId (bits 192-223)
    */
   private msgToCmd(
     ciphertext: bigint[],
@@ -821,26 +904,39 @@ export class OperatorClient {
     const sharedKey = signer.genEcdhSharedKey(encPubKey);
     // const sharedKey = genEcdhSharedKey(this.coordinator.privKey, encPubKey);
     try {
-      const plaintext = poseidonDecrypt(ciphertext, sharedKey, 0n, 6);
+      // Decrypt message to get command (7 elements)
+      const plaintext = poseidonDecrypt(ciphertext, sharedKey, 0n, 7);
+      
+      // plaintext[0] = packed_data (COMMAND_STATE_INDEX)
+      // plaintext[1] = new_pubkey_x (COMMAND_PUBLIC_KEY_X)
+      // plaintext[2] = new_pubkey_y (COMMAND_PUBLIC_KEY_Y)
+      // plaintext[3] = salt (COMMAND_SALT)
+      // plaintext[4] = sig_R8_x (SIGNATURE_POINT_X)
+      // plaintext[5] = sig_R8_y (SIGNATURE_POINT_Y)
+      // plaintext[6] = sig_S (SIGNATURE_SCALAR)
+      
       const packaged = plaintext[0];
 
-      // const nonce = packaged % UINT32;
-      // const stateIdx = (packaged >> 32n) % UINT32;
-      // const voIdx = (packaged >> 64n) % UINT32;
-      // const newVotes = (packaged >> 96n) % UINT96;
-      const { nonce, stateIdx, voIdx, newVotes } = unpackElement(packaged);
+      // Unpack the packed data to extract all fields including pollId
+      const { nonce, stateIdx, voIdx, newVotes, pollId } = unpackElement(packaged);
+
+      // Extract newPubKey and signature from correct positions
+      const newPubKey: PubKey = [plaintext[1], plaintext[2]];
 
       const cmd: Command = {
         nonce,
         stateIdx,
         voIdx,
         newVotes,
-        newPubKey: [plaintext[1], plaintext[2]],
+        newPubKey,
+        pollId,
         signature: {
-          R8: [plaintext[3], plaintext[4]],
-          S: plaintext[5]
+          R8: [plaintext[4], plaintext[5]],
+          S: plaintext[6]
         },
-        msgHash: poseidon(plaintext.slice(0, 3))
+        // msgHash = poseidon([packed_data, newPubKey_x, newPubKey_y])
+        // Signature does NOT include salt
+        msgHash: poseidon([packaged, ...newPubKey])
       };
       return cmd;
     } catch (e) {
@@ -925,7 +1021,10 @@ export class OperatorClient {
 
     const hash = poseidon([
       poseidon(ciphertext.slice(0, 5)),
-      poseidon([...ciphertext.slice(5), ...encPubKey, prevHash])
+      poseidon(ciphertext.slice(5, 10)),
+      encPubKey[0],
+      encPubKey[1],
+      prevHash
     ]);
 
     this.dMessages.push({
@@ -969,7 +1068,10 @@ export class OperatorClient {
 
     const hash = poseidon([
       poseidon(ciphertext.slice(0, 5)),
-      poseidon([...ciphertext.slice(5), ...encPubKey, prevHash])
+      poseidon(ciphertext.slice(5, 10)),
+      encPubKey[0],
+      encPubKey[1],
+      prevHash
     ]);
 
     this.messages.push({
@@ -1044,6 +1146,9 @@ export class OperatorClient {
 
     if (!this.batchSize || !this.stateTree || !this.activeStateTree || !this.deactivateTree) {
       throw new Error('MACI not initialized. Call initMaci first.');
+    }
+    if (this.pollId === undefined) {
+      throw new Error('Poll ID not set. Ensure initRound was called with pollId parameter.');
     }
 
     const batchSize = this.batchSize;
@@ -1155,7 +1260,8 @@ export class OperatorClient {
       batchEndHash,
       currentDeactivateCommitment,
       newDeactivateCommitment,
-      subStateTree.root
+      subStateTree.root,
+      BigInt(this.pollId!) // Use this.pollId directly like processMessages
     ]);
 
     const msgs = messages.map((msg) => msg.ciphertext);
@@ -1182,7 +1288,8 @@ export class OperatorClient {
       deactivateLeavesPathElements,
       currentDeactivateCommitment,
       newDeactivateRoot,
-      newDeactivateCommitment
+      newDeactivateCommitment,
+      expectedPollId: BigInt(this.pollId!) // Use this.pollId directly like processMessages
     };
 
     this.processedDMsgCount = batchEndIdx;
@@ -1220,6 +1327,12 @@ export class OperatorClient {
     if (cmd.stateIdx >= BigInt(subStateTreeLength)) {
       return 'state leaf index overflow';
     }
+    
+    // Check poll ID match
+    if (this.pollId !== undefined && cmd.pollId !== BigInt(this.pollId)) {
+      return 'poll id mismatch';
+    }
+    
     const stateIdx = Number(cmd.stateIdx);
     const s = this.stateLeaves.get(stateIdx) || this.emptyState();
 
@@ -1294,6 +1407,9 @@ export class OperatorClient {
     }
     if (!this.batchSize || !this.stateTree || !this.activeStateTree || !this.deactivateTree) {
       throw new Error('MACI not initialized. Call initMaci first.');
+    }
+    if (this.pollId === undefined) {
+      throw new Error('Poll ID not set. Ensure initRound was called with pollId parameter.');
     }
 
     const batchSize = this.batchSize;
@@ -1409,7 +1525,7 @@ export class OperatorClient {
     // Calculate inputHash based on mode
     let inputHash: bigint;
     if (this.isAmaci) {
-      // AMACI: 7 fields (includes deactivateCommitment)
+      // AMACI: 8 fields (includes deactivateCommitment and expectedPollId)
       inputHash = computeInputHash([
         packedVals,
         this.pubKeyHasher!,
@@ -1417,17 +1533,19 @@ export class OperatorClient {
         batchEndHash,
         this.stateCommitment,
         newStateCommitment,
-        deactivateCommitment
+        deactivateCommitment,
+        BigInt(this.pollId!)
       ]);
     } else {
-      // MACI: 6 fields (no deactivateCommitment)
+      // MACI: 7 fields (no deactivateCommitment, but includes expectedPollId)
       inputHash = computeInputHash([
         packedVals,
         this.pubKeyHasher!,
         batchStartHash,
         batchEndHash,
         this.stateCommitment,
-        newStateCommitment
+        newStateCommitment,
+        BigInt(this.pollId!)
       ]);
     }
 
@@ -1438,6 +1556,7 @@ export class OperatorClient {
     const input = {
       inputHash,
       packedVals,
+      expectedPollId: this.pollId,
       batchStartHash,
       batchEndHash,
       msgs,
@@ -1511,6 +1630,12 @@ export class OperatorClient {
     if (cmd.voIdx > BigInt(this.maxVoteOptions!)) {
       return 'vote option index overflow';
     }
+    
+    // Check poll ID match
+    if (this.pollId !== undefined && cmd.pollId !== BigInt(this.pollId)) {
+      return 'poll id mismatch';
+    }
+    
     const stateIdx = Number(cmd.stateIdx);
     const voIdx = Number(cmd.voIdx);
     const s = this.stateLeaves.get(stateIdx) || this.emptyState();

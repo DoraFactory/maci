@@ -565,3 +565,16 @@ export function verifyBatchCount(
   log(`✓ Batch count verified: ${actualBatchCount} batches processed`);
 }
 
+/**
+ * Query poll ID from contract
+ * Returns the poll ID as a number for use in vote/deactivate payload generation
+ */
+export async function queryPollId(contract: any): Promise<number> {
+  try {
+    const pollId = await contract.getPollId();
+    return Number(pollId);
+  } catch (error) {
+    throw new Error(`Failed to query poll ID from contract: ${extractErrorMessage(error)}`);
+  }
+}
+

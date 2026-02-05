@@ -40,6 +40,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -53,7 +54,8 @@ describe('AMACI ProcessMessages Security Tests', function () {
       // Deactivate
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
 
       const message = deactivatePayload.msg.map((m) => BigInt(m));
@@ -99,6 +101,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -108,7 +111,8 @@ describe('AMACI ProcessMessages Security Tests', function () {
 
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints()
+        operatorPubkey: operator.getPubkey().toPoints(),
+        pollId: 1
       });
 
       const message = deactivatePayload.msg.map((m) => BigInt(m));
@@ -144,6 +148,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -159,7 +164,8 @@ describe('AMACI ProcessMessages Security Tests', function () {
       // Deactivate to make activeStateTree inactive
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
       const message = deactivatePayload.msg.map((m) => BigInt(m));
       const encPubKey = deactivatePayload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
@@ -185,10 +191,11 @@ describe('AMACI ProcessMessages Security Tests', function () {
 
       // Vote should be rejected by activeStateTree check
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
         const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
@@ -219,6 +226,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -230,7 +238,8 @@ describe('AMACI ProcessMessages Security Tests', function () {
       operator.updateStateTree(0, voter.getPubkey().toPoints(), 100);
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
       const message = deactivatePayload.msg.map((m) => BigInt(m));
       const encPubKey = deactivatePayload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
@@ -244,10 +253,11 @@ describe('AMACI ProcessMessages Security Tests', function () {
 
       // Operator tries to forge activeStateLeaf = 0 to allow voting
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
         const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
@@ -285,6 +295,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -308,8 +319,9 @@ describe('AMACI ProcessMessages Security Tests', function () {
         const voter = voters[idx];
         const payload = await voter.buildDeactivatePayload({
           stateIdx: idx,
-          operatorPubkey: coordPubKey
-        });
+          operatorPubkey: coordPubKey,
+          pollId: 1
+      });
         const message = payload.msg.map((m) => BigInt(m));
         const encPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
         operator.pushDeactivateMessage(message, encPubKey);
@@ -354,6 +366,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -363,7 +376,8 @@ describe('AMACI ProcessMessages Security Tests', function () {
 
       const payload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints()
+        operatorPubkey: operator.getPubkey().toPoints(),
+        pollId: 1
       });
       operator.pushDeactivateMessage(
         payload.msg.map((m) => BigInt(m)),
@@ -399,6 +413,7 @@ describe('AMACI ProcessMessages Security Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -426,7 +441,8 @@ describe('AMACI ProcessMessages Security Tests', function () {
       console.log('Step 2: Deactivate');
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
       const deactivateMessage = deactivatePayload.msg.map((m) => BigInt(m));
       const deactivateEncPubKey = deactivatePayload.encPubkeys.map((k) => BigInt(k)) as [
@@ -438,10 +454,11 @@ describe('AMACI ProcessMessages Security Tests', function () {
       // Step 3: Vote
       console.log('Step 3: Vote');
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
         const encPubKey = p.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { VoterClient, OperatorClient, poseidon, packElement } from '@dorafactory/maci-sdk';
+import { VoterClient, OperatorClient, poseidon, packElement, unpackElement } from '@dorafactory/maci-sdk';
 import { type WitnessTester } from 'circomkit';
 
 import { getSignal, circomkitInstance } from './utils/utils';
@@ -66,6 +66,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
       'pubKey',
       'sigR8',
       'sigS',
+      'cmdPollId',
+      'expectedPollId',
       'isQuadraticCost',
       'currentVoiceCreditBalance',
       'currentVotesForOption',
@@ -107,10 +109,10 @@ describe('MessageValidator MACI Circuit Tests', function test() {
     voIdx: number,
     newVotes: bigint,
     nonce: number,
-    newPubKey: [bigint, bigint] = [0n, 0n]
+    newPubKey: [bigint, bigint] = [0n, 0n],
+    pollId: number = 1 // Default test poll ID
   ) {
-    const salt = 0n;
-    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
     const cmd = [packaged, newPubKey[0], newPubKey[1]];
     const msgHash = poseidon(cmd);
     const signature = keypair.sign(msgHash);
@@ -119,7 +121,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
       cmd,
       sigR8: signature.R8 as [bigint, bigint],
       sigS: signature.S,
-      pubKey: keypair.getPublicKey().toPoints() as [bigint, bigint]
+      pubKey: keypair.getPublicKey().toPoints() as [bigint, bigint],
+      pollId: BigInt(pollId) // Return pollId for test use
     };
   }
 
@@ -140,8 +143,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 3n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -159,6 +163,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -186,8 +192,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 2n;
         const isQuadraticCost = 1n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -205,6 +212,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -232,8 +241,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -251,6 +261,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -278,8 +290,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 95n;
         const currentVotesForOption = 5n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -297,6 +310,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -326,8 +341,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -345,6 +361,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -369,8 +387,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -388,11 +407,13 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
           voteWeight
-        };
+        };  
 
         const witness = await circuit.calculateWitness(circuitInputs);
         await circuit.expectConstraintPass(witness);
@@ -414,8 +435,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -433,6 +455,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -457,8 +481,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -476,6 +501,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -502,8 +529,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -521,6 +549,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -545,8 +575,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -564,6 +595,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -590,8 +623,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd } = createValidCommand(
+        const { cmd, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -617,6 +651,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey: keypair.getPublicKey().toPoints() as [bigint, bigint],
           sigR8: wrongSignature.R8 as [bigint, bigint],
           sigS: wrongSignature.S,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -643,8 +679,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 10n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -662,11 +699,13 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
           voteWeight
-        };
+        };  
 
         const witness = await circuit.calculateWitness(circuitInputs);
         await circuit.expectConstraintPass(witness);
@@ -686,8 +725,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 50n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 1n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -705,6 +745,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -732,8 +774,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 10n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -751,6 +794,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -778,8 +823,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 5n;
         const isQuadraticCost = 1n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -797,6 +843,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -826,8 +874,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 1000000000000000000000000n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -845,6 +894,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -869,8 +920,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 2000000n;
         const currentVotesForOption = 0n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -888,6 +940,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -914,8 +968,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 100n;
         const currentVotesForOption = 5n;
         const isQuadraticCost = 0n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -933,6 +988,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -960,8 +1017,9 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         const currentVoiceCreditBalance = 10000n;
         const currentVotesForOption = 50n;
         const isQuadraticCost = 1n;
+        const expectedPollId = 1n;
 
-        const { cmd, sigR8, sigS, pubKey } = createValidCommand(
+        const { cmd, sigR8, sigS, pubKey, pollId } = createValidCommand(
           Number(stateTreeIndex),
           Number(voteOptionIndex),
           voteWeight,
@@ -979,6 +1037,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           pubKey,
           sigR8,
           sigS,
+          cmdPollId: pollId,
+          expectedPollId,
           isQuadraticCost,
           currentVoiceCreditBalance,
           currentVotesForOption,
@@ -1014,7 +1074,7 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: false,
         isAmaci: false
       });
@@ -1033,7 +1093,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           { idx: 1, vc: 10 },
           { idx: 2, vc: 20 },
           { idx: 3, vc: 30 }
-        ]
+        ],
+        pollId: 1
       });
 
       for (const payload of payload1) {
@@ -1065,19 +1126,22 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         selectedOptions: [
           { idx: 1, vc: 5 },
           { idx: 2, vc: 3 }
-        ]
+        ],
+        pollId: 1
       });
 
       const payload2 = voter.buildVotePayload({
         stateIdx: USER_IDX,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 2, vc: 8 }]
+        selectedOptions: [{ idx: 2, vc: 8 }],
+        pollId: 1
       });
 
       const payload3 = voter.buildVotePayload({
         stateIdx: USER_IDX,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 3, vc: 10 }]
+        selectedOptions: [{ idx: 3, vc: 10 }],
+        pollId: 1
       });
 
       for (const payload of payload1) {
@@ -1120,7 +1184,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         selectedOptions: [
           { idx: 1, vc: 2 },
           { idx: 2, vc: 1 }
-        ]
+        ],
+        pollId: 1
       });
 
       for (const payload of firstPayload) {
@@ -1152,6 +1217,7 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+      pollId: 1,
 
         isQuadraticCost: false,
         isAmaci: false
@@ -1171,7 +1237,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
       const secondPayload = voter.buildVotePayload({
         stateIdx: USER_IDX,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 2, vc: 3 }]
+        selectedOptions: [{ idx: 2, vc: 3 }],
+        pollId: 1
       });
 
       for (const payload of secondPayload) {
@@ -1202,7 +1269,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         selectedOptions: [
           { idx: 1, vc: 2 },
           { idx: 2, vc: 1 }
-        ]
+        ],
+        pollId: 1
       });
 
       for (const payload of firstPayload) {
@@ -1231,6 +1299,7 @@ describe('MessageValidator MACI Circuit Tests', function test() {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+      pollId: 1,
 
         isQuadraticCost: false,
         isAmaci: false
@@ -1250,7 +1319,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
       const secondPayload = voter.buildVotePayload({
         stateIdx: USER_IDX,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 2, vc: 3 }]
+        selectedOptions: [{ idx: 2, vc: 3 }],
+        pollId: 1
       });
 
       for (const payload of secondPayload) {
@@ -1279,7 +1349,8 @@ describe('MessageValidator MACI Circuit Tests', function test() {
           { idx: 1, vc: 10 },
           { idx: 2, vc: 20 },
           { idx: 3, vc: 30 }
-        ]
+        ],
+        pollId: 1
       });
 
       for (const payloadItem of payload) {

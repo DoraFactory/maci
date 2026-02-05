@@ -12,7 +12,7 @@ export interface ContractInfo {
 // Deployed contracts registry
 export interface DeployedContracts {
   amaci?: ContractInfo;
-  apiMaci?: ContractInfo;
+  maci?: ContractInfo;
   registry?: ContractInfo;
   apiSaas?: ContractInfo;
 }
@@ -59,7 +59,7 @@ export interface TestContext {
 // WASM bytecode cache
 export interface WasmBytecodeCache {
   amaci?: Uint8Array;
-  apiMaci?: Uint8Array;
+  maci?: Uint8Array;
   registry?: Uint8Array;
   apiSaas?: Uint8Array;
 }
