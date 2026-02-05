@@ -8,6 +8,7 @@ export type Addr = string;
 export interface InstantiateMsg {
   admin: Addr;
   amaci_code_id: number;
+  maci_code_id: number;
   operator: Addr;
 }
 export type ExecuteMsg = {
@@ -38,6 +39,18 @@ export type ExecuteMsg = {
     whitelist?: WhitelistBase | null;
   };
 } | {
+  create_maci_round: {
+    certification_system: Uint256;
+    circuit_type: Uint256;
+    coordinator: PubKey;
+    max_voters: number;
+    round_info: RoundInfo;
+    vote_option_map: string[];
+    voting_time: VotingTime;
+    whitelist_backend_pubkey: string;
+    whitelist_voting_power_mode: VotingPowerMode;
+  };
+} | {
   set_validators: {
     addresses: ValidatorSet;
   };
@@ -48,6 +61,10 @@ export type ExecuteMsg = {
 } | {
   update_amaci_code_id: {
     amaci_code_id: number;
+  };
+} | {
+  update_maci_code_id: {
+    maci_code_id: number;
   };
 } | {
   change_operator: {
@@ -61,6 +78,7 @@ export type ExecuteMsg = {
 export type Uint256 = string;
 export type Timestamp = Uint64;
 export type Uint64 = number;
+export type VotingPowerMode = "slope" | "threshold";
 export type Decimal = string;
 export interface PubKey {
   x: Uint256;
@@ -125,6 +143,8 @@ export type QueryMsg = {
   };
 } | {
   get_next_poll_id: {};
+} | {
+  get_maci_code_id: {};
 };
 export interface AdminResponse {
   admin: Addr;

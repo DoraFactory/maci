@@ -4,11 +4,7 @@
  * and run the @cosmwasm/ts-codegen generate command to regenerate this file.
  */
 
-import {
-  CosmWasmClient,
-  SigningCosmWasmClient,
-  ExecuteResult,
-} from '@cosmjs/cosmwasm-stargate';
+import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from '@cosmjs/cosmwasm-stargate';
 import { Coin, StdFee } from '@cosmjs/amino';
 import {
   Addr,
@@ -27,7 +23,7 @@ import {
   Config,
   Boolean,
   ArrayOfOperatorInfo,
-  OperatorInfo,
+  OperatorInfo
 } from './ApiSaas.types';
 export interface ApiSaasReadOnlyInterface {
   contractAddress: string;
@@ -53,34 +49,34 @@ export class ApiSaasQueryClient implements ApiSaasReadOnlyInterface {
   }
   config = async (): Promise<Config> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      config: {},
+      config: {}
     });
   };
   operators = async (): Promise<ArrayOfOperatorInfo> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      operators: {},
+      operators: {}
     });
   };
   isOperator = async ({ address }: { address: Addr }): Promise<Boolean> => {
     return this.client.queryContractSmart(this.contractAddress, {
       is_operator: {
-        address,
-      },
+        address
+      }
     });
   };
   balance = async (): Promise<Uint128> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      balance: {},
+      balance: {}
     });
   };
   maciCodeId = async (): Promise<Uint64> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      maci_code_id: {},
+      maci_code_id: {}
     });
   };
   treasuryManager = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      treasury_manager: {},
+      treasury_manager: {}
     });
   };
 }
@@ -90,7 +86,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
   updateConfig: (
     {
       admin,
-      denom,
+      denom
     }: {
       admin?: Addr;
       denom?: string;
@@ -101,7 +97,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   updateMaciCodeId: (
     {
-      codeId,
+      codeId
     }: {
       codeId: number;
     },
@@ -111,7 +107,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   updateAmaciRegistryContract: (
     {
-      registryContract,
+      registryContract
     }: {
       registryContract: Addr;
     },
@@ -121,7 +117,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   addOperator: (
     {
-      operator,
+      operator
     }: {
       operator: Addr;
     },
@@ -131,7 +127,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   removeOperator: (
     {
-      operator,
+      operator
     }: {
       operator: Addr;
     },
@@ -147,7 +143,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
   withdraw: (
     {
       amount,
-      recipient,
+      recipient
     }: {
       amount: Uint128;
       recipient?: Addr;
@@ -166,7 +162,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       roundInfo,
       startTime,
       voteOptionMap,
-      whitelistBackendPubkey,
+      whitelistBackendPubkey
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
@@ -195,7 +191,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       voiceCreditAmount,
       voteOptionMap,
       votingTime,
-      whitelist,
+      whitelist
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
@@ -217,7 +213,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
   setRoundInfo: (
     {
       contractAddr,
-      roundInfo,
+      roundInfo
     }: {
       contractAddr: string;
       roundInfo: RoundInfo;
@@ -229,7 +225,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
   setVoteOptionsMap: (
     {
       contractAddr,
-      voteOptionMap,
+      voteOptionMap
     }: {
       contractAddr: string;
       voteOptionMap: string[];
@@ -239,26 +235,18 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
 }
-export class ApiSaasClient
-  extends ApiSaasQueryClient
-  implements ApiSaasInterface
-{
+export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterface {
   client: SigningCosmWasmClient;
   sender: string;
   contractAddress: string;
-  constructor(
-    client: SigningCosmWasmClient,
-    sender: string,
-    contractAddress: string
-  ) {
+  constructor(client: SigningCosmWasmClient, sender: string, contractAddress: string) {
     super(client, contractAddress);
     this.client = client;
     this.sender = sender;
     this.contractAddress = contractAddress;
     this.updateConfig = this.updateConfig.bind(this);
     this.updateMaciCodeId = this.updateMaciCodeId.bind(this);
-    this.updateAmaciRegistryContract =
-      this.updateAmaciRegistryContract.bind(this);
+    this.updateAmaciRegistryContract = this.updateAmaciRegistryContract.bind(this);
     this.addOperator = this.addOperator.bind(this);
     this.removeOperator = this.removeOperator.bind(this);
     this.deposit = this.deposit.bind(this);
@@ -271,7 +259,7 @@ export class ApiSaasClient
   updateConfig = async (
     {
       admin,
-      denom,
+      denom
     }: {
       admin?: Addr;
       denom?: string;
@@ -286,8 +274,8 @@ export class ApiSaasClient
       {
         update_config: {
           admin,
-          denom,
-        },
+          denom
+        }
       },
       fee,
       memo,
@@ -296,7 +284,7 @@ export class ApiSaasClient
   };
   updateMaciCodeId = async (
     {
-      codeId,
+      codeId
     }: {
       codeId: number;
     },
@@ -309,8 +297,8 @@ export class ApiSaasClient
       this.contractAddress,
       {
         update_maci_code_id: {
-          code_id: codeId,
-        },
+          code_id: codeId
+        }
       },
       fee,
       memo,
@@ -319,7 +307,7 @@ export class ApiSaasClient
   };
   updateAmaciRegistryContract = async (
     {
-      registryContract,
+      registryContract
     }: {
       registryContract: Addr;
     },
@@ -332,8 +320,8 @@ export class ApiSaasClient
       this.contractAddress,
       {
         update_amaci_registry_contract: {
-          registry_contract: registryContract,
-        },
+          registry_contract: registryContract
+        }
       },
       fee,
       memo,
@@ -342,7 +330,7 @@ export class ApiSaasClient
   };
   addOperator = async (
     {
-      operator,
+      operator
     }: {
       operator: Addr;
     },
@@ -355,8 +343,8 @@ export class ApiSaasClient
       this.contractAddress,
       {
         add_operator: {
-          operator,
-        },
+          operator
+        }
       },
       fee,
       memo,
@@ -365,7 +353,7 @@ export class ApiSaasClient
   };
   removeOperator = async (
     {
-      operator,
+      operator
     }: {
       operator: Addr;
     },
@@ -378,8 +366,8 @@ export class ApiSaasClient
       this.contractAddress,
       {
         remove_operator: {
-          operator,
-        },
+          operator
+        }
       },
       fee,
       memo,
@@ -395,7 +383,7 @@ export class ApiSaasClient
       this.sender,
       this.contractAddress,
       {
-        deposit: {},
+        deposit: {}
       },
       fee,
       memo,
@@ -405,7 +393,7 @@ export class ApiSaasClient
   withdraw = async (
     {
       amount,
-      recipient,
+      recipient
     }: {
       amount: Uint128;
       recipient?: Addr;
@@ -420,8 +408,8 @@ export class ApiSaasClient
       {
         withdraw: {
           amount,
-          recipient,
-        },
+          recipient
+        }
       },
       fee,
       memo,
@@ -438,7 +426,7 @@ export class ApiSaasClient
       roundInfo,
       startTime,
       voteOptionMap,
-      whitelistBackendPubkey,
+      whitelistBackendPubkey
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
@@ -467,8 +455,8 @@ export class ApiSaasClient
           round_info: roundInfo,
           start_time: startTime,
           vote_option_map: voteOptionMap,
-          whitelist_backend_pubkey: whitelistBackendPubkey,
-        },
+          whitelist_backend_pubkey: whitelistBackendPubkey
+        }
       },
       fee,
       memo,
@@ -488,7 +476,7 @@ export class ApiSaasClient
       voiceCreditAmount,
       voteOptionMap,
       votingTime,
-      whitelist,
+      whitelist
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
@@ -523,8 +511,8 @@ export class ApiSaasClient
           voice_credit_amount: voiceCreditAmount,
           vote_option_map: voteOptionMap,
           voting_time: votingTime,
-          whitelist,
-        },
+          whitelist
+        }
       },
       fee,
       memo,
@@ -534,7 +522,7 @@ export class ApiSaasClient
   setRoundInfo = async (
     {
       contractAddr,
-      roundInfo,
+      roundInfo
     }: {
       contractAddr: string;
       roundInfo: RoundInfo;
@@ -549,8 +537,8 @@ export class ApiSaasClient
       {
         set_round_info: {
           contract_addr: contractAddr,
-          round_info: roundInfo,
-        },
+          round_info: roundInfo
+        }
       },
       fee,
       memo,
@@ -560,7 +548,7 @@ export class ApiSaasClient
   setVoteOptionsMap = async (
     {
       contractAddr,
-      voteOptionMap,
+      voteOptionMap
     }: {
       contractAddr: string;
       voteOptionMap: string[];
@@ -575,8 +563,8 @@ export class ApiSaasClient
       {
         set_vote_options_map: {
           contract_addr: contractAddr,
-          vote_option_map: voteOptionMap,
-        },
+          vote_option_map: voteOptionMap
+        }
       },
       fee,
       memo,

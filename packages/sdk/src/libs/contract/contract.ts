@@ -3,7 +3,6 @@ import { ContractParams } from '../../types';
 import {
   createAMaciClientBy,
   createAMaciQueryClientBy,
-  createApiMaciClientBy,
   createApiSaasClientBy,
   createContractClientByWallet,
   createMaciClientBy,
@@ -993,20 +992,6 @@ export class Contract {
     contractAddress: string;
   }) {
     return createAMaciClientBy({
-      rpcEndpoint: this.rpcEndpoint,
-      wallet: signer,
-      contractAddress
-    });
-  }
-
-  async apiMaciClient({
-    signer,
-    contractAddress
-  }: {
-    signer: OfflineSigner;
-    contractAddress: string;
-  }) {
-    return createApiMaciClientBy({
       rpcEndpoint: this.rpcEndpoint,
       wallet: signer,
       contractAddress

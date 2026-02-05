@@ -4,11 +4,7 @@
  * and run the @cosmwasm/ts-codegen generate command to regenerate this file.
  */
 
-import {
-  CosmWasmClient,
-  SigningCosmWasmClient,
-  ExecuteResult,
-} from '@cosmjs/cosmwasm-stargate';
+import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from '@cosmjs/cosmwasm-stargate';
 import { Coin, StdFee } from '@cosmjs/amino';
 import {
   Addr,
@@ -27,7 +23,7 @@ import {
   MaciContractInfo,
   ArrayOfMaciContractInfo,
   ArrayOfOperatorInfo,
-  OperatorInfo,
+  OperatorInfo
 } from './Saas.types';
 export interface SaasReadOnlyInterface {
   contractAddress: string;
@@ -37,7 +33,7 @@ export interface SaasReadOnlyInterface {
   balance: () => Promise<Uint128>;
   maciContracts: ({
     limit,
-    startAfter,
+    startAfter
   }: {
     limit?: number;
     startAfter?: number;
@@ -45,17 +41,13 @@ export interface SaasReadOnlyInterface {
   operatorMaciContracts: ({
     limit,
     operator,
-    startAfter,
+    startAfter
   }: {
     limit?: number;
     operator: Addr;
     startAfter?: number;
   }) => Promise<ArrayOfMaciContractInfo>;
-  maciContract: ({
-    contractId,
-  }: {
-    contractId: number;
-  }) => Promise<NullableMaciContractInfo>;
+  maciContract: ({ contractId }: { contractId: number }) => Promise<NullableMaciContractInfo>;
   oracleMaciCodeId: () => Promise<Uint64>;
 }
 export class SaasQueryClient implements SaasReadOnlyInterface {
@@ -75,29 +67,29 @@ export class SaasQueryClient implements SaasReadOnlyInterface {
   }
   config = async (): Promise<Config> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      config: {},
+      config: {}
     });
   };
   operators = async (): Promise<ArrayOfOperatorInfo> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      operators: {},
+      operators: {}
     });
   };
   isOperator = async ({ address }: { address: Addr }): Promise<Boolean> => {
     return this.client.queryContractSmart(this.contractAddress, {
       is_operator: {
-        address,
-      },
+        address
+      }
     });
   };
   balance = async (): Promise<Uint128> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      balance: {},
+      balance: {}
     });
   };
   maciContracts = async ({
     limit,
-    startAfter,
+    startAfter
   }: {
     limit?: number;
     startAfter?: number;
@@ -105,14 +97,14 @@ export class SaasQueryClient implements SaasReadOnlyInterface {
     return this.client.queryContractSmart(this.contractAddress, {
       maci_contracts: {
         limit,
-        start_after: startAfter,
-      },
+        start_after: startAfter
+      }
     });
   };
   operatorMaciContracts = async ({
     limit,
     operator,
-    startAfter,
+    startAfter
   }: {
     limit?: number;
     operator: Addr;
@@ -122,24 +114,24 @@ export class SaasQueryClient implements SaasReadOnlyInterface {
       operator_maci_contracts: {
         limit,
         operator,
-        start_after: startAfter,
-      },
+        start_after: startAfter
+      }
     });
   };
   maciContract = async ({
-    contractId,
+    contractId
   }: {
     contractId: number;
   }): Promise<NullableMaciContractInfo> => {
     return this.client.queryContractSmart(this.contractAddress, {
       maci_contract: {
-        contract_id: contractId,
-      },
+        contract_id: contractId
+      }
     });
   };
   oracleMaciCodeId = async (): Promise<Uint64> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      oracle_maci_code_id: {},
+      oracle_maci_code_id: {}
     });
   };
 }
@@ -150,7 +142,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
     {
       admin,
       denom,
-      registryContract,
+      registryContract
     }: {
       admin?: Addr;
       denom?: string;
@@ -162,7 +154,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   addOperator: (
     {
-      operator,
+      operator
     }: {
       operator: Addr;
     },
@@ -172,7 +164,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   removeOperator: (
     {
-      operator,
+      operator
     }: {
       operator: Addr;
     },
@@ -188,7 +180,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
   withdraw: (
     {
       amount,
-      recipient,
+      recipient
     }: {
       amount: Uint128;
       recipient?: Addr;
@@ -199,7 +191,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   updateOracleMaciCodeId: (
     {
-      codeId,
+      codeId
     }: {
       codeId: number;
     },
@@ -217,7 +209,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
       roundInfo,
       startTime,
       voteOptionMap,
-      whitelistBackendPubkey,
+      whitelistBackendPubkey
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
@@ -236,7 +228,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
   setRoundInfo: (
     {
       contractAddr,
-      roundInfo,
+      roundInfo
     }: {
       contractAddr: string;
       roundInfo: RoundInfo;
@@ -248,7 +240,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
   setVoteOptionsMap: (
     {
       contractAddr,
-      voteOptionMap,
+      voteOptionMap
     }: {
       contractAddr: string;
       voteOptionMap: string[];
@@ -261,7 +253,7 @@ export interface SaasInterface extends SaasReadOnlyInterface {
     {
       baseAmount,
       contractAddr,
-      grantee,
+      grantee
     }: {
       baseAmount: Uint128;
       contractAddr: string;
@@ -276,11 +268,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
   client: SigningCosmWasmClient;
   sender: string;
   contractAddress: string;
-  constructor(
-    client: SigningCosmWasmClient,
-    sender: string,
-    contractAddress: string
-  ) {
+  constructor(client: SigningCosmWasmClient, sender: string, contractAddress: string) {
     super(client, contractAddress);
     this.client = client;
     this.sender = sender;
@@ -300,7 +288,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
     {
       admin,
       denom,
-      registryContract,
+      registryContract
     }: {
       admin?: Addr;
       denom?: string;
@@ -317,8 +305,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
         update_config: {
           admin,
           denom,
-          registry_contract: registryContract,
-        },
+          registry_contract: registryContract
+        }
       },
       fee,
       memo,
@@ -327,7 +315,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
   };
   addOperator = async (
     {
-      operator,
+      operator
     }: {
       operator: Addr;
     },
@@ -340,8 +328,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
       this.contractAddress,
       {
         add_operator: {
-          operator,
-        },
+          operator
+        }
       },
       fee,
       memo,
@@ -350,7 +338,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
   };
   removeOperator = async (
     {
-      operator,
+      operator
     }: {
       operator: Addr;
     },
@@ -363,8 +351,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
       this.contractAddress,
       {
         remove_operator: {
-          operator,
-        },
+          operator
+        }
       },
       fee,
       memo,
@@ -380,7 +368,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
       this.sender,
       this.contractAddress,
       {
-        deposit: {},
+        deposit: {}
       },
       fee,
       memo,
@@ -390,7 +378,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
   withdraw = async (
     {
       amount,
-      recipient,
+      recipient
     }: {
       amount: Uint128;
       recipient?: Addr;
@@ -405,8 +393,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
       {
         withdraw: {
           amount,
-          recipient,
-        },
+          recipient
+        }
       },
       fee,
       memo,
@@ -415,7 +403,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
   };
   updateOracleMaciCodeId = async (
     {
-      codeId,
+      codeId
     }: {
       codeId: number;
     },
@@ -428,8 +416,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
       this.contractAddress,
       {
         update_oracle_maci_code_id: {
-          code_id: codeId,
-        },
+          code_id: codeId
+        }
       },
       fee,
       memo,
@@ -446,7 +434,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
       roundInfo,
       startTime,
       voteOptionMap,
-      whitelistBackendPubkey,
+      whitelistBackendPubkey
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
@@ -475,8 +463,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
           round_info: roundInfo,
           start_time: startTime,
           vote_option_map: voteOptionMap,
-          whitelist_backend_pubkey: whitelistBackendPubkey,
-        },
+          whitelist_backend_pubkey: whitelistBackendPubkey
+        }
       },
       fee,
       memo,
@@ -486,7 +474,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
   setRoundInfo = async (
     {
       contractAddr,
-      roundInfo,
+      roundInfo
     }: {
       contractAddr: string;
       roundInfo: RoundInfo;
@@ -501,8 +489,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
       {
         set_round_info: {
           contract_addr: contractAddr,
-          round_info: roundInfo,
-        },
+          round_info: roundInfo
+        }
       },
       fee,
       memo,
@@ -512,7 +500,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
   setVoteOptionsMap = async (
     {
       contractAddr,
-      voteOptionMap,
+      voteOptionMap
     }: {
       contractAddr: string;
       voteOptionMap: string[];
@@ -527,8 +515,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
       {
         set_vote_options_map: {
           contract_addr: contractAddr,
-          vote_option_map: voteOptionMap,
-        },
+          vote_option_map: voteOptionMap
+        }
       },
       fee,
       memo,
@@ -539,7 +527,7 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
     {
       baseAmount,
       contractAddr,
-      grantee,
+      grantee
     }: {
       baseAmount: Uint128;
       contractAddr: string;
@@ -556,8 +544,8 @@ export class SaasClient extends SaasQueryClient implements SaasInterface {
         grant_to_voter: {
           base_amount: baseAmount,
           contract_addr: contractAddr,
-          grantee,
-        },
+          grantee
+        }
       },
       fee,
       memo,
