@@ -86,6 +86,8 @@ struct AMaciLogEntry {
     #[serde(rename = "type")]
     log_type: String,
     data: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    inputs: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -433,7 +435,13 @@ fn create_round_with_reward_should_works() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
+        .instantiate(
+            &mut app,
+            creator(),
+            amaci_code_id.id(),
+            amaci_code_id.id(),
+            label,
+        )
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -614,7 +622,13 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
+        .instantiate(
+            &mut app,
+            creator(),
+            amaci_code_id.id(),
+            amaci_code_id.id(),
+            label,
+        )
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -849,10 +863,11 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
+                
                 let proof = Groth16ProofType {
-                    a: "04c5d564a7dd1feaba7c422f429327bd5e9430cb6b67f0bf77a19788fac264a7080063a86a7f45a4893f68ce20a4ee0bc22cb085866c9387d1b822d1b1fba033".to_string(),
-                    b: "1515ff2d529baece55d6d9f7338de646dc83fba060dce13a88a8b31114b9df8b2573959072de506962aeadc60198138bfbba84a7ed3a7a349563a1b3ed4fef67062efab826e3b0ebdbce3bf0744634ba3db1d336d7ba38cfd16b8d3d42f9bb5d2546e2f71e1bbd6f680e65696aad163f99c3baac18c27146c17086542b2da535".to_string(),
-                    c: "2cb72b2822ff424c48e6972bdca59ee9f6b813bfb00571a286c41070a5a56de91d5e9c1310eef0653dc5c34255ebd40afaffcd65ba34f6d4799a4dca92cf12ff".to_string()
+                    a: data.proof.pi_a.to_string(),
+                    b: data.proof.pi_b.to_string(),
+                    c: data.proof.pi_c.to_string(),
                 };
                 println!("process_deactivate_message proof {:?}", proof);
                 println!(
@@ -965,6 +980,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
+                
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -1228,7 +1244,13 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
+        .instantiate(
+            &mut app,
+            creator(),
+            amaci_code_id.id(),
+            amaci_code_id.id(),
+            label,
+        )
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -1458,10 +1480,11 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
+                
                 let proof = Groth16ProofType {
-                    a: "04c5d564a7dd1feaba7c422f429327bd5e9430cb6b67f0bf77a19788fac264a7080063a86a7f45a4893f68ce20a4ee0bc22cb085866c9387d1b822d1b1fba033".to_string(),
-                    b: "1515ff2d529baece55d6d9f7338de646dc83fba060dce13a88a8b31114b9df8b2573959072de506962aeadc60198138bfbba84a7ed3a7a349563a1b3ed4fef67062efab826e3b0ebdbce3bf0744634ba3db1d336d7ba38cfd16b8d3d42f9bb5d2546e2f71e1bbd6f680e65696aad163f99c3baac18c27146c17086542b2da535".to_string(),
-                    c: "2cb72b2822ff424c48e6972bdca59ee9f6b813bfb00571a286c41070a5a56de91d5e9c1310eef0653dc5c34255ebd40afaffcd65ba34f6d4799a4dca92cf12ff".to_string()
+                    a: data.proof.pi_a.to_string(),
+                    b: data.proof.pi_b.to_string(),
+                    c: data.proof.pi_c.to_string(),
                 };
                 println!("process_deactivate_message proof {:?}", proof);
                 println!(
@@ -1574,6 +1597,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
+                
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -1837,7 +1861,13 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
 
     let label = "Dora AMaci Registry Oracle Test";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
+        .instantiate(
+            &mut app,
+            creator(),
+            amaci_code_id.id(),
+            amaci_code_id.id(),
+            label,
+        )
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -2055,10 +2085,11 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
+                
                 let proof = Groth16ProofType {
-                    a: "04c5d564a7dd1feaba7c422f429327bd5e9430cb6b67f0bf77a19788fac264a7080063a86a7f45a4893f68ce20a4ee0bc22cb085866c9387d1b822d1b1fba033".to_string(),
-                    b: "1515ff2d529baece55d6d9f7338de646dc83fba060dce13a88a8b31114b9df8b2573959072de506962aeadc60198138bfbba84a7ed3a7a349563a1b3ed4fef67062efab826e3b0ebdbce3bf0744634ba3db1d336d7ba38cfd16b8d3d42f9bb5d2546e2f71e1bbd6f680e65696aad163f99c3baac18c27146c17086542b2da535".to_string(),
-                    c: "2cb72b2822ff424c48e6972bdca59ee9f6b813bfb00571a286c41070a5a56de91d5e9c1310eef0653dc5c34255ebd40afaffcd65ba34f6d4799a4dca92cf12ff".to_string()
+                    a: data.proof.pi_a.to_string(),
+                    b: data.proof.pi_b.to_string(),
+                    c: data.proof.pi_c.to_string(),
                 };
                 println!("process_deactivate_message proof {:?}", proof);
                 println!(
@@ -2171,6 +2202,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
+                
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -2399,7 +2431,13 @@ fn test_create_round_event_data() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), amaci_code_id.id(), label)
+        .instantiate(
+            &mut app,
+            creator(),
+            amaci_code_id.id(),
+            amaci_code_id.id(),
+            label,
+        )
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());

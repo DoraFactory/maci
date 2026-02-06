@@ -1,4 +1,4 @@
-use cosmwasm_std::{coins, Addr, Uint128, Uint256};
+use cosmwasm_std::{coins, Addr, DepsMut, Env, Reply, Response, StdResult, Uint128, Uint256};
 use cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor, StargateAccepting};
 
 use crate::error::ContractError;
@@ -47,7 +47,7 @@ fn test_instantiate_saas_contract() {
     let operators = contract.query_operators(&app).unwrap();
     assert!(operators.is_empty());
 
-    // Verify oracle maci code id is set correctly
+    // Verify maci code id is set correctly
     let stored_code_id = contract.query_maci_code_id(&app).unwrap();
     assert_eq!(stored_code_id, oracle_maci_code_id);
 }
@@ -232,6 +232,8 @@ fn test_deposit_and_withdraw() {
 #[test]
 fn test_create_api_maci_round_success() {
     let initial_balance = 1000000000000000000000u128; // 1000 DORA
+    let valid_operator = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug");
+
     let mut app = AppBuilder::default()
         .with_stargate(StargateAccepting)
         .build(|router, _api, storage| {
@@ -243,9 +245,72 @@ fn test_create_api_maci_round_success() {
                 .bank
                 .init_balance(storage, &operator1(), coins(initial_balance, DORA_DEMON))
                 .unwrap();
+            router
+                .bank
+                .init_balance(storage, &admin(), coins(initial_balance, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &valid_operator, coins(initial_balance, DORA_DEMON))
+                .unwrap();
         });
 
     let oracle_maci_code_id = app.store_code(oracle_maci_contract());
+
+    // Setup real registry for MACI
+    let registry_code_id = app.store_code(real_registry_contract());
+    let registry_addr = app
+        .instantiate_contract(
+            registry_code_id,
+            admin(),
+            &cw_amaci_registry::msg::InstantiateMsg {
+                admin: admin(),
+                operator: admin(),
+                amaci_code_id: 0,
+                maci_code_id: oracle_maci_code_id,
+            },
+            &[],
+            "Registry",
+            None,
+        )
+        .unwrap();
+
+    // Setup registry - use valid dora address for operator
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetValidators {
+            addresses: cw_amaci_registry::state::ValidatorSet {
+                addresses: vec![admin()],
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperator {
+            operator: valid_operator.clone(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        valid_operator.clone(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperatorPubkey {
+            pubkey: cw_amaci::state::PubKey {
+                x: Uint256::from(1u128),
+                y: Uint256::from(2u128),
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -253,7 +318,7 @@ fn test_create_api_maci_round_success() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            registry_addr, // Use real registry address
             DORA_DEMON.to_string(),
             oracle_maci_code_id,
             "SaaS Contract",
@@ -271,7 +336,7 @@ fn test_create_api_maci_round_success() {
     let initial_balance_check = contract.query_balance(&app).unwrap();
     assert_eq!(initial_balance_check, Uint128::from(initial_balance));
 
-    // Create Oracle MACI round
+    // Create MACI round
     let max_voters = 5u128;
     let create_msg = ExecuteMsg::CreateMaciRound {
         coordinator: PubKey {
@@ -294,30 +359,33 @@ fn test_create_api_maci_round_success() {
 
     let result = app.execute_contract(operator1(), contract.addr(), &create_msg, &[]);
 
-    // Oracle MACI creation should succeed
+    // MACI creation should succeed
     if let Err(e) = &result {
-        println!("Error creating Oracle MACI round: {:?}", e);
+        println!("Error creating MACI round: {:?}", e);
     }
     assert!(
         result.is_ok(),
-        "Oracle MACI round creation should succeed: {:?}",
+        "MACI round creation should succeed: {:?}",
         result.err()
     );
 
     let response = result.unwrap();
 
-    // Verify Oracle MACI contract was instantiated
+    // Verify MACI contract was instantiated
     let _instantiate_event = response
         .events
         .iter()
         .find(|e| e.ty == "instantiate")
         .expect("Should have instantiate event");
 
-    // Note: No fees are deducted anymore as funds logic is removed
-
-    // Verify balance remains unchanged
+    // Verify balance decreased by the round creation fee (2 DORA)
+    let round_fee = 2000000000000000000u128; // 2 DORA in peaka
     let final_balance = contract.query_balance(&app).unwrap();
-    assert_eq!(final_balance, Uint128::from(initial_balance));
+    assert_eq!(
+        final_balance,
+        Uint128::from(initial_balance - round_fee),
+        "Balance should decrease by round creation fee"
+    );
 
     // Note: MACI tracking functionality removed - contracts are created but not tracked in SaaS contract
 }
@@ -369,7 +437,7 @@ fn test_create_api_maci_round_unauthorized() {
 
     assert!(
         result.is_err(),
-        "Non-operator should not be able to create Oracle MACI round"
+        "Non-operator should not be able to create MACI round"
     );
 
     let error = result.unwrap_err();
@@ -381,7 +449,9 @@ fn test_create_api_maci_round_unauthorized() {
 
 #[test]
 fn test_create_api_maci_round_with_minimal_funds() {
-    let initial_balance = 10000000000000000000u128; // 10 DORA - previously insufficient, now enough
+    let initial_balance = 60000000000000000000u128; // 60 DORA - enough for the round (need 54 DORA)
+    let valid_operator = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug");
+
     let mut app = AppBuilder::default()
         .with_stargate(StargateAccepting)
         .build(|router, _api, storage| {
@@ -393,9 +463,72 @@ fn test_create_api_maci_round_with_minimal_funds() {
                 .bank
                 .init_balance(storage, &operator1(), coins(initial_balance, DORA_DEMON))
                 .unwrap();
+            router
+                .bank
+                .init_balance(storage, &admin(), coins(initial_balance, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &valid_operator, coins(initial_balance, DORA_DEMON))
+                .unwrap();
         });
 
     let oracle_maci_code_id = app.store_code(oracle_maci_contract());
+
+    // Setup real registry for MACI
+    let registry_code_id = app.store_code(real_registry_contract());
+    let registry_addr = app
+        .instantiate_contract(
+            registry_code_id,
+            admin(),
+            &cw_amaci_registry::msg::InstantiateMsg {
+                admin: admin(),
+                operator: admin(),
+                amaci_code_id: 0,
+                maci_code_id: oracle_maci_code_id,
+            },
+            &[],
+            "Registry",
+            None,
+        )
+        .unwrap();
+
+    // Setup registry - use valid dora address for operator
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetValidators {
+            addresses: cw_amaci_registry::state::ValidatorSet {
+                addresses: vec![admin()],
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperator {
+            operator: valid_operator.clone(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        valid_operator.clone(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperatorPubkey {
+            pubkey: cw_amaci::state::PubKey {
+                x: Uint256::from(1u128),
+                y: Uint256::from(2u128),
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -403,16 +536,16 @@ fn test_create_api_maci_round_with_minimal_funds() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            registry_addr, // Use real registry address
             DORA_DEMON.to_string(),
             oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
 
-    // Add operator and deposit funds
+    // Add operator and deposit funds - use the same valid operator as in registry
     contract
-        .add_operator(&mut app, admin(), operator1())
+        .add_operator(&mut app, admin(), valid_operator.clone())
         .unwrap();
     contract
         .deposit(&mut app, user1(), &coins(initial_balance, DORA_DEMON))
@@ -438,18 +571,32 @@ fn test_create_api_maci_round_with_minimal_funds() {
     };
 
     // Should now succeed since no funds checking is done
-    let result = app.execute_contract(operator1(), contract.addr(), &create_msg, &[]);
+    let result = app.execute_contract(valid_operator.clone(), contract.addr(), &create_msg, &[]);
 
-    assert!(result.is_ok(), "Should succeed without funds checking");
+    if let Err(ref e) = result {
+        println!("Error: {:?}", e);
+    }
+    assert!(
+        result.is_ok(),
+        "Should succeed without funds checking: {:?}",
+        result.err()
+    );
 
-    // Verify balance remains unchanged
+    // Verify balance decreased by round creation fee (54 DORA)
+    let round_fee = 54000000000000000000u128; // 54 DORA in peaka
     let final_balance = contract.query_balance(&app).unwrap();
-    assert_eq!(final_balance, Uint128::from(initial_balance));
+    assert_eq!(
+        final_balance,
+        Uint128::from(initial_balance - round_fee),
+        "Balance should decrease by round creation fee"
+    );
 }
 
 #[test]
 fn test_oracle_maci_round_management() {
     let initial_balance = 1000000000000000000000u128; // 1000 DORA
+    let valid_operator = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug");
+
     let mut app = AppBuilder::default()
         .with_stargate(StargateAccepting)
         .build(|router, _api, storage| {
@@ -461,9 +608,76 @@ fn test_oracle_maci_round_management() {
                 .bank
                 .init_balance(storage, &operator1(), coins(initial_balance, DORA_DEMON))
                 .unwrap();
+            router
+                .bank
+                .init_balance(storage, &admin(), coins(initial_balance, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &valid_operator, coins(initial_balance, DORA_DEMON))
+                .unwrap();
         });
 
     let oracle_maci_code_id = app.store_code(oracle_maci_contract());
+
+    // Setup real registry for MACI
+    let registry_code_id = app.store_code(real_registry_contract());
+    let registry_addr = app
+        .instantiate_contract(
+            registry_code_id,
+            admin(),
+            &cw_amaci_registry::msg::InstantiateMsg {
+                admin: admin(),
+                operator: admin(),
+                amaci_code_id: 0,
+                maci_code_id: oracle_maci_code_id,
+            },
+            &[],
+            "Registry",
+            None,
+        )
+        .unwrap();
+
+    // Setup registry
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetValidators {
+            addresses: cw_amaci_registry::state::ValidatorSet {
+                addresses: vec![admin()],
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperator {
+            operator: valid_operator.clone(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        valid_operator.clone(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperatorPubkey {
+            pubkey: cw_amaci::state::PubKey {
+                x: uint256_from_decimal_string(
+                    "3557592161792765812904087712812111121909518311142005886657252371904276697771",
+                ),
+                y: uint256_from_decimal_string(
+                    "4363822302427519764561660537570341277214758164895027920046745209970137856681",
+                ),
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -471,22 +685,22 @@ fn test_oracle_maci_round_management() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            registry_addr, // Use real registry address
             DORA_DEMON.to_string(),
             oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
 
-    // Setup: add operator and deposit funds
+    // Setup: add operator and deposit funds - use the same valid operator as in registry
     contract
-        .add_operator(&mut app, admin(), operator1())
+        .add_operator(&mut app, admin(), valid_operator.clone())
         .unwrap();
     contract
         .deposit(&mut app, user1(), &coins(initial_balance, DORA_DEMON))
         .unwrap();
 
-    // Create Oracle MACI round first
+    // Create MACI round first
     let create_msg = ExecuteMsg::CreateMaciRound {
         coordinator: PubKey {
             x: uint256_from_decimal_string(
@@ -510,25 +724,26 @@ fn test_oracle_maci_round_management() {
         whitelist_backend_pubkey: "AoYo/zENN/JquagPdG0/NMbWBBYxOM8BVN677mBXJKJQ".to_string(),
     };
 
-    let create_result = app.execute_contract(operator1(), contract.addr(), &create_msg, &[]);
+    let create_result =
+        app.execute_contract(valid_operator.clone(), contract.addr(), &create_msg, &[]);
     if let Err(e) = &create_result {
-        println!("Error creating Oracle MACI round: {:?}", e);
+        println!("Error creating MACI round: {:?}", e);
     }
     assert!(
         create_result.is_ok(),
-        "Oracle MACI round creation should succeed: {:?}",
+        "MACI round creation should succeed: {:?}",
         create_result.err()
     );
 
     let response = create_result.unwrap();
 
-    // Note: fee_grant_amount verification removed as feegrant is handled by Oracle MACI contract
+    // Note: fee_grant_amount verification removed as feegrant is handled by MACI contract
 
     // Get the created contract address from events
     let oracle_maci_addr = extract_contract_address_from_events(&response.events);
     println!("========= oracle_maci_addr: {}", oracle_maci_addr);
 
-    // Query and print Oracle MACI round info
+    // Query and print MACI round info
     let round_info_query_msg = serde_json::json!({
         "get_round_info": {}
     });
@@ -539,7 +754,7 @@ fn test_oracle_maci_round_management() {
 
     match round_info_result {
         Ok(round_info) => {
-            println!("========= Oracle MACI Round Info ==========");
+            println!("========= MACI Round Info ==========");
             println!("Title: {}", round_info.title);
             println!("Description: {}", round_info.description);
             println!("Link: {}", round_info.link);
@@ -550,13 +765,14 @@ fn test_oracle_maci_round_management() {
         }
     }
 
-    let create_result_again = app.execute_contract(operator1(), contract.addr(), &create_msg, &[]);
+    let create_result_again =
+        app.execute_contract(valid_operator.clone(), contract.addr(), &create_msg, &[]);
     if let Err(e) = &create_result_again {
         println!("Error creating Oracle MACI round again: {:?}", e);
     }
     assert!(
         create_result_again.is_ok(),
-        "Oracle MACI round creation should succeed: {:?}",
+        "MACI round creation should succeed: {:?}",
         create_result_again.err()
     );
 
@@ -568,7 +784,7 @@ fn test_oracle_maci_round_management() {
         oracle_maci_addr_again
     );
 
-    // Query and print second Oracle MACI round info
+    // Query and print second MACI round info
     let round_info_query_msg_again = serde_json::json!({
         "get_round_info": {}
     });
@@ -579,7 +795,7 @@ fn test_oracle_maci_round_management() {
 
     match round_info_result_again {
         Ok(round_info) => {
-            println!("====== Second Oracle MACI Round Info ======");
+            println!("====== Second MACI Round Info ======");
             println!("Title: {}", round_info.title);
             println!("Description: {}", round_info.description);
             println!("Link: {}", round_info.link);
@@ -602,7 +818,12 @@ fn test_oracle_maci_round_management() {
     };
 
     // Operator should be able to update round info (may fail due to test environment but should pass authorization)
-    let result = app.execute_contract(operator1(), contract.addr(), &set_round_info_msg, &[]);
+    let result = app.execute_contract(
+        valid_operator.clone(),
+        contract.addr(),
+        &set_round_info_msg,
+        &[],
+    );
     // In test environment this may fail due to target contract not existing, but not due to authorization
     if let Err(e) = &result {
         let error_msg = e.to_string();
@@ -638,7 +859,12 @@ fn test_oracle_maci_round_management() {
     };
 
     // Operator should be able to update vote options
-    let result = app.execute_contract(operator1(), contract.addr(), &set_vote_options_msg, &[]);
+    let result = app.execute_contract(
+        valid_operator.clone(),
+        contract.addr(),
+        &set_vote_options_msg,
+        &[],
+    );
     if let Err(e) = &result {
         let error_msg = e.to_string();
         assert!(
@@ -648,7 +874,7 @@ fn test_oracle_maci_round_management() {
     }
 
     // Note: Fee grant management functionality has been removed as it's
-    // handled directly by the Oracle MACI contract
+    // handled directly by the MACI contract
 }
 
 // Helper function to extract contract address from events
@@ -666,7 +892,7 @@ fn extract_contract_address_from_events(events: &[cosmwasm_std::Event]) -> Strin
 }
 
 // Note: test_operator_feegrant_lifecycle test removed as feegrant functionality
-// is now handled directly by the Oracle MACI contract
+// is now handled directly by the MACI contract
 
 #[test]
 fn test_treasury_manager_withdraw_success() {
@@ -974,8 +1200,8 @@ fn test_migration_sets_treasury_manager() {
     // and then migrate to new version
 }
 
-// Oracle MACI contract wrapper for testing
-fn oracle_maci_contract() -> Box<dyn Contract<cosmwasm_std::Empty>> {
+// MACI contract wrapper for testing
+fn oracle_maci_contract() -> Box<dyn Contract<cosmwasm_std::Empty, cosmwasm_std::Empty>> {
     let contract = ContractWrapper::new(
         cw_maci::contract::execute,
         cw_maci::contract::instantiate,
@@ -986,7 +1212,7 @@ fn oracle_maci_contract() -> Box<dyn Contract<cosmwasm_std::Empty>> {
 }
 
 // Real Registry and AMACI contract wrappers for integration testing
-fn real_registry_contract() -> Box<dyn Contract<cosmwasm_std::Empty>> {
+fn real_registry_contract() -> Box<dyn Contract<cosmwasm_std::Empty, cosmwasm_std::Empty>> {
     let contract = ContractWrapper::new(
         cw_amaci_registry::contract::execute,
         cw_amaci_registry::contract::instantiate,
@@ -996,12 +1222,19 @@ fn real_registry_contract() -> Box<dyn Contract<cosmwasm_std::Empty>> {
     Box::new(contract)
 }
 
-fn real_amaci_contract() -> Box<dyn Contract<cosmwasm_std::Empty>> {
+// Empty reply handler for AMACI contract (used for multitest only)
+fn amaci_reply_handler(_deps: DepsMut, _env: Env, _msg: Reply) -> StdResult<Response> {
+    // AMACI contract does not need to handle any reply, but needs this function to support multitest
+    Ok(Response::default())
+}
+
+fn real_amaci_contract() -> Box<dyn Contract<cosmwasm_std::Empty, cosmwasm_std::Empty>> {
     let contract = ContractWrapper::new(
         cw_amaci::contract::execute,
         cw_amaci::contract::instantiate,
         cw_amaci::contract::query,
-    );
+    )
+    .with_reply(amaci_reply_handler);
     Box::new(contract)
 }
 
@@ -1059,6 +1292,7 @@ fn test_create_amaci_round_success_real() {
                 admin: admin(),
                 operator: admin(), // admin is also operator for simplicity
                 amaci_code_id,
+                maci_code_id: oracle_maci_code_id,
             },
             &[],
             "Real Registry",
@@ -1250,6 +1484,7 @@ fn test_create_amaci_round_unauthorized_real() {
                 admin: admin(),
                 operator: admin(),
                 amaci_code_id,
+                maci_code_id: oracle_maci_code_id,
             },
             &[],
             "Real Registry",

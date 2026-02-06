@@ -1116,6 +1116,11 @@ impl MaciContract {
             .query_wasm_smart(self.addr(), &QueryMsg::GetNumSignUp {})
     }
 
+    pub fn amaci_processed_msg_count(&self, app: &DefaultApp) -> StdResult<Uint256> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetProcessedMsgCount {})
+    }
+
     pub fn amaci_signuped(&self, app: &DefaultApp, pubkey: PubKey) -> StdResult<Option<Uint256>> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::Signuped { pubkey })
