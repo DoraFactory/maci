@@ -645,7 +645,8 @@ pub fn execute_create_amaci_round(
         .add_attribute("max_voter", max_voter.to_string())
         .add_attribute("max_option", vote_option_map.len().to_string())
         .add_attribute("fee_paid", required_fee.to_string())
-        .add_attribute("saas_balance_after", new_balance.to_string()))
+        .add_attribute("saas_balance_after", new_balance.to_string())
+        .add_attribute("deactivate_enabled", deactivate_enabled.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

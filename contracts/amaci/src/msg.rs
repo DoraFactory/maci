@@ -298,4 +298,5 @@ pub struct InstantiationData {
     pub deactivate_timeout: Timestamp,
     pub tally_timeout: Timestamp,
     pub poll_id: u64, // Poll ID assigned by Registry
+    pub deactivate_enabled: bool, // Deactivate feature enabled/disabled
 }

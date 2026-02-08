@@ -270,7 +270,8 @@ pub fn execute_create_round(
         .add_attribute("amaci_code_id", &amaci_code_id.to_string())
         .add_attribute("poll_id", poll_id.to_string()) // Add poll_id to attributes
         .add_attribute("total_fee", total_fee.to_string())
-        .add_attribute("fee_recipient", admin.to_string());
+        .add_attribute("fee_recipient", admin.to_string())
+        .add_attribute("deactivate_enabled", deactivate_enabled.to_string());
 
     Ok(resp)
 }
@@ -811,6 +812,7 @@ pub fn reply_created_round(
             "tally_timeout",
             &amaci_return_data.tally_timeout.seconds().to_string(),
         ),
+        attr("deactivate_enabled", &amaci_return_data.deactivate_enabled.to_string()),
     ];
 
     if amaci_return_data.round_info.description != "" {

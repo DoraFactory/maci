@@ -443,6 +443,7 @@ pub fn instantiate(
         deactivate_timeout: deactivate_delay.clone(),
         tally_timeout: old_tally_timeout_set.clone(),
         poll_id: msg.poll_id, // Include poll_id in response (required)
+        deactivate_enabled: msg.deactivate_enabled, // Include deactivate_enabled flag
     };
 
     let mut attributes = vec![
@@ -488,6 +489,7 @@ pub fn instantiate(
             "tally_timeout",
             &old_tally_timeout_set.seconds().to_string(),
         ),
+        attr("deactivate_enabled", &msg.deactivate_enabled.to_string()),
     ];
 
     if msg.round_info.description != "" {
