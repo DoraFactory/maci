@@ -15,7 +15,6 @@ use cw_maci::state::RoundInfo as OracleMaciRoundInfo;
 fn test_instantiate_saas_contract() {
     let mut app = create_app();
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -25,7 +24,6 @@ fn test_instantiate_saas_contract() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -46,17 +44,12 @@ fn test_instantiate_saas_contract() {
     // Verify no operators initially
     let operators = contract.query_operators(&app).unwrap();
     assert!(operators.is_empty());
-
-    // Verify maci code id is set correctly
-    let stored_code_id = contract.query_maci_code_id(&app).unwrap();
-    assert_eq!(stored_code_id, oracle_maci_code_id);
 }
 
 #[test]
 fn test_update_config() {
     let mut app = create_app();
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -66,7 +59,6 @@ fn test_update_config() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -93,7 +85,6 @@ fn test_update_config() {
 fn test_operator_management() {
     let mut app = create_app();
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -103,7 +94,6 @@ fn test_operator_management() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -172,7 +162,6 @@ fn test_deposit_and_withdraw() {
                 .unwrap();
         });
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -182,7 +171,6 @@ fn test_deposit_and_withdraw() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -320,7 +308,6 @@ fn test_create_api_maci_round_success() {
             treasury_manager(),
             registry_addr, // Use real registry address
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -394,7 +381,6 @@ fn test_create_api_maci_round_success() {
 fn test_create_api_maci_round_unauthorized() {
     let mut app = create_app();
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -404,7 +390,6 @@ fn test_create_api_maci_round_unauthorized() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -538,7 +523,6 @@ fn test_create_api_maci_round_with_minimal_funds() {
             treasury_manager(),
             registry_addr, // Use real registry address
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -687,7 +671,6 @@ fn test_oracle_maci_round_management() {
             treasury_manager(),
             registry_addr, // Use real registry address
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -906,7 +889,6 @@ fn test_treasury_manager_withdraw_success() {
                 .unwrap();
         });
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -916,7 +898,6 @@ fn test_treasury_manager_withdraw_success() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -959,7 +940,6 @@ fn test_admin_withdraw_fails() {
                 .unwrap();
         });
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -969,7 +949,6 @@ fn test_admin_withdraw_fails() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -993,7 +972,6 @@ fn test_admin_withdraw_fails() {
 fn test_treasury_manager_cannot_manage_operators() {
     let mut app = create_app();
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -1003,7 +981,6 @@ fn test_treasury_manager_cannot_manage_operators() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -1056,7 +1033,6 @@ fn test_deposit_still_public() {
                 .unwrap();
         });
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -1066,7 +1042,6 @@ fn test_deposit_still_public() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -1109,7 +1084,6 @@ fn test_role_separation_complete_workflow() {
                 .unwrap();
         });
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -1119,7 +1093,6 @@ fn test_role_separation_complete_workflow() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -1172,7 +1145,6 @@ fn test_role_separation_complete_workflow() {
 fn test_migration_sets_treasury_manager() {
     let mut app = create_app();
 
-    let oracle_maci_code_id = app.store_code(oracle_maci_contract());
     let code_id = SaasCodeId::store_code(&mut app);
     let contract = code_id
         .instantiate(
@@ -1182,7 +1154,6 @@ fn test_migration_sets_treasury_manager() {
             treasury_manager(),
             crate::multitest::mock_registry_contract(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -1347,7 +1318,6 @@ fn test_create_amaci_round_success_real() {
             treasury_manager(),
             registry_addr.clone(),
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();
@@ -1501,7 +1471,6 @@ fn test_create_amaci_round_unauthorized_real() {
             treasury_manager(),
             registry_addr,
             DORA_DEMON.to_string(),
-            oracle_maci_code_id,
             "SaaS Contract",
         )
         .unwrap();

@@ -26,7 +26,7 @@ use cosmos_sdk_proto::traits::TypeUrl;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, PubKey, QueryMsg};
 use crate::state::{
-    Config, OperatorInfo, CONFIG, MACI_CODE_ID, OPERATORS, REGISTRY_CONTRACT_ADDR, TOTAL_BALANCE,
+    Config, OperatorInfo, CONFIG, OPERATORS, REGISTRY_CONTRACT_ADDR, TOTAL_BALANCE,
     TREASURY_MANAGER,
 };
 
@@ -56,7 +56,6 @@ pub fn instantiate(
     // Store treasury manager separately for easier access
     TREASURY_MANAGER.save(deps.storage, &msg.treasury_manager)?;
     TOTAL_BALANCE.save(deps.storage, &Uint128::zero())?;
-    MACI_CODE_ID.save(deps.storage, &msg.maci_code_id)?;
     REGISTRY_CONTRACT_ADDR.save(deps.storage, &msg.registry_contract)?;
 
     Ok(Response::new()
@@ -89,9 +88,6 @@ pub fn execute(
             execute_withdraw(deps, env, info, amount, recipient)
         }
 
-        ExecuteMsg::UpdateMaciCodeId { code_id } => {
-            execute_update_maci_code_id(deps, env, info, code_id)
-        }
         ExecuteMsg::CreateMaciRound {
             coordinator,
             max_voters,
@@ -332,22 +328,6 @@ pub fn execute_deposit(
         .add_attribute("sender", info.sender.to_string())
         .add_attribute("amount", amount.to_string())
         .add_attribute("total_balance", total_balance.to_string()))
-}
-
-pub fn execute_update_maci_code_id(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    code_id: u64,
-) -> Result<Response, ContractError> {
-    if !is_admin(deps.as_ref(), info.sender.as_ref())? {
-        Err(ContractError::Unauthorized {})
-    } else {
-        MACI_CODE_ID.save(deps.storage, &code_id)?;
-        Ok(Response::new()
-            .add_attribute("action", "update_maci_code_id")
-            .add_attribute("code_id", &code_id.to_string()))
-    }
 }
 
 pub fn execute_withdraw(
@@ -671,7 +651,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Operators {} => to_json_binary(&query_operators(deps)?),
         QueryMsg::IsOperator { address } => to_json_binary(&query_is_operator(deps, address)?),
         QueryMsg::Balance {} => to_json_binary(&TOTAL_BALANCE.load(deps.storage)?),
-        QueryMsg::MaciCodeId {} => to_json_binary(&MACI_CODE_ID.load(deps.storage)?),
         QueryMsg::TreasuryManager {} => to_json_binary(&TREASURY_MANAGER.load(deps.storage)?),
     }
 }
@@ -704,7 +683,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 }
 
 fn reply_created_maci_round(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     result: Result<SubMsgResponse, String>,
 ) -> Result<Response, ContractError> {
@@ -732,8 +711,6 @@ fn reply_created_maci_round(
     // When creating through Registry, we don't get MACI instantiation data directly
     // The Registry handles that, we just need to track the created contract address
 
-    let maci_code_id = MACI_CODE_ID.load(deps.storage)?;
-
     // Prepare return data
     let saas_instantiation_data = InstantiationData {
         addr: contract_address.clone(),
@@ -742,7 +719,6 @@ fn reply_created_maci_round(
     let response_attrs = vec![
         attr("action", "created_maci_round"),
         attr("round_addr", &contract_address.to_string()),
-        attr("code_id", &maci_code_id.to_string()),
     ];
 
     Ok(Response::new()
@@ -848,15 +824,6 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 }
 
 // Utility functions
-fn is_admin(deps: Deps, sender: &str) -> StdResult<bool> {
-    let config = CONFIG.load(deps.storage)?;
-
-    if config.is_admin(&Addr::unchecked(sender)) {
-        return Ok(true);
-    }
-    Ok(false)
-}
-
 fn is_treasury_manager(deps: Deps, sender: &str) -> StdResult<bool> {
     let treasury_manager = TREASURY_MANAGER.load(deps.storage)?;
     let sender_addr = Addr::unchecked(sender);

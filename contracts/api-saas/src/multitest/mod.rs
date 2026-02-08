@@ -59,7 +59,6 @@ impl SaasCodeId {
         treasury_manager: Addr,
         registry_contract: Addr,
         denom: String,
-        oracle_maci_code_id: u64,
         label: &str,
     ) -> AnyResult<SaasContract> {
         SaasContract::instantiate(
@@ -70,7 +69,6 @@ impl SaasCodeId {
             treasury_manager,
             registry_contract,
             denom,
-            oracle_maci_code_id,
             label,
         )
     }
@@ -99,7 +97,6 @@ impl SaasContract {
         treasury_manager: Addr,
         registry_contract: Addr,
         denom: String,
-        maci_code_id: u64,
         label: &str,
     ) -> AnyResult<Self> {
         let init_msg = InstantiateMsg {
@@ -107,7 +104,6 @@ impl SaasContract {
             treasury_manager,
             registry_contract,
             denom,
-            maci_code_id,
         };
 
         app.instantiate_contract(code_id.0, sender, &init_msg, &[], label, None)
@@ -177,21 +173,6 @@ impl SaasContract {
             sender,
             self.addr(),
             &ExecuteMsg::Withdraw { amount, recipient },
-            &[],
-        )
-    }
-
-    #[track_caller]
-    pub fn update_maci_code_id(
-        &self,
-        app: &mut App,
-        sender: Addr,
-        code_id: u64,
-    ) -> AnyResult<AppResponse> {
-        app.execute_contract(
-            sender,
-            self.addr(),
-            &ExecuteMsg::UpdateMaciCodeId { code_id },
             &[],
         )
     }
@@ -287,11 +268,6 @@ impl SaasContract {
     pub fn query_balance(&self, app: &App) -> StdResult<Uint128> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::Balance {})
-    }
-
-    pub fn query_maci_code_id(&self, app: &App) -> StdResult<u64> {
-        app.wrap()
-            .query_wasm_smart(self.addr(), &QueryMsg::MaciCodeId {})
     }
 
     pub fn query_treasury_manager(&self, app: &App) -> StdResult<Addr> {

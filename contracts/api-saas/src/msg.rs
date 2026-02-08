@@ -17,7 +17,6 @@ pub struct InstantiateMsg {
     pub treasury_manager: Addr,
     pub registry_contract: Addr,
     pub denom: String,
-    pub maci_code_id: u64,
 }
 
 #[cw_serde]
@@ -28,9 +27,6 @@ pub enum ExecuteMsg {
         denom: Option<String>,
     },
 
-    UpdateMaciCodeId {
-        code_id: u64,
-    },
     UpdateAmaciRegistryContract {
         registry_contract: Addr,
     },
@@ -106,9 +102,6 @@ pub enum QueryMsg {
 
     #[returns(Uint128)]
     Balance {},
-
-    #[returns(u64)]
-    MaciCodeId {},
 
     #[returns(Addr)]
     TreasuryManager {},

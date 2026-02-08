@@ -7,7 +7,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::migrates::migrate_v0_1_4::migrate_v0_1_4;
+use crate::migrates::migrate_v0_1_5::migrate_v0_1_5;
 use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, QueryMsg};
 use crate::state::{
     Admin, CircuitChargeConfig, ValidatorSet, ADDRESS_TO_POLL_ID, ADMIN, AMACI_CODE_ID,
@@ -947,5 +947,5 @@ pub fn reply_created_maci_round(
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrate_v0_1_4(deps)
+    migrate_v0_1_5(deps)
 }
