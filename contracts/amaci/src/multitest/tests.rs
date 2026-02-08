@@ -11,7 +11,7 @@ mod test {
         DelayRecord, DelayRecords, DelayType, MessageData, Period, PeriodStatus, PubKey,
     };
     use cosmwasm_std::{Addr, BlockInfo, Timestamp, Uint256};
-    use cw_multi_test::next_block;
+    use cw_multi_test::{next_block, Executor};
     use serde::{Deserialize, Serialize};
     use serde_json;
     use std::fs;
@@ -2194,6 +2194,378 @@ mod test {
         assert_ne!(
             idx1, idx2,
             "Users with same x but different y should have different state indices"
+        );
+    }
+
+    // ========== Deactivate Feature Tests ==========
+
+    #[test]
+    fn test_deactivate_enabled_query() {
+        let mut app = create_app();
+        let maci_contract = MaciContract::instantiate_default(&mut app, true).unwrap();
+
+        // Query deactivate_enabled - should be false by default
+        let enabled: bool = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::GetDeactivateEnabled {},
+            )
+            .unwrap();
+
+        assert_eq!(enabled, false, "Deactivate should be disabled by default");
+    }
+
+    #[test]
+    fn test_publish_deactivate_message_disabled() {
+        let mut app = create_app();
+        let maci_contract = MaciContract::instantiate_default(&mut app, true).unwrap();
+
+        // Try to publish deactivate message when feature is disabled
+        let result = app.execute_contract(
+            user1(),
+            maci_contract.addr().clone(),
+            &crate::msg::ExecuteMsg::PublishDeactivateMessage {
+                message: MessageData {
+                    data: [Uint256::zero(); 10],
+                },
+                enc_pub_key: PubKey {
+                    x: Uint256::from_u128(1),
+                    y: Uint256::from_u128(2),
+                },
+            },
+            &[],
+        );
+
+        // Should fail with DeactivateDisabled error
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_string = format!("{:?}", err);
+        assert!(
+            err_string.contains("Deactivate feature is disabled") || err_string.contains("DeactivateDisabled"),
+            "Expected DeactivateDisabled error, got: {}",
+            err_string
+        );
+    }
+
+    #[test]
+    fn test_upload_deactivate_message_disabled() {
+        let mut app = create_app();
+        let maci_contract = MaciContract::instantiate_default(&mut app, true).unwrap();
+
+        // Try to upload deactivate message when feature is disabled
+        let result = app.execute_contract(
+            owner(),
+            maci_contract.addr().clone(),
+            &crate::msg::ExecuteMsg::UploadDeactivateMessage {
+                deactivate_message: vec![vec![Uint256::zero(); 10]],
+            },
+            &[],
+        );
+
+        // Should fail with DeactivateDisabled error
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_string = format!("{:?}", err);
+        assert!(
+            err_string.contains("Deactivate feature is disabled") || err_string.contains("DeactivateDisabled"),
+            "Expected DeactivateDisabled error, got: {}",
+            err_string
+        );
+    }
+
+    #[test]
+    fn test_process_deactivate_message_disabled() {
+        let mut app = create_app();
+        let maci_contract = MaciContract::instantiate_default(&mut app, true).unwrap();
+
+        // Try to process deactivate message when feature is disabled
+        let result = app.execute_contract(
+            owner(),
+            maci_contract.addr().clone(),
+            &crate::msg::ExecuteMsg::ProcessDeactivateMessage {
+                size: Uint256::from_u128(1),
+                new_deactivate_commitment: Uint256::zero(),
+                new_deactivate_root: Uint256::zero(),
+                groth16_proof: Groth16ProofType {
+                    a: String::new(),
+                    b: String::new(),
+                    c: String::new(),
+                },
+            },
+            &[],
+        );
+
+        // Should fail with DeactivateDisabled error
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_string = format!("{:?}", err);
+        assert!(
+            err_string.contains("Deactivate feature is disabled") || err_string.contains("DeactivateDisabled"),
+            "Expected DeactivateDisabled error, got: {}",
+            err_string
+        );
+    }
+
+    #[test]
+    fn test_publish_deactivate_message_insufficient_fee() {
+        use cosmwasm_std::{coin, coins};
+        use cw_multi_test::next_block;
+        let mut app = create_app();
+        
+        // Mint tokens for user1
+        app.sudo(cw_multi_test::SudoMsg::Bank(
+            cw_multi_test::BankSudo::Mint {
+                to_address: user1().to_string(),
+                amount: coins(100_000_000_000_000_000_000, "peaka"),
+            },
+        ))
+        .unwrap();
+
+        // Create a contract with deactivate enabled
+        let maci_contract =
+            MaciContract::instantiate_with_deactivate_enabled(&mut app, true).unwrap();
+
+        // Advance time to voting period
+        app.update_block(next_block);
+
+        // Signup first
+        let pubkey = test_pubkey1();
+        let _ = app.execute_contract(
+            user1(),
+            maci_contract.addr().clone(),
+            &crate::msg::ExecuteMsg::SignUp {
+                pubkey: pubkey.clone(),
+                certificate: None,
+            },
+            &[],
+        );
+
+        // Try to publish deactivate message with insufficient fee
+        let result = app.execute_contract(
+            user1(),
+            maci_contract.addr().clone(),
+            &crate::msg::ExecuteMsg::PublishDeactivateMessage {
+                message: MessageData {
+                    data: [Uint256::from_u128(1); 10],
+                },
+                enc_pub_key: PubKey {
+                    x: Uint256::from_u128(100),
+                    y: Uint256::from_u128(200),
+                },
+            },
+            &[coin(5_000_000_000_000_000_000, "peaka")], // Only 5 DORA, need 10 DORA
+        );
+
+        // Should fail with InsufficientFundsSend error
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_string = format!("{:?}", err);
+        assert!(
+            err_string.contains("Insufficient funds sent"),
+            "Expected InsufficientFundsSend error, got: {}",
+            err_string
+        );
+    }
+
+    #[test]
+    fn test_publish_deactivate_message_with_fee() {
+        use cosmwasm_std::{coin, coins};
+        use cw_multi_test::next_block;
+        let mut app = create_app();
+        
+        // Mint tokens for user1
+        app.sudo(cw_multi_test::SudoMsg::Bank(
+            cw_multi_test::BankSudo::Mint {
+                to_address: user1().to_string(),
+                amount: coins(100_000_000_000_000_000_000, "peaka"),
+            },
+        ))
+        .unwrap();
+
+        // Create a contract with deactivate enabled
+        let maci_contract =
+            MaciContract::instantiate_with_deactivate_enabled(&mut app, true).unwrap();
+
+        // Advance time to voting period
+        app.update_block(next_block);
+
+        // Signup first
+        let pubkey = test_pubkey1();
+        let _ = app.execute_contract(
+            user1(),
+            maci_contract.addr().clone(),
+            &crate::msg::ExecuteMsg::SignUp {
+                pubkey: pubkey.clone(),
+                certificate: None,
+            },
+            &[],
+        );
+
+        // Get balance before (both contract and user)
+        let contract_balance_before = app
+            .wrap()
+            .query_balance(maci_contract.addr().clone(), "peaka")
+            .unwrap();
+        let user_balance_before = app
+            .wrap()
+            .query_balance(user1(), "peaka")
+            .unwrap();
+
+        // Publish deactivate message with correct fee (10 DORA)
+        let result = app.execute_contract(
+            user1(),
+            maci_contract.addr().clone(),
+            &crate::msg::ExecuteMsg::PublishDeactivateMessage {
+                message: MessageData {
+                    data: [Uint256::from_u128(1); 10],
+                },
+                enc_pub_key: PubKey {
+                    x: Uint256::from_u128(100),
+                    y: Uint256::from_u128(200),
+                },
+            },
+            &[coin(10_000_000_000_000_000_000, "peaka")], // Exactly 10 DORA
+        );
+
+        // Should succeed
+        assert!(
+            result.is_ok(),
+            "Failed to publish deactivate message: {:?}",
+            result.err()
+        );
+
+        // Verify fee was added to contract balance (accumulated to pool)
+        let contract_balance_after = app
+            .wrap()
+            .query_balance(maci_contract.addr().clone(), "peaka")
+            .unwrap();
+        assert_eq!(
+            contract_balance_after.amount.u128(),
+            contract_balance_before.amount.u128() + 10_000_000_000_000_000_000,
+            "Contract balance should increase by 10 DORA"
+        );
+
+        // Verify user balance decreased by 10 DORA
+        let user_balance_after = app
+            .wrap()
+            .query_balance(user1(), "peaka")
+            .unwrap();
+        assert_eq!(
+            user_balance_after.amount.u128(),
+            user_balance_before.amount.u128() - 10_000_000_000_000_000_000,
+            "User balance should decrease by 10 DORA"
+        );
+
+        // Verify dmsg_chain_length increased
+        let dmsg_length: Uint256 = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::GetDMsgChainLength {},
+            )
+            .unwrap();
+        assert_eq!(
+            dmsg_length,
+            Uint256::from_u128(1),
+            "Dmsg chain length should be 1"
+        );
+    }
+
+    #[test]
+    fn test_multiple_deactivate_messages_fee_accumulation() {
+        use cosmwasm_std::{coin, coins};
+        use cw_multi_test::next_block;
+        let mut app = create_app();
+        
+        // Mint tokens for multiple users
+        for i in 1..=3 {
+            let user_addr = format!("user{}", i);
+            app.sudo(cw_multi_test::SudoMsg::Bank(
+                cw_multi_test::BankSudo::Mint {
+                    to_address: user_addr,
+                    amount: coins(100_000_000_000_000_000_000, "peaka"),
+                },
+            ))
+            .unwrap();
+        }
+
+        // Create a contract with deactivate enabled
+        let maci_contract =
+            MaciContract::instantiate_with_deactivate_enabled(&mut app, true).unwrap();
+
+        // Advance time to voting period
+        app.update_block(next_block);
+
+        // Signup users
+        let pubkey1 = test_pubkey1();
+        let pubkey2 = test_pubkey2();
+        let pubkey3 = PubKey {
+            x: Uint256::from_u128(3333),
+            y: Uint256::from_u128(4444),
+        };
+
+        for (i, pubkey) in vec![&pubkey1, &pubkey2, &pubkey3].iter().enumerate() {
+            let user_addr = Addr::unchecked(format!("user{}", i + 1));
+            let _ = app.execute_contract(
+                user_addr,
+                maci_contract.addr().clone(),
+                &crate::msg::ExecuteMsg::SignUp {
+                    pubkey: (**pubkey).clone(),
+                    certificate: None,
+                },
+                &[],
+            );
+        }
+
+        // Get initial contract balance
+        let initial_balance = app
+            .wrap()
+            .query_balance(maci_contract.addr().clone(), "peaka")
+            .unwrap();
+
+        // Publish 3 deactivate messages
+        for i in 1..=3 {
+            let user_addr = Addr::unchecked(format!("user{}", i));
+            let _ = app.execute_contract(
+                user_addr,
+                maci_contract.addr().clone(),
+                &crate::msg::ExecuteMsg::PublishDeactivateMessage {
+                    message: MessageData {
+                        data: [Uint256::from_u128(i as u128); 10],
+                    },
+                    enc_pub_key: PubKey {
+                        x: Uint256::from_u128(100 * i as u128),
+                        y: Uint256::from_u128(200 * i as u128),
+                    },
+                },
+                &[coin(10_000_000_000_000_000_000, "peaka")], // 10 DORA each
+            );
+        }
+
+        // Verify total fee accumulated (30 DORA = 3 * 10 DORA)
+        let final_balance = app
+            .wrap()
+            .query_balance(maci_contract.addr().clone(), "peaka")
+            .unwrap();
+        assert_eq!(
+            final_balance.amount.u128(),
+            initial_balance.amount.u128() + 30_000_000_000_000_000_000,
+            "Contract balance should increase by 30 DORA (3 messages * 10 DORA)"
+        );
+
+        // Verify dmsg_chain_length is 3
+        let dmsg_length: Uint256 = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr().clone(),
+                &crate::msg::QueryMsg::GetDMsgChainLength {},
+            )
+            .unwrap();
+        assert_eq!(
+            dmsg_length,
+            Uint256::from_u128(3),
+            "Dmsg chain length should be 3"
         );
     }
 }

@@ -608,12 +608,24 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
         serde_json::from_str(&logs_content).expect("Failed to parse JSON");
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
-    let _operator_coin_amount = 1000000000000000000000u128; // 1000 DORA
+    let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
     let mut app = App::new(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
             .unwrap();
     });
 
@@ -668,7 +680,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
         .unwrap();
 
     let resp = contract
-        .create_round_with_whitelist(
+        .create_round_with_whitelist_and_deactivate(
             &mut app,
             creator(),
             operator(),
@@ -1230,12 +1242,24 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
         serde_json::from_str(&logs_content).expect("Failed to parse JSON");
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
-    let _operator_coin_amount = 1000000000000000000000u128; // 1000 DORA
+    let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
     let mut app = App::new(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
             .unwrap();
     });
 
@@ -1286,7 +1310,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
         .unwrap();
 
     let resp = contract
-        .create_round_with_whitelist(
+        .create_round_with_whitelist_and_deactivate(
             &mut app,
             creator(),
             operator(),
@@ -1848,11 +1872,24 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
         serde_json::from_str(&pubkey_content).expect("Failed to parse JSON");
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+    let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
     let mut app = App::new(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
             .unwrap();
     });
 

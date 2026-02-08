@@ -219,6 +219,7 @@ impl AmaciRegistryContract {
             certification_system,
             oracle_whitelist_pubkey: None,
             pre_deactivate_coordinator: None,
+            deactivate_enabled: false, // Default: disabled
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -273,6 +274,62 @@ impl AmaciRegistryContract {
             certification_system,
             oracle_whitelist_pubkey: None,
             pre_deactivate_coordinator: None,
+            deactivate_enabled: false, // Default: disabled
+        };
+
+        app.execute_contract(sender, self.addr(), &msg, send_funds)
+    }
+
+    #[track_caller]
+    pub fn create_round_with_whitelist_and_deactivate(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        operator: Addr,
+        circuit_type: Uint256,
+        certification_system: Uint256,
+        send_funds: &[Coin],
+    ) -> AnyResult<AppResponse> {
+        let round_info = RoundInfo {
+            title: String::from("HackWasm Berlin"),
+            description: String::from("Hack In Brelin"),
+            link: String::from("https://baidu.com"),
+        };
+
+        let start_time = Timestamp::from_nanos(1571797424879000000);
+        let end_time = start_time.plus_minutes(21);
+
+        let whitelist = Some(WhitelistBase {
+            users: vec![
+                WhitelistBaseConfig { addr: user1() },
+                WhitelistBaseConfig { addr: user2() },
+                WhitelistBaseConfig { addr: user3() },
+            ],
+        });
+
+        let msg = ExecuteMsg::CreateRound {
+            operator,
+            round_info,
+            max_voter: Uint256::from_u128(3u128),
+            voice_credit_amount: Uint256::from_u128(100u128),
+            vote_option_map: vec![
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ],
+            voting_time: VotingTime {
+                start_time,
+                end_time,
+            },
+            whitelist,
+            pre_deactivate_root: Uint256::from_u128(0u128),
+            circuit_type,
+            certification_system,
+            oracle_whitelist_pubkey: None,
+            pre_deactivate_coordinator: None,
+            deactivate_enabled: true, // ENABLED for tests that need deactivate
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -320,6 +377,7 @@ impl AmaciRegistryContract {
             certification_system,
             oracle_whitelist_pubkey: Some(oracle_whitelist_pubkey),
             pre_deactivate_coordinator: None,
+            deactivate_enabled: true, // ENABLED for oracle tests with deactivate
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)

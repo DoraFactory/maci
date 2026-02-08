@@ -347,6 +347,7 @@ impl MaciContract {
             oracle_whitelist_pubkey: None,
             pre_deactivate_coordinator: None,
             poll_id: 1u64,
+            deactivate_enabled: false, // Default: disabled
         };
 
         app.instantiate_contract(
@@ -409,6 +410,7 @@ impl MaciContract {
             oracle_whitelist_pubkey: None,
             pre_deactivate_coordinator: None,
             poll_id: 1u64,
+            deactivate_enabled: true, // ENABLED for deactivate and add_new_key tests
         };
 
         app.instantiate_contract(
@@ -939,6 +941,8 @@ impl MaciContract {
         message: MessageData,
         enc_pub_key: PubKey,
     ) -> AnyResult<AppResponse> {
+        use cosmwasm_std::coin;
+        // Always send 10 DORA fee for deactivate message
         app.execute_contract(
             sender,
             self.addr(),
@@ -946,7 +950,7 @@ impl MaciContract {
                 message,
                 enc_pub_key,
             },
-            &[],
+            &[coin(10_000_000_000_000_000_000, "peaka")], // 10 DORA fee
         )
     }
 
@@ -1236,6 +1240,7 @@ impl MaciContract {
             oracle_whitelist_pubkey: Some(oracle_whitelist_pubkey),
             pre_deactivate_coordinator: None,
             poll_id: 1u64,
+            deactivate_enabled: false, // Default: disabled
         };
 
         app.instantiate_contract(
@@ -1244,6 +1249,130 @@ impl MaciContract {
             &init_msg,
             &[],
             label,
+            None,
+        )
+        .map(Self::from)
+    }
+
+    // Helper function to instantiate with default parameters (deactivate disabled)
+    #[track_caller]
+    pub fn instantiate_default(app: &mut App, whitelist: bool) -> AnyResult<Self> {
+        let code_id = MaciCodeId::store_code(app);
+        let round_info = RoundInfo {
+            title: String::from("TestRound"),
+            description: String::from("Test Description"),
+            link: String::from("https://github.com"),
+        };
+        
+        let whitelist_cfg = if whitelist {
+            Some(WhitelistBase {
+                users: vec![
+                    crate::msg::WhitelistBaseConfig {
+                        addr: user1(),
+                    },
+                    crate::msg::WhitelistBaseConfig {
+                        addr: user2(),
+                    },
+                ],
+            })
+        } else {
+            None
+        };
+
+        let voting_time = VotingTime {
+            start_time: Timestamp::from_nanos(1571797424879000000),
+            end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11), // 11 minutes later
+        };
+
+        Self::instantiate(
+            app,
+            code_id,
+            owner(),
+            round_info,
+            whitelist_cfg,
+            voting_time,
+            Uint256::from_u128(0), // 1p1v
+            Uint256::from_u128(0), // groth16
+            "MACI Contract",
+        )
+    }
+
+    // Helper function to instantiate with deactivate enabled
+    #[track_caller]
+    pub fn instantiate_with_deactivate_enabled(app: &mut App, whitelist: bool) -> AnyResult<Self> {
+        let code_id = MaciCodeId::store_code(app);
+        let parameters = MaciParameters {
+            state_tree_depth: Uint256::from_u128(2u128),
+            int_state_tree_depth: Uint256::from_u128(1u128),
+            message_batch_size: Uint256::from_u128(5u128),
+            vote_option_tree_depth: Uint256::from_u128(1u128),
+        };
+
+        let round_info = RoundInfo {
+            title: String::from("TestRound"),
+            description: String::from("Test Description"),
+            link: String::from("https://github.com"),
+        };
+        
+        let whitelist_cfg = if whitelist {
+            Some(WhitelistBase {
+                users: vec![
+                    crate::msg::WhitelistBaseConfig {
+                        addr: user1(),
+                    },
+                    crate::msg::WhitelistBaseConfig {
+                        addr: user2(),
+                    },
+                ],
+            })
+        } else {
+            None
+        };
+
+        let voting_time = VotingTime {
+            start_time: Timestamp::from_nanos(1571797424879000000),
+            end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11), // 11 minutes later
+        };
+
+        let init_msg = InstantiateMsg {
+            parameters,
+            coordinator: PubKey {
+                x: uint256_from_decimal_string(
+                    "3557592161792765812904087712812111121909518311142005886657252371904276697771",
+                ),
+                y: uint256_from_decimal_string(
+                    "4363822302427519764561660537570341277214758164895027920046745209970137856681",
+                ),
+            },
+            voice_credit_amount: Uint256::from_u128(100u128),
+            vote_option_map: vec![
+                "Option 1".to_string(),
+                "Option 2".to_string(),
+                "Option 3".to_string(),
+                "Option 4".to_string(),
+                "Option 5".to_string(),
+            ],
+            pre_deactivate_root: Uint256::from_u128(0u128),
+            round_info,
+            whitelist: whitelist_cfg,
+            voting_time,
+            circuit_type: Uint256::from_u128(0), // 1p1v
+            certification_system: Uint256::from_u128(0), // groth16
+            operator: operator(),
+            admin: owner(),
+            fee_recipient: fee_recipient(),
+            oracle_whitelist_pubkey: None,
+            pre_deactivate_coordinator: None,
+            poll_id: 1u64,
+            deactivate_enabled: true, // ENABLED!
+        };
+
+        app.instantiate_contract(
+            code_id.0,
+            owner(),
+            &init_msg,
+            &[],
+            "MACI Contract with Deactivate Enabled",
             None,
         )
         .map(Self::from)
@@ -1257,7 +1386,7 @@ impl From<Addr> for MaciContract {
 }
 
 pub fn user1() -> Addr {
-    Addr::unchecked("0")
+    Addr::unchecked("user1")
 }
 
 pub fn user2() -> Addr {

@@ -184,7 +184,8 @@ describe('AMACI End-to-End Test', function () {
       certification_system: '0', // Groth16
       oracle_whitelist_pubkey: null,
       pre_deactivate_coordinator: null,
-      poll_id: 1 // Poll ID for this round (防止跨 poll 重放攻击)
+      poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
+      deactivate_enabled: false // Deactivate feature disabled (default)
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);

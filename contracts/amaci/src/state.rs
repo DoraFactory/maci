@@ -341,6 +341,13 @@ pub const FIRST_DMSG_TIMESTAMP: Item<Timestamp> = Item::new("first_dmsg_timestam
 
 pub const FEE_RECIPIENT: Item<Addr> = Item::new("fee_recipient");
 
+// Deactivate feature enabled/disabled flag
+pub const DEACTIVATE_ENABLED: Item<bool> = Item::new("deactivate_enabled");
+
+// Deactivate fee constants (hard-coded)
+pub const DEACTIVATE_FEE: Uint128 = Uint128::new(10_000_000_000_000_000_000); // 10 DORA = 10 * 10^18 peaka
+pub const DEACTIVATE_DENOM: &str = "peaka";
+
 #[cw_serde]
 pub enum DelayType {
     DeactivateDelay = 0,

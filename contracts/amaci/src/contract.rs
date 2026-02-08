@@ -10,8 +10,9 @@ use crate::state::{
     OracleWhitelistUser, Period, PeriodStatus, PubKey, QuinaryTreeRoot, RoundInfo, StateLeaf,
     VotingTime, Whitelist, WhitelistConfig, ADMIN, CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH,
     CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT, CURRENT_STATE_COMMITMENT,
-    CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_DELAY, DELAY_RECORDS, DMSG_CHAIN_LENGTH,
-    DMSG_HASHES, DNODES, FEEGRANTS, FEE_RECIPIENT, FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS,
+    CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_DELAY, DEACTIVATE_DENOM,
+    DEACTIVATE_ENABLED, DEACTIVATE_FEE, DELAY_RECORDS, DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES,
+    FEEGRANTS, FEE_RECIPIENT, FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS,
     GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS, GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS,
     MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR, MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH,
     MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, ORACLE_WHITELIST_PUBKEY,
@@ -386,6 +387,9 @@ pub fn instantiate(
     MACI_OPERATOR.save(deps.storage, &msg.operator)?;
 
     FEE_RECIPIENT.save(deps.storage, &msg.fee_recipient)?;
+
+    // Save deactivate_enabled flag (default: false)
+    DEACTIVATE_ENABLED.save(deps.storage, &msg.deactivate_enabled)?;
 
     let circuit_type = if msg.circuit_type == Uint256::from_u128(0u128) {
         "0" // 1p1v
@@ -1063,13 +1067,31 @@ pub fn execute_publish_message_batch(
 pub fn execute_publish_deactivate_message(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     message: MessageData,
     enc_pub_key: PubKey,
 ) -> Result<Response, ContractError> {
+    // Check if deactivate feature is enabled
+    let deactivate_enabled = DEACTIVATE_ENABLED.load(deps.storage)?;
+    if !deactivate_enabled {
+        return Err(ContractError::DeactivateDisabled {});
+    }
+
     // Check if the period status is Voting
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env.clone(), voting_time)?;
+
+    // Check payment: require DEACTIVATE_FEE in DEACTIVATE_DENOM
+    let payment = info
+        .funds
+        .iter()
+        .find(|coin| coin.denom == DEACTIVATE_DENOM)
+        .map(|coin| coin.amount)
+        .unwrap_or(Uint128::zero());
+
+    if payment < DEACTIVATE_FEE {
+        return Err(ContractError::InsufficientFundsSend {});
+    }
 
     // Load the scalar field value
     let snark_scalar_field =
@@ -1194,6 +1216,12 @@ pub fn execute_upload_deactivate_message(
     info: MessageInfo,
     deactivate_message: Vec<Vec<Uint256>>,
 ) -> Result<Response, ContractError> {
+    // Check if deactivate feature is enabled
+    let deactivate_enabled = DEACTIVATE_ENABLED.load(deps.storage)?;
+    if !deactivate_enabled {
+        return Err(ContractError::DeactivateDisabled {});
+    }
+
     if !is_operator(deps.as_ref(), &info.sender.as_ref())? {
         Err(ContractError::Unauthorized {})
     } else {
@@ -1229,6 +1257,12 @@ pub fn execute_process_deactivate_message(
     new_deactivate_root: Uint256,
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
+    // Check if deactivate feature is enabled
+    let deactivate_enabled = DEACTIVATE_ENABLED.load(deps.storage)?;
+    if !deactivate_enabled {
+        return Err(ContractError::DeactivateDisabled {});
+    }
+
     // // Check if the period status is Voting
     // let voting_time = VOTINGTIME.load(deps.storage)?;
     // check_voting_time(env, voting_time)?;
@@ -2550,6 +2584,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetPollId {} => {
             let poll_id = POLL_ID.load(deps.storage)?;
             to_json_binary(&poll_id)
+        }
+        QueryMsg::GetDeactivateEnabled {} => {
+            let enabled = DEACTIVATE_ENABLED.load(deps.storage)?;
+            to_json_binary(&enabled)
         }
     }
 }

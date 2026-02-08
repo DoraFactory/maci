@@ -172,4 +172,7 @@ pub enum ContractError {
 
     #[error("Poseidon hash operation failed: {0}")]
     PoseidonError(String),
+
+    #[error("Deactivate feature is disabled")]
+    DeactivateDisabled {},
 }

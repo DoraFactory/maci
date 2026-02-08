@@ -214,6 +214,33 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const client = env.client;
     log('✓ Test environment created');
 
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' } // 100,000 DORA in peaka
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(feeRecipient, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter2Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1NewAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('✓ Test address balances initialized');
+
     // Initialize INDEPENDENT SDK clients
     const operator = new OperatorClient({
       network: 'testnet',
@@ -295,7 +322,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       certification_system: '0',
       oracle_whitelist_pubkey: null,
       pre_deactivate_coordinator: null,
-      poll_id: 1 // Poll ID for this round (防止跨 poll 重放攻击)
+      poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
+      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -816,6 +844,29 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const client = env.client;
     log('✓ Test environment created');
 
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter2Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1NewAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('✓ Test address balances initialized');
+
     // Deploy a fresh contract for this test
     const testOperator = new OperatorClient({
       network: 'testnet',
@@ -880,7 +931,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       certification_system: '0',
       oracle_whitelist_pubkey: null,
       pre_deactivate_coordinator: null,
-      poll_id: 2 // Poll ID for this test round (using different ID to avoid conflicts)
+      poll_id: 2, // Poll ID for this test round (using different ID to avoid conflicts)
+      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
 
     const testContractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -1363,6 +1415,29 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const client = env.client;
     log('✓ Test environment created');
 
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter2Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1NewAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('✓ Test address balances initialized');
+
     // Setup - Deploy a fresh contract
     const concurrentOperator = new OperatorClient({
       network: 'testnet',
@@ -1427,7 +1502,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       certification_system: '0',
       oracle_whitelist_pubkey: null,
       pre_deactivate_coordinator: null,
-      poll_id: 3 // Poll ID for this test round (using different ID to avoid conflicts)
+      poll_id: 3, // Poll ID for this test round (using different ID to avoid conflicts)
+      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
 
     const concurrentContractInfo = await deployManager.deployAmaciContract(
@@ -1832,6 +1908,39 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const client = env.client;
     log('✓ Test environment created');
 
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter2Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1NewAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('✓ Test address balances initialized');
+
+    // Initialize balances for 25 boundary test users (dora1user00000000...00000000 - dora1user00000000...00000024)
+    for (let i = 0; i < 25; i++) {
+      const userAddress = `dora1user${i.toString().padStart(32, '0')}`;
+      await client.app.bank.setBalance(userAddress, [
+        { denom: 'dora', amount: '1000000000000' },
+        { denom: 'peaka', amount: '100000000000000000000000' }
+      ]);
+    }
+    log('✓ Boundary test user balances initialized (25 users)');
+
     // Create a new operator for this test
     const boundaryOperator = new OperatorClient({
       network: 'testnet',
@@ -1894,7 +2003,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       certification_system: '0', // Groth16
       oracle_whitelist_pubkey: null,
       pre_deactivate_coordinator: null,
-      poll_id: 5 // Poll ID for boundary test (using different ID to avoid conflicts)
+      poll_id: 5, // Poll ID for boundary test (using different ID to avoid conflicts)
+      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
 
     const boundaryContractInfo = await deployManager.deployAmaciContract(
@@ -2018,13 +2128,9 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         bigint
       ];
 
-      await assertExecuteSuccess(
-        () =>
-          boundaryContract.publishDeactivateMessage(
-            formatMessageForContract(deactivateMessage),
-            formatPubKeyForContract(deactivateEncPubKey)
-          ),
-        'Publish deactivate for addNewKey test failed'
+      await boundaryContract.publishDeactivateMessage(
+        formatMessageForContract(deactivateMessage),
+        formatPubKeyForContract(deactivateEncPubKey)
       );
 
       boundaryOperator.pushDeactivateMessage(deactivateMessage, deactivateEncPubKey);
@@ -2037,15 +2143,11 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         zkeyFile: processDeactivateZkey
       });
 
-      await assertExecuteSuccess(
-        () =>
-          boundaryContract.processDeactivateMessage(
-            batchSize.toString(),
-            deactivateResult.input.newDeactivateCommitment.toString(),
-            deactivateResult.input.newDeactivateRoot.toString(),
-            deactivateResult.proof!
-          ),
-        'Process deactivate for addNewKey test failed'
+      await boundaryContract.processDeactivateMessage(
+        batchSize.toString(),
+        deactivateResult.input.newDeactivateCommitment.toString(),
+        deactivateResult.input.newDeactivateRoot.toString(),
+        deactivateResult.proof!
       );
 
       const deactivatesForProof = deactivateResult.newDeactivate as bigint[][];
@@ -2074,7 +2176,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
       expect.fail('Should have rejected addNewKey when tree is full');
     } catch (error: any) {
-      console.log(error.message);
+      log(`Caught error: ${error.message}`);
       expect(error.message).to.include('full');
       log('✅ Correctly rejected addNewKey with "full" error');
     }

@@ -226,6 +226,7 @@ impl SaasContract {
         circuit_type: Uint256,
         certification_system: Uint256,
         oracle_whitelist_pubkey: Option<String>,
+        deactivate_enabled: bool,
         funds: &[Coin],
     ) -> AnyResult<AppResponse> {
         app.execute_contract(
@@ -244,6 +245,7 @@ impl SaasContract {
                 certification_system,
                 oracle_whitelist_pubkey,
                 pre_deactivate_coordinator: None,
+                deactivate_enabled,
             },
             funds,
         )

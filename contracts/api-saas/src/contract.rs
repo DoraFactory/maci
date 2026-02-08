@@ -133,6 +133,7 @@ pub fn execute(
             certification_system,
             oracle_whitelist_pubkey,
             pre_deactivate_coordinator,
+            deactivate_enabled,
         } => execute_create_amaci_round(
             deps,
             env,
@@ -149,6 +150,7 @@ pub fn execute(
             certification_system,
             oracle_whitelist_pubkey,
             pre_deactivate_coordinator,
+            deactivate_enabled,
         ),
     }
 }
@@ -571,6 +573,7 @@ pub fn execute_create_amaci_round(
     certification_system: Uint256,
     oracle_whitelist_pubkey: Option<String>,
     pre_deactivate_coordinator: Option<PubKey>,
+    deactivate_enabled: bool,
 ) -> Result<Response, ContractError> {
     // Only operators can create AMACI rounds via registry
     if !OPERATORS.has(deps.storage, &info.sender) {
@@ -615,7 +618,8 @@ pub fn execute_create_amaci_round(
             "circuit_type": circuit_type,
             "certification_system": certification_system,
             "oracle_whitelist_pubkey": oracle_whitelist_pubkey,
-            "pre_deactivate_coordinator": pre_deactivate_coordinator
+            "pre_deactivate_coordinator": pre_deactivate_coordinator,
+            "deactivate_enabled": deactivate_enabled
         }
     });
 

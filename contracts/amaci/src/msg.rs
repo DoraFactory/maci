@@ -36,6 +36,9 @@ pub struct InstantiateMsg {
 
     // Poll ID assigned by Registry (required)
     pub poll_id: u64,
+
+    // Deactivate feature enabled/disabled (default: false)
+    pub deactivate_enabled: bool,
 }
 
 #[cw_serde]
@@ -262,6 +265,9 @@ pub enum QueryMsg {
 
     #[returns(u64)]
     GetPollId {},
+
+    #[returns(bool)]
+    GetDeactivateEnabled {},
 }
 
 #[cw_serde]

@@ -68,17 +68,23 @@ export class AmaciContractClient extends BaseContractClient {
 
   /**
    * Publish deactivate message
+   * NOTE: Requires 10 DORA fee (10 * 10^18 peaka)
    */
   async publishDeactivateMessage(
     message: string[],
     encPubKey: { x: string; y: string }
   ): Promise<any> {
-    return await this.execute({
-      publish_deactivate_message: {
-        message: { data: message },
-        enc_pub_key: encPubKey
-      }
-    });
+    // 10 DORA = 10 * 10^18 peaka
+    const deactivateFee = [{ denom: 'peaka', amount: '10000000000000000000' }];
+    return await this.execute(
+      {
+        publish_deactivate_message: {
+          message: { data: message },
+          enc_pub_key: encPubKey
+        }
+      },
+      deactivateFee
+    );
   }
 
   /**

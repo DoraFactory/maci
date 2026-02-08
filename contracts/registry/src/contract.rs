@@ -91,6 +91,7 @@ pub fn execute(
             certification_system,
             oracle_whitelist_pubkey,
             pre_deactivate_coordinator,
+            deactivate_enabled,
         } => execute_create_round(
             deps,
             env,
@@ -107,6 +108,7 @@ pub fn execute(
             certification_system,
             oracle_whitelist_pubkey,
             pre_deactivate_coordinator,
+            deactivate_enabled,
         ),
         ExecuteMsg::SetValidators { addresses } => {
             execute_set_validators(deps, env, info, addresses)
@@ -185,6 +187,7 @@ pub fn execute_create_round(
     certification_system: Uint256,
     oracle_whitelist_pubkey: Option<String>,
     pre_deactivate_coordinator: Option<PubKey>,
+    deactivate_enabled: bool,
 ) -> Result<Response, ContractError> {
     validate_dora_address(operator.as_str())?;
 
@@ -247,6 +250,7 @@ pub fn execute_create_round(
         oracle_whitelist_pubkey,
         pre_deactivate_coordinator,
         poll_id, // Pass poll_id to AMACI contract (required)
+        deactivate_enabled,
     };
     let amaci_code_id = AMACI_CODE_ID.load(deps.storage)?;
     let instantiate_msg = SubMsg::reply_on_success(

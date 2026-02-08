@@ -1366,8 +1366,9 @@ fn test_create_amaci_round_success_real() {
         Uint256::zero(), // pre_deactivate_root
         circuit_type,
         certification_system,
-        None, // oracle_whitelist_pubkey
-        &[],  // No funds sent - using SaaS contract balance
+        None,  // oracle_whitelist_pubkey
+        false, // deactivate_enabled (default: disabled)
+        &[],   // No funds sent - using SaaS contract balance
     );
 
     // Should succeed
@@ -1498,6 +1499,7 @@ fn test_create_amaci_round_unauthorized_real() {
         Uint256::zero(), // circuit_type
         Uint256::zero(), // certification_system
         None,            // oracle_whitelist_pubkey
+        false,           // deactivate_enabled (default: disabled)
         &[],             // no fee (will fail before fee checking)
     );
 

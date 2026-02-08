@@ -511,7 +511,8 @@ describe('State Tree Update E2E Test', function () {
         pre_deactivate_root: '0',
         circuit_type: '0', // 1P1V
         certification_system: '0', // Groth16
-        oracle_whitelist_pubkey: getBackendPublicKey()
+        oracle_whitelist_pubkey: getBackendPublicKey(),
+        deactivate_enabled: false // Deactivate feature disabled (default)
       };
 
       const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);

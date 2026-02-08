@@ -69,7 +69,8 @@ export class ChainSetup {
     // Set native balances for each account
     for (const account of accounts) {
       await this.client.app.bank.setBalance(account.address, [
-        { denom: 'dora', amount: '1000000000000' } // 1M tokens
+        { denom: 'dora', amount: '1000000000000' }, // 1M DORA tokens
+        { denom: 'peaka', amount: '100000000000000000000000' } // 100,000 DORA (in peaka, 18 decimals)
       ]);
     }
   }

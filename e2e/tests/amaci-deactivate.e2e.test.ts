@@ -62,6 +62,25 @@ describe('AMACI Deactivate E2E Tests', function () {
 
     client = env.client;
     log('Test environment created');
+
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(feeRecipient, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('Test address balances initialized');
   });
 
   describe('ActiveStateTree State Validation', () => {
@@ -117,7 +136,8 @@ describe('AMACI Deactivate E2E Tests', function () {
         certification_system: '0',
         oracle_whitelist_pubkey: null,
         pre_deactivate_coordinator: null,
-        poll_id: 1 // Poll ID for this round (防止跨 poll 重放攻击)
+        poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
+        deactivate_enabled: true // Deactivate feature ENABLED for this deactivate test
       };
 
       const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
