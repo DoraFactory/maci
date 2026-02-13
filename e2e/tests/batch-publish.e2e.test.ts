@@ -128,7 +128,22 @@ describe('Batch Publish Message E2E Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              { addr: adminAddress, voice_credit_amount: null },
+              { addr: operatorAddress, voice_credit_amount: null },
+              { addr: feeRecipient, voice_credit_amount: null },
+              { addr: voter1Address, voice_credit_amount: null },
+              { addr: voter2Address, voice_credit_amount: null }
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'Batch Test Round',
@@ -139,20 +154,8 @@ describe('Batch Publish Message E2E Test', function () {
         start_time: startTime.toString(),
         end_time: votingEndTime.toString()
       },
-      whitelist: {
-        users: [
-          { addr: adminAddress },
-          { addr: operatorAddress },
-          { addr: feeRecipient },
-          { addr: voter1Address },
-          { addr: voter2Address }
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '0', // 1p1v
       certification_system: '0', // Groth16
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null,
       poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
       deactivate_enabled: false // Deactivate feature disabled (default)
     };

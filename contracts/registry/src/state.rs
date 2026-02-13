@@ -45,8 +45,10 @@ impl ValidatorSet {
 pub const ADMIN: Item<Admin> = Item::new("admin");
 pub const OPERATOR: Item<Addr> = Item::new("operator");
 // pub const CONFIG: Item<Config> = Item::new("config");
+
+// AMACI code ID (unified MACI contract)
 pub const AMACI_CODE_ID: Item<u64> = Item::new("amaci_code_id");
-pub const MACI_CODE_ID: Item<u64> = Item::new("maci_code_id");
+
 // pub const TOTAL: Item<u128> = Item::new(TOTAL_KEY);
 pub const MACI_VALIDATOR_LIST: Item<ValidatorSet> = Item::new("maci_validator_list"); // ['val1', 'val2', 'val3']
 pub const MACI_VALIDATOR_OPERATOR_SET: Map<&Addr, Addr> = Map::new("maci_validator_operator_set"); // { val1: op1, val2: op2, val3: op3 }

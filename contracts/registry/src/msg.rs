@@ -2,29 +2,22 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128, Uint256};
 
 use cw_amaci::{
-    msg::WhitelistBase,
-    state::{PubKey, RoundInfo, VotingTime},
+    msg::RegistrationModeConfig,
+    state::{PubKey, RoundInfo, VoiceCreditMode, VotingTime},
 };
 
 use crate::state::{CircuitChargeConfig, ValidatorSet};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    // /// denom of the token to stake
-    // pub denom: String,
-
-    // pub min_deposit_amount: Uint128,
-
-    // pub slash_amount: Uint128,
-
     // admin can only bond/withdraw token
     pub admin: Addr,
 
     // operator can add whitelist address
     pub operator: Addr,
 
+    // AMACI code ID (unified MACI contract)
     pub amaci_code_id: u64,
-    pub maci_code_id: u64,
 }
 
 #[cw_serde]
@@ -39,30 +32,32 @@ pub enum ExecuteMsg {
         identity: String,
     },
     CreateRound {
+        // Operator configuration
         operator: Addr,
+        
+        // Round parameters
         max_voter: Uint256,
-        voice_credit_amount: Uint256,
         vote_option_map: Vec<String>,
         round_info: RoundInfo,
         voting_time: VotingTime,
-        whitelist: Option<WhitelistBase>,
-        pre_deactivate_root: Uint256,
+        
+        // Circuit configuration
         circuit_type: Uint256,
         certification_system: Uint256,
-        oracle_whitelist_pubkey: Option<String>,
-        pre_deactivate_coordinator: Option<PubKey>,
+        
+        // Deactivate feature configuration
         deactivate_enabled: bool,
-    },
-    CreateMaciRound {
-        coordinator: PubKey,
-        max_voters: u128,
-        vote_option_map: Vec<String>,
-        round_info: RoundInfo,
-        voting_time: VotingTime,
-        circuit_type: Uint256,
-        certification_system: Uint256,
-        whitelist_backend_pubkey: String,
-        whitelist_voting_power_mode: cw_maci::state::VotingPowerMode,
+        
+        // ============================================
+        // Unified MACI Configuration (NEW)
+        // ============================================
+        
+        // Voice Credit Mode: how voting power is allocated
+        voice_credit_mode: VoiceCreditMode,
+        
+        // Registration Mode: combined access control and state initialization
+        // This prevents invalid configuration combinations
+        registration_mode: RegistrationModeConfig,
     },
     SetValidators {
         addresses: ValidatorSet,
@@ -71,10 +66,7 @@ pub enum ExecuteMsg {
         address: Addr,
     },
     UpdateAmaciCodeId {
-        amaci_code_id: u64,
-    },
-    UpdateMaciCodeId {
-        maci_code_id: u64,
+        code_id: u64,
     },
     ChangeOperator {
         address: Addr,
@@ -125,9 +117,6 @@ pub enum QueryMsg {
 
     #[returns(u64)]
     GetNextPollId {},
-
-    #[returns(u64)]
-    GetMaciCodeId {},
 
     #[returns(u64)]
     GetAmaciCodeId {},

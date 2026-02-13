@@ -10,16 +10,15 @@ use crate::error::ContractError;
 use crate::migrates::migrate_v0_1_5::migrate_v0_1_5;
 use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, QueryMsg};
 use crate::state::{
-    Admin, CircuitChargeConfig, ValidatorSet, ADDRESS_TO_POLL_ID, ADMIN, AMACI_CODE_ID,
-    CIRCUIT_CHARGE_CONFIG, COORDINATOR_PUBKEY_MAP, MACI_CODE_ID, MACI_OPERATOR_IDENTITY,
-    MACI_OPERATOR_PUBKEY, MACI_OPERATOR_SET, MACI_VALIDATOR_LIST, MACI_VALIDATOR_OPERATOR_SET,
-    NEXT_POLL_ID, OPERATOR, POLL_ID_TO_ADDRESS,
+    Admin, CircuitChargeConfig, ValidatorSet, ADDRESS_TO_POLL_ID, ADMIN, CIRCUIT_CHARGE_CONFIG,
+    COORDINATOR_PUBKEY_MAP, MACI_OPERATOR_IDENTITY, MACI_OPERATOR_PUBKEY, MACI_OPERATOR_SET,
+    MACI_VALIDATOR_LIST, MACI_VALIDATOR_OPERATOR_SET, NEXT_POLL_ID, OPERATOR, POLL_ID_TO_ADDRESS,
+    AMACI_CODE_ID,
 };
 use cosmwasm_std::Decimal;
 use cw2::set_contract_version;
 use cw_amaci::msg::{
     InstantiateMsg as AMaciInstantiateMsg, InstantiationData as AMaciInstantiationData,
-    WhitelistBase,
 };
 use cw_amaci::state::{PubKey, RoundInfo, VotingTime};
 use cw_utils::parse_instantiate_response_data;
@@ -27,8 +26,7 @@ use cw_utils::parse_instantiate_response_data;
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw-amaci-registry";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const CREATED_GROTH16_ROUND_REPLY_ID: u64 = 1;
-pub const CREATED_MACI_ROUND_REPLY_ID: u64 = 3;
+pub const CREATED_ROUND_REPLY_ID: u64 = 1;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -46,7 +44,6 @@ pub fn instantiate(
     OPERATOR.save(deps.storage, &msg.operator)?;
 
     AMACI_CODE_ID.save(deps.storage, &msg.amaci_code_id)?;
-    MACI_CODE_ID.save(deps.storage, &msg.maci_code_id)?;
 
     let circuit_charge_config = CircuitChargeConfig {
         fee_rate: Decimal::from_ratio(1u128, 10u128), // 10%
@@ -81,34 +78,28 @@ pub fn execute(
         ExecuteMsg::CreateRound {
             operator,
             max_voter,
-            voice_credit_amount,
             vote_option_map,
             round_info,
             voting_time,
-            whitelist,
-            pre_deactivate_root,
             circuit_type,
             certification_system,
-            oracle_whitelist_pubkey,
-            pre_deactivate_coordinator,
             deactivate_enabled,
+            voice_credit_mode,
+            registration_mode,
         } => execute_create_round(
             deps,
             env,
             info,
             operator,
             max_voter,
-            voice_credit_amount,
             vote_option_map,
             round_info,
             voting_time,
-            whitelist,
-            pre_deactivate_root,
             circuit_type,
             certification_system,
-            oracle_whitelist_pubkey,
-            pre_deactivate_coordinator,
             deactivate_enabled,
+            voice_credit_mode,
+            registration_mode,
         ),
         ExecuteMsg::SetValidators { addresses } => {
             execute_set_validators(deps, env, info, addresses)
@@ -116,36 +107,9 @@ pub fn execute(
         ExecuteMsg::RemoveValidator { address } => {
             execute_remove_validator(deps, env, info, address)
         }
-        ExecuteMsg::UpdateAmaciCodeId { amaci_code_id } => {
-            execute_update_amaci_code_id(deps, env, info, amaci_code_id)
+        ExecuteMsg::UpdateAmaciCodeId { code_id } => {
+            execute_update_amaci_code_id(deps, env, info, code_id)
         }
-        ExecuteMsg::UpdateMaciCodeId { maci_code_id } => {
-            execute_update_maci_code_id(deps, env, info, maci_code_id)
-        }
-        ExecuteMsg::CreateMaciRound {
-            coordinator,
-            max_voters,
-            vote_option_map,
-            round_info,
-            voting_time,
-            circuit_type,
-            certification_system,
-            whitelist_backend_pubkey,
-            whitelist_voting_power_mode,
-        } => execute_create_maci_round(
-            deps,
-            env,
-            info,
-            coordinator,
-            max_voters,
-            vote_option_map,
-            round_info,
-            voting_time,
-            circuit_type,
-            certification_system,
-            whitelist_backend_pubkey,
-            whitelist_voting_power_mode,
-        ),
         ExecuteMsg::ChangeOperator { address } => execute_change_operator(deps, env, info, address),
         ExecuteMsg::ChangeChargeConfig { config } => {
             execute_change_charge_config(deps, env, info, config)
@@ -171,217 +135,103 @@ pub fn validate_dora_address(address: &str) -> Result<(), ContractError> {
     }
 }
 
+/// Unified create round function for all MACI configurations
 pub fn execute_create_round(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     operator: Addr,
     max_voter: Uint256,
-    voice_credit_amount: Uint256,
     vote_option_map: Vec<String>,
     round_info: RoundInfo,
     voting_time: VotingTime,
-    whitelist: Option<WhitelistBase>,
-    pre_deactivate_root: Uint256,
     circuit_type: Uint256,
     certification_system: Uint256,
-    oracle_whitelist_pubkey: Option<String>,
-    pre_deactivate_coordinator: Option<PubKey>,
     deactivate_enabled: bool,
+    voice_credit_mode: cw_amaci::state::VoiceCreditMode,
+    registration_mode: cw_amaci::msg::RegistrationModeConfig,
 ) -> Result<Response, ContractError> {
     validate_dora_address(operator.as_str())?;
 
+    // Calculate circuit fee and parameters
     let max_option = Uint256::from_u128(vote_option_map.len() as u128);
     let (required_fee, maci_parameters) =
         crate::utils::calculate_round_fee_and_params(max_voter, max_option)?;
 
+    // Verify payment
     let denom = "peaka".to_string();
-    let mut amount: Uint128 = Uint128::new(0);
-    info.funds.iter().for_each(|fund| {
-        if fund.denom == denom {
-            amount = fund.amount;
-        }
-    });
+    let amount = info
+        .funds
+        .iter()
+        .find(|fund| fund.denom == denom)
+        .map(|fund| fund.amount)
+        .unwrap_or(Uint128::zero());
 
-    // check user's payment - require exact fee amount
     if amount != required_fee {
-        if amount < required_fee {
-            return Err(ContractError::InsufficientFee {
+        return Err(if amount < required_fee {
+            ContractError::InsufficientFee {
                 required: required_fee,
                 provided: amount,
-            });
+            }
         } else {
-            return Err(ContractError::ExactFeeRequired {
+            ContractError::ExactFeeRequired {
                 required: required_fee,
                 provided: amount,
-            });
-        }
+            }
+        });
     }
 
+    // Verify operator has pubkey set
     if !MACI_OPERATOR_PUBKEY.has(deps.storage, &operator) {
         return Err(ContractError::NotSetOperatorPubkey {});
     }
     let operator_pubkey = MACI_OPERATOR_PUBKEY.load(deps.storage, &operator)?;
 
-    let total_fee = required_fee;
-    let admin = ADMIN.load(deps.storage)?.admin;
-
-    // Allocate poll_id before creating the contract
+    // Allocate poll_id
     let poll_id = NEXT_POLL_ID.load(deps.storage)?;
     NEXT_POLL_ID.save(deps.storage, &(poll_id + 1))?;
 
-    // No longer send admin_fee directly to admin, instead send all fees to amaci contract
-    // Add admin_fee information in the instantiate message for potential refunds in the future
+    let admin = ADMIN.load(deps.storage)?.admin;
 
+    // Create unified MACI instantiate message
     let init_msg = AMaciInstantiateMsg {
         parameters: maci_parameters,
         coordinator: operator_pubkey,
         operator: operator.clone(),
         admin: info.sender.clone(),
         fee_recipient: admin.clone(),
-        voice_credit_amount,
         vote_option_map,
         round_info,
         voting_time,
-        whitelist,
-        pre_deactivate_root,
         circuit_type,
         certification_system,
-        oracle_whitelist_pubkey,
-        pre_deactivate_coordinator,
-        poll_id, // Pass poll_id to AMACI contract (required)
+        poll_id,
         deactivate_enabled,
+        // Unified MACI Configuration
+        voice_credit_mode,
+        registration_mode,
     };
+
     let amaci_code_id = AMACI_CODE_ID.load(deps.storage)?;
     let instantiate_msg = SubMsg::reply_on_success(
         WasmMsg::Instantiate {
             admin: Some(env.contract.address.to_string()),
             code_id: amaci_code_id,
             msg: to_json_binary(&init_msg)?,
-            funds: coins(total_fee.u128(), "peaka"), // Send all fees, including admin_fee
-            label: "AMACI".to_string(),
+            funds: coins(required_fee.u128(), "peaka"),
+            label: "Unified MACI".to_string(),
         },
-        CREATED_GROTH16_ROUND_REPLY_ID,
+        CREATED_ROUND_REPLY_ID,
     );
 
-    let resp = Response::new()
+    Ok(Response::new()
         .add_submessage(instantiate_msg)
         .add_attribute("action", "create_round")
-        .add_attribute("amaci_code_id", &amaci_code_id.to_string())
-        .add_attribute("poll_id", poll_id.to_string()) // Add poll_id to attributes
-        .add_attribute("total_fee", total_fee.to_string())
-        .add_attribute("fee_recipient", admin.to_string())
-        .add_attribute("deactivate_enabled", deactivate_enabled.to_string());
-
-    Ok(resp)
-}
-
-pub fn execute_create_maci_round(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    coordinator: PubKey,
-    max_voters: u128,
-    vote_option_map: Vec<String>,
-    round_info: RoundInfo,
-    voting_time: VotingTime,
-    circuit_type: Uint256,
-    certification_system: Uint256,
-    whitelist_backend_pubkey: String,
-    whitelist_voting_power_mode: cw_maci::state::VotingPowerMode,
-) -> Result<Response, ContractError> {
-    // Load circuit charge config to get the fee rate (default: 10%)
-    let circuit_charge_config = CIRCUIT_CHARGE_CONFIG.load(deps.storage)?;
-    
-    // For MACI, we calculate a base fee and only charge a percentage (default 10%) as management fee
-    // This is different from AMACI which charges the full circuit operation fee
-    let max_option = Uint256::from_u128(vote_option_map.len() as u128);
-    let max_voter = Uint256::from_u128(max_voters);
-    let (base_fee, _maci_parameters) =
-        crate::utils::calculate_round_fee_and_params(max_voter, max_option)?;
-    
-    // Calculate management fee for MACI (e.g., 10% of base fee)
-    let required_fee = base_fee * circuit_charge_config.fee_rate;
-
-    let denom = "peaka".to_string();
-    let mut amount: Uint128 = Uint128::new(0);
-    info.funds.iter().for_each(|fund| {
-        if fund.denom == denom {
-            amount = fund.amount;
-        }
-    });
-
-    // check user's payment - require exact fee amount
-    if amount != required_fee {
-        if amount < required_fee {
-            return Err(ContractError::InsufficientFee {
-                required: required_fee,
-                provided: amount,
-            });
-        } else {
-            return Err(ContractError::ExactFeeRequired {
-                required: required_fee,
-                provided: amount,
-            });
-        }
-    }
-
-    let total_fee = required_fee;
-
-    // Allocate poll_id before creating the contract (shared with AMACI)
-    let poll_id = NEXT_POLL_ID.load(deps.storage)?;
-    NEXT_POLL_ID.save(deps.storage, &(poll_id + 1))?;
-
-    // Create MACI InstantiateMsg with provided coordinator pubkey
-    let init_msg = cw_maci::msg::InstantiateMsg {
-        coordinator: cw_maci::state::PubKey {
-            x: coordinator.x,
-            y: coordinator.y,
-        },
-        max_voters,
-        vote_option_map,
-        round_info: cw_maci::state::RoundInfo {
-            title: round_info.title,
-            description: round_info.description,
-            link: round_info.link,
-        },
-        voting_time: cw_maci::state::VotingTime {
-            start_time: voting_time.start_time,
-            end_time: voting_time.end_time,
-        },
-        circuit_type,
-        certification_system,
-        whitelist_backend_pubkey,
-        whitelist_voting_power_args: cw_maci::msg::VotingPowerArgs {
-            mode: whitelist_voting_power_mode,
-            slope: Uint256::zero(),
-            threshold: Uint256::zero(),
-        },
-        poll_id, // Pass poll_id to MACI contract (required)
-    };
-
-    let maci_code_id = MACI_CODE_ID.load(deps.storage)?;
-    let instantiate_msg = SubMsg::reply_on_success(
-        WasmMsg::Instantiate {
-            admin: Some(env.contract.address.to_string()),
-            code_id: maci_code_id,
-            msg: to_json_binary(&init_msg)?,
-            funds: coins(total_fee.u128(), "peaka"),
-            label: "MACI".to_string(),
-        },
-        CREATED_MACI_ROUND_REPLY_ID,
-    );
-
-    let resp = Response::new()
-        .add_submessage(instantiate_msg)
-        .add_attribute("action", "create_maci_round")
-        .add_attribute("maci_code_id", &maci_code_id.to_string())
+        .add_attribute("amaci_code_id", amaci_code_id.to_string())
         .add_attribute("poll_id", poll_id.to_string())
-        .add_attribute("base_fee", base_fee.to_string())
-        .add_attribute("management_fee", total_fee.to_string())
-        .add_attribute("fee_rate", circuit_charge_config.fee_rate.to_string());
-
-    Ok(resp)
+        .add_attribute("total_fee", required_fee.to_string())
+        .add_attribute("fee_recipient", admin.to_string())
+        .add_attribute("deactivate_enabled", deactivate_enabled.to_string()))
 }
 
 // validator
@@ -554,31 +404,15 @@ pub fn execute_update_amaci_code_id(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    amaci_code_id: u64,
+    code_id: u64,
 ) -> Result<Response, ContractError> {
     if !is_operator(deps.as_ref(), info.sender.as_ref())? {
         Err(ContractError::Unauthorized {})
     } else {
-        AMACI_CODE_ID.save(deps.storage, &amaci_code_id)?;
+        AMACI_CODE_ID.save(deps.storage, &code_id)?;
         Ok(Response::new()
             .add_attribute("action", "update_amaci_code_id")
-            .add_attribute("amaci_code_id", &amaci_code_id.to_string()))
-    }
-}
-
-pub fn execute_update_maci_code_id(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    maci_code_id: u64,
-) -> Result<Response, ContractError> {
-    if !is_operator(deps.as_ref(), info.sender.as_ref())? {
-        Err(ContractError::Unauthorized {})
-    } else {
-        MACI_CODE_ID.save(deps.storage, &maci_code_id)?;
-        Ok(Response::new()
-            .add_attribute("action", "update_maci_code_id")
-            .add_attribute("maci_code_id", &maci_code_id.to_string()))
+            .add_attribute("amaci_code_id", code_id.to_string()))
     }
 }
 
@@ -684,7 +518,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&POLL_ID_TO_ADDRESS.may_load(deps.storage, poll_id)?)
         }
         QueryMsg::GetNextPollId {} => to_json_binary(&NEXT_POLL_ID.load(deps.storage)?),
-        QueryMsg::GetMaciCodeId {} => to_json_binary(&MACI_CODE_ID.load(deps.storage)?),
         QueryMsg::GetAmaciCodeId {} => to_json_binary(&AMACI_CODE_ID.load(deps.storage)?),
     }
 }
@@ -692,12 +525,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
     match reply.id {
-        CREATED_GROTH16_ROUND_REPLY_ID => {
-            reply_created_round(deps, env, reply.result.into_result())
-        }
-        CREATED_MACI_ROUND_REPLY_ID => {
-            reply_created_maci_round(deps, env, reply.result.into_result())
-        }
+        CREATED_ROUND_REPLY_ID => reply_created_round(deps, env, reply.result.into_result()),
         id => Err(ContractError::UnRecognizedReplyIdErr { id }),
     }
 }
@@ -709,7 +537,6 @@ pub fn reply_created_round(
 ) -> Result<Response, ContractError> {
     let response = reply.map_err(StdError::generic_err)?;
     let data = response.data.ok_or(ContractError::DataMissingErr {})?;
-    // let response = parse_instantiate_response_data(&data)?;
     let response = match parse_instantiate_response_data(&data) {
         Ok(data) => data,
         Err(err) => {
@@ -739,7 +566,7 @@ pub fn reply_created_round(
         attr("action", "created_round"),
         attr("code_id", amaci_code_id.to_string()),
         attr("round_addr", addr.to_string()),
-        attr("poll_id", poll_id.to_string()), // Add poll_id to attributes
+        attr("poll_id", poll_id.to_string()),
         attr("caller", &amaci_return_data.caller.to_string()),
         attr("admin", &amaci_return_data.admin.to_string()),
         attr("operator", &amaci_return_data.operator.to_string()),
@@ -768,14 +595,9 @@ pub fn reply_created_round(
             serde_json::to_string(&amaci_return_data.vote_option_map)
                 .unwrap_or_else(|_| "[]".to_string()),
         ),
-        attr(
-            "voice_credit_amount",
-            &amaci_return_data.voice_credit_amount.to_string(),
-        ),
-        attr(
-            "pre_deactivate_root",
-            &amaci_return_data.pre_deactivate_root.to_string(),
-        ),
+        // Unified MACI Configuration
+        attr("voice_credit_mode", &amaci_return_data.voice_credit_mode),
+        attr("registration_mode", &amaci_return_data.registration_mode),
         attr(
             "state_tree_depth",
             &amaci_return_data.parameters.state_tree_depth.to_string(),
@@ -824,124 +646,6 @@ pub fn reply_created_round(
 
     if amaci_return_data.round_info.link != "" {
         attributes.push(attr("round_link", &amaci_return_data.round_info.link));
-    }
-
-    Ok(Response::new()
-        .add_attributes(attributes)
-        .set_data(to_json_binary(&data)?))
-}
-
-pub fn reply_created_maci_round(
-    deps: DepsMut,
-    _env: Env,
-    reply: Result<SubMsgResponse, String>,
-) -> Result<Response, ContractError> {
-    let response = reply.map_err(StdError::generic_err)?;
-    let data = response.data.ok_or(ContractError::DataMissingErr {})?;
-    let response = match parse_instantiate_response_data(&data) {
-        Ok(data) => data,
-        Err(err) => {
-            return Err(ContractError::Std(cosmwasm_std::StdError::generic_err(
-                err.to_string(),
-            )))
-        }
-    };
-    let maci_code_id = MACI_CODE_ID.load(deps.storage)?;
-
-    let addr = Addr::unchecked(response.clone().contract_address);
-    let data = InstantiationData { addr: addr.clone() };
-    let maci_return_data: cw_maci::msg::InstantiationData = from_json(
-        &response
-            .data
-            .ok_or_else(|| ContractError::DataMissingErr {})?,
-    )?;
-
-    // Get poll_id from the MACI instantiation data (required field)
-    let poll_id = maci_return_data.poll_id;
-
-    // Store bidirectional mapping between poll_id and address
-    POLL_ID_TO_ADDRESS.save(deps.storage, poll_id, &addr)?;
-    ADDRESS_TO_POLL_ID.save(deps.storage, &addr, &poll_id)?;
-
-    let mut attributes = vec![
-        attr("action", "created_maci_round"),
-        attr("code_id", maci_code_id.to_string()),
-        attr("maci_addr", addr.to_string()),
-        attr("poll_id", poll_id.to_string()),
-        attr("caller", &maci_return_data.caller.to_string()),
-        attr(
-            "coordinator_pubkey_x",
-            &maci_return_data.coordinator.x.to_string(),
-        ),
-        attr(
-            "coordinator_pubkey_y",
-            &maci_return_data.coordinator.y.to_string(),
-        ),
-        attr("max_voters", maci_return_data.max_voters.to_string()),
-        attr(
-            "voting_start",
-            &maci_return_data.voting_time.start_time.nanos().to_string(),
-        ),
-        attr(
-            "voting_end",
-            &maci_return_data.voting_time.end_time.nanos().to_string(),
-        ),
-        attr(
-            "round_title",
-            &maci_return_data.round_info.title.to_string(),
-        ),
-        attr(
-            "vote_option_map",
-            serde_json::to_string(&maci_return_data.vote_option_map)
-                .unwrap_or_else(|_| "[]".to_string()),
-        ),
-        attr(
-            "state_tree_depth",
-            &maci_return_data.parameters.state_tree_depth.to_string(),
-        ),
-        attr(
-            "int_state_tree_depth",
-            &maci_return_data
-                .parameters
-                .int_state_tree_depth
-                .to_string(),
-        ),
-        attr(
-            "vote_option_tree_depth",
-            &maci_return_data
-                .parameters
-                .vote_option_tree_depth
-                .to_string(),
-        ),
-        attr(
-            "message_batch_size",
-            &maci_return_data.parameters.message_batch_size.to_string(),
-        ),
-        attr("circuit_type", &maci_return_data.circuit_type),
-        attr(
-            "certification_system",
-            &maci_return_data.certification_system,
-        ),
-        attr(
-            "whitelist_backend_pubkey",
-            &maci_return_data.whitelist_backend_pubkey,
-        ),
-        attr(
-            "whitelist_voting_power_mode",
-            format!("{:?}", maci_return_data.whitelist_voting_power_args.mode),
-        ),
-    ];
-
-    // Add optional fields if they are not empty
-    if maci_return_data.round_info.description != "" {
-        attributes.push(attr(
-            "round_description",
-            &maci_return_data.round_info.description,
-        ));
-    }
-
-    if maci_return_data.round_info.link != "" {
-        attributes.push(attr("round_link", &maci_return_data.round_info.link));
     }
 
     Ok(Response::new()

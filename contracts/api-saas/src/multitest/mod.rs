@@ -177,38 +177,40 @@ impl SaasContract {
         )
     }
 
-    #[track_caller]
-    pub fn create_api_maci_round(
-        &self,
-        app: &mut App,
-        sender: Addr,
-        coordinator: PubKey,
-        max_voters: u128,
-        vote_option_map: Vec<String>,
-        round_info: RoundInfo,
-        start_time: Timestamp,
-        end_time: Timestamp,
-        circuit_type: cosmwasm_std::Uint256,
-        certification_system: cosmwasm_std::Uint256,
-        whitelist_backend_pubkey: String,
-    ) -> AnyResult<AppResponse> {
-        app.execute_contract(
-            sender,
-            self.addr(),
-            &ExecuteMsg::CreateMaciRound {
-                coordinator,
-                max_voters,
-                vote_option_map,
-                round_info,
-                start_time,
-                end_time,
-                circuit_type,
-                certification_system,
-                whitelist_backend_pubkey,
-            },
-            &[],
-        )
-    }
+    // DEPRECATED: CreateMaciRound has been removed from api-saas
+    // All MACI rounds should be created directly through Registry
+    // #[track_caller]
+    // pub fn create_api_maci_round(
+    //     &self,
+    //     app: &mut App,
+    //     sender: Addr,
+    //     coordinator: cw_amaci::state::PubKey,
+    //     max_voters: u128,
+    //     vote_option_map: Vec<String>,
+    //     round_info: RoundInfo,
+    //     start_time: Timestamp,
+    //     end_time: Timestamp,
+    //     circuit_type: cosmwasm_std::Uint256,
+    //     certification_system: cosmwasm_std::Uint256,
+    //     whitelist_backend_pubkey: String,
+    // ) -> AnyResult<AppResponse> {
+    //     app.execute_contract(
+    //         sender,
+    //         self.addr(),
+    //         &ExecuteMsg::CreateMaciRound {
+    //             coordinator,
+    //             max_voters,
+    //             vote_option_map,
+    //             round_info,
+    //             start_time,
+    //             end_time,
+    //             circuit_type,
+    //             certification_system,
+    //             whitelist_backend_pubkey,
+    //         },
+    //         &[],
+    //     )
+    // }
 
     #[track_caller]
     pub fn create_amaci_round(
@@ -217,15 +219,13 @@ impl SaasContract {
         sender: Addr,
         operator: Addr,
         max_voter: Uint256,
-        voice_credit_amount: Uint256,
+        voice_credit_mode: cw_amaci::state::VoiceCreditMode,
         vote_option_map: Vec<String>,
         round_info: RoundInfo,
         voting_time: cw_amaci::state::VotingTime,
-        whitelist: Option<cw_amaci::msg::WhitelistBase>,
-        pre_deactivate_root: Uint256,
+        registration_mode: cw_amaci::msg::RegistrationModeConfig,
         circuit_type: Uint256,
         certification_system: Uint256,
-        oracle_whitelist_pubkey: Option<String>,
         deactivate_enabled: bool,
         funds: &[Coin],
     ) -> AnyResult<AppResponse> {
@@ -235,17 +235,14 @@ impl SaasContract {
             &ExecuteMsg::CreateAmaciRound {
                 operator,
                 max_voter,
-                voice_credit_amount,
                 vote_option_map,
                 round_info,
                 voting_time,
-                whitelist,
-                pre_deactivate_root,
                 circuit_type,
                 certification_system,
-                oracle_whitelist_pubkey,
-                pre_deactivate_coordinator: None,
                 deactivate_enabled,
+                voice_credit_mode,
+                registration_mode,
             },
             funds,
         )

@@ -804,6 +804,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "base64",
+ "bech32",
  "bellman-ce-verifier",
  "cosmwasm-schema",
  "cosmwasm-std",

@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Addr, InstantiateMsg, ExecuteMsg, Uint256, Timestamp, Uint64, VotingPowerMode, Decimal, PubKey, RoundInfo, VotingTime, WhitelistBase, WhitelistBaseConfig, ValidatorSet, CircuitChargeConfig, QueryMsg, AdminResponse, String, NullableAddr, Boolean } from "./Registry.types";
+import { Addr, InstantiateMsg, ExecuteMsg, Uint256, RegistrationModeConfig, VoiceCreditMode, Timestamp, Uint64, Decimal, PubKey, WhitelistBase, WhitelistBaseConfig, RoundInfo, VotingTime, ValidatorSet, CircuitChargeConfig, QueryMsg, AdminResponse, String, NullableAddr, Boolean } from "./Registry.types";
 export interface RegistryReadOnlyInterface {
   contractAddress: string;
   admin: () => Promise<AdminResponse>;
@@ -49,7 +49,6 @@ export interface RegistryReadOnlyInterface {
     pollId: number;
   }) => Promise<NullableAddr>;
   getNextPollId: () => Promise<Uint64>;
-  getMaciCodeId: () => Promise<Uint64>;
   getAmaciCodeId: () => Promise<Uint64>;
 }
 export class RegistryQueryClient implements RegistryReadOnlyInterface {
@@ -70,7 +69,6 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
     this.getPollId = this.getPollId.bind(this);
     this.getPollAddress = this.getPollAddress.bind(this);
     this.getNextPollId = this.getNextPollId.bind(this);
-    this.getMaciCodeId = this.getMaciCodeId.bind(this);
     this.getAmaciCodeId = this.getAmaciCodeId.bind(this);
   }
   admin = async (): Promise<AdminResponse> => {
@@ -175,11 +173,6 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
       get_next_poll_id: {}
     });
   };
-  getMaciCodeId = async (): Promise<Uint64> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      get_maci_code_id: {}
-    });
-  };
   getAmaciCodeId = async (): Promise<Uint64> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_amaci_code_id: {}
@@ -207,50 +200,25 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
   createRound: ({
     certificationSystem,
     circuitType,
+    deactivateEnabled,
     maxVoter,
     operator,
-    oracleWhitelistPubkey,
-    preDeactivateCoordinator,
-    preDeactivateRoot,
+    registrationMode,
     roundInfo,
-    voiceCreditAmount,
+    voiceCreditMode,
     voteOptionMap,
-    votingTime,
-    whitelist
+    votingTime
   }: {
     certificationSystem: Uint256;
     circuitType: Uint256;
+    deactivateEnabled: boolean;
     maxVoter: Uint256;
     operator: Addr;
-    oracleWhitelistPubkey?: string;
-    preDeactivateCoordinator?: PubKey;
-    preDeactivateRoot: Uint256;
+    registrationMode: RegistrationModeConfig;
     roundInfo: RoundInfo;
-    voiceCreditAmount: Uint256;
+    voiceCreditMode: VoiceCreditMode;
     voteOptionMap: string[];
     votingTime: VotingTime;
-    whitelist?: WhitelistBase;
-  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  createMaciRound: ({
-    certificationSystem,
-    circuitType,
-    coordinator,
-    maxVoters,
-    roundInfo,
-    voteOptionMap,
-    votingTime,
-    whitelistBackendPubkey,
-    whitelistVotingPowerMode
-  }: {
-    certificationSystem: Uint256;
-    circuitType: Uint256;
-    coordinator: PubKey;
-    maxVoters: number;
-    roundInfo: RoundInfo;
-    voteOptionMap: string[];
-    votingTime: VotingTime;
-    whitelistBackendPubkey: string;
-    whitelistVotingPowerMode: VotingPowerMode;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   setValidators: ({
     addresses
@@ -263,14 +231,9 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
     address: Addr;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   updateAmaciCodeId: ({
-    amaciCodeId
+    codeId
   }: {
-    amaciCodeId: number;
-  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  updateMaciCodeId: ({
-    maciCodeId
-  }: {
-    maciCodeId: number;
+    codeId: number;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   changeOperator: ({
     address
@@ -296,11 +259,9 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
     this.setMaciOperatorPubkey = this.setMaciOperatorPubkey.bind(this);
     this.setMaciOperatorIdentity = this.setMaciOperatorIdentity.bind(this);
     this.createRound = this.createRound.bind(this);
-    this.createMaciRound = this.createMaciRound.bind(this);
     this.setValidators = this.setValidators.bind(this);
     this.removeValidator = this.removeValidator.bind(this);
     this.updateAmaciCodeId = this.updateAmaciCodeId.bind(this);
-    this.updateMaciCodeId = this.updateMaciCodeId.bind(this);
     this.changeOperator = this.changeOperator.bind(this);
     this.changeChargeConfig = this.changeChargeConfig.bind(this);
   }
@@ -340,79 +301,38 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
   createRound = async ({
     certificationSystem,
     circuitType,
+    deactivateEnabled,
     maxVoter,
     operator,
-    oracleWhitelistPubkey,
-    preDeactivateCoordinator,
-    preDeactivateRoot,
+    registrationMode,
     roundInfo,
-    voiceCreditAmount,
+    voiceCreditMode,
     voteOptionMap,
-    votingTime,
-    whitelist
+    votingTime
   }: {
     certificationSystem: Uint256;
     circuitType: Uint256;
+    deactivateEnabled: boolean;
     maxVoter: Uint256;
     operator: Addr;
-    oracleWhitelistPubkey?: string;
-    preDeactivateCoordinator?: PubKey;
-    preDeactivateRoot: Uint256;
+    registrationMode: RegistrationModeConfig;
     roundInfo: RoundInfo;
-    voiceCreditAmount: Uint256;
+    voiceCreditMode: VoiceCreditMode;
     voteOptionMap: string[];
     votingTime: VotingTime;
-    whitelist?: WhitelistBase;
   }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       create_round: {
         certification_system: certificationSystem,
         circuit_type: circuitType,
+        deactivate_enabled: deactivateEnabled,
         max_voter: maxVoter,
         operator,
-        oracle_whitelist_pubkey: oracleWhitelistPubkey,
-        pre_deactivate_coordinator: preDeactivateCoordinator,
-        pre_deactivate_root: preDeactivateRoot,
+        registration_mode: registrationMode,
         round_info: roundInfo,
-        voice_credit_amount: voiceCreditAmount,
+        voice_credit_mode: voiceCreditMode,
         vote_option_map: voteOptionMap,
-        voting_time: votingTime,
-        whitelist
-      }
-    }, fee, memo, _funds);
-  };
-  createMaciRound = async ({
-    certificationSystem,
-    circuitType,
-    coordinator,
-    maxVoters,
-    roundInfo,
-    voteOptionMap,
-    votingTime,
-    whitelistBackendPubkey,
-    whitelistVotingPowerMode
-  }: {
-    certificationSystem: Uint256;
-    circuitType: Uint256;
-    coordinator: PubKey;
-    maxVoters: number;
-    roundInfo: RoundInfo;
-    voteOptionMap: string[];
-    votingTime: VotingTime;
-    whitelistBackendPubkey: string;
-    whitelistVotingPowerMode: VotingPowerMode;
-  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
-    return await this.client.execute(this.sender, this.contractAddress, {
-      create_maci_round: {
-        certification_system: certificationSystem,
-        circuit_type: circuitType,
-        coordinator,
-        max_voters: maxVoters,
-        round_info: roundInfo,
-        vote_option_map: voteOptionMap,
-        voting_time: votingTime,
-        whitelist_backend_pubkey: whitelistBackendPubkey,
-        whitelist_voting_power_mode: whitelistVotingPowerMode
+        voting_time: votingTime
       }
     }, fee, memo, _funds);
   };
@@ -439,24 +359,13 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
     }, fee, memo, _funds);
   };
   updateAmaciCodeId = async ({
-    amaciCodeId
+    codeId
   }: {
-    amaciCodeId: number;
+    codeId: number;
   }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       update_amaci_code_id: {
-        amaci_code_id: amaciCodeId
-      }
-    }, fee, memo, _funds);
-  };
-  updateMaciCodeId = async ({
-    maciCodeId
-  }: {
-    maciCodeId: number;
-  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
-    return await this.client.execute(this.sender, this.contractAddress, {
-      update_maci_code_id: {
-        maci_code_id: maciCodeId
+        code_id: codeId
       }
     }, fee, memo, _funds);
   };

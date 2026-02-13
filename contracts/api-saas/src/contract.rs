@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, Timestamp, Uint128,
-    Uint256, WasmMsg,
+    Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, Uint128, Uint256,
+    WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::{may_pay, parse_instantiate_response_data};
@@ -16,15 +16,15 @@ use cosmos_sdk_proto::Any;
 use prost::Message;
 
 // External contract types with aliases to avoid path conflicts
-use cw_amaci::msg::WhitelistBase;
-use cw_amaci::state::{RoundInfo, VotingTime};
+use cw_amaci::msg::RegistrationModeConfig;
+use cw_amaci::state::{RoundInfo, VoiceCreditMode, VotingTime};
 
-use cw_maci::state::VotingPowerMode;
+// use cw_maci::state::VotingPowerMode; // Unused after Unified MACI refactoring
 
 use cosmos_sdk_proto::traits::TypeUrl;
 // Local contract types
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, PubKey, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, QueryMsg};
 use crate::state::{
     Config, OperatorInfo, CONFIG, OPERATORS, REGISTRY_CONTRACT_ADDR, TOTAL_BALANCE,
     TREASURY_MANAGER,
@@ -35,7 +35,6 @@ const CONTRACT_NAME: &str = "crates.io:cw-saas";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Reply IDs
-pub const CREATED_API_MACI_ROUND_REPLY_ID: u64 = 1;
 pub const CREATED_AMACI_ROUND_REPLY_ID: u64 = 2;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -88,30 +87,6 @@ pub fn execute(
             execute_withdraw(deps, env, info, amount, recipient)
         }
 
-        ExecuteMsg::CreateMaciRound {
-            coordinator,
-            max_voters,
-            vote_option_map,
-            round_info,
-            start_time,
-            end_time,
-            circuit_type,
-            certification_system,
-            whitelist_backend_pubkey,
-        } => execute_create_maci_round(
-            deps,
-            env,
-            info,
-            coordinator,
-            max_voters,
-            vote_option_map,
-            round_info,
-            start_time,
-            end_time,
-            circuit_type,
-            certification_system,
-            whitelist_backend_pubkey,
-        ),
         ExecuteMsg::SetRoundInfo {
             contract_addr,
             round_info,
@@ -123,34 +98,28 @@ pub fn execute(
         ExecuteMsg::CreateAmaciRound {
             operator,
             max_voter,
-            voice_credit_amount,
             vote_option_map,
             round_info,
             voting_time,
-            whitelist,
-            pre_deactivate_root,
             circuit_type,
             certification_system,
-            oracle_whitelist_pubkey,
-            pre_deactivate_coordinator,
             deactivate_enabled,
+            voice_credit_mode,
+            registration_mode,
         } => execute_create_amaci_round(
             deps,
             env,
             info,
             operator,
             max_voter,
-            voice_credit_amount,
             vote_option_map,
             round_info,
             voting_time,
-            whitelist,
-            pre_deactivate_root,
             circuit_type,
             certification_system,
-            oracle_whitelist_pubkey,
-            pre_deactivate_coordinator,
             deactivate_enabled,
+            voice_credit_mode,
+            registration_mode,
         ),
     }
 }
@@ -381,101 +350,6 @@ pub fn execute_withdraw(
         .add_attribute("new_balance", new_balance.to_string()))
 }
 
-pub fn execute_create_maci_round(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    coordinator: PubKey,
-    max_voters: u128,
-    vote_option_map: Vec<String>,
-    round_info: RoundInfo,
-    start_time: Timestamp,
-    end_time: Timestamp,
-    circuit_type: Uint256,
-    certification_system: Uint256,
-    whitelist_backend_pubkey: String,
-) -> Result<Response, ContractError> {
-    // Only operators can create MACI rounds
-    if !OPERATORS.has(deps.storage, &info.sender) {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // Calculate required fee based on max_voters and vote_option_map
-    let max_voter = Uint256::from_u128(max_voters);
-    let max_option = Uint256::from_u128(vote_option_map.len() as u128);
-
-    // Calculate base fee using the same calculation as Registry
-    let (base_fee, _) =
-        cw_amaci_registry::utils::calculate_round_fee_and_params(max_voter, max_option)
-            .map_err(|e| ContractError::Std(StdError::generic_err(e.to_string())))?;
-
-    // For MACI, only charge 10% management fee (same as Registry's default fee_rate)
-    // This matches Registry's fee calculation: base_fee * circuit_charge_config.fee_rate
-    let fee_rate = cosmwasm_std::Decimal::from_ratio(1u128, 10u128); // 10% = 0.1
-    let required_fee = base_fee * fee_rate;
-
-    // Check if SaaS contract has sufficient balance
-    let total_balance = TOTAL_BALANCE.load(deps.storage)?;
-    if total_balance < required_fee {
-        return Err(ContractError::InsufficientBalance {
-            required: required_fee,
-            available: total_balance,
-        });
-    }
-
-    // Deduct the fee from SaaS balance
-    let new_balance = total_balance - required_fee;
-    TOTAL_BALANCE.save(deps.storage, &new_balance)?;
-
-    // Create voting time
-    let voting_time = VotingTime {
-        start_time,
-        end_time,
-    };
-
-    // Load registry contract address
-    let registry_addr = REGISTRY_CONTRACT_ADDR.load(deps.storage)?;
-
-    // Call Registry's CreateMaciRound with coordinator pubkey directly
-    let registry_msg = cw_amaci_registry::msg::ExecuteMsg::CreateMaciRound {
-        coordinator: cw_amaci::state::PubKey {
-            x: coordinator.x,
-            y: coordinator.y,
-        },
-        max_voters,
-        vote_option_map: vote_option_map.clone(),
-        round_info: round_info.clone(),
-        voting_time,
-        circuit_type,
-        certification_system,
-        whitelist_backend_pubkey: whitelist_backend_pubkey.clone(),
-        whitelist_voting_power_mode: VotingPowerMode::Slope,
-    };
-
-    let wasm_msg = WasmMsg::Execute {
-        contract_addr: registry_addr.to_string(),
-        msg: to_json_binary(&registry_msg)?,
-        funds: vec![Coin {
-            denom: "peaka".to_string(),
-            amount: required_fee,
-        }],
-    };
-
-    // Use SubMsg with reply to capture the MACI contract address
-    let submsg = SubMsg::reply_on_success(wasm_msg, CREATED_API_MACI_ROUND_REPLY_ID);
-
-    Ok(Response::new()
-        .add_submessage(submsg)
-        .add_attribute("action", "create_maci_round")
-        .add_attribute("operator", info.sender.to_string())
-        .add_attribute("registry_contract", registry_addr.to_string())
-        .add_attribute("round_title", round_info.title)
-        .add_attribute("max_voter", max_voters.to_string())
-        .add_attribute("max_option", vote_option_map.len().to_string())
-        .add_attribute("fee_paid", required_fee.to_string())
-        .add_attribute("saas_balance_after", new_balance.to_string()))
-}
-
 pub fn execute_set_round_info(
     deps: DepsMut,
     _env: Env,
@@ -557,23 +431,21 @@ pub fn execute_set_vote_options_map(
         ))
 }
 
+/// Create AMACI round via registry using Unified MACI API
 pub fn execute_create_amaci_round(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     operator: Addr,
     max_voter: Uint256,
-    voice_credit_amount: Uint256,
     vote_option_map: Vec<String>,
     round_info: RoundInfo,
     voting_time: VotingTime,
-    whitelist: Option<WhitelistBase>,
-    pre_deactivate_root: Uint256,
     circuit_type: Uint256,
     certification_system: Uint256,
-    oracle_whitelist_pubkey: Option<String>,
-    pre_deactivate_coordinator: Option<PubKey>,
     deactivate_enabled: bool,
+    voice_credit_mode: VoiceCreditMode,
+    registration_mode: RegistrationModeConfig,
 ) -> Result<Response, ContractError> {
     // Only operators can create AMACI rounds via registry
     if !OPERATORS.has(deps.storage, &info.sender) {
@@ -604,24 +476,20 @@ pub fn execute_create_amaci_round(
     let new_balance = total_balance - required_fee;
     TOTAL_BALANCE.save(deps.storage, &new_balance)?;
 
-    // Create the registry CreateRound message
-    let registry_msg = serde_json::json!({
-        "create_round": {
-            "operator": operator,
-            "max_voter": max_voter,
-            "voice_credit_amount": voice_credit_amount,
-            "vote_option_map": vote_option_map,
-            "round_info": round_info,
-            "voting_time": voting_time,
-            "whitelist": whitelist,
-            "pre_deactivate_root": pre_deactivate_root,
-            "circuit_type": circuit_type,
-            "certification_system": certification_system,
-            "oracle_whitelist_pubkey": oracle_whitelist_pubkey,
-            "pre_deactivate_coordinator": pre_deactivate_coordinator,
-            "deactivate_enabled": deactivate_enabled
-        }
-    });
+    // Create registry CreateRound message using Unified MACI API
+    // This now matches the registry's API exactly
+    let registry_msg = cw_amaci_registry::msg::ExecuteMsg::CreateRound {
+        operator,
+        max_voter,
+        vote_option_map: vote_option_map.clone(),
+        round_info: round_info.clone(),
+        voting_time,
+        circuit_type,
+        certification_system,
+        deactivate_enabled,
+        voice_credit_mode: voice_credit_mode.clone(),
+        registration_mode,
+    };
 
     // Execute the contract call to registry with the required fee from SaaS balance
     let execute_msg = WasmMsg::Execute {
@@ -630,7 +498,7 @@ pub fn execute_create_amaci_round(
         funds: vec![Coin {
             denom: config.denom,
             amount: required_fee,
-        }], // Use SaaS contract's balance to pay the fee
+        }],
     };
 
     // Use SubMsg with reply to get the created contract address
@@ -646,7 +514,8 @@ pub fn execute_create_amaci_round(
         .add_attribute("max_option", vote_option_map.len().to_string())
         .add_attribute("fee_paid", required_fee.to_string())
         .add_attribute("saas_balance_after", new_balance.to_string())
-        .add_attribute("deactivate_enabled", deactivate_enabled.to_string()))
+        .add_attribute("deactivate_enabled", deactivate_enabled.to_string())
+        .add_attribute("voice_credit_mode", format!("{:?}", voice_credit_mode)))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -674,9 +543,6 @@ fn query_is_operator(deps: Deps, address: Addr) -> StdResult<bool> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
-        CREATED_API_MACI_ROUND_REPLY_ID => {
-            reply_created_maci_round(deps, env, msg.result.into_result())
-        }
         CREATED_AMACI_ROUND_REPLY_ID => {
             reply_created_amaci_round(deps, env, msg.result.into_result())
         }
@@ -685,50 +551,6 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
             id
         )))),
     }
-}
-
-fn reply_created_maci_round(
-    _deps: DepsMut,
-    _env: Env,
-    result: Result<SubMsgResponse, String>,
-) -> Result<Response, ContractError> {
-    // Parse SubMsg response
-    let response = result.map_err(StdError::generic_err)?;
-
-    // Parse response data using the same method as registry
-    let data = response
-        .data
-        .ok_or(ContractError::Std(StdError::generic_err(
-            "Data missing from response",
-        )))?;
-    let parsed_response = match parse_instantiate_response_data(&data) {
-        Ok(data) => data,
-        Err(err) => {
-            return Err(ContractError::Std(StdError::generic_err(format!(
-                "Failed to parse instantiate response: {}",
-                err
-            ))))
-        }
-    };
-
-    let contract_address = Addr::unchecked(parsed_response.contract_address.clone());
-
-    // When creating through Registry, we don't get MACI instantiation data directly
-    // The Registry handles that, we just need to track the created contract address
-
-    // Prepare return data
-    let saas_instantiation_data = InstantiationData {
-        addr: contract_address.clone(),
-    };
-
-    let response_attrs = vec![
-        attr("action", "created_maci_round"),
-        attr("round_addr", &contract_address.to_string()),
-    ];
-
-    Ok(Response::new()
-        .add_attributes(response_attrs)
-        .set_data(to_json_binary(&saas_instantiation_data)?))
 }
 
 fn reply_created_amaci_round(

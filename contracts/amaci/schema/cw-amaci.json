@@ -11,13 +11,14 @@
       "certification_system",
       "circuit_type",
       "coordinator",
+      "deactivate_enabled",
       "fee_recipient",
       "operator",
       "parameters",
       "poll_id",
-      "pre_deactivate_root",
+      "registration_mode",
       "round_info",
-      "voice_credit_amount",
+      "voice_credit_mode",
       "vote_option_map",
       "voting_time"
     ],
@@ -34,17 +35,14 @@
       "coordinator": {
         "$ref": "#/definitions/PubKey"
       },
+      "deactivate_enabled": {
+        "type": "boolean"
+      },
       "fee_recipient": {
         "$ref": "#/definitions/Addr"
       },
       "operator": {
         "$ref": "#/definitions/Addr"
-      },
-      "oracle_whitelist_pubkey": {
-        "type": [
-          "string",
-          "null"
-        ]
       },
       "parameters": {
         "$ref": "#/definitions/MaciParameters"
@@ -54,24 +52,14 @@
         "format": "uint64",
         "minimum": 0.0
       },
-      "pre_deactivate_coordinator": {
-        "anyOf": [
-          {
-            "$ref": "#/definitions/PubKey"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "pre_deactivate_root": {
-        "$ref": "#/definitions/Uint256"
+      "registration_mode": {
+        "$ref": "#/definitions/RegistrationModeConfig"
       },
       "round_info": {
         "$ref": "#/definitions/RoundInfo"
       },
-      "voice_credit_amount": {
-        "$ref": "#/definitions/Uint256"
+      "voice_credit_mode": {
+        "$ref": "#/definitions/VoiceCreditMode"
       },
       "vote_option_map": {
         "type": "array",
@@ -81,16 +69,6 @@
       },
       "voting_time": {
         "$ref": "#/definitions/VotingTime"
-      },
-      "whitelist": {
-        "anyOf": [
-          {
-            "$ref": "#/definitions/WhitelistBase"
-          },
-          {
-            "type": "null"
-          }
-        ]
       }
     },
     "additionalProperties": false,
@@ -139,6 +117,77 @@
         },
         "additionalProperties": false
       },
+      "RegistrationModeConfig": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "sign_up_with_static_whitelist"
+            ],
+            "properties": {
+              "sign_up_with_static_whitelist": {
+                "type": "object",
+                "required": [
+                  "whitelist"
+                ],
+                "properties": {
+                  "whitelist": {
+                    "$ref": "#/definitions/WhitelistBase"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "sign_up_with_oracle"
+            ],
+            "properties": {
+              "sign_up_with_oracle": {
+                "type": "object",
+                "required": [
+                  "oracle_pubkey"
+                ],
+                "properties": {
+                  "oracle_pubkey": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "pre_populated"
+            ],
+            "properties": {
+              "pre_populated": {
+                "type": "object",
+                "required": [
+                  "pre_deactivate_coordinator",
+                  "pre_deactivate_root"
+                ],
+                "properties": {
+                  "pre_deactivate_coordinator": {
+                    "$ref": "#/definitions/PubKey"
+                  },
+                  "pre_deactivate_root": {
+                    "$ref": "#/definitions/Uint256"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "RoundInfo": {
         "type": "object",
         "required": [
@@ -174,6 +223,37 @@
       "Uint64": {
         "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
         "type": "string"
+      },
+      "VoiceCreditMode": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "dynamic"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "unified"
+            ],
+            "properties": {
+              "unified": {
+                "type": "object",
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "$ref": "#/definitions/Uint256"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "VotingTime": {
         "type": "object",
@@ -214,6 +294,16 @@
         "properties": {
           "addr": {
             "$ref": "#/definitions/Addr"
+          },
+          "voice_credit_amount": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Uint256"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -248,17 +338,17 @@
       {
         "type": "object",
         "required": [
-          "set_whitelists"
+          "update_registration_config"
         ],
         "properties": {
-          "set_whitelists": {
+          "update_registration_config": {
             "type": "object",
             "required": [
-              "whitelists"
+              "config"
             ],
             "properties": {
-              "whitelists": {
-                "$ref": "#/definitions/WhitelistBase"
+              "config": {
+                "$ref": "#/definitions/RegistrationConfigUpdate"
               }
             },
             "additionalProperties": false
@@ -302,6 +392,16 @@
               "pubkey"
             ],
             "properties": {
+              "amount": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/Uint256"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "certificate": {
                 "type": [
                   "string",
@@ -348,33 +448,6 @@
               },
               "message": {
                 "$ref": "#/definitions/MessageData"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "upload_deactivate_message"
-        ],
-        "properties": {
-          "upload_deactivate_message": {
-            "type": "object",
-            "required": [
-              "deactivate_message"
-            ],
-            "properties": {
-              "deactivate_message": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/definitions/Uint256"
-                  }
-                }
               }
             },
             "additionalProperties": false
@@ -711,6 +784,109 @@
         },
         "additionalProperties": false
       },
+      "RegistrationConfigUpdate": {
+        "type": "object",
+        "properties": {
+          "deactivate_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "registration_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/RegistrationModeConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "voice_credit_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/VoiceCreditMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistrationModeConfig": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "sign_up_with_static_whitelist"
+            ],
+            "properties": {
+              "sign_up_with_static_whitelist": {
+                "type": "object",
+                "required": [
+                  "whitelist"
+                ],
+                "properties": {
+                  "whitelist": {
+                    "$ref": "#/definitions/WhitelistBase"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "sign_up_with_oracle"
+            ],
+            "properties": {
+              "sign_up_with_oracle": {
+                "type": "object",
+                "required": [
+                  "oracle_pubkey"
+                ],
+                "properties": {
+                  "oracle_pubkey": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "pre_populated"
+            ],
+            "properties": {
+              "pre_populated": {
+                "type": "object",
+                "required": [
+                  "pre_deactivate_coordinator",
+                  "pre_deactivate_root"
+                ],
+                "properties": {
+                  "pre_deactivate_coordinator": {
+                    "$ref": "#/definitions/PubKey"
+                  },
+                  "pre_deactivate_root": {
+                    "$ref": "#/definitions/Uint256"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "RoundInfo": {
         "type": "object",
         "required": [
@@ -735,6 +911,37 @@
         "description": "An implementation of u256 that is using strings for JSON encoding/decoding, such that the full u256 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances out of primitive uint types or `new` to provide big endian bytes:\n\n``` # use cosmwasm_std::Uint256; let a = Uint256::from(258u128); let b = Uint256::new([ 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 2u8, ]); assert_eq!(a, b); ```",
         "type": "string"
       },
+      "VoiceCreditMode": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "dynamic"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "unified"
+            ],
+            "properties": {
+              "unified": {
+                "type": "object",
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "$ref": "#/definitions/Uint256"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "WhitelistBase": {
         "type": "object",
         "required": [
@@ -758,6 +965,16 @@
         "properties": {
           "addr": {
             "$ref": "#/definitions/Addr"
+          },
+          "voice_credit_amount": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Uint256"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -1161,19 +1378,6 @@
       {
         "type": "object",
         "required": [
-          "query_total_fee_grant"
-        ],
-        "properties": {
-          "query_total_fee_grant": {
-            "type": "object",
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
           "query_circuit_type"
         ],
         "properties": {
@@ -1384,6 +1588,32 @@
           }
         },
         "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "get_deactivate_enabled"
+        ],
+        "properties": {
+          "get_deactivate_enabled": {
+            "type": "object",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "get_registration_config"
+        ],
+        "properties": {
+          "get_registration_config": {
+            "type": "object",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
     ],
     "definitions": {
@@ -1455,6 +1685,11 @@
       "title": "Uint256",
       "description": "An implementation of u256 that is using strings for JSON encoding/decoding, such that the full u256 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances out of primitive uint types or `new` to provide big endian bytes:\n\n``` # use cosmwasm_std::Uint256; let a = Uint256::from(258u128); let b = Uint256::new([ 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 2u8, ]); assert_eq!(a, b); ```",
       "type": "string"
+    },
+    "get_deactivate_enabled": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Boolean",
+      "type": "boolean"
     },
     "get_delay_records": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1602,6 +1837,117 @@
       "title": "Uint256",
       "description": "An implementation of u256 that is using strings for JSON encoding/decoding, such that the full u256 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances out of primitive uint types or `new` to provide big endian bytes:\n\n``` # use cosmwasm_std::Uint256; let a = Uint256::from(258u128); let b = Uint256::new([ 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 2u8, ]); assert_eq!(a, b); ```",
       "type": "string"
+    },
+    "get_registration_config": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "RegistrationConfigInfo",
+      "type": "object",
+      "required": [
+        "deactivate_enabled",
+        "registration_mode",
+        "voice_credit_mode"
+      ],
+      "properties": {
+        "deactivate_enabled": {
+          "type": "boolean"
+        },
+        "registration_mode": {
+          "$ref": "#/definitions/RegistrationMode"
+        },
+        "voice_credit_mode": {
+          "$ref": "#/definitions/VoiceCreditMode"
+        }
+      },
+      "additionalProperties": false,
+      "definitions": {
+        "PubKey": {
+          "type": "object",
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "$ref": "#/definitions/Uint256"
+            },
+            "y": {
+              "$ref": "#/definitions/Uint256"
+            }
+          },
+          "additionalProperties": false
+        },
+        "RegistrationMode": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "sign_up_with_static_whitelist",
+                "sign_up_with_oracle"
+              ]
+            },
+            {
+              "type": "object",
+              "required": [
+                "pre_populated"
+              ],
+              "properties": {
+                "pre_populated": {
+                  "type": "object",
+                  "required": [
+                    "pre_deactivate_coordinator",
+                    "pre_deactivate_root"
+                  ],
+                  "properties": {
+                    "pre_deactivate_coordinator": {
+                      "$ref": "#/definitions/PubKey"
+                    },
+                    "pre_deactivate_root": {
+                      "$ref": "#/definitions/Uint256"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "Uint256": {
+          "description": "An implementation of u256 that is using strings for JSON encoding/decoding, such that the full u256 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances out of primitive uint types or `new` to provide big endian bytes:\n\n``` # use cosmwasm_std::Uint256; let a = Uint256::from(258u128); let b = Uint256::new([ 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 2u8, ]); assert_eq!(a, b); ```",
+          "type": "string"
+        },
+        "VoiceCreditMode": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "dynamic"
+              ]
+            },
+            {
+              "type": "object",
+              "required": [
+                "unified"
+              ],
+              "properties": {
+                "unified": {
+                  "type": "object",
+                  "required": [
+                    "amount"
+                  ],
+                  "properties": {
+                    "amount": {
+                      "$ref": "#/definitions/Uint256"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
     },
     "get_result": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1801,12 +2147,6 @@
       "description": "An implementation of u256 that is using strings for JSON encoding/decoding, such that the full u256 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances out of primitive uint types or `new` to provide big endian bytes:\n\n``` # use cosmwasm_std::Uint256; let a = Uint256::from(258u128); let b = Uint256::new([ 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 2u8, ]); assert_eq!(a, b); ```",
       "type": "string"
     },
-    "query_total_fee_grant": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Uint128",
-      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
-      "type": "string"
-    },
     "signuped": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Nullable_Uint256",
@@ -1860,11 +2200,16 @@
           "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
           "type": "string"
         },
+        "Uint256": {
+          "description": "An implementation of u256 that is using strings for JSON encoding/decoding, such that the full u256 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances out of primitive uint types or `new` to provide big endian bytes:\n\n``` # use cosmwasm_std::Uint256; let a = Uint256::from(258u128); let b = Uint256::new([ 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 2u8, ]); assert_eq!(a, b); ```",
+          "type": "string"
+        },
         "WhitelistConfig": {
           "type": "object",
           "required": [
             "addr",
-            "is_register"
+            "is_register",
+            "voice_credit_amount"
           ],
           "properties": {
             "addr": {
@@ -1872,6 +2217,9 @@
             },
             "is_register": {
               "type": "boolean"
+            },
+            "voice_credit_amount": {
+              "$ref": "#/definitions/Uint256"
             }
           },
           "additionalProperties": false

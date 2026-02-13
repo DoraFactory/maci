@@ -117,7 +117,20 @@ describe('AMACI Deactivate E2E Tests', function () {
         admin: adminAddress,
         fee_recipient: feeRecipient,
         operator: operatorAddress,
-        voice_credit_amount: '100',
+        voice_credit_mode: {
+          unified: { amount: '100' }
+        },
+        registration_mode: {
+          sign_up_with_static_whitelist: {
+            whitelist: {
+              users: [
+                { addr: adminAddress, voice_credit_amount: null },
+                { addr: operatorAddress, voice_credit_amount: null },
+                { addr: voter1Address, voice_credit_amount: null }
+              ]
+            }
+          }
+        },
         vote_option_map: ['Option 0', 'Option 1'],
         round_info: {
           title: 'ActiveStateTree Test',
@@ -128,14 +141,8 @@ describe('AMACI Deactivate E2E Tests', function () {
           start_time: startTime.toString(),
           end_time: endTime.toString()
         },
-        whitelist: {
-          users: [{ addr: adminAddress }, { addr: operatorAddress }, { addr: voter1Address }]
-        },
-        pre_deactivate_root: '0',
         circuit_type: '1',
         certification_system: '0',
-        oracle_whitelist_pubkey: null,
-        pre_deactivate_coordinator: null,
         poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
         deactivate_enabled: true // Deactivate feature ENABLED for this deactivate test
       };

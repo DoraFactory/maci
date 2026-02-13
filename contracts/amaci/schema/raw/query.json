@@ -395,19 +395,6 @@
     {
       "type": "object",
       "required": [
-        "query_total_fee_grant"
-      ],
-      "properties": {
-        "query_total_fee_grant": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "query_circuit_type"
       ],
       "properties": {
@@ -613,6 +600,32 @@
       ],
       "properties": {
         "get_poll_id": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_deactivate_enabled"
+      ],
+      "properties": {
+        "get_deactivate_enabled": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_registration_config"
+      ],
+      "properties": {
+        "get_registration_config": {
           "type": "object",
           "additionalProperties": false
         }

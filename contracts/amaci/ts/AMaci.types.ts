@@ -6,6 +6,25 @@
 
 export type Addr = string;
 export type Uint256 = string;
+export type RegistrationModeConfig = {
+  sign_up_with_static_whitelist: {
+    whitelist: WhitelistBase;
+  };
+} | {
+  sign_up_with_oracle: {
+    oracle_pubkey: string;
+  };
+} | {
+  pre_populated: {
+    pre_deactivate_coordinator: PubKey;
+    pre_deactivate_root: Uint256;
+  };
+};
+export type VoiceCreditMode = "dynamic" | {
+  unified: {
+    amount: Uint256;
+  };
+};
 export type Timestamp = Uint64;
 export type Uint64 = string;
 export interface InstantiateMsg {
@@ -13,18 +32,16 @@ export interface InstantiateMsg {
   certification_system: Uint256;
   circuit_type: Uint256;
   coordinator: PubKey;
+  deactivate_enabled: boolean;
   fee_recipient: Addr;
   operator: Addr;
-  oracle_whitelist_pubkey?: string | null;
   parameters: MaciParameters;
   poll_id: number;
-  pre_deactivate_coordinator?: PubKey | null;
-  pre_deactivate_root: Uint256;
+  registration_mode: RegistrationModeConfig;
   round_info: RoundInfo;
-  voice_credit_amount: Uint256;
+  voice_credit_mode: VoiceCreditMode;
   vote_option_map: string[];
   voting_time: VotingTime;
-  whitelist?: WhitelistBase | null;
 }
 export interface PubKey {
   x: Uint256;
@@ -36,6 +53,13 @@ export interface MaciParameters {
   state_tree_depth: Uint256;
   vote_option_tree_depth: Uint256;
 }
+export interface WhitelistBase {
+  users: WhitelistBaseConfig[];
+}
+export interface WhitelistBaseConfig {
+  addr: Addr;
+  voice_credit_amount?: Uint256 | null;
+}
 export interface RoundInfo {
   description: string;
   link: string;
@@ -45,19 +69,13 @@ export interface VotingTime {
   end_time: Timestamp;
   start_time: Timestamp;
 }
-export interface WhitelistBase {
-  users: WhitelistBaseConfig[];
-}
-export interface WhitelistBaseConfig {
-  addr: Addr;
-}
 export type ExecuteMsg = {
   set_round_info: {
     round_info: RoundInfo;
   };
 } | {
-  set_whitelists: {
-    whitelists: WhitelistBase;
+  update_registration_config: {
+    config: RegistrationConfigUpdate;
   };
 } | {
   set_vote_options_map: {
@@ -65,6 +83,7 @@ export type ExecuteMsg = {
   };
 } | {
   sign_up: {
+    amount?: Uint256 | null;
     certificate?: string | null;
     pubkey: PubKey;
   };
@@ -126,6 +145,11 @@ export type ExecuteMsg = {
 } | {
   claim: {};
 };
+export interface RegistrationConfigUpdate {
+  deactivate_enabled?: boolean | null;
+  registration_mode?: RegistrationModeConfig | null;
+  voice_credit_mode?: VoiceCreditMode | null;
+}
 export interface MessageData {
   data: [Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256];
 }
@@ -201,8 +225,6 @@ export type QueryMsg = {
 } | {
   max_vote_options: {};
 } | {
-  query_total_fee_grant: {};
-} | {
   query_circuit_type: {};
 } | {
   query_cert_system: {};
@@ -238,6 +260,10 @@ export type QueryMsg = {
   get_current_deactivate_commitment: {};
 } | {
   get_poll_id: {};
+} | {
+  get_deactivate_enabled: {};
+} | {
+  get_registration_config: {};
 };
 export type Boolean = boolean;
 export type DelayType = "deactivate_delay" | "tally_delay";
@@ -255,6 +281,17 @@ export type PeriodStatus = "pending" | "voting" | "processing" | "tallying" | "e
 export interface Period {
   status: PeriodStatus;
 }
+export type RegistrationMode = ("sign_up_with_static_whitelist" | "sign_up_with_oracle") | {
+  pre_populated: {
+    pre_deactivate_coordinator: PubKey;
+    pre_deactivate_root: Uint256;
+  };
+};
+export interface RegistrationConfigInfo {
+  deactivate_enabled: boolean;
+  registration_mode: RegistrationMode;
+  voice_credit_mode: VoiceCreditMode;
+}
 export interface TallyDelayInfo {
   calculated_hours: number;
   delay_seconds: number;
@@ -264,7 +301,6 @@ export interface TallyDelayInfo {
 }
 export type NullableString = string | null;
 export type NullableUint256 = Uint256 | null;
-export type Uint128 = string;
 export type ArrayOfString = string[];
 export interface Whitelist {
   users: WhitelistConfig[];
@@ -272,4 +308,5 @@ export interface Whitelist {
 export interface WhitelistConfig {
   addr: Addr;
   is_register: boolean;
+  voice_credit_amount: Uint256;
 }

@@ -296,7 +296,23 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              { addr: adminAddress, voice_credit_amount: null },
+              { addr: operatorAddress, voice_credit_amount: null },
+              { addr: feeRecipient, voice_credit_amount: null },
+              { addr: voter1Address, voice_credit_amount: null },
+              { addr: voter2Address, voice_credit_amount: null },
+              { addr: voter1NewAddress, voice_credit_amount: null }
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'AMACI AddNewKey Test 1',
@@ -307,21 +323,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         start_time: startTime.toString(),
         end_time: votingEndTime.toString()
       },
-      whitelist: {
-        users: [
-          { addr: adminAddress },
-          { addr: operatorAddress },
-          { addr: feeRecipient },
-          { addr: voter1Address },
-          { addr: voter2Address },
-          { addr: voter1NewAddress }
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '1',
       certification_system: '0',
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null,
       poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
       deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
@@ -906,7 +909,22 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              { addr: adminAddress, voice_credit_amount: null },
+              { addr: operatorAddress, voice_credit_amount: null },
+              { addr: voter1Address, voice_credit_amount: null },
+              { addr: voter2Address, voice_credit_amount: null },
+              { addr: voter1NewAddress, voice_credit_amount: null }
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'Old Voter Rejection Test',
@@ -917,20 +935,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         start_time: startTime.toString(),
         end_time: endTime.toString()
       },
-      whitelist: {
-        users: [
-          { addr: adminAddress },
-          { addr: operatorAddress },
-          { addr: voter1Address },
-          { addr: voter2Address },
-          { addr: voter1NewAddress }
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '1',
       certification_system: '0',
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null,
       poll_id: 2, // Poll ID for this test round (using different ID to avoid conflicts)
       deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
@@ -1477,7 +1483,22 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              { addr: adminAddress, voice_credit_amount: null },
+              { addr: operatorAddress, voice_credit_amount: null },
+              { addr: voter1Address, voice_credit_amount: null },
+              { addr: voter2Address, voice_credit_amount: null },
+              { addr: voter1NewAddress, voice_credit_amount: null }
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'Concurrent Voter Test',
@@ -1488,20 +1509,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         start_time: startTime.toString(),
         end_time: endTime.toString()
       },
-      whitelist: {
-        users: [
-          { addr: adminAddress },
-          { addr: operatorAddress },
-          { addr: voter1Address },
-          { addr: voter2Address },
-          { addr: voter1NewAddress }
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '1',
       certification_system: '0',
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null,
       poll_id: 3, // Poll ID for this test round (using different ID to avoid conflicts)
       deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
@@ -1979,7 +1988,22 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              // 25 user addresses for filling the state tree
+              ...Array.from({ length: 25 }, (_, i) => ({
+                addr: `dora1user${i.toString().padStart(32, '0')}`,
+                voice_credit_amount: null
+              }))
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'AMACI Boundary Test',
@@ -1990,19 +2014,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         start_time: boundaryStartTime.toString(),
         end_time: boundaryEndTime.toString()
       },
-      whitelist: {
-        users: [
-          // 25 user addresses for filling the state tree
-          ...Array.from({ length: 25 }, (_, i) => ({
-            addr: `dora1user${i.toString().padStart(32, '0')}`
-          }))
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '1', // QV
       certification_system: '0', // Groth16
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null,
       poll_id: 5, // Poll ID for boundary test (using different ID to avoid conflicts)
       deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };

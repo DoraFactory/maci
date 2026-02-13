@@ -90,7 +90,6 @@ impl AmaciRegistryCodeId {
         app: &mut App,
         sender: Addr,
         amaci_code_id: u64,
-        maci_code_id: u64,
         label: &str,
     ) -> AnyResult<AmaciRegistryContract> {
         AmaciRegistryContract::instantiate(
@@ -99,7 +98,6 @@ impl AmaciRegistryCodeId {
             sender,
             operator(),
             amaci_code_id,
-            maci_code_id,
             label,
         )
     }
@@ -128,14 +126,12 @@ impl AmaciRegistryContract {
         sender: Addr,
         operator: Addr,
         amaci_code_id: u64,
-        maci_code_id: u64,
         label: &str,
     ) -> AnyResult<Self> {
         let init_msg = InstantiateMsg {
             admin: admin().clone(),
             operator,
             amaci_code_id,
-            maci_code_id,
         };
         app.instantiate_contract(
             code_id.0,
@@ -201,7 +197,6 @@ impl AmaciRegistryContract {
             operator,
             round_info,
             max_voter: Uint256::from_u128(5u128),
-            voice_credit_amount: Uint256::from_u128(30u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -213,13 +208,17 @@ impl AmaciRegistryContract {
                 start_time,
                 end_time,
             },
-            whitelist: None,
-            pre_deactivate_root: Uint256::from_u128(0u128),
             circuit_type,
             certification_system,
-            oracle_whitelist_pubkey: None,
-            pre_deactivate_coordinator: None,
-            deactivate_enabled: false, // Default: disabled
+            deactivate_enabled: false,
+            voice_credit_mode: cw_amaci::state::VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(30u128),
+            },
+            registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: cw_amaci::msg::WhitelistBase {
+                    users: vec![],  // Empty whitelist for open registration
+                },
+            },
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -244,19 +243,18 @@ impl AmaciRegistryContract {
         let start_time = Timestamp::from_nanos(1571797424879000000);
         let end_time = start_time.plus_minutes(21);
 
-        let whitelist = Some(WhitelistBase {
+        let whitelist = WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1() },
-                WhitelistBaseConfig { addr: user2() },
-                WhitelistBaseConfig { addr: user3() },
+                WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
+                WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
+                WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
             ],
-        });
+        };
 
         let msg = ExecuteMsg::CreateRound {
             operator,
             round_info,
             max_voter: Uint256::from_u128(3u128),
-            voice_credit_amount: Uint256::from_u128(100u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -268,13 +266,15 @@ impl AmaciRegistryContract {
                 start_time,
                 end_time,
             },
-            whitelist,
-            pre_deactivate_root: Uint256::from_u128(0u128),
             circuit_type,
             certification_system,
-            oracle_whitelist_pubkey: None,
-            pre_deactivate_coordinator: None,
-            deactivate_enabled: false, // Default: disabled
+            deactivate_enabled: false,
+            voice_credit_mode: cw_amaci::state::VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist,
+            },
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -299,19 +299,18 @@ impl AmaciRegistryContract {
         let start_time = Timestamp::from_nanos(1571797424879000000);
         let end_time = start_time.plus_minutes(21);
 
-        let whitelist = Some(WhitelistBase {
+        let whitelist = WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1() },
-                WhitelistBaseConfig { addr: user2() },
-                WhitelistBaseConfig { addr: user3() },
+                WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
+                WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
+                WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
             ],
-        });
+        };
 
         let msg = ExecuteMsg::CreateRound {
             operator,
             round_info,
             max_voter: Uint256::from_u128(3u128),
-            voice_credit_amount: Uint256::from_u128(100u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -323,13 +322,15 @@ impl AmaciRegistryContract {
                 start_time,
                 end_time,
             },
-            whitelist,
-            pre_deactivate_root: Uint256::from_u128(0u128),
             circuit_type,
             certification_system,
-            oracle_whitelist_pubkey: None,
-            pre_deactivate_coordinator: None,
             deactivate_enabled: true, // ENABLED for tests that need deactivate
+            voice_credit_mode: cw_amaci::state::VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist,
+            },
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -359,7 +360,6 @@ impl AmaciRegistryContract {
             operator,
             round_info,
             max_voter: Uint256::from_u128(5u128),
-            voice_credit_amount: Uint256::from_u128(100u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -371,13 +371,15 @@ impl AmaciRegistryContract {
                 start_time,
                 end_time,
             },
-            whitelist: None,
-            pre_deactivate_root: Uint256::from_u128(0u128),
             circuit_type,
             certification_system,
-            oracle_whitelist_pubkey: Some(oracle_whitelist_pubkey),
-            pre_deactivate_coordinator: None,
             deactivate_enabled: true, // ENABLED for oracle tests with deactivate
+            voice_credit_mode: cw_amaci::state::VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
+                oracle_pubkey: oracle_whitelist_pubkey,
+            },
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)

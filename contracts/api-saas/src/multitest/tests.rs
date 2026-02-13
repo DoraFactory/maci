@@ -2,7 +2,7 @@ use cosmwasm_std::{coins, Addr, DepsMut, Env, Reply, Response, StdResult, Uint12
 use cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor, StargateAccepting};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, PubKey};
+use crate::msg::ExecuteMsg;
 use crate::multitest::{
     admin, create_app, creator, operator1, operator2, treasury_manager, user1, user2, SaasCodeId,
     DORA_DEMON,
@@ -218,6 +218,8 @@ fn test_deposit_and_withdraw() {
 }
 
 #[test]
+#[ignore] // DEPRECATED: CreateMaciRound has been removed from api-saas
+#[cfg(FALSE)] // Disabled - needs to be rewritten for new API
 fn test_create_api_maci_round_success() {
     let initial_balance = 1000000000000000000000u128; // 1000 DORA
     let valid_operator = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug");
@@ -254,8 +256,7 @@ fn test_create_api_maci_round_success() {
             &cw_amaci_registry::msg::InstantiateMsg {
                 admin: admin(),
                 operator: admin(),
-                amaci_code_id: 0,
-                maci_code_id: oracle_maci_code_id,
+                amaci_code_id: oracle_maci_code_id,
             },
             &[],
             "Registry",
@@ -378,6 +379,8 @@ fn test_create_api_maci_round_success() {
 }
 
 #[test]
+#[ignore] // DEPRECATED: CreateMaciRound has been removed from api-saas
+#[cfg(FALSE)] // Disabled - needs to be rewritten for new API
 fn test_create_api_maci_round_unauthorized() {
     let mut app = create_app();
 
@@ -433,6 +436,8 @@ fn test_create_api_maci_round_unauthorized() {
 }
 
 #[test]
+#[ignore] // DEPRECATED: CreateMaciRound has been removed from api-saas
+#[cfg(FALSE)] // Disabled - needs to be rewritten for new API
 fn test_create_api_maci_round_with_minimal_funds() {
     let initial_balance = 60000000000000000000u128; // 60 DORA - enough for the round (need 54 DORA)
     let valid_operator = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug");
@@ -469,8 +474,7 @@ fn test_create_api_maci_round_with_minimal_funds() {
             &cw_amaci_registry::msg::InstantiateMsg {
                 admin: admin(),
                 operator: admin(),
-                amaci_code_id: 0,
-                maci_code_id: oracle_maci_code_id,
+                amaci_code_id: oracle_maci_code_id,
             },
             &[],
             "Registry",
@@ -577,6 +581,8 @@ fn test_create_api_maci_round_with_minimal_funds() {
 }
 
 #[test]
+#[ignore] // DEPRECATED: CreateMaciRound has been removed from api-saas
+#[cfg(FALSE)] // Disabled - needs to be rewritten for new API
 fn test_oracle_maci_round_management() {
     let initial_balance = 1000000000000000000000u128; // 1000 DORA
     let valid_operator = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug");
@@ -613,8 +619,7 @@ fn test_oracle_maci_round_management() {
             &cw_amaci_registry::msg::InstantiateMsg {
                 admin: admin(),
                 operator: admin(),
-                amaci_code_id: 0,
-                maci_code_id: oracle_maci_code_id,
+                amaci_code_id: oracle_maci_code_id,
             },
             &[],
             "Registry",
@@ -1263,7 +1268,6 @@ fn test_create_amaci_round_success_real() {
                 admin: admin(),
                 operator: admin(), // admin is also operator for simplicity
                 amaci_code_id,
-                maci_code_id: oracle_maci_code_id,
             },
             &[],
             "Real Registry",
@@ -1352,7 +1356,9 @@ fn test_create_amaci_round_success_real() {
         operator1(),   // sender (must be operator in SaaS)
         dora_operator, // operator parameter (must be operator in registry)
         max_voter,
-        voice_credit_amount,
+        cw_amaci::state::VoiceCreditMode::Unified {
+            amount: voice_credit_amount,
+        },
         vec![
             "Candidate A".to_string(),
             "Candidate B".to_string(),
@@ -1362,11 +1368,13 @@ fn test_create_amaci_round_success_real() {
         ], // vote_option_map
         round_info.clone(),
         voting_time,
-        None,            // no whitelist
-        Uint256::zero(), // pre_deactivate_root
+        cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+            whitelist: cw_amaci::msg::WhitelistBase {
+                users: vec![],
+            },
+        },
         circuit_type,
         certification_system,
-        None,  // oracle_whitelist_pubkey
         false, // deactivate_enabled (default: disabled)
         &[],   // No funds sent - using SaaS contract balance
     );
@@ -1455,7 +1463,6 @@ fn test_create_amaci_round_unauthorized_real() {
                 admin: admin(),
                 operator: admin(),
                 amaci_code_id,
-                maci_code_id: oracle_maci_code_id,
             },
             &[],
             "Real Registry",
@@ -1484,7 +1491,9 @@ fn test_create_amaci_round_unauthorized_real() {
         user1(),                // sender (not an operator in SaaS)
         admin(),                // operator parameter
         Uint256::from(25u128),  // max_voter
-        Uint256::from(100u128), // voice_credit_amount
+        cw_amaci::state::VoiceCreditMode::Unified {
+            amount: Uint256::from(100u128),
+        },
         vec![
             "Test Option 1".to_string(),
             "Test Option 2".to_string(),
@@ -1494,11 +1503,13 @@ fn test_create_amaci_round_unauthorized_real() {
         ], // vote_option_map
         crate::multitest::test_round_info(),
         crate::multitest::test_voting_time(),
-        None,            // no whitelist
-        Uint256::zero(), // pre_deactivate_root
+        cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+            whitelist: cw_amaci::msg::WhitelistBase {
+                users: vec![],
+            },
+        },
         Uint256::zero(), // circuit_type
         Uint256::zero(), // certification_system
-        None,            // oracle_whitelist_pubkey
         false,           // deactivate_enabled (default: disabled)
         &[],             // no fee (will fail before fee checking)
     );

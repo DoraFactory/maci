@@ -1,15 +1,9 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128, Uint256};
-use cw_amaci::msg::WhitelistBase;
-use cw_amaci::state::{RoundInfo, VotingTime};
+use cw_amaci::msg::RegistrationModeConfig;
+use cw_amaci::state::{RoundInfo, VoiceCreditMode, VotingTime};
 
 use crate::state::{Config, OperatorInfo};
-
-#[cw_serde]
-pub struct PubKey {
-    pub x: Uint256,
-    pub y: Uint256,
-}
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -46,36 +40,34 @@ pub enum ExecuteMsg {
         recipient: Option<Addr>,
     },
 
-    // Create API MACI round
-    CreateMaciRound {
-        coordinator: PubKey,
-        max_voters: u128,
-        vote_option_map: Vec<String>,
-        round_info: RoundInfo,
-        start_time: cosmwasm_std::Timestamp,
-        end_time: cosmwasm_std::Timestamp,
-        circuit_type: Uint256,
-        certification_system: Uint256,
-        whitelist_backend_pubkey: String,
-        // The following parameters are hardcoded in the contract:
-        // whitelist_voting_power_args: slope mode (one person one vote)
-    },
-
-    // Create AMACI round via registry
+    // Create AMACI round via registry (Unified MACI API)
+    // Note: AMACI now supports complete MACI functionality
     CreateAmaciRound {
+        // Operator configuration
         operator: Addr,
+        
+        // Round parameters
         max_voter: Uint256,
-        voice_credit_amount: Uint256,
         vote_option_map: Vec<String>,
         round_info: RoundInfo,
         voting_time: VotingTime,
-        whitelist: Option<WhitelistBase>,
-        pre_deactivate_root: Uint256,
+        
+        // Circuit configuration
         circuit_type: Uint256,
         certification_system: Uint256,
-        oracle_whitelist_pubkey: Option<String>,
-        pre_deactivate_coordinator: Option<PubKey>,
+        
+        // Deactivate feature configuration
         deactivate_enabled: bool,
+        
+        // ============================================
+        // Unified MACI Configuration (aligned with Registry API)
+        // ============================================
+        
+        // Voice Credit Mode: how voting power is allocated
+        voice_credit_mode: VoiceCreditMode,
+        
+        // Registration Mode: combined access control and state initialization
+        registration_mode: RegistrationModeConfig,
     },
 
     // API MACI management

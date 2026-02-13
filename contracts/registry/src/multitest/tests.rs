@@ -439,7 +439,6 @@ fn create_round_with_reward_should_works() {
             &mut app,
             creator(),
             amaci_code_id.id(),
-            amaci_code_id.id(),
             label,
         )
         .unwrap();
@@ -637,7 +636,6 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
         .instantiate(
             &mut app,
             creator(),
-            amaci_code_id.id(),
             amaci_code_id.id(),
             label,
         )
@@ -1272,7 +1270,6 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
             &mut app,
             creator(),
             amaci_code_id.id(),
-            amaci_code_id.id(),
             label,
         )
         .unwrap();
@@ -1902,7 +1899,6 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
             &mut app,
             creator(),
             amaci_code_id.id(),
-            amaci_code_id.id(),
             label,
         )
         .unwrap();
@@ -2471,7 +2467,6 @@ fn test_create_round_event_data() {
         .instantiate(
             &mut app,
             creator(),
-            amaci_code_id.id(),
             amaci_code_id.id(),
             label,
         )

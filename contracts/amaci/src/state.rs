@@ -80,6 +80,60 @@ pub const CURRENT_TALLY_COMMITMENT: Item<Uint256> = Item::new("current_tally_com
 pub const RESULT: Map<Vec<u8>, Uint256> = Map::new("voice_credit_balance");
 pub const TOTAL_RESULT: Item<Uint256> = Item::new("total_result");
 
+// ============================================
+// Unified MACI Configuration Types
+// ============================================
+
+// Voice Credit Mode: defines how voting power is allocated
+#[cw_serde]
+pub enum VoiceCreditMode {
+    // Unified mode: all users get the same voice credit amount (original AMACI)
+    Unified { 
+        amount: Uint256 
+    },
+    // Dynamic mode: each user's voice credit equals their provided amount (original MACI)
+    // No calculation needed - amount is voice credit directly
+    Dynamic,
+}
+
+// Registration Mode: combines access control and state initialization
+// This unified enum prevents invalid configuration combinations
+#[cw_serde]
+pub enum RegistrationMode {
+    // SignUp with Static Whitelist: users register individually, access controlled by whitelist
+    // - Pre-defined list of addresses (original AMACI traditional mode)
+    // - Whitelist data stored in WHITELIST storage item
+    SignUpWithStaticWhitelist,
+    
+    // SignUp with Oracle: users register individually, access controlled by Oracle signature
+    // - Backend signature verification (both AMACI and MACI support)
+    // - Oracle pubkey stored in ORACLE_WHITELIST_PUBKEY storage item
+    SignUpWithOracle,
+    
+    // PrePopulated: bulk import users via PreAddNewKey with ZK proof
+    // - Users cannot signup directly, must use PreAddNewKey
+    // - Access control is enforced by ZK proof verification
+    // - Technical: all users are "pre-deactivated" (deactivated state initialized upfront)
+    PrePopulated {
+        // Pre-deactivate root: Merkle root of the state tree after pre-deactivation
+        // This is the initial state where all users are already in deactivated status
+        pre_deactivate_root: Uint256,
+        
+        // Pre-deactivate coordinator: coordinator pubkey for the pre-deactivated state
+        // This coordinator performed the pre-deactivation operation
+        // REQUIRED: Must be provided for PreAddNewKey proof verification
+        pre_deactivate_coordinator: PubKey,
+    },
+}
+
+// Storage items for unified configuration
+pub const VOICE_CREDIT_MODE: Item<VoiceCreditMode> = Item::new("voice_credit_mode");
+pub const REGISTRATION_MODE: Item<RegistrationMode> = Item::new("registration_mode");
+
+// ============================================
+// End of Unified MACI Configuration Types
+// ============================================
+
 #[cw_serde]
 pub struct PubKey {
     pub x: Uint256,
@@ -256,6 +310,9 @@ pub const QTR_LIB: Item<QuinaryTreeRoot> = Item::new("qtr_lib");
 pub struct WhitelistConfig {
     pub addr: Addr,
     pub is_register: bool,
+    // Voice credit amount for this user
+    // Set during instantiate: Unified mode uses Unified.amount, Dynamic mode uses preset value
+    pub voice_credit_amount: Uint256,
 }
 
 #[cw_serde]
@@ -282,8 +339,6 @@ impl Whitelist {
 }
 
 pub const WHITELIST: Item<Whitelist> = Item::new("whitelist");
-
-pub const FEEGRANTS: Item<Uint128> = Item::new("fee_grants");
 
 pub const CIRCUITTYPE: Item<Uint256> = Item::new("circuit_type"); // <0: 1p1v | 1: pv>
 
