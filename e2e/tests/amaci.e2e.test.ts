@@ -42,14 +42,14 @@ describe('AMACI End-to-End Test', function () {
   let amaciContract: AmaciContractClient;
   let votingEndTime: bigint; // Store voting end time for dynamic calculation
 
-  const adminAddress = 'dora1admin000000000000000000000000000000';
-  const operatorAddress = 'dora1operator000000000000000000000000';
-  const feeRecipient = 'dora1feerecipient0000000000000000000';
+  const adminAddress = 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug';
+  const operatorAddress = 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan';
+  const feeRecipient = 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78';
 
   // Unique addresses for each voter (for whitelist registration)
-  const voter1Address = 'dora1voter1000000000000000000000000000000';
-  const voter2Address = 'dora1voter2000000000000000000000000000000';
-  const voter1NewAddress = 'dora1voter1new000000000000000000000000';
+  const voter1Address = 'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf';
+  const voter2Address = 'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg';
+  const voter1NewAddress = 'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2';
 
   // Test parameters (must match zkey configuration: 2-1-1-5)
   const stateTreeDepth = 2; // 5^2 = 25 max voters

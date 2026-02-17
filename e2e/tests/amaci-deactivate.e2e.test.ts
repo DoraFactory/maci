@@ -33,10 +33,10 @@ describe('AMACI Deactivate E2E Tests', function () {
 
   let client: SimulateCosmWasmClient;
 
-  const adminAddress = 'dora1admin000000000000000000000000000000';
-  const operatorAddress = 'dora1operator000000000000000000000000';
-  const feeRecipient = 'dora1feerecipient0000000000000000000';
-  const voter1Address = 'dora1voter1000000000000000000000000000000';
+  const adminAddress = 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug';
+  const operatorAddress = 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan';
+  const feeRecipient = 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78';
+  const voter1Address = 'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf';
 
   // Test parameters (must match zkey configuration: 2-1-1-5)
   const stateTreeDepth = 2;

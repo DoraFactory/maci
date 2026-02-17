@@ -37,9 +37,9 @@ describe('MACI (Standard) End-to-End Test', function () {
   let voters: VoterClient[];
   let maciContract: MaciContractClient;
 
-  const adminAddress = 'dora1admin000000000000000000000000000000';
-  const operatorAddress = 'dora1operator000000000000000000000000';
-  const feeRecipient = 'dora1feerecipient0000000000000000000';
+  const adminAddress = 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug';
+  const operatorAddress = 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan';
+  const feeRecipient = 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78';
 
   // Test parameters - 1P1V mode
   const maxVoteOptions = 3;

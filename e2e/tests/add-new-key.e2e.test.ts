@@ -169,13 +169,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
   this.timeout(900000); // 15 minutes for the entire test suite
 
   // Shared constants (addresses and test parameters)
-  const adminAddress = 'dora1admin000000000000000000000000000000';
-  const operatorAddress = 'dora1operator000000000000000000000000';
-  const feeRecipient = 'dora1feerecipient0000000000000000000';
+  const adminAddress = 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug';
+  const operatorAddress = 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan';
+  const feeRecipient = 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78';
 
-  const voter1Address = 'dora1voter1000000000000000000000000000000';
-  const voter2Address = 'dora1voter2000000000000000000000000000000';
-  const voter1NewAddress = 'dora1voter1new000000000000000000000000';
+  const voter1Address = 'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf';
+  const voter2Address = 'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg';
+  const voter1NewAddress = 'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2';
 
   // Test parameters (must match zkey configuration: 2-1-1-5)
   const stateTreeDepth = 2; // 5^2 = 25 max voters
@@ -1940,10 +1940,38 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     ]);
     log('✓ Test address balances initialized');
 
-    // Initialize balances for 25 boundary test users (dora1user00000000...00000000 - dora1user00000000...00000024)
-    for (let i = 0; i < 25; i++) {
-      const userAddress = `dora1user${i.toString().padStart(32, '0')}`;
-      await client.app.bank.setBalance(userAddress, [
+    // 25 boundary test users - must match whitelist addresses
+    const boundaryTestUsers = [
+      'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug',
+      'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf',
+      'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78',
+      'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2',
+      'dora12c8lpjqrpjzlawx8g4xe873umy4e6vr5atqzhn',
+      'dora1l8ptlxavtum53gcdhzl3sju5k9m5xxszx2f8ht',
+      'dora1m2fz72pckpjem5htc0mjjrxgstd6cjzy5yclqu',
+      'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan',
+      'dora1lz8ptxkzx0q72rn4zg5gzgkay7qmk5l8n8y2r8',
+      'dora1wryzhskahzuft4jw6lla603ue2xpv0pmp83c69',
+      'dora1cqmk6jyz6xhsa3dwtwd8k0pmfmpr059mujf78p',
+      'dora1d5wgt2n4uenvvu3spafcspa376mp3u27jcz0eq',
+      'dora1j4576y9zw4r0037xdmg8l2ahv7rjctr52cshwg',
+      'dora1y6z5qfgkas2qlt9gavs3kld0dhkcklerjlrvl9',
+      'dora15yfyalf872yut8cecy8p2j7rer9dd98rlg3xtq',
+      'dora1dlllxss27zzru95hk0h6qdtr8v4qp2w8aanyg3',
+      'dora1grelez57np8x586qn6k7pm7qvm5k9cqj2uq3n5',
+      'dora1r8w3ej5dpjc9n9nazt4x8luc9n8klxnk97zrht',
+      'dora1guarph0djs8xrykwruprwvvr30w5k0xu24ut72',
+      'dora18yad4hpyljv79x62svf0hmelhqupld5ulzv7fm',
+      'dora1ednrqjyqzfrpnv2nc355n9q6ul9vnt245rrsy6',
+      'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg',
+      'dora1rflsx5r2knxtr3agjtc2882pw6las5d9ad3exm',
+      'dora1s225ptu25swauxkylugqdqyq48rkuz4536glxm',
+      'dora1glj6aqhx2zpwfax6wy64w44egh9nz3yq39wc7u'
+    ];
+
+    // Initialize balances for 25 boundary test users
+    for (let i = 0; i < boundaryTestUsers.length; i++) {
+      await client.app.bank.setBalance(boundaryTestUsers[i], [
         { denom: 'dora', amount: '1000000000000' },
         { denom: 'peaka', amount: '100000000000000000000000' }
       ]);
@@ -1996,10 +2024,31 @@ describe('AMACI AddNewKey End-to-End Test', function () {
           whitelist: {
             users: [
               // 25 user addresses for filling the state tree
-              ...Array.from({ length: 25 }, (_, i) => ({
-                addr: `dora1user${i.toString().padStart(32, '0')}`,
-                voice_credit_amount: null
-              }))
+              { addr: 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug', voice_credit_amount: null },
+              { addr: 'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf', voice_credit_amount: null },
+              { addr: 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78', voice_credit_amount: null },
+              { addr: 'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2', voice_credit_amount: null },
+              { addr: 'dora12c8lpjqrpjzlawx8g4xe873umy4e6vr5atqzhn', voice_credit_amount: null },
+              { addr: 'dora1l8ptlxavtum53gcdhzl3sju5k9m5xxszx2f8ht', voice_credit_amount: null },
+              { addr: 'dora1m2fz72pckpjem5htc0mjjrxgstd6cjzy5yclqu', voice_credit_amount: null },
+              { addr: 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan', voice_credit_amount: null },
+              { addr: 'dora1lz8ptxkzx0q72rn4zg5gzgkay7qmk5l8n8y2r8', voice_credit_amount: null },
+              { addr: 'dora1wryzhskahzuft4jw6lla603ue2xpv0pmp83c69', voice_credit_amount: null },
+              { addr: 'dora1cqmk6jyz6xhsa3dwtwd8k0pmfmpr059mujf78p', voice_credit_amount: null },
+              { addr: 'dora1d5wgt2n4uenvvu3spafcspa376mp3u27jcz0eq', voice_credit_amount: null },
+              { addr: 'dora1j4576y9zw4r0037xdmg8l2ahv7rjctr52cshwg', voice_credit_amount: null },
+              { addr: 'dora1y6z5qfgkas2qlt9gavs3kld0dhkcklerjlrvl9', voice_credit_amount: null },
+              { addr: 'dora15yfyalf872yut8cecy8p2j7rer9dd98rlg3xtq', voice_credit_amount: null },
+              { addr: 'dora1dlllxss27zzru95hk0h6qdtr8v4qp2w8aanyg3', voice_credit_amount: null },
+              { addr: 'dora1grelez57np8x586qn6k7pm7qvm5k9cqj2uq3n5', voice_credit_amount: null },
+              { addr: 'dora1r8w3ej5dpjc9n9nazt4x8luc9n8klxnk97zrht', voice_credit_amount: null },
+              { addr: 'dora1guarph0djs8xrykwruprwvvr30w5k0xu24ut72', voice_credit_amount: null },
+              { addr: 'dora18yad4hpyljv79x62svf0hmelhqupld5ulzv7fm', voice_credit_amount: null },
+              { addr: 'dora1ednrqjyqzfrpnv2nc355n9q6ul9vnt245rrsy6', voice_credit_amount: null },
+              { addr: 'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg', voice_credit_amount: null },
+              { addr: 'dora1rflsx5r2knxtr3agjtc2882pw6las5d9ad3exm', voice_credit_amount: null },
+              { addr: 'dora1s225ptu25swauxkylugqdqyq48rkuz4536glxm', voice_credit_amount: null },
+              { addr: 'dora1glj6aqhx2zpwfax6wy64w44egh9nz3yq39wc7u', voice_credit_amount: null }
             ]
           }
         }
@@ -2053,17 +2102,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     log('\n=== Phase 1: Filling state tree (25 positions) ===');
 
     const coordPubKey = boundaryOperator.getPubkey().toPoints();
-    const heavyUserAddress = 'dora1heavyuser000000000000000000000';
-
-    // Create initial user and signup
-    let currentVoter = new VoterClient({
-      network: 'testnet',
-      secretKey: 10000n
-    });
 
     log('Step 1: Signup 25 users to fill all positions');
 
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < boundaryTestUsers.length; i++) {
       const voter = new VoterClient({
         network: 'testnet',
         secretKey: 10000n + BigInt(i)
@@ -2071,9 +2113,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
       const pubKey = voter.getPubkey().toPoints();
 
-      // Use a unique address for each user
-      const userAddress = `dora1user${i.toString().padStart(32, '0')}`;
-      boundaryContract.setSender(userAddress);
+      // Use the real address from whitelist
+      boundaryContract.setSender(boundaryTestUsers[i]);
 
       await assertExecuteSuccess(
         () => boundaryContract.signUp(formatPubKeyForContract(pubKey)),
@@ -2105,7 +2146,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       // Reuse the first user's address (which is already in whitelist)
       // but with a different pubkey - this should fail due to "User already registered"
       // Actually, let's try with user 24 (last user in the loop)
-      const reuseAddress = 'dora1user00000000000000000000000000000024';
+      const reuseAddress = 'dora1rflsx5r2knxtr3agjtc2882pw6las5d9ad3exm';
       boundaryContract.setSender(reuseAddress);
       await boundaryContract.signUp(formatPubKeyForContract(signupPubKey));
 

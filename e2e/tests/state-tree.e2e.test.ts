@@ -31,8 +31,8 @@ describe('State Tree Update E2E Test', function () {
   let client: SimulateCosmWasmClient;
   let operator: OperatorClient;
 
-  const adminAddress = 'dora1admin000000000000000000000000000000';
-  const operatorAddress = 'dora1operator000000000000000000000000';
+  const adminAddress = 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug';
+  const operatorAddress = 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan';
 
   // Tree parameters
   const stateTreeDepth = 2; // 5^2 = 25 max users
@@ -497,7 +497,14 @@ describe('State Tree Update E2E Test', function () {
         admin: adminAddress,
         fee_recipient: adminAddress,
         operator: operatorAddress,
-        voice_credit_amount: '100',
+        voice_credit_mode: {
+          unified: { amount: '100' }
+        },
+        registration_mode: {
+          sign_up_with_oracle: {
+            oracle_pubkey: getBackendPublicKey()
+          }
+        },
         vote_option_map: ['Option A', 'Option B', 'Option C'],
         round_info: {
           title: 'AMACI State Tree Test',
@@ -508,10 +515,8 @@ describe('State Tree Update E2E Test', function () {
           start_time: votingStartTime,
           end_time: votingEndTime
         },
-        pre_deactivate_root: '0',
         circuit_type: '0', // 1P1V
         certification_system: '0', // Groth16
-        oracle_whitelist_pubkey: getBackendPublicKey(),
         deactivate_enabled: false // Deactivate feature disabled (default)
       };
 
