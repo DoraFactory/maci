@@ -289,10 +289,17 @@ export class AmaciContractClient extends BaseContractClient {
   }
 
   /**
-   * Query: Get all results
+   * Query: Get all results (sum)
    */
   async getAllResult(): Promise<any> {
     return await this.query({ get_all_result: {} });
+  }
+
+  /**
+   * Query: Get all results (array of vote counts for each option)
+   */
+  async getAllResults(): Promise<any> {
+    return await this.query({ get_all_results: {} });
   }
 
   /**

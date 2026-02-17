@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { OperatorClient, VoterClient } from '@dorafactory/maci-sdk';
+import { OperatorClient, VoterClient, decodeResults } from '@dorafactory/maci-sdk';
 import { SimulateCosmWasmClient } from '@oraichain/cw-simulate';
 import path from 'path';
 import {
@@ -422,18 +422,26 @@ describe('AMACI End-to-End Test', function () {
     log('\n=== Step 6: Verify Results ===\n');
 
     const sdkResults = operator.getTallyResults();
-    log('SDK results:');
+    log('SDK results (encoded):');
     sdkResults.forEach((result, idx) => {
       log(`  Option ${idx}: ${result}`);
     });
 
     // Query contract results
-    const contractResults = await amaciContract.getAllResult();
-    log('Contract results:');
+    const contractResults = await amaciContract.getAllResults();
+    log('Contract results (encoded):');
     log(JSON.stringify(contractResults, null, 2));
+
+    // Decode results to extract vote counts and voice credits
+    const decodedResults = decodeResults(contractResults);
+    log('\nDecoded results:');
+    decodedResults.forEach((result, index) => {
+      log(`  Option ${index}: ${result.v} votes, ${result.v2} voice credits`);
+    });
 
     // Verify results match
     expect(sdkResults.length).to.equal(maxVoteOptions);
+    expect(decodedResults.length).to.equal(maxVoteOptions);
 
     log('\n=== Test Completed Successfully ===\n');
     log('AMACI end-to-end test passed!');
@@ -447,5 +455,439 @@ describe('AMACI End-to-End Test', function () {
     log(`Round info: ${JSON.stringify(roundInfo)}`);
 
     expect(roundInfo).to.have.property('title');
+  });
+});
+
+describe('AMACI Dynamic Voice Credit E2E Test', function () {
+  this.timeout(600000);
+
+  let client: SimulateCosmWasmClient;
+  let operator: OperatorClient;
+  let voters: Array<{ client: VoterClient; addr: string; credits: number }>;
+  let amaciContract: AmaciContractClient;
+  let votingEndTime: bigint;
+
+  const adminAddress = 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug';
+  const operatorAddress = 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan';
+  const feeRecipient = 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78';
+
+  // Different users with different voice credits
+  const lowPowerUser = 'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf'; // 50 credits
+  const mediumPowerUser = 'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg'; // 100 credits
+  const highPowerUser = 'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2'; // 200 credits
+
+  // Test parameters (must match zkey configuration: 2-1-1-5)
+  const stateTreeDepth = 2;
+  const intStateTreeDepth = 1;
+  const voteOptionTreeDepth = 1;
+  const batchSize = 5;
+  const maxVoteOptions = 5;
+
+  // Circuit artifacts paths
+  const circuitConfig = 'amaci-2-1-1-5';
+  const circuitDir = path.join(__dirname, '../circuits', circuitConfig);
+  const processMessagesWasm = path.join(circuitDir, 'processMessages.wasm');
+  const processMessagesZkey = path.join(circuitDir, 'processMessages.zkey');
+  const tallyVotesWasm = path.join(circuitDir, 'tallyVotes.wasm');
+  const tallyVotesZkey = path.join(circuitDir, 'tallyVotes.zkey');
+
+  before(async () => {
+    log('\n=== Setting up AMACI Dynamic VC test environment ===');
+
+    const env = await createTestEnvironment({
+      chainId: 'amaci-dynamic-vc-test',
+      bech32Prefix: 'dora'
+    });
+    client = env.client;
+    log('✓ Test environment created');
+
+    // Initialize balances
+    const allAddresses = [
+      adminAddress,
+      operatorAddress,
+      feeRecipient,
+      lowPowerUser,
+      mediumPowerUser,
+      highPowerUser
+    ];
+    for (const addr of allAddresses) {
+      await client.app.bank.setBalance(addr, [
+        { denom: 'dora', amount: '1000000000000' },
+        { denom: 'peaka', amount: '100000000000000000000000' }
+      ]);
+    }
+    log('✓ Balances initialized');
+
+    // Initialize operator
+    operator = new OperatorClient({
+      network: 'testnet',
+      secretKey: 789012n
+    });
+
+    // Initialize voters
+    voters = [
+      {
+        client: new VoterClient({ network: 'testnet', secretKey: 890123n }),
+        addr: lowPowerUser,
+        credits: 50
+      },
+      {
+        client: new VoterClient({ network: 'testnet', secretKey: 901234n }),
+        addr: mediumPowerUser,
+        credits: 100
+      },
+      {
+        client: new VoterClient({ network: 'testnet', secretKey: 912345n }),
+        addr: highPowerUser,
+        credits: 200
+      }
+    ];
+    log(`✓ Initialized ${voters.length} voters with different voice credits`);
+
+    // Deploy contract
+    const coordPubKey = operator.getPubkey().toPoints();
+    const deployManager = new DeployManager(client, new ContractLoader());
+
+    const app: any = client.app;
+    if (!app.time || app.time === 0) {
+      app.time = Date.now() * 1e6;
+      log(`✓ Initialized app.time: ${app.time} ns`);
+    }
+
+    const now = BigInt(app.time);
+    const startTime = now - BigInt(585) * BigInt(1_000_000_000);
+    votingEndTime = now + BigInt(60) * BigInt(1_000_000_000);
+
+    const instantiateMsg = {
+      parameters: {
+        state_tree_depth: stateTreeDepth.toString(),
+        int_state_tree_depth: intStateTreeDepth.toString(),
+        vote_option_tree_depth: voteOptionTreeDepth.toString(),
+        message_batch_size: batchSize.toString()
+      },
+      coordinator: {
+        x: coordPubKey[0].toString(),
+        y: coordPubKey[1].toString()
+      },
+      admin: adminAddress,
+      fee_recipient: feeRecipient,
+      operator: operatorAddress,
+      // voice_credit_mode: {
+      //   // dynamic: {} // ⭐ Dynamic VoiceCreditMode
+      //   unified: { amount: '100' }
+      // },
+      voice_credit_mode: 'dynamic',
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              { addr: lowPowerUser, voice_credit_amount: '50' }, // ⭐ Different credits
+              { addr: mediumPowerUser, voice_credit_amount: '100' },
+              { addr: highPowerUser, voice_credit_amount: '200' }
+            ]
+          }
+        }
+      },
+      vote_option_map: ['Option A', 'Option B', 'Option C', 'Option D', 'Option E'],
+      round_info: {
+        title: 'AMACI Dynamic VC Test',
+        description: 'Testing dynamic voice credit allocation',
+        link: 'https://test.example.com'
+      },
+      voting_time: {
+        start_time: startTime.toString(),
+        end_time: votingEndTime.toString()
+      },
+      circuit_type: '1',
+      certification_system: '0',
+      poll_id: 10, // Unique poll ID
+      deactivate_enabled: false
+    };
+
+    const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
+    amaciContract = new AmaciContractClient(client, contractInfo.contractAddress, adminAddress);
+    log(`✓ AMACI contract deployed at: ${contractInfo.contractAddress}`);
+
+    const pollId = await queryPollId(amaciContract);
+    log(`✓ Poll ID retrieved: ${pollId}`);
+
+    operator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId: Number(pollId)
+    });
+    log('✓ Operator initialized\n');
+  });
+
+  it('should register users with different voice credits', async () => {
+    log('=== Step 1: User Registration with Dynamic Voice Credits ===\n');
+
+    for (let i = 0; i < voters.length; i++) {
+      const { client: voter, addr, credits } = voters[i];
+      const pubKey = voter.getPubkey().toPoints();
+
+      amaciContract.setSender(addr);
+      await assertExecuteSuccess(
+        () => amaciContract.signUp(formatPubKeyForContract(pubKey)),
+        `User ${i + 1} signup failed`
+      );
+
+      operator.updateStateTree(i, pubKey, BigInt(credits), [0n, 0n, 0n, 0n]);
+      log(`✓ User ${i + 1} registered: ${addr.substring(0, 20)}... with ${credits} voice credits`);
+    }
+
+    // Verify registration
+    const numSignups = await amaciContract.getNumSignUp();
+    expect(numSignups).to.equal(voters.length.toString());
+    log(`\n✓ All ${voters.length} users registered successfully\n`);
+  });
+
+  it('should calculate voting cost based on individual voice credits', async () => {
+    log('=== Step 2: Voting with Different Voice Credits ===\n');
+
+    const pollId = await queryPollId(amaciContract);
+    const coordPubKey = operator.getPubkey().toPoints();
+
+    // User 1 (50 credits): Vote 5 times for Option A (cost: 25 credits)
+    const user1 = voters[0];
+    const vote1Payloads = user1.client.buildVotePayload({
+      stateIdx: 0,
+      operatorPubkey: coordPubKey,
+      selectedOptions: [{ idx: 0, vc: 5 }], // 5 votes for Option A
+      pollId: Number(pollId)
+    });
+
+    for (const payload of vote1Payloads) {
+      const message = payload.msg.map((m) => BigInt(m));
+      const encPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
+
+      amaciContract.setSender(user1.addr);
+      await assertExecuteSuccess(
+        () =>
+          amaciContract.publishMessage(
+            formatMessageForContract(message),
+            formatPubKeyForContract(encPubKey)
+          ),
+        'User 1 vote failed'
+      );
+      operator.pushMessage(message, encPubKey);
+    }
+    log(`✓ User 1 (50 credits): Voted 5 times for Option A (cost: 25)`);
+
+    // User 2 (100 credits): Vote 7 times for Option B (cost: 49 credits)
+    const user2 = voters[1];
+    const vote2Payloads = user2.client.buildVotePayload({
+      stateIdx: 1,
+      operatorPubkey: coordPubKey,
+      selectedOptions: [{ idx: 1, vc: 7 }], // 7 votes for Option B
+      pollId: Number(pollId)
+    });
+
+    for (const payload of vote2Payloads) {
+      const message = payload.msg.map((m) => BigInt(m));
+      const encPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
+
+      amaciContract.setSender(user2.addr);
+      await assertExecuteSuccess(
+        () =>
+          amaciContract.publishMessage(
+            formatMessageForContract(message),
+            formatPubKeyForContract(encPubKey)
+          ),
+        'User 2 vote failed'
+      );
+      operator.pushMessage(message, encPubKey);
+    }
+    log(`✓ User 2 (100 credits): Voted 7 times for Option B (cost: 49)`);
+
+    // User 3 (200 credits): Vote 10 times for Option C (cost: 100 credits)
+    const user3 = voters[2];
+    const vote3Payloads = user3.client.buildVotePayload({
+      stateIdx: 2,
+      operatorPubkey: coordPubKey,
+      selectedOptions: [{ idx: 2, vc: 10 }], // 10 votes for Option C
+      pollId: Number(pollId)
+    });
+
+    for (const payload of vote3Payloads) {
+      const message = payload.msg.map((m) => BigInt(m));
+      const encPubKey = payload.encPubkeys.map((k) => BigInt(k)) as [bigint, bigint];
+
+      amaciContract.setSender(user3.addr);
+      await assertExecuteSuccess(
+        () =>
+          amaciContract.publishMessage(
+            formatMessageForContract(message),
+            formatPubKeyForContract(encPubKey)
+          ),
+        'User 3 vote failed'
+      );
+      operator.pushMessage(message, encPubKey);
+    }
+    log(`✓ User 3 (200 credits): Voted 10 times for Option C (cost: 100)`);
+
+    log('\n✓ All votes published\n');
+
+    // End voting period
+    const app: any = client.app;
+    const currentTime = BigInt(app.time);
+
+    if (currentTime < votingEndTime) {
+      const advanceSeconds = Number((votingEndTime - currentTime) / BigInt(1_000_000_000)) + 1;
+      log(`Advancing time by ${advanceSeconds} seconds to end voting period...`);
+      await advanceTime(client, advanceSeconds);
+      log(`✅ Time advanced, voting period has ended\n`);
+    }
+
+    operator.endVotePeriod();
+  });
+
+  it('should process messages after voting', async () => {
+    log('=== Step 3: Processing Messages ===\n');
+
+    // Start processing period (voting period already ended in previous test)
+    amaciContract.setSender(adminAddress);
+    await assertExecuteSuccess(
+      () => amaciContract.startProcessPeriod(),
+      'Start process period failed'
+    );
+    log('✓ Processing period started');
+
+    // Process messages
+    const numMessages = await amaciContract.query({ get_msg_chain_length: {} });
+    log(`Processing ${numMessages} messages...`);
+
+    let batchCount = 0;
+    while (operator.states === 1) {
+      log(`Processing message batch ${batchCount}...`);
+
+      const processResult = await operator.processMessages({
+        wasmFile: processMessagesWasm,
+        zkeyFile: processMessagesZkey
+      });
+
+      if (!processResult.proof) {
+        throw new Error('ProcessMessages proof is missing');
+      }
+
+      await assertExecuteSuccess(
+        () =>
+          amaciContract.processMessage(
+            processResult.input.newStateCommitment.toString(),
+            processResult.proof!
+          ),
+        `Process message batch ${batchCount} failed`
+      );
+
+      log(`Message batch ${batchCount} processed`);
+      batchCount++;
+
+      if (batchCount > 10) {
+        throw new Error('Too many message processing iterations');
+      }
+    }
+    log(`✓ All messages processed in ${batchCount} batches\n`);
+
+    // Stop processing period
+    await assertExecuteSuccess(
+      () => amaciContract.stopProcessingPeriod(),
+      'Stop processing period failed'
+    );
+    log('✓ Processing period stopped\n');
+
+    // Note: In MACI protocol, actual balances after voting are maintained in the state tree
+    // The operator SDK tracks the current state. The chain only stores initial balances and state commitments.
+    log('✓ Messages processed successfully, proceeding to tally\n');
+  });
+
+  it('should verify tally results reflect dynamic weights', async () => {
+    log('=== Step 4: Tallying Votes ===\n');
+
+    // Processing period already stopped in previous test
+    amaciContract.setSender(adminAddress);
+
+    // Process tally
+    let tallyCount = 0;
+    while (operator.states === 2) {
+      log(`Processing tally batch ${tallyCount}...`);
+
+      const tallyResult = await operator.processTally({
+        wasmFile: tallyVotesWasm,
+        zkeyFile: tallyVotesZkey
+      });
+
+      if (!tallyResult.proof) {
+        throw new Error('TallyVotes proof is missing');
+      }
+
+      await assertExecuteSuccess(
+        () =>
+          amaciContract.processTally(
+            tallyResult.input.newTallyCommitment.toString(),
+            tallyResult.proof!
+          ),
+        `Process tally batch ${tallyCount} failed`
+      );
+
+      log(`Tally batch ${tallyCount} processed`);
+      tallyCount++;
+
+      if (tallyCount > 10) {
+        throw new Error('Too many tally iterations');
+      }
+    }
+    log(`✓ Tallying completed in ${tallyCount} batches\n`);
+
+    // Stop tallying period and get results
+    const tallyResults = operator.getTallyResults();
+
+    await assertExecuteSuccess(
+      () =>
+        amaciContract.stopTallyingPeriod(
+          tallyResults.map((r) => r.toString()),
+          operator.tallySalt.toString()
+        ),
+      'Stop tallying period failed'
+    );
+    log('✓ Tallying period stopped\n');
+
+    // Query and verify results
+    const contractResults = await amaciContract.getAllResults();
+    log('\n=== Tally Results ===');
+    log(JSON.stringify(contractResults, null, 2));
+
+    // Decode results to extract vote counts and voice credits
+    const decodedResults = decodeResults(contractResults);
+    log('\n=== Decoded Results ===');
+    decodedResults.forEach((result, index) => {
+      log(`Option ${index}: ${result.v} votes, ${result.v2} voice credits`);
+    });
+
+    // Verify results match expected values
+    // User 1: 5 votes for Option A (cost: 25 credits)
+    // User 2: 7 votes for Option B (cost: 49 credits)
+    // User 3: 10 votes for Option C (cost: 100 credits)
+    assertBigIntEqual(BigInt(decodedResults[0].v), 5n, 'Option A votes');
+    assertBigIntEqual(BigInt(decodedResults[0].v2), 25n, 'Option A voice credits');
+
+    assertBigIntEqual(BigInt(decodedResults[1].v), 7n, 'Option B votes');
+    assertBigIntEqual(BigInt(decodedResults[1].v2), 49n, 'Option B voice credits');
+
+    assertBigIntEqual(BigInt(decodedResults[2].v), 10n, 'Option C votes');
+    assertBigIntEqual(BigInt(decodedResults[2].v2), 100n, 'Option C voice credits');
+
+    assertBigIntEqual(BigInt(decodedResults[3].v), 0n, 'Option D votes');
+    assertBigIntEqual(BigInt(decodedResults[3].v2), 0n, 'Option D voice credits');
+
+    assertBigIntEqual(BigInt(decodedResults[4].v), 0n, 'Option E votes');
+    assertBigIntEqual(BigInt(decodedResults[4].v2), 0n, 'Option E voice credits');
+
+    log('\nAll tally results verified');
+    log('AMACI Dynamic VC Test Completed Successfully\n');
   });
 });

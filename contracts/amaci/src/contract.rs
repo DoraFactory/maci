@@ -2513,51 +2513,15 @@ fn execute_stop_tallying_period(
     // Calculate the tally commitment
     let tally_commitment = hash2([results_root, salt]);
 
-    // Load the current tally commitment
+    // Load the current tally commitment and verify if needed
     let current_tally_commitment = CURRENT_TALLY_COMMITMENT.load(deps.storage)?;
-    if current_tally_commitment == Uint256::from_u128(0u128) {
-        let mut sum = Uint256::zero();
-
-        // Save the results and calculate the sum
-        for i in 0..results.len() {
-            RESULT.save(
-                deps.storage,
-                Uint256::from_u128(i as u128).to_be_bytes().to_vec(),
-                &results[i],
-            )?;
-            sum += results[i];
-        }
-
-        // Save the total result
-        TOTAL_RESULT.save(deps.storage, &sum)?;
-
-        // Update the period status to Ended
-        let period = Period {
-            status: PeriodStatus::Ended,
-        };
-        PERIOD.save(deps.storage, &period)?;
-
-        return Ok(Response::new()
-            .add_attribute("action", "stop_tallying_period")
-            .add_attribute(
-                "results",
-                serde_json::to_string(
-                    &results
-                        .iter()
-                        .map(|x| x.to_string())
-                        .collect::<Vec<String>>(),
-                )
-                .unwrap_or_else(|_| "[]".to_string()),
-            )
-            .add_attribute("all_result", sum.to_string())
-            .add_attributes(attributes));
+    if current_tally_commitment != Uint256::from_u128(0u128) {
+        // Check that the tally commitment matches the current tally commitment
+        assert_eq!(tally_commitment, current_tally_commitment);
     }
-    // Check that the tally commitment matches the current tally commitment
-    assert_eq!(tally_commitment, current_tally_commitment);
-
-    let mut sum = Uint256::zero();
 
     // Save the results and calculate the sum
+    let mut sum = Uint256::zero();
     for i in 0..results.len() {
         RESULT.save(
             deps.storage,
@@ -2904,6 +2868,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ),
         QueryMsg::GetAllResult {} => {
             to_json_binary::<Uint256>(&TOTAL_RESULT.may_load(deps.storage)?.unwrap_or_default())
+        }
+        QueryMsg::GetAllResults {} => {
+            let max_vote_options = MAX_VOTE_OPTIONS.may_load(deps.storage)?.unwrap_or_default();
+            let mut results: Vec<Uint256> = Vec::new();
+
+            // Convert Uint256 -> Uint128 -> u128 safely
+            let max = max_vote_options
+                .try_into() // Uint256 -> Uint128
+                .map(|x: Uint128| x.u128()) // Uint128 -> u128
+                .unwrap_or(0u128);
+
+            for i in 0..max {
+                let result = RESULT
+                    .may_load(deps.storage, Uint256::from_u128(i).to_be_bytes().to_vec())?
+                    .unwrap_or_default();
+                results.push(result);
+            }
+
+            to_json_binary::<Vec<Uint256>>(&results)
         }
         QueryMsg::GetStateIdxInc { address } => to_json_binary::<Uint256>(
             &STATEIDXINC

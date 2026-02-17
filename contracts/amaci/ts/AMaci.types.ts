@@ -193,6 +193,8 @@ export type QueryMsg = {
 } | {
   get_all_result: {};
 } | {
+  get_all_results: {};
+} | {
   get_state_idx_inc: {
     address: Addr;
   };
@@ -266,6 +268,7 @@ export type QueryMsg = {
   get_registration_config: {};
 };
 export type Boolean = boolean;
+export type ArrayOfUint256 = Uint256[];
 export type DelayType = "deactivate_delay" | "tally_delay";
 export interface DelayRecords {
   records: DelayRecord[];

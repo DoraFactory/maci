@@ -308,7 +308,7 @@ export class VoterClient {
 
       // Encrypt command with shared key derived from encPriKey and coordinator's public key
       const message = poseidonEncrypt(command, genEcdhSharedKey(encPriKey, coordPubkey), 0n);
-      console.log("length of message", message.length);
+      console.log('length of message', message.length);
       return message;
     };
   }
@@ -840,11 +840,11 @@ export class VoterClient {
     // Query pollId at the outermost layer
     const pollId = await this.getPollId(contractAddress);
 
-    const payload = await this.buildVotePayload({
+    const payload = this.buildVotePayload({
       stateIdx,
       operatorPubkey,
       selectedOptions,
-      pollId,  // Pass pollId instead of contractAddress
+      pollId, // Pass pollId instead of contractAddress
       derivePathParams
     });
 

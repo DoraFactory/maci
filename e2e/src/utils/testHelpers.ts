@@ -381,7 +381,7 @@ export async function verifyTallyResults(
   expectedVotes: bigint[]
 ): Promise<void> {
   const sdkResults = operator.getTallyResults();
-  const contractResults = await contract.getAllResult();
+  const contractResults = await contract.getAllResults();
 
   // Verify expected votes length matches
   if (expectedVotes.length !== sdkResults.length) {

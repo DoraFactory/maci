@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Addr, Uint256, RegistrationModeConfig, VoiceCreditMode, Timestamp, Uint64, InstantiateMsg, PubKey, MaciParameters, WhitelistBase, WhitelistBaseConfig, RoundInfo, VotingTime, ExecuteMsg, RegistrationConfigUpdate, MessageData, Groth16ProofType, QueryMsg, Boolean, DelayType, DelayRecords, DelayRecord, PeriodStatus, Period, RegistrationMode, RegistrationConfigInfo, TallyDelayInfo, NullableString, NullableUint256, ArrayOfString, Whitelist, WhitelistConfig } from "./AMaci.types";
+import { Addr, Uint256, RegistrationModeConfig, VoiceCreditMode, Timestamp, Uint64, InstantiateMsg, PubKey, MaciParameters, WhitelistBase, WhitelistBaseConfig, RoundInfo, VotingTime, ExecuteMsg, RegistrationConfigUpdate, MessageData, Groth16ProofType, QueryMsg, Boolean, ArrayOfUint256, DelayType, DelayRecords, DelayRecord, PeriodStatus, Period, RegistrationMode, RegistrationConfigInfo, TallyDelayInfo, NullableString, NullableUint256, ArrayOfString, Whitelist, WhitelistConfig } from "./AMaci.types";
 export interface AMaciReadOnlyInterface {
   contractAddress: string;
   admin: () => Promise<Addr>;
@@ -32,6 +32,7 @@ export interface AMaciReadOnlyInterface {
     index: Uint256;
   }) => Promise<Uint256>;
   getAllResult: () => Promise<Uint256>;
+  getAllResults: () => Promise<ArrayOfUint256>;
   getStateIdxInc: ({
     address
   }: {
@@ -120,6 +121,7 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getNode = this.getNode.bind(this);
     this.getResult = this.getResult.bind(this);
     this.getAllResult = this.getAllResult.bind(this);
+    this.getAllResults = this.getAllResults.bind(this);
     this.getStateIdxInc = this.getStateIdxInc.bind(this);
     this.getVoiceCreditBalance = this.getVoiceCreditBalance.bind(this);
     this.getVoiceCreditAmount = this.getVoiceCreditAmount.bind(this);
@@ -232,6 +234,11 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
   getAllResult = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_all_result: {}
+    });
+  };
+  getAllResults = async (): Promise<ArrayOfUint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_all_results: {}
     });
   };
   getStateIdxInc = async ({

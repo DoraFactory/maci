@@ -229,6 +229,9 @@ pub enum QueryMsg {
     #[returns(Uint256)]
     GetAllResult {},
 
+    #[returns(Vec<Uint256>)]
+    GetAllResults {},
+
     #[returns(Uint256)]
     GetStateIdxInc { address: Addr },
 

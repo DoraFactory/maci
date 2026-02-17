@@ -9,7 +9,7 @@
 import { analyzeComprehensiveTallyResults, formatTallyResults } from './utils/result';
 
 // 从合约获取编码结果
-const encodedResults = await contract.getAllResult();
+const encodedResults = await contract.getAllResults();
 
 // 一键完整分析
 const analysis = analyzeComprehensiveTallyResults(encodedResults);
