@@ -2,9 +2,9 @@
 mod test {
     use crate::msg::HashOperation;
     use crate::multitest::{
-        create_app, owner, test_pubkey1, test_pubkey2, user1, user2, MaciCodeId,
+        create_app, owner, test_pubkey1, test_pubkey2, user1, user2, MaciCodeId, TestContract,
     };
-    use crate::state::MessageData;
+    use crate::state::{MaciParameters, MessageData, PubKey};
     use cosmwasm_std::Uint256;
 
     #[test]
@@ -573,8 +573,6 @@ mod test {
 
     #[test]
     fn test_detailed_response_analysis() {
-        use crate::multitest::TestContract;
-
         let mut app = create_app();
         let code_id = MaciCodeId::store_code(&mut app);
         let contract = code_id
@@ -728,12 +726,10 @@ mod test {
         depth: u128,
         iterations: u128,
     ) -> (std::time::Duration, std::time::Duration) {
-        use crate::multitest::TestContract;
-        use crate::state::MaciParameters;
         use std::time::Instant;
 
         let mut app = create_app();
-        let code_id = crate::multitest::MaciCodeId::store_code(&mut app);
+        let code_id = MaciCodeId::store_code(&mut app);
 
         let parameters = MaciParameters {
             state_tree_depth: Uint256::from_u128(depth),
@@ -753,7 +749,7 @@ mod test {
 
         // Generate test pubkeys
         let pubkeys: Vec<_> = (0..iterations)
-            .map(|i| crate::state::PubKey {
+            .map(|i| PubKey {
                 x: Uint256::from_u128((1000 + i + depth * 100) as u128),
                 y: Uint256::from_u128((2000 + i + depth * 100) as u128),
             })
@@ -770,7 +766,7 @@ mod test {
 
         // Test signup_with_hash (need fresh contract)
         let mut app2 = create_app();
-        let code_id2 = crate::multitest::MaciCodeId::store_code(&mut app2);
+        let code_id2 = MaciCodeId::store_code(&mut app2);
         let parameters2 = MaciParameters {
             state_tree_depth: Uint256::from_u128(depth),
             int_state_tree_depth: Uint256::from_u128(1u128),
@@ -899,8 +895,6 @@ mod test {
 
     #[test]
     fn test_signup_detailed_tree_depth_analysis() {
-        use crate::multitest::TestContract;
-        use crate::state::MaciParameters;
         use std::time::Instant;
 
         println!("\n{}", "=".repeat(80));
@@ -922,7 +916,7 @@ mod test {
             println!("{}", "-".repeat(80));
 
             let mut app = create_app();
-            let code_id = crate::multitest::MaciCodeId::store_code(&mut app);
+            let code_id = MaciCodeId::store_code(&mut app);
             let parameters = MaciParameters {
                 state_tree_depth: Uint256::from_u128(depth),
                 int_state_tree_depth: Uint256::from_u128(1u128),
@@ -941,7 +935,7 @@ mod test {
 
             // Generate test data
             let pubkeys: Vec<_> = (0..iterations)
-                .map(|i| crate::state::PubKey {
+                .map(|i| PubKey {
                     x: Uint256::from_u128((1000 + i * 100) as u128),
                     y: Uint256::from_u128((2000 + i * 100) as u128),
                 })
@@ -959,7 +953,7 @@ mod test {
 
             // Measure with_hash performance (fresh contract)
             let mut app2 = create_app();
-            let code_id2 = crate::multitest::MaciCodeId::store_code(&mut app2);
+            let code_id2 = MaciCodeId::store_code(&mut app2);
             let parameters2 = MaciParameters {
                 state_tree_depth: Uint256::from_u128(depth),
                 int_state_tree_depth: Uint256::from_u128(1u128),
@@ -1033,8 +1027,6 @@ mod test {
 
     #[test]
     fn test_depth2_first_signup_analysis() {
-        use crate::multitest::TestContract;
-        use crate::state::MaciParameters;
         use std::time::Instant;
 
         println!("\n{}", "=".repeat(80));
@@ -1045,7 +1037,7 @@ mod test {
         let iterations = 10;
 
         let mut app = create_app();
-        let code_id = crate::multitest::MaciCodeId::store_code(&mut app);
+        let code_id = MaciCodeId::store_code(&mut app);
         let parameters = MaciParameters {
             state_tree_depth: Uint256::from_u128(depth),
             int_state_tree_depth: Uint256::from_u128(1u128),
@@ -1066,7 +1058,7 @@ mod test {
         println!("{}", "-".repeat(80));
 
         let pubkeys: Vec<_> = (0..iterations)
-            .map(|i| crate::state::PubKey {
+            .map(|i| PubKey {
                 x: Uint256::from_u128((1000 + i) as u128),
                 y: Uint256::from_u128((2000 + i) as u128),
             })
@@ -1121,8 +1113,6 @@ mod test {
 
     #[test]
     fn test_compare_depth2_vs_depth3_individual_signups() {
-        use crate::multitest::TestContract;
-        use crate::state::MaciParameters;
         use std::time::Instant;
 
         println!("\n{}", "=".repeat(80));
@@ -1133,7 +1123,7 @@ mod test {
 
         for &depth in &[2u128, 3u128] {
             let mut app = create_app();
-            let code_id = crate::multitest::MaciCodeId::store_code(&mut app);
+            let code_id = MaciCodeId::store_code(&mut app);
             let parameters = MaciParameters {
                 state_tree_depth: Uint256::from_u128(depth),
                 int_state_tree_depth: Uint256::from_u128(1u128),
@@ -1155,7 +1145,7 @@ mod test {
             println!("{}", "-".repeat(80));
 
             let pubkeys: Vec<_> = (0..iterations)
-                .map(|i| crate::state::PubKey {
+                .map(|i| PubKey {
                     x: Uint256::from_u128((1000 + i + depth * 100) as u128),
                     y: Uint256::from_u128((2000 + i + depth * 100) as u128),
                 })

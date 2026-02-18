@@ -435,12 +435,7 @@ fn create_round_with_reward_should_works() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(
-            &mut app,
-            creator(),
-            amaci_code_id.id(),
-            label,
-        )
+        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -633,12 +628,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(
-            &mut app,
-            creator(),
-            amaci_code_id.id(),
-            label,
-        )
+        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -873,7 +863,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
-                
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -990,7 +980,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
-                
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -1266,12 +1256,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(
-            &mut app,
-            creator(),
-            amaci_code_id.id(),
-            label,
-        )
+        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -1501,7 +1486,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
-                
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -1618,7 +1603,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
-                
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -1895,12 +1880,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
 
     let label = "Dora AMaci Registry Oracle Test";
     let contract = register_code_id
-        .instantiate(
-            &mut app,
-            creator(),
-            amaci_code_id.id(),
-            label,
-        )
+        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -2118,7 +2098,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
-                
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -2235,7 +2215,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
-                
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -2464,12 +2444,7 @@ fn test_create_round_event_data() {
 
     let label = "Dora AMaci Registry";
     let contract = register_code_id
-        .instantiate(
-            &mut app,
-            creator(),
-            amaci_code_id.id(),
-            label,
-        )
+        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
         .unwrap();
 
     _ = contract.set_validators(&mut app, admin());
@@ -2569,4 +2544,338 @@ fn test_create_round_event_data() {
         updated_vote_option_map
     );
     assert_eq!(updated_vote_option_map, custom_vote_options);
+}
+
+/// Helper: get attribute value by key from an event's attributes.
+fn event_attr_value(attributes: &[cosmwasm_std::Attribute], key: &str) -> Option<String> {
+    attributes
+        .iter()
+        .find(|a| a.key == key)
+        .map(|a| a.value.clone())
+}
+
+/// Find the event that has attribute action="created_round" (emitted by reply_created_round).
+fn find_created_round_event(events: &[cosmwasm_std::Event]) -> Option<&cosmwasm_std::Event> {
+    events
+        .iter()
+        .find(|e| event_attr_value(&e.attributes, "action").as_deref() == Some("created_round"))
+}
+
+#[test]
+fn test_reply_created_round_event() {
+    // Same setup as test_create_round_event_data: create round and capture response
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let label = "Dora AMaci Registry";
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(small_base_payamount, DORA_DEMON),
+        )
+        .unwrap();
+
+    // Find the reply "created_round" event (from reply_created_round in contract)
+    let created_round_event = find_created_round_event(&resp.events).expect(
+        "response should contain an event with action=created_round from reply_created_round",
+    );
+
+    let attrs = &created_round_event.attributes;
+    println!("attrs: {:?}", attrs);
+
+    // Required attributes from reply_created_round
+    assert_eq!(
+        event_attr_value(attrs, "action").as_deref(),
+        Some("created_round"),
+        "action must be created_round"
+    );
+    assert!(
+        event_attr_value(attrs, "code_id").is_some(),
+        "event must have code_id"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "code_id").as_deref(),
+        Some(amaci_code_id.id().to_string().as_str()),
+        "code_id must match amaci code id"
+    );
+
+    let round_addr = event_attr_value(attrs, "round_addr").expect("event must have round_addr");
+    assert!(!round_addr.is_empty(), "round_addr must be non-empty");
+
+    let poll_id = event_attr_value(attrs, "poll_id").expect("event must have poll_id");
+    assert!(!poll_id.is_empty(), "poll_id must be non-empty");
+
+    // caller in event is the contract that sent the instantiate submsg (registry), not the tx sender
+    assert_eq!(
+        event_attr_value(attrs, "caller").as_deref(),
+        Some(contract.addr().as_str()),
+        "caller must be registry contract (instantiate sender)"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "admin").as_deref(),
+        Some(creator().as_str()),
+        "admin must be creator"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "operator").as_deref(),
+        Some(operator().as_str()),
+        "operator must match"
+    );
+
+    assert_eq!(
+        event_attr_value(attrs, "round_title").as_deref(),
+        Some("HackWasm Berlin"),
+        "round_title must match create_round_with_whitelist RoundInfo"
+    );
+
+    let voting_start =
+        event_attr_value(attrs, "voting_start").expect("event must have voting_start");
+    assert_eq!(voting_start, "1571797424879000000");
+
+    let voting_end = event_attr_value(attrs, "voting_end").expect("event must have voting_end");
+    assert!(!voting_end.is_empty());
+
+    // Coordinator pubkey
+    assert!(
+        event_attr_value(attrs, "coordinator_pubkey_x").is_some(),
+        "event must have coordinator_pubkey_x"
+    );
+    assert!(
+        event_attr_value(attrs, "coordinator_pubkey_y").is_some(),
+        "event must have coordinator_pubkey_y"
+    );
+
+    // vote_option_map (JSON array)
+    let vote_option_map =
+        event_attr_value(attrs, "vote_option_map").expect("event must have vote_option_map");
+    assert!(vote_option_map.starts_with('[') && vote_option_map.ends_with(']'));
+
+    // MACI config
+    assert!(
+        event_attr_value(attrs, "voice_credit_mode").is_some(),
+        "event must have voice_credit_mode"
+    );
+    assert!(
+        event_attr_value(attrs, "registration_mode").is_some(),
+        "event must have registration_mode"
+    );
+    assert!(
+        event_attr_value(attrs, "state_tree_depth")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false),
+        "event must have state_tree_depth"
+    );
+    assert!(
+        event_attr_value(attrs, "circuit_type")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false),
+        "event must have circuit_type"
+    );
+    assert!(
+        event_attr_value(attrs, "certification_system")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false),
+        "event must have certification_system"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "deactivate_enabled").as_deref(),
+        Some("false"),
+        "deactivate_enabled from create_round_with_whitelist"
+    );
+
+    // Optional: round_description / round_link (we set them in create_round_with_whitelist)
+    assert_eq!(
+        event_attr_value(attrs, "round_description").as_deref(),
+        Some("Hack In Brelin"),
+        "round_description must match RoundInfo"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "round_link").as_deref(),
+        Some("https://baidu.com"),
+        "round_link must match RoundInfo"
+    );
+
+    // voice_credit_amount for Unified mode
+    assert_eq!(
+        event_attr_value(attrs, "voice_credit_amount").as_deref(),
+        Some("100"),
+        "voice_credit_amount from Unified mode"
+    );
+}
+
+/// Test created_round event for SignUpWithStaticWhitelist mode: registration_mode and no pre_deactivate attrs.
+#[test]
+fn test_created_round_event_sign_up_with_static_whitelist() {
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pay = 20000000000000000000u128; // 20 DORA
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let created_round_event = find_created_round_event(&resp.events)
+        .expect("response should contain action=created_round event");
+    let attrs = &created_round_event.attributes;
+
+    assert_eq!(
+        event_attr_value(attrs, "action").as_deref(),
+        Some("created_round"),
+        "action must be created_round"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "registration_mode").as_deref(),
+        Some("SignUpWithStaticWhitelist"),
+        "registration_mode must be SignUpWithStaticWhitelist"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "voice_credit_mode").as_deref(),
+        Some("Unified"),
+        "voice_credit_mode must be Unified"
+    );
+
+    // SignUpWithStaticWhitelist must NOT have pre-deactivate attrs
+    assert!(
+        event_attr_value(attrs, "pre_deactivate_root").is_none(),
+        "SignUpWithStaticWhitelist event must not have pre_deactivate_root"
+    );
+    assert!(
+        event_attr_value(attrs, "pre_deactivate_coordinator_x").is_none(),
+        "SignUpWithStaticWhitelist event must not have pre_deactivate_coordinator_x"
+    );
+    assert!(
+        event_attr_value(attrs, "pre_deactivate_coordinator_y").is_none(),
+        "SignUpWithStaticWhitelist event must not have pre_deactivate_coordinator_y"
+    );
+}
+
+/// Test created_round event for PrePopulated (pre-deactivate) mode: registration_mode and pre_deactivate_* attrs.
+#[test]
+fn test_created_round_event_pre_populated() {
+    use cw_amaci::state::PubKey;
+
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pre_deactivate_root = Uint256::from_u128(12345u128);
+    let pre_deactivate_coordinator = PubKey {
+        x: Uint256::from_u128(111u128),
+        y: Uint256::from_u128(222u128),
+    };
+
+    let pay = 20000000000000000000u128; // 20 DORA
+    let resp = contract
+        .create_round_with_pre_populated(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            pre_deactivate_root,
+            pre_deactivate_coordinator,
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let created_round_event = find_created_round_event(&resp.events)
+        .expect("response should contain action=created_round event");
+    let attrs = &created_round_event.attributes;
+    println!("attrs: {:?}", attrs);
+    assert_eq!(
+        event_attr_value(attrs, "action").as_deref(),
+        Some("created_round"),
+        "action must be created_round"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "registration_mode").as_deref(),
+        Some("PrePopulated"),
+        "registration_mode must be PrePopulated"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "voice_credit_mode").as_deref(),
+        Some("Unified"),
+        "voice_credit_mode must be Unified"
+    );
+
+    // PrePopulated must have pre-deactivate attrs
+    let event_root = event_attr_value(attrs, "pre_deactivate_root")
+        .expect("PrePopulated event must have pre_deactivate_root");
+    assert_eq!(event_root, "12345", "pre_deactivate_root must match");
+
+    let event_coord_x = event_attr_value(attrs, "pre_deactivate_coordinator_x")
+        .expect("PrePopulated event must have pre_deactivate_coordinator_x");
+    let event_coord_y = event_attr_value(attrs, "pre_deactivate_coordinator_y")
+        .expect("PrePopulated event must have pre_deactivate_coordinator_y");
+    assert_eq!(
+        event_coord_x, "111",
+        "pre_deactivate_coordinator_x must match"
+    );
+    assert_eq!(
+        event_coord_y, "222",
+        "pre_deactivate_coordinator_y must match"
+    );
 }

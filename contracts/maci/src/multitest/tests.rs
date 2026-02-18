@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
     use crate::error::ContractError;
-    use crate::msg::Groth16ProofType;
+    use crate::msg::{Groth16ProofType, QueryMsg};
     use crate::multitest::{
         create_app, match_user_certificate, owner, uint256_from_decimal_string, user2,
         whitelist_slope, MaciCodeId,
@@ -674,7 +674,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey_non_existent.clone(),
                 },
             )
@@ -707,7 +707,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey1.clone(),
                 },
             )
@@ -744,7 +744,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey2.clone(),
                 },
             )
@@ -760,7 +760,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey1.clone(),
                 },
             )
@@ -832,7 +832,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey1.clone(),
                 },
             )
@@ -842,7 +842,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey2.clone(),
                 },
             )

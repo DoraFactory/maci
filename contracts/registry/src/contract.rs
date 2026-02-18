@@ -9,6 +9,7 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::migrates::migrate_v0_1_5::migrate_v0_1_5;
 use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, QueryMsg};
+use crate::utils::calculate_round_fee_and_params;
 use crate::state::{
     Admin, CircuitChargeConfig, ValidatorSet, ADDRESS_TO_POLL_ID, ADMIN, CIRCUIT_CHARGE_CONFIG,
     COORDINATOR_PUBKEY_MAP, MACI_OPERATOR_IDENTITY, MACI_OPERATOR_PUBKEY, MACI_OPERATOR_SET,
@@ -20,7 +21,7 @@ use cw2::set_contract_version;
 use cw_amaci::msg::{
     InstantiateMsg as AMaciInstantiateMsg, InstantiationData as AMaciInstantiationData,
 };
-use cw_amaci::state::{PubKey, RoundInfo, VotingTime};
+use cw_amaci::state::{PubKey, RegistrationMode, RoundInfo, VoiceCreditMode, VotingTime};
 use cw_utils::parse_instantiate_response_data;
 
 // version info for migration info
@@ -156,7 +157,7 @@ pub fn execute_create_round(
     // Calculate circuit fee and parameters
     let max_option = Uint256::from_u128(vote_option_map.len() as u128);
     let (required_fee, maci_parameters) =
-        crate::utils::calculate_round_fee_and_params(max_voter, max_option)?;
+        calculate_round_fee_and_params(max_voter, max_option)?;
 
     // Verify payment
     let denom = "peaka".to_string();
@@ -522,6 +523,23 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+/// Returns the enum variant name for event attributes (e.g. "Unified" or "Dynamic").
+fn voice_credit_mode_variant_name(mode: &VoiceCreditMode) -> &'static str {
+    match mode {
+        VoiceCreditMode::Unified { .. } => "Unified",
+        VoiceCreditMode::Dynamic => "Dynamic",
+    }
+}
+
+/// Returns the enum variant name for event attributes (e.g. "SignUpWithStaticWhitelist").
+fn registration_mode_variant_name(mode: &RegistrationMode) -> &'static str {
+    match mode {
+        RegistrationMode::SignUpWithStaticWhitelist => "SignUpWithStaticWhitelist",
+        RegistrationMode::SignUpWithOracle { .. } => "SignUpWithOracle",
+        RegistrationMode::PrePopulated { .. } => "PrePopulated",
+    }
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
     match reply.id {
@@ -595,9 +613,15 @@ pub fn reply_created_round(
             serde_json::to_string(&amaci_return_data.vote_option_map)
                 .unwrap_or_else(|_| "[]".to_string()),
         ),
-        // Unified MACI Configuration
-        attr("voice_credit_mode", &amaci_return_data.voice_credit_mode),
-        attr("registration_mode", &amaci_return_data.registration_mode),
+        // Unified MACI Configuration (emit enum variant name only for readability)
+        attr(
+            "voice_credit_mode",
+            voice_credit_mode_variant_name(&amaci_return_data.voice_credit_mode),
+        ),
+        attr(
+            "registration_mode",
+            registration_mode_variant_name(&amaci_return_data.registration_mode),
+        ),
         attr(
             "state_tree_depth",
             &amaci_return_data.parameters.state_tree_depth.to_string(),
@@ -646,6 +670,29 @@ pub fn reply_created_round(
 
     if amaci_return_data.round_info.link != "" {
         attributes.push(attr("round_link", &amaci_return_data.round_info.link));
+    }
+
+    // voice_credit_amount: only for Unified mode (backward compatible optional attr)
+    if let cw_amaci::state::VoiceCreditMode::Unified { amount } = &amaci_return_data.voice_credit_mode
+    {
+        attributes.push(attr("voice_credit_amount", amount.to_string()));
+    }
+
+    // pre_deactivate_root + pre_deactivate_coordinator: only for PrePopulated (pre-deactivate) mode
+    if let cw_amaci::state::RegistrationMode::PrePopulated {
+        pre_deactivate_root,
+        pre_deactivate_coordinator,
+    } = &amaci_return_data.registration_mode
+    {
+        attributes.push(attr("pre_deactivate_root", pre_deactivate_root.to_string()));
+        attributes.push(attr(
+            "pre_deactivate_coordinator_x",
+            pre_deactivate_coordinator.x.to_string(),
+        ));
+        attributes.push(attr(
+            "pre_deactivate_coordinator_y",
+            pre_deactivate_coordinator.y.to_string(),
+        ));
     }
 
     Ok(Response::new()

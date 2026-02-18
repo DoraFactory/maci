@@ -11,7 +11,7 @@ use crate::{
     state::{CircuitChargeConfig, ValidatorSet},
 };
 use cosmwasm_std::{Addr, Coin, StdResult, Timestamp, Uint256};
-use cw_amaci::msg::{WhitelistBase, WhitelistBaseConfig};
+use cw_amaci::msg::{RegistrationModeConfig, WhitelistBase, WhitelistBaseConfig};
 
 use cw_amaci::state::{PubKey, RoundInfo, VotingTime};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
@@ -379,6 +379,57 @@ impl AmaciRegistryContract {
             },
             registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
                 oracle_pubkey: oracle_whitelist_pubkey,
+            },
+        };
+
+        app.execute_contract(sender, self.addr(), &msg, send_funds)
+    }
+
+    #[track_caller]
+    pub fn create_round_with_pre_populated(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        operator: Addr,
+        circuit_type: Uint256,
+        certification_system: Uint256,
+        pre_deactivate_root: Uint256,
+        pre_deactivate_coordinator: PubKey,
+        send_funds: &[Coin],
+    ) -> AnyResult<AppResponse> {
+        let round_info = RoundInfo {
+            title: String::from("PrePopulated MACI Test"),
+            description: String::from("Pre-deactivate mode"),
+            link: String::from("https://test.com"),
+        };
+
+        let start_time = Timestamp::from_nanos(1571797424879000000);
+        let end_time = start_time.plus_minutes(21);
+
+        let msg = ExecuteMsg::CreateRound {
+            operator,
+            round_info,
+            max_voter: Uint256::from_u128(5u128),
+            vote_option_map: vec![
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ],
+            voting_time: VotingTime {
+                start_time,
+                end_time,
+            },
+            circuit_type,
+            certification_system,
+            deactivate_enabled: false,
+            voice_credit_mode: cw_amaci::state::VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::PrePopulated {
+                pre_deactivate_root,
+                pre_deactivate_coordinator,
             },
         };
 

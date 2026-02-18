@@ -107,8 +107,10 @@ pub enum RegistrationMode {
     
     // SignUp with Oracle: users register individually, access controlled by Oracle signature
     // - Backend signature verification (both AMACI and MACI support)
-    // - Oracle pubkey stored in ORACLE_WHITELIST_PUBKEY storage item
-    SignUpWithOracle,
+    // - oracle_pubkey: visa/verification pubkey (签证pubkey) for certificate verification
+    SignUpWithOracle {
+        oracle_pubkey: String,
+    },
     
     // PrePopulated: bulk import users via PreAddNewKey with ZK proof
     // - Users cannot signup directly, must use PreAddNewKey
@@ -424,9 +426,6 @@ pub struct DelayRecords {
 }
 
 pub const DELAY_RECORDS: Item<DelayRecords> = Item::new("delay_records");
-
-// Oracle whitelist backend pubkey
-pub const ORACLE_WHITELIST_PUBKEY: Item<String> = Item::new("oracle_whitelist_pubkey");
 
 // Oracle whitelist storage per user
 #[cw_serde]

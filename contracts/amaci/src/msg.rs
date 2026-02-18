@@ -351,6 +351,6 @@ pub struct InstantiationData {
     pub deactivate_enabled: bool, // Deactivate feature enabled/disabled
 
     // Unified MACI Configuration (for Registry tracking)
-    pub voice_credit_mode: String, // Serialized mode for display
-    pub registration_mode: String, // Serialized registration mode for display
+    pub voice_credit_mode: VoiceCreditMode,
+    pub registration_mode: RegistrationMode,
 }

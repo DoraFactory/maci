@@ -2,24 +2,26 @@ use crate::circuit_params::match_vkeys;
 use crate::error::ContractError;
 use crate::groth16_parser::{parse_groth16_proof, parse_groth16_vkey};
 use crate::msg::{
-    ExecuteMsg, Groth16ProofType, InstantiateMsg, InstantiationData, QueryMsg, TallyDelayInfo,
+    ExecuteMsg, Groth16ProofType, InstantiateMsg, InstantiationData, QueryMsg,
+    RegistrationConfigInfo, RegistrationConfigUpdate, RegistrationModeConfig, TallyDelayInfo,
+    WhitelistBaseConfig,
 };
 use crate::state::{
     Admin, DelayRecord, DelayRecords, DelayType, Groth16ProofStr, MaciParameters, MessageData,
     OracleWhitelistUser, Period, PeriodStatus, PubKey, QuinaryTreeRoot, RegistrationMode,
-    RoundInfo, StateLeaf, VotingTime, Whitelist, WhitelistConfig, ADMIN, CERTSYSTEM, CIRCUITTYPE,
-    COORDINATORHASH, CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT, CURRENT_STATE_COMMITMENT,
-    CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_DELAY, DEACTIVATE_DENOM,
-    DEACTIVATE_ENABLED, DEACTIVATE_FEE, DELAY_RECORDS, DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES,
-    FEE_RECIPIENT, FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS, GROTH16_NEWKEY_VKEYS,
-    GROTH16_PROCESS_VKEYS, GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS,
+    RoundInfo, StateLeaf, VoiceCreditMode, VotingTime, Whitelist, WhitelistConfig, ADMIN,
+    CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH, CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT,
+    CURRENT_STATE_COMMITMENT, CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_DELAY,
+    DEACTIVATE_DENOM, DEACTIVATE_ENABLED, DEACTIVATE_FEE, DELAY_RECORDS, DMSG_CHAIN_LENGTH,
+    DMSG_HASHES, DNODES, FEE_RECIPIENT, FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS,
+    GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS, GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS,
     MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR, MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH,
-    MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, ORACLE_WHITELIST_PUBKEY,
-    PENALTY_RATE, PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT,
-    PROCESSED_DMSG_COUNT, PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB, REGISTRATION_MODE,
-    RESULT, ROUNDINFO, SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_DELAY_MAX_HOURS,
-    TALLY_TIMEOUT, TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT,
-    VOICE_CREDIT_MODE, VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
+    MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE, PERIOD, POLL_ID,
+    PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT,
+    PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB, REGISTRATION_MODE, RESULT, ROUNDINFO,
+    SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_DELAY_MAX_HOURS, TALLY_TIMEOUT, TOTAL_RESULT,
+    USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE, VOTEOPTIONMAP,
+    VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
 };
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
@@ -89,8 +91,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// Returns a Vec<WhitelistConfig> ready to be stored
 fn validate_and_process_whitelist(
-    users: &[crate::msg::WhitelistBaseConfig],
-    voice_credit_mode: &crate::state::VoiceCreditMode,
+    users: &[WhitelistBaseConfig],
+    voice_credit_mode: &VoiceCreditMode,
     default_amount: cosmwasm_std::Uint256,
 ) -> Result<Vec<WhitelistConfig>, ContractError> {
     let mut processed_users: Vec<WhitelistConfig> = Vec::new();
@@ -121,11 +123,11 @@ fn validate_and_process_whitelist(
 
         // Determine amount and validate based on VoiceCreditMode
         let amount = match voice_credit_mode {
-            crate::state::VoiceCreditMode::Unified { .. } => {
+            VoiceCreditMode::Unified { .. } => {
                 // Unified mode: use the same amount for all users
                 default_amount
             }
-            crate::state::VoiceCreditMode::Dynamic => {
+            VoiceCreditMode::Dynamic => {
                 // Dynamic mode: validate and extract amount from user config
                 match user_config.voice_credit_amount {
                     None => {
@@ -221,8 +223,8 @@ pub fn instantiate(
     // Registration mode combines access control and state initialization
     // This prevents invalid configuration combinations
 
-    match &msg.registration_mode {
-        crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
+    let registration_mode = match &msg.registration_mode {
+        RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
             // SignUp with static whitelist mode
             let max_voter_amount = Uint256::from_u128(
                 5u128.pow(
@@ -245,8 +247,8 @@ pub fn instantiate(
 
             // Validate and process whitelist users
             let default_amount = match &msg.voice_credit_mode {
-                crate::state::VoiceCreditMode::Unified { amount } => *amount,
-                crate::state::VoiceCreditMode::Dynamic => Uint256::zero(), // Will be set from user_config
+                VoiceCreditMode::Unified { amount } => *amount,
+                VoiceCreditMode::Dynamic => Uint256::zero(), // Will be set from user_config
             };
 
             let users = validate_and_process_whitelist(
@@ -258,29 +260,22 @@ pub fn instantiate(
             let whitelists = Whitelist { users };
             WHITELIST.save(deps.storage, &whitelists)?;
 
-            // Save registration mode (SignUp variant)
-            REGISTRATION_MODE.save(
-                deps.storage,
-                &crate::state::RegistrationMode::SignUpWithStaticWhitelist,
-            )?;
+            // SignUp mode: save default/zero pre_deactivate_root
+            PRE_DEACTIVATE_ROOT.save(deps.storage, &Uint256::zero())?;
+
+            RegistrationMode::SignUpWithStaticWhitelist
+        }
+        RegistrationModeConfig::SignUpWithOracle { oracle_pubkey } => {
+            // SignUp with Oracle mode (oracle_pubkey = visa/verification pubkey, stored in RegistrationMode)
 
             // SignUp mode: save default/zero pre_deactivate_root
             PRE_DEACTIVATE_ROOT.save(deps.storage, &Uint256::zero())?;
-        }
-        crate::msg::RegistrationModeConfig::SignUpWithOracle { oracle_pubkey } => {
-            // SignUp with Oracle mode
-            ORACLE_WHITELIST_PUBKEY.save(deps.storage, oracle_pubkey)?;
 
-            // Save registration mode (SignUp with Oracle variant)
-            REGISTRATION_MODE.save(
-                deps.storage,
-                &crate::state::RegistrationMode::SignUpWithOracle,
-            )?;
-
-            // SignUp mode: save default/zero pre_deactivate_root
-            PRE_DEACTIVATE_ROOT.save(deps.storage, &Uint256::zero())?;
+            RegistrationMode::SignUpWithOracle {
+                oracle_pubkey: oracle_pubkey.clone(),
+            }
         }
-        crate::msg::RegistrationModeConfig::PrePopulated {
+        RegistrationModeConfig::PrePopulated {
             pre_deactivate_root,
             pre_deactivate_coordinator,
         } => {
@@ -288,23 +283,11 @@ pub fn instantiate(
 
             // IMPORTANT: PrePopulated mode only supports Unified VC mode
             // because PreAddNewKey ZK proof does not include voice_credit_amount
-            if !matches!(
-                msg.voice_credit_mode,
-                crate::state::VoiceCreditMode::Unified { .. }
-            ) {
+            if !matches!(msg.voice_credit_mode, VoiceCreditMode::Unified { .. }) {
                 return Err(ContractError::InvalidRegistrationConfig {
                     reason: "PrePopulated mode only supports Unified VoiceCreditMode. PreAddNewKey ZK proof does not include per-user voice credit amounts.".to_string(),
                 });
             }
-
-            // Save registration mode with pre-deactivate data
-            REGISTRATION_MODE.save(
-                deps.storage,
-                &crate::state::RegistrationMode::PrePopulated {
-                    pre_deactivate_root: *pre_deactivate_root,
-                    pre_deactivate_coordinator: (*pre_deactivate_coordinator).clone(),
-                },
-            )?;
 
             // Save pre_deactivate_root for PreAddNewKey proof verification
             PRE_DEACTIVATE_ROOT.save(deps.storage, pre_deactivate_root)?;
@@ -313,8 +296,15 @@ pub fn instantiate(
             let coordinator_hash =
                 hash2([pre_deactivate_coordinator.x, pre_deactivate_coordinator.y]);
             PRE_DEACTIVATE_COORDINATOR_HASH.save(deps.storage, &coordinator_hash)?;
+
+            RegistrationMode::PrePopulated {
+                pre_deactivate_root: *pre_deactivate_root,
+                pre_deactivate_coordinator: (*pre_deactivate_coordinator).clone(),
+            }
         }
-    }
+    };
+
+    REGISTRATION_MODE.save(deps.storage, &registration_mode)?;
 
     // Save the MACI parameters to storage
     MACIPARAMETERS.save(deps.storage, &msg.parameters)?;
@@ -468,11 +458,11 @@ pub fn instantiate(
     VOICE_CREDIT_MODE.save(deps.storage, &msg.voice_credit_mode)?;
 
     match &msg.voice_credit_mode {
-        crate::state::VoiceCreditMode::Unified { amount } => {
+        VoiceCreditMode::Unified { amount } => {
             // Unified mode: save the fixed voice credit amount
             VOICE_CREDIT_AMOUNT.save(deps.storage, amount)?;
         }
-        crate::state::VoiceCreditMode::Dynamic => {
+        VoiceCreditMode::Dynamic => {
             // Dynamic mode: each user provides their own amount at signup
             // Save zero as placeholder (actual amounts are per-user)
             VOICE_CREDIT_AMOUNT.save(deps.storage, &Uint256::zero())?;
@@ -594,9 +584,9 @@ pub fn instantiate(
         tally_timeout: old_tally_timeout_set.clone(),
         poll_id: msg.poll_id,
         deactivate_enabled: msg.deactivate_enabled,
-        // Unified MACI Configuration (serialize for display)
-        voice_credit_mode: format!("{:?}", msg.voice_credit_mode),
-        registration_mode: format!("{:?}", msg.registration_mode),
+        // Unified MACI Configuration
+        voice_credit_mode: msg.voice_credit_mode.clone(),
+        registration_mode,
     };
 
     let mut attributes = vec![
@@ -633,8 +623,14 @@ pub fn instantiate(
         attr("certification_system", &certification_system.to_string()),
         attr("penalty_rate", &penalty_rate.to_string()),
         // Unified MACI Configuration
-        attr("voice_credit_mode", &format!("{:?}", msg.voice_credit_mode)),
-        attr("registration_mode", &format!("{:?}", msg.registration_mode)),
+        attr(
+            "voice_credit_mode",
+            &format!("{:?}", data.voice_credit_mode),
+        ),
+        attr(
+            "registration_mode",
+            &format!("{:?}", data.registration_mode),
+        ),
         attr(
             "deactivate_timeout",
             &deactivate_delay.seconds().to_string(),
@@ -774,7 +770,7 @@ pub fn execute_set_round_info(
 // Helper function to validate registration config update
 fn validate_registration_config_update(
     deps: &DepsMut,
-    config: &crate::msg::RegistrationConfigUpdate,
+    config: &RegistrationConfigUpdate,
     num_signups: Uint256,
 ) -> Result<(), ContractError> {
     // Check if modifying VC mode or registration_mode with existing signups
@@ -789,7 +785,7 @@ fn validate_registration_config_update(
     // Validate registration_mode configuration if provided
     if let Some(registration_mode) = &config.registration_mode {
         match registration_mode {
-            crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
+            RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
                 // Validate whitelist user count against state tree depth
                 let cfg = MACIPARAMETERS.load(deps.storage)?;
                 let max_voter_amount = Uint256::from_u128(5u128.pow(
@@ -816,18 +812,18 @@ fn validate_registration_config_update(
                 };
 
                 let default_amount = match vc_mode {
-                    crate::state::VoiceCreditMode::Unified { amount } => *amount,
-                    crate::state::VoiceCreditMode::Dynamic => Uint256::zero(),
+                    VoiceCreditMode::Unified { amount } => *amount,
+                    VoiceCreditMode::Dynamic => Uint256::zero(),
                 };
 
                 // Use the existing validation function
                 validate_and_process_whitelist(&whitelist.users, vc_mode, default_amount)?;
             }
-            crate::msg::RegistrationModeConfig::SignUpWithOracle { oracle_pubkey: _ } => {
+            RegistrationModeConfig::SignUpWithOracle { oracle_pubkey: _ } => {
                 // SignUpWithOracle mode: oracle_pubkey is already provided in the enum
                 // No additional validation needed here
             }
-            crate::msg::RegistrationModeConfig::PrePopulated {
+            RegistrationModeConfig::PrePopulated {
                 pre_deactivate_root: _,
                 pre_deactivate_coordinator,
             } => {
@@ -848,11 +844,11 @@ fn validate_registration_config_update(
                     &VOICE_CREDIT_MODE.load(deps.storage)?
                 };
 
-                if !matches!(vc_mode, crate::state::VoiceCreditMode::Unified { .. }) {
+                if !matches!(vc_mode, VoiceCreditMode::Unified { .. }) {
                     // Provide helpful error message if switching to PrePopulated with Dynamic VC
                     let current_vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
                     let error_msg = if config.voice_credit_mode.is_none()
-                        && matches!(current_vc_mode, crate::state::VoiceCreditMode::Dynamic)
+                        && matches!(current_vc_mode, VoiceCreditMode::Dynamic)
                     {
                         "Cannot switch to PrePopulated mode: current VoiceCreditMode is Dynamic. \
                          PrePopulated mode requires Unified VoiceCreditMode because PreAddNewKey ZK proof \
@@ -875,7 +871,7 @@ fn validate_registration_config_update(
 // Helper function to apply registration config update
 fn apply_registration_config_update(
     deps: DepsMut,
-    config: crate::msg::RegistrationConfigUpdate,
+    config: RegistrationConfigUpdate,
 ) -> Result<Vec<cosmwasm_std::Attribute>, ContractError> {
     let mut attributes = vec![];
 
@@ -891,11 +887,11 @@ fn apply_registration_config_update(
 
         // Update VOICE_CREDIT_AMOUNT based on the mode
         match &voice_credit_mode {
-            crate::state::VoiceCreditMode::Unified { amount } => {
+            VoiceCreditMode::Unified { amount } => {
                 VOICE_CREDIT_AMOUNT.save(deps.storage, amount)?;
                 attributes.push(attr("voice_credit_mode", format!("Unified({})", amount)));
             }
-            crate::state::VoiceCreditMode::Dynamic => {
+            VoiceCreditMode::Dynamic => {
                 VOICE_CREDIT_AMOUNT.save(deps.storage, &Uint256::zero())?;
                 attributes.push(attr("voice_credit_mode", "Dynamic"));
             }
@@ -905,26 +901,21 @@ fn apply_registration_config_update(
     // Update registration_mode if provided
     if let Some(registration_mode_config) = config.registration_mode {
         match registration_mode_config {
-            crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
+            RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
                 // Save whitelist (already validated)
                 let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
                 let default_amount = match &vc_mode {
-                    crate::state::VoiceCreditMode::Unified { amount } => *amount,
-                    crate::state::VoiceCreditMode::Dynamic => Uint256::zero(),
+                    VoiceCreditMode::Unified { amount } => *amount,
+                    VoiceCreditMode::Dynamic => Uint256::zero(),
                 };
 
                 let users =
                     validate_and_process_whitelist(&whitelist.users, &vc_mode, default_amount)?;
                 WHITELIST.save(deps.storage, &Whitelist { users })?;
 
-                // Clear oracle config if switching from SignUpWithOracle
-                ORACLE_WHITELIST_PUBKEY.remove(deps.storage);
-
                 // Save registration mode (SignUp variant)
-                REGISTRATION_MODE.save(
-                    deps.storage,
-                    &crate::state::RegistrationMode::SignUpWithStaticWhitelist,
-                )?;
+                REGISTRATION_MODE
+                    .save(deps.storage, &RegistrationMode::SignUpWithStaticWhitelist)?;
 
                 // SignUp mode: save default/zero pre_deactivate_root
                 PRE_DEACTIVATE_ROOT.save(deps.storage, &Uint256::zero())?;
@@ -932,17 +923,16 @@ fn apply_registration_config_update(
 
                 attributes.push(attr("registration_mode", "SignUpWithStaticWhitelist"));
             }
-            crate::msg::RegistrationModeConfig::SignUpWithOracle { oracle_pubkey } => {
-                // Save oracle pubkey
-                ORACLE_WHITELIST_PUBKEY.save(deps.storage, &oracle_pubkey)?;
-
+            RegistrationModeConfig::SignUpWithOracle { oracle_pubkey } => {
                 // Clear static whitelist if switching from SignUpWithStaticWhitelist
                 WHITELIST.remove(deps.storage);
 
-                // Save registration mode (SignUp with Oracle variant)
+                // Save registration mode (SignUp with Oracle variant, pubkey in enum)
                 REGISTRATION_MODE.save(
                     deps.storage,
-                    &crate::state::RegistrationMode::SignUpWithOracle,
+                    &RegistrationMode::SignUpWithOracle {
+                        oracle_pubkey: oracle_pubkey.clone(),
+                    },
                 )?;
 
                 // SignUp mode: save default/zero pre_deactivate_root
@@ -951,14 +941,14 @@ fn apply_registration_config_update(
 
                 attributes.push(attr("registration_mode", "SignUpWithOracle"));
             }
-            crate::msg::RegistrationModeConfig::PrePopulated {
+            RegistrationModeConfig::PrePopulated {
                 pre_deactivate_root,
                 pre_deactivate_coordinator,
             } => {
                 // Save registration mode with pre-deactivate data
                 REGISTRATION_MODE.save(
                     deps.storage,
-                    &crate::state::RegistrationMode::PrePopulated {
+                    &RegistrationMode::PrePopulated {
                         pre_deactivate_root,
                         pre_deactivate_coordinator: pre_deactivate_coordinator.clone(),
                     },
@@ -986,7 +976,7 @@ pub fn execute_update_registration_config(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    config: crate::msg::RegistrationConfigUpdate,
+    config: RegistrationConfigUpdate,
 ) -> Result<Response, ContractError> {
     // 1. Check time constraint: must be before voting starts
     let voting_time = VOTINGTIME.load(deps.storage)?;
@@ -1100,11 +1090,11 @@ pub fn execute_sign_up(
     let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
 
     match &registration_mode {
-        crate::state::RegistrationMode::PrePopulated { .. } => {
+        RegistrationMode::PrePopulated { .. } => {
             // PrePopulated mode: users cannot signup directly, must use PreAddNewKey
             return Err(ContractError::Unauthorized {});
         }
-        crate::state::RegistrationMode::SignUpWithStaticWhitelist => {
+        RegistrationMode::SignUpWithStaticWhitelist => {
             // SignUp with Static whitelist mode: check if sender is in whitelist
             if !is_whitelist(deps.as_ref(), &info.sender)? {
                 return Err(ContractError::Unauthorized {});
@@ -1114,18 +1104,17 @@ pub fn execute_sign_up(
                 return Err(ContractError::UserAlreadyRegistered {});
             }
         }
-        crate::state::RegistrationMode::SignUpWithOracle => {
-            // Oracle verified mode: verify certificate
+        RegistrationMode::SignUpWithOracle {
+            oracle_pubkey: oracle_pubkey_str,
+        } => {
+            // Oracle verified mode: verify certificate (oracle_pubkey = visa/verification pubkey)
             let cert = certificate.ok_or(ContractError::CertificateRequired {})?;
-
-            // Load oracle pubkey
-            let oracle_pubkey_str = ORACLE_WHITELIST_PUBKEY.load(deps.storage)?;
 
             // Determine the amount for verification based on VC mode
             let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
             let verify_amount = match vc_mode {
-                crate::state::VoiceCreditMode::Unified { amount: vc_amount } => vc_amount,
-                crate::state::VoiceCreditMode::Dynamic { .. } => {
+                VoiceCreditMode::Unified { amount: vc_amount } => vc_amount,
+                VoiceCreditMode::Dynamic { .. } => {
                     // Dynamic mode requires amount parameter
                     amount.ok_or(ContractError::AmountRequired {})?
                 }
@@ -1145,7 +1134,7 @@ pub fn execute_sign_up(
             let hash = Sha256::digest(&msg);
             let certificate_binary =
                 Binary::from_base64(&cert).map_err(|_| ContractError::InvalidBase64 {})?;
-            let oracle_pubkey_binary = Binary::from_base64(&oracle_pubkey_str)
+            let oracle_pubkey_binary = Binary::from_base64(oracle_pubkey_str)
                 .map_err(|_| ContractError::InvalidBase64 {})?;
 
             let verify_result = deps
@@ -1179,11 +1168,11 @@ pub fn execute_sign_up(
     // ============================================
     let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
     let voice_credit_balance = match &vc_mode {
-        crate::state::VoiceCreditMode::Unified { amount: vc_amount } => *vc_amount,
-        crate::state::VoiceCreditMode::Dynamic => {
+        VoiceCreditMode::Unified { amount: vc_amount } => *vc_amount,
+        VoiceCreditMode::Dynamic => {
             // Dynamic mode: amount source depends on registration mode
             match &registration_mode {
-                crate::state::RegistrationMode::SignUpWithStaticWhitelist => {
+                RegistrationMode::SignUpWithStaticWhitelist => {
                     // Static whitelist: read pre-configured amount from whitelist
                     let whitelist = WHITELIST.load(deps.storage)?;
                     let user_config = whitelist
@@ -1195,11 +1184,11 @@ pub fn execute_sign_up(
                     // Amount was set during instantiate (Unified or Dynamic preset)
                     user_config.voice_credit_amount
                 }
-                crate::state::RegistrationMode::SignUpWithOracle => {
+                RegistrationMode::SignUpWithOracle { .. } => {
                     // Oracle verified: use user-provided amount (verified by certificate)
                     amount.ok_or(ContractError::AmountRequired {})?
                 }
-                crate::state::RegistrationMode::PrePopulated { .. } => {
+                RegistrationMode::PrePopulated { .. } => {
                     // Already handled above, this branch should not be reached
                     return Err(ContractError::Unauthorized {});
                 }
@@ -1261,13 +1250,13 @@ pub fn execute_sign_up(
     // Step 4: Update Registration State
     // ============================================
     match &registration_mode {
-        crate::state::RegistrationMode::SignUpWithStaticWhitelist => {
+        RegistrationMode::SignUpWithStaticWhitelist => {
             // Update whitelist to mark user as registered
             let mut whitelist = WHITELIST.load(deps.storage)?;
             whitelist.register(&info.sender);
             WHITELIST.save(deps.storage, &whitelist)?;
         }
-        crate::state::RegistrationMode::SignUpWithOracle => {
+        RegistrationMode::SignUpWithOracle { .. } => {
             // Save oracle whitelist record (use pubkey as key)
             let oracle_user = OracleWhitelistUser {
                 balance: voice_credit_balance,
@@ -1282,7 +1271,7 @@ pub fn execute_sign_up(
                 &oracle_user,
             )?;
         }
-        crate::state::RegistrationMode::PrePopulated { .. } => {
+        RegistrationMode::PrePopulated { .. } => {
             // Already handled above, this branch should not be reached
             return Err(ContractError::Unauthorized {});
         }
@@ -1959,10 +1948,7 @@ pub fn execute_pre_add_new_key(
 ) -> Result<Response, ContractError> {
     // Check RegistrationMode: PreAddNewKey is ONLY allowed in PrePopulated mode
     let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
-    if !matches!(
-        registration_mode,
-        crate::state::RegistrationMode::PrePopulated { .. }
-    ) {
+    if !matches!(registration_mode, RegistrationMode::PrePopulated { .. }) {
         return Err(ContractError::PreAddNewKeyNotAllowed {});
     }
 
@@ -2049,8 +2035,8 @@ pub fn execute_pre_add_new_key(
     // Note: PrePopulated mode is validated to only work with Unified VC mode during instantiation
     let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
     let voice_credit_amount = match vc_mode {
-        crate::state::VoiceCreditMode::Unified { amount } => amount,
-        crate::state::VoiceCreditMode::Dynamic => {
+        VoiceCreditMode::Unified { amount } => amount,
+        VoiceCreditMode::Dynamic => {
             // This should never happen as PrePopulated mode is restricted to Unified VC mode
             // But we handle it gracefully for safety
             return Err(ContractError::InvalidRegistrationConfig {
@@ -2952,7 +2938,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&delay_info)
         }
         QueryMsg::QueryOracleWhitelistConfig {} => {
-            let pubkey = ORACLE_WHITELIST_PUBKEY.may_load(deps.storage)?;
+            // Compatible: return oracle pubkey from registration mode (same Option<String> as before)
+            let pubkey = get_oracle_pubkey(deps)?;
             to_json_binary(&pubkey)
         }
         QueryMsg::CanSignUpWithOracle {
@@ -3001,7 +2988,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let voice_credit_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
             let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
 
-            let config_info = crate::msg::RegistrationConfigInfo {
+            let config_info = RegistrationConfigInfo {
                 deactivate_enabled,
                 voice_credit_mode,
                 registration_mode,
@@ -3034,7 +3021,7 @@ pub fn query_can_sign_up(deps: Deps, sender: &Addr) -> StdResult<bool> {
     let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
     match registration_mode {
         RegistrationMode::SignUpWithStaticWhitelist => Ok(can_sign_up(deps, sender)?),
-        RegistrationMode::SignUpWithOracle => {
+        RegistrationMode::SignUpWithOracle { .. } => {
             // For SignUpWithOracle mode, cannot determine without certificate
             // Return false as it requires certificate verification
             Ok(false)
@@ -3193,6 +3180,15 @@ pub fn calculate_tally_delay(deps: Deps) -> Result<TallyDelayInfo, ContractError
     })
 }
 
+/// Get oracle (visa/verification) pubkey from registration mode. Compatible with QueryOracleWhitelistConfig.
+fn get_oracle_pubkey(deps: Deps) -> StdResult<Option<String>> {
+    let mode = REGISTRATION_MODE.may_load(deps.storage)?;
+    Ok(mode.and_then(|m| match m {
+        RegistrationMode::SignUpWithOracle { oracle_pubkey } => Some(oracle_pubkey),
+        _ => None,
+    }))
+}
+
 // Check if user can sign up with oracle
 fn can_sign_up_with_oracle(
     deps: Deps,
@@ -3200,13 +3196,10 @@ fn can_sign_up_with_oracle(
     pubkey: PubKey,
     certificate: String,
 ) -> StdResult<bool> {
-    // Check if oracle whitelist pubkey exists
-    let oracle_whitelist_pubkey = ORACLE_WHITELIST_PUBKEY.may_load(deps.storage)?;
-    if oracle_whitelist_pubkey.is_none() {
-        return Ok(false);
-    }
-    let oracle_pubkey_str = oracle_whitelist_pubkey
-        .expect("oracle_whitelist_pubkey is Some because we just checked is_none()");
+    let oracle_pubkey_str = match get_oracle_pubkey(deps)? {
+        Some(p) => p,
+        None => return Ok(false),
+    };
 
     // Use the contract's voice_credit_amount for verification
     let voice_credit_amount = VOICE_CREDIT_AMOUNT.load(deps.storage)?;
@@ -3235,7 +3228,7 @@ fn can_sign_up_with_oracle(
     Ok(verify_result)
 }
 
-// Get user balance with oracle verification
+// Get user balance with oracle verification (uses oracle_pubkey from registration mode)
 fn user_balance_of_oracle(
     deps: Deps,
     env: Env,
@@ -3260,13 +3253,10 @@ fn user_balance_of_oracle(
         return Ok(cfg.balance_of());
     }
 
-    // Check if oracle whitelist pubkey exists
-    let oracle_whitelist_pubkey = ORACLE_WHITELIST_PUBKEY.may_load(deps.storage)?;
-    if oracle_whitelist_pubkey.is_none() {
-        return Ok(Uint256::zero());
-    }
-    let oracle_pubkey_str = oracle_whitelist_pubkey
-        .expect("oracle_whitelist_pubkey is Some because we just checked is_none()");
+    let oracle_pubkey_str = match get_oracle_pubkey(deps)? {
+        Some(p) => p,
+        None => return Ok(Uint256::zero()),
+    };
 
     // Use the contract's voice_credit_amount for verification
     let voice_credit_amount = VOICE_CREDIT_AMOUNT.load(deps.storage)?;

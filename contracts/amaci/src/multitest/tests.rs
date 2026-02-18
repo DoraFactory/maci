@@ -1,15 +1,18 @@
 #[cfg(test)]
 mod test {
     use crate::error::ContractError;
-    use crate::msg::Groth16ProofType;
+    use crate::msg::{
+        ExecuteMsg, Groth16ProofType, InstantiateMsg, QueryMsg, RegistrationConfigInfo,
+        RegistrationConfigUpdate, RegistrationModeConfig, WhitelistBase, WhitelistBaseConfig,
+    };
     use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
     use crate::multitest::{
         create_app, owner, test_oracle_pubkey, test_pubkey1, test_pubkey2,
         uint256_from_decimal_string, user1, user2, user3, MaciCodeId, MaciContract,
-        RoundInfo, VotingTime,
     };
     use crate::state::{
-        DelayRecord, DelayRecords, DelayType, MessageData, Period, PeriodStatus, PubKey,
+        DelayRecord, DelayRecords, DelayType, MaciParameters, MessageData, Period, PeriodStatus,
+        PubKey, RegistrationMode, RoundInfo, VoiceCreditMode, VotingTime, Whitelist,
     };
     use cosmwasm_std::{Addr, BlockInfo, Timestamp, Uint256};
     use cw_multi_test::{next_block, Executor};
@@ -1814,12 +1817,12 @@ mod test {
         let label = "Oracle Test";
 
         // Create voting time period
-        let voting_time = crate::state::VotingTime {
+        let voting_time = VotingTime {
             start_time: Timestamp::from_seconds(1577836800), // 2020-01-01
             end_time: Timestamp::from_seconds(1577836800 + 11 * 60), // 2020-01-01 + 11 minutes
         };
 
-        let round_info = crate::state::RoundInfo {
+        let round_info = RoundInfo {
             title: "Oracle Test Round".to_string(),
             description: "Testing oracle signup functionality".to_string(),
             link: "https://example.com".to_string(),
@@ -1919,12 +1922,12 @@ mod test {
         let label = "Oracle Invalid Cert Test";
 
         // Create voting time period
-        let voting_time = crate::state::VotingTime {
+        let voting_time = VotingTime {
             start_time: Timestamp::from_seconds(1577836800),
             end_time: Timestamp::from_seconds(1577836800 + 11 * 60), // +11 minutes
         };
 
-        let round_info = crate::state::RoundInfo {
+        let round_info = RoundInfo {
             title: "Oracle Invalid Cert Test".to_string(),
             description: "Testing invalid certificate".to_string(),
             link: "https://example.com".to_string(),
@@ -1973,12 +1976,12 @@ mod test {
         let code_id = MaciCodeId::store_code(&mut app);
         let label = "Oracle No Config Test";
 
-        let voting_time = crate::state::VotingTime {
+        let voting_time = VotingTime {
             start_time: Timestamp::from_seconds(1577836800),
             end_time: Timestamp::from_seconds(1577836800 + 11 * 60), // +11 minutes
         };
 
-        let round_info = crate::state::RoundInfo {
+        let round_info = RoundInfo {
             title: "Oracle No Config Test".to_string(),
             description: "Testing oracle without config".to_string(),
             link: "https://example.com".to_string(),
@@ -2045,7 +2048,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey_non_existent.clone(),
                 },
             )
@@ -2063,7 +2066,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey1.clone(),
                 },
             )
@@ -2085,7 +2088,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey2.clone(),
                 },
             )
@@ -2101,7 +2104,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey1.clone(),
                 },
             )
@@ -2164,7 +2167,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey1.clone(),
                 },
             )
@@ -2174,7 +2177,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::Signuped {
+                &QueryMsg::Signuped {
                     pubkey: pubkey2.clone(),
                 },
             )
@@ -2210,7 +2213,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::GetDeactivateEnabled {},
+                &QueryMsg::GetDeactivateEnabled {},
             )
             .unwrap();
 
@@ -2226,7 +2229,7 @@ mod test {
         let result = app.execute_contract(
             user1(),
             maci_contract.addr().clone(),
-            &crate::msg::ExecuteMsg::PublishDeactivateMessage {
+            &ExecuteMsg::PublishDeactivateMessage {
                 message: MessageData {
                     data: [Uint256::zero(); 10],
                 },
@@ -2258,7 +2261,7 @@ mod test {
         let result = app.execute_contract(
             owner(),
             maci_contract.addr().clone(),
-            &crate::msg::ExecuteMsg::UploadDeactivateMessage {
+            &ExecuteMsg::UploadDeactivateMessage {
                 deactivate_message: vec![vec![Uint256::zero(); 10]],
             },
             &[],
@@ -2284,7 +2287,7 @@ mod test {
         let result = app.execute_contract(
             owner(),
             maci_contract.addr().clone(),
-            &crate::msg::ExecuteMsg::ProcessDeactivateMessage {
+            &ExecuteMsg::ProcessDeactivateMessage {
                 size: Uint256::from_u128(1),
                 new_deactivate_commitment: Uint256::zero(),
                 new_deactivate_root: Uint256::zero(),
@@ -2335,7 +2338,7 @@ mod test {
         let _ = app.execute_contract(
             user1(),
             maci_contract.addr().clone(),
-            &crate::msg::ExecuteMsg::SignUp {
+            &ExecuteMsg::SignUp {
                 pubkey: pubkey.clone(),
                 certificate: None,
                 amount: None,
@@ -2347,7 +2350,7 @@ mod test {
         let result = app.execute_contract(
             user1(),
             maci_contract.addr().clone(),
-            &crate::msg::ExecuteMsg::PublishDeactivateMessage {
+            &ExecuteMsg::PublishDeactivateMessage {
                 message: MessageData {
                     data: [Uint256::from_u128(1); 10],
                 },
@@ -2397,7 +2400,7 @@ mod test {
         let _ = app.execute_contract(
             user1(),
             maci_contract.addr().clone(),
-            &crate::msg::ExecuteMsg::SignUp {
+            &ExecuteMsg::SignUp {
                 pubkey: pubkey.clone(),
                 certificate: None,
                 amount: None,
@@ -2419,7 +2422,7 @@ mod test {
         let result = app.execute_contract(
             user1(),
             maci_contract.addr().clone(),
-            &crate::msg::ExecuteMsg::PublishDeactivateMessage {
+            &ExecuteMsg::PublishDeactivateMessage {
                 message: MessageData {
                     data: [Uint256::from_u128(1); 10],
                 },
@@ -2465,7 +2468,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::GetDMsgChainLength {},
+                &QueryMsg::GetDMsgChainLength {},
             )
             .unwrap();
         assert_eq!(
@@ -2513,7 +2516,7 @@ mod test {
             let _ = app.execute_contract(
                 user_addr,
                 maci_contract.addr().clone(),
-                &crate::msg::ExecuteMsg::SignUp {
+                &ExecuteMsg::SignUp {
                     pubkey: (**pubkey).clone(),
                     certificate: None,
                     amount: None,
@@ -2534,7 +2537,7 @@ mod test {
             let _ = app.execute_contract(
                 user_addr,
                 maci_contract.addr().clone(),
-                &crate::msg::ExecuteMsg::PublishDeactivateMessage {
+                &ExecuteMsg::PublishDeactivateMessage {
                     message: MessageData {
                         data: [Uint256::from_u128(i as u128); 10],
                     },
@@ -2563,7 +2566,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr().clone(),
-                &crate::msg::QueryMsg::GetDMsgChainLength {},
+                &QueryMsg::GetDMsgChainLength {},
             )
             .unwrap();
         assert_eq!(
@@ -2587,13 +2590,13 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetDeactivateEnabled {},
+                &QueryMsg::GetDeactivateEnabled {},
             )
             .unwrap();
         assert!(!deactivate_enabled, "Initially deactivate should be disabled");
 
         // Update: enable deactivate
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: Some(true),
             voice_credit_mode: None,
             registration_mode: None,
@@ -2608,7 +2611,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetDeactivateEnabled {},
+                &QueryMsg::GetDeactivateEnabled {},
             )
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should now be enabled");
@@ -2630,13 +2633,13 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetDeactivateEnabled {},
+                &QueryMsg::GetDeactivateEnabled {},
             )
             .unwrap();
         assert!(!deactivate_enabled, "Initially deactivate should be disabled");
 
         // Update 1: enable deactivate
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: Some(true),
             voice_credit_mode: None,
             registration_mode: None,
@@ -2651,13 +2654,13 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetDeactivateEnabled {},
+                &QueryMsg::GetDeactivateEnabled {},
             )
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should be enabled");
 
         // Update 2: disable deactivate again
-        let config2 = crate::msg::RegistrationConfigUpdate {
+        let config2 = RegistrationConfigUpdate {
             deactivate_enabled: Some(false),
             voice_credit_mode: None,
             registration_mode: None,
@@ -2672,7 +2675,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetDeactivateEnabled {},
+                &QueryMsg::GetDeactivateEnabled {},
             )
             .unwrap();
         assert!(!deactivate_enabled, "Deactivate should be disabled again");
@@ -2684,9 +2687,9 @@ mod test {
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
 
         // Update: change from Unified to Dynamic VC mode
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
-            voice_credit_mode: Some(crate::state::VoiceCreditMode::Dynamic),
+            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
             registration_mode: None,
         };
 
@@ -2707,9 +2710,9 @@ mod test {
         });
 
         // Update 1: Change from Unified to Dynamic
-        let config1 = crate::msg::RegistrationConfigUpdate {
+        let config1 = RegistrationConfigUpdate {
             deactivate_enabled: None,
-            voice_credit_mode: Some(crate::state::VoiceCreditMode::Dynamic),
+            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
             registration_mode: None,
         };
 
@@ -2718,23 +2721,23 @@ mod test {
             .expect("Should allow changing VC mode before voting");
 
         // Verify VC mode is Dynamic
-        let reg_config: crate::msg::RegistrationConfigInfo = app
+        let reg_config: RegistrationConfigInfo = app
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetRegistrationConfig {},
+                &QueryMsg::GetRegistrationConfig {},
             )
             .unwrap();
         
         assert!(
-            matches!(reg_config.voice_credit_mode, crate::state::VoiceCreditMode::Dynamic),
+            matches!(reg_config.voice_credit_mode, VoiceCreditMode::Dynamic),
             "Should be Dynamic mode"
         );
 
         // Update 2: Change back to Unified
-        let config2 = crate::msg::RegistrationConfigUpdate {
+        let config2 = RegistrationConfigUpdate {
             deactivate_enabled: None,
-            voice_credit_mode: Some(crate::state::VoiceCreditMode::Unified {
+            voice_credit_mode: Some(VoiceCreditMode::Unified {
                 amount: Uint256::from_u128(200u128),
             }),
             registration_mode: None,
@@ -2745,16 +2748,16 @@ mod test {
             .expect("Should allow changing VC mode again before voting");
 
         // Verify VC mode is Unified
-        let reg_config: crate::msg::RegistrationConfigInfo = app
+        let reg_config: RegistrationConfigInfo = app
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetRegistrationConfig {},
+                &QueryMsg::GetRegistrationConfig {},
             )
             .unwrap();
         
         assert!(
-            matches!(reg_config.voice_credit_mode, crate::state::VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(200u128)),
+            matches!(reg_config.voice_credit_mode, VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(200u128)),
             "Should be Unified mode with 200 credits"
         );
     }
@@ -2771,10 +2774,10 @@ mod test {
         });
 
         // Try to update registration_mode during voting (should fail with PeriodError)
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithOracle {
+            registration_mode: Some(RegistrationModeConfig::SignUpWithOracle {
                 oracle_pubkey: "test_oracle_pubkey".to_string(),
             }),
         };
@@ -2806,7 +2809,7 @@ mod test {
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
 
         // Non-admin tries to update config
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: Some(true),
             voice_credit_mode: None,
             registration_mode: None,
@@ -2841,7 +2844,7 @@ mod test {
         });
 
         // Try to update config after voting starts (should fail)
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: Some(true),
             voice_credit_mode: None,
             registration_mode: None,
@@ -2865,10 +2868,10 @@ mod test {
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
 
         // Update: switch from StaticWhitelist to OracleVerified
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithOracle {
+            registration_mode: Some(RegistrationModeConfig::SignUpWithOracle {
                 oracle_pubkey: "test_oracle_backend_pubkey".to_string(),
             }),
         };
@@ -2882,7 +2885,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::QueryOracleWhitelistConfig {},
+                &QueryMsg::QueryOracleWhitelistConfig {},
             )
             .unwrap();
         assert!(oracle_pubkey.is_some(), "Oracle pubkey should be set");
@@ -2918,21 +2921,21 @@ mod test {
 
         // Update: switch from OracleVerified to StaticWhitelist
         let whitelist_users = vec![
-            crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                 addr: user1(),
                 voice_credit_amount: None, // Unified mode, no need for individual amounts
             },
-            crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                 addr: user2(),
                 voice_credit_amount: None,
             },
         ];
 
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: crate::msg::WhitelistBase {
+            registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase {
                     users: whitelist_users,
                 },
             }),
@@ -2943,9 +2946,9 @@ mod test {
             .expect("Should successfully switch to StaticWhitelist mode");
 
         // Verify whitelist is set
-        let whitelist: crate::state::Whitelist = app
+        let whitelist: Whitelist = app
             .wrap()
-            .query_wasm_smart(contract.addr(), &crate::msg::QueryMsg::WhiteList {})
+            .query_wasm_smart(contract.addr(), &QueryMsg::WhiteList {})
             .unwrap();
         assert_eq!(whitelist.users.len(), 2, "Whitelist should have 2 users");
     }
@@ -2977,21 +2980,21 @@ mod test {
 
         // Combined update: enable deactivate + change VC mode + change registration mode
         let whitelist_users = vec![
-            crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                 addr: user1(),
                 voice_credit_amount: Some(Uint256::from_u128(100)),
             },
-            crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                 addr: user2(),
                 voice_credit_amount: Some(Uint256::from_u128(200)),
             },
         ];
 
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: Some(true),
-            voice_credit_mode: Some(crate::state::VoiceCreditMode::Dynamic),
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: crate::msg::WhitelistBase {
+            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
+            registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase {
                     users: whitelist_users,
                 },
             }),
@@ -3006,14 +3009,14 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetDeactivateEnabled {},
+                &QueryMsg::GetDeactivateEnabled {},
             )
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should be enabled");
 
-        let whitelist: crate::state::Whitelist = app
+        let whitelist: Whitelist = app
             .wrap()
-            .query_wasm_smart(maci_contract.addr(), &crate::msg::QueryMsg::WhiteList {})
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::WhiteList {})
             .unwrap();
         assert_eq!(whitelist.users.len(), 2, "Whitelist should have 2 users");
         assert_eq!(
@@ -3034,16 +3037,16 @@ mod test {
         
         // Start with PrePopulated mode
         let code_id = MaciCodeId::store_code(&mut app);
-        let parameters = crate::state::MaciParameters {
+        let parameters = MaciParameters {
             state_tree_depth: Uint256::from_u128(2u128),
             int_state_tree_depth: Uint256::from_u128(1u128),
             message_batch_size: Uint256::from_u128(5u128),
             vote_option_tree_depth: Uint256::from_u128(1u128),
         };
         
-        let init_msg = crate::msg::InstantiateMsg {
+        let init_msg = InstantiateMsg {
             parameters,
-            coordinator: crate::state::PubKey {
+            coordinator: PubKey {
                 x: uint256_from_decimal_string(
                     "3557592161792765812904087712812111121909518311142005886657252371904276697771",
                 ),
@@ -3067,12 +3070,12 @@ mod test {
             admin: owner(),
             fee_recipient: owner(),
             poll_id: 1,
-            voice_credit_mode: crate::state::VoiceCreditMode::Unified {
+            voice_credit_mode: VoiceCreditMode::Unified {
                 amount: Uint256::from_u128(100),
             },
-            registration_mode: crate::msg::RegistrationModeConfig::PrePopulated {
+            registration_mode: RegistrationModeConfig::PrePopulated {
                 pre_deactivate_root: Uint256::from_u128(12345),
-                pre_deactivate_coordinator: crate::state::PubKey {
+                pre_deactivate_coordinator: PubKey {
                     x: Uint256::from_u128(111),
                     y: Uint256::from_u128(222),
                 },
@@ -3098,17 +3101,17 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr(),
-                &crate::msg::QueryMsg::QueryPreDeactivateRoot {},
+                &QueryMsg::QueryPreDeactivateRoot {},
             )
             .unwrap();
         assert_eq!(initial_root, Uint256::from_u128(12345));
         
         // Switch to SignUp mode with StaticWhitelist
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: crate::msg::WhitelistBase { users: vec![] },
+            registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase { users: vec![] },
             }),
         };
         
@@ -3121,7 +3124,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr(),
-                &crate::msg::QueryMsg::QueryPreDeactivateRoot {},
+                &QueryMsg::QueryPreDeactivateRoot {},
             )
             .unwrap();
         assert_eq!(new_root, Uint256::zero(), "Pre-deactivate root should be cleared");
@@ -3133,12 +3136,12 @@ mod test {
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
         
         // Switch from SignUp to PrePopulated mode
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::PrePopulated {
+            registration_mode: Some(RegistrationModeConfig::PrePopulated {
                 pre_deactivate_root: Uint256::from_u128(99999),
-                pre_deactivate_coordinator: crate::state::PubKey {
+                pre_deactivate_coordinator: PubKey {
                     x: Uint256::from_u128(333),
                     y: Uint256::from_u128(444),
                 },
@@ -3154,7 +3157,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::QueryPreDeactivateRoot {},
+                &QueryMsg::QueryPreDeactivateRoot {},
             )
             .unwrap();
         assert_eq!(
@@ -3168,7 +3171,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::QueryPreDeactivateCoordinatorHash {},
+                &QueryMsg::QueryPreDeactivateCoordinatorHash {},
             )
             .unwrap();
         assert!(coordinator_hash.is_some(), "Coordinator hash should be set");
@@ -3186,10 +3189,10 @@ mod test {
         });
         
         // Update 1: Switch to Oracle mode
-        let config1 = crate::msg::RegistrationConfigUpdate {
+        let config1 = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithOracle {
+            registration_mode: Some(RegistrationModeConfig::SignUpWithOracle {
                 oracle_pubkey: "test_oracle_key_123".to_string(),
             }),
         };
@@ -3199,27 +3202,27 @@ mod test {
             .expect("Should allow switching to Oracle mode before voting");
         
         // Verify registration mode is Oracle
-        let reg_config: crate::msg::RegistrationConfigInfo = app
+        let reg_config: RegistrationConfigInfo = app
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetRegistrationConfig {},
+                &QueryMsg::GetRegistrationConfig {},
             )
             .unwrap();
         
         assert!(
-            matches!(reg_config.registration_mode, crate::state::RegistrationMode::SignUpWithOracle),
+            matches!(reg_config.registration_mode, RegistrationMode::SignUpWithOracle { .. }),
             "Should be Oracle mode"
         );
         
         // Update 2: Switch back to Whitelist mode
-        let config2 = crate::msg::RegistrationConfigUpdate {
+        let config2 = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: crate::msg::WhitelistBase {
+            registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase {
                     users: vec![
-                        crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                             addr: user1(),
                             voice_credit_amount: None,
                         },
@@ -3233,16 +3236,16 @@ mod test {
             .expect("Should allow switching back to Whitelist mode before voting");
         
         // Verify registration mode is Whitelist
-        let reg_config: crate::msg::RegistrationConfigInfo = app
+        let reg_config: RegistrationConfigInfo = app
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetRegistrationConfig {},
+                &QueryMsg::GetRegistrationConfig {},
             )
             .unwrap();
         
         assert!(
-            matches!(reg_config.registration_mode, crate::state::RegistrationMode::SignUpWithStaticWhitelist),
+            matches!(reg_config.registration_mode, RegistrationMode::SignUpWithStaticWhitelist),
             "Should be Whitelist mode"
         );
     }
@@ -3259,12 +3262,12 @@ mod test {
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
         
         // Try to switch to PrePopulated without valid coordinator (should fail)
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::PrePopulated {
+            registration_mode: Some(RegistrationModeConfig::PrePopulated {
                 pre_deactivate_root: Uint256::from_u128(12345),
-                pre_deactivate_coordinator: crate::state::PubKey {
+                pre_deactivate_coordinator: PubKey {
                     x: Uint256::zero(),
                     y: Uint256::zero(),
                 },
@@ -3292,11 +3295,11 @@ mod test {
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
 
         // Query initial configuration
-        let config: crate::msg::RegistrationConfigInfo = app
+        let config: RegistrationConfigInfo = app
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetRegistrationConfig {},
+                &QueryMsg::GetRegistrationConfig {},
             )
             .unwrap();
 
@@ -3304,21 +3307,21 @@ mod test {
         assert!(!config.deactivate_enabled, "Initially deactivate should be disabled");
         
         match config.voice_credit_mode {
-            crate::state::VoiceCreditMode::Unified { amount } => {
+VoiceCreditMode::Unified { amount } => {
                 assert_eq!(amount, Uint256::from_u128(100), "Default VC amount should be 100");
             }
             _ => panic!("Expected Unified mode"),
         }
         
         assert!(
-            matches!(config.registration_mode, crate::state::RegistrationMode::SignUpWithStaticWhitelist),
+            matches!(config.registration_mode, RegistrationMode::SignUpWithStaticWhitelist),
             "Should be SignUpWithStaticWhitelist mode"
         );
 
         // Update configuration
-        let update_config = crate::msg::RegistrationConfigUpdate {
+        let update_config = RegistrationConfigUpdate {
             deactivate_enabled: Some(true),
-            voice_credit_mode: Some(crate::state::VoiceCreditMode::Dynamic),
+            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
             registration_mode: None,
         };
 
@@ -3327,11 +3330,11 @@ mod test {
             .expect("Should update config");
 
         // Query updated configuration
-        let updated_config: crate::msg::RegistrationConfigInfo = app
+        let updated_config: RegistrationConfigInfo = app
             .wrap()
             .query_wasm_smart(
                 maci_contract.addr(),
-                &crate::msg::QueryMsg::GetRegistrationConfig {},
+                &QueryMsg::GetRegistrationConfig {},
             )
             .unwrap();
 
@@ -3339,12 +3342,12 @@ mod test {
         assert!(updated_config.deactivate_enabled, "Deactivate should be enabled");
         
         assert!(
-            matches!(updated_config.voice_credit_mode, crate::state::VoiceCreditMode::Dynamic),
+            matches!(updated_config.voice_credit_mode, VoiceCreditMode::Dynamic),
             "Should be Dynamic mode now"
         );
         
         assert!(
-            matches!(updated_config.registration_mode, crate::state::RegistrationMode::SignUpWithStaticWhitelist),
+            matches!(updated_config.registration_mode, RegistrationMode::SignUpWithStaticWhitelist),
             "Should still be SignUpWithStaticWhitelist mode"
         );
     }
@@ -3378,9 +3381,9 @@ mod test {
         ).unwrap();
 
         // Query whitelist in OracleVerified mode (should return empty list, not error)
-        let whitelist: crate::state::Whitelist = app
+        let whitelist: Whitelist = app
             .wrap()
-            .query_wasm_smart(contract.addr(), &crate::msg::QueryMsg::WhiteList {})
+            .query_wasm_smart(contract.addr(), &QueryMsg::WhiteList {})
             .expect("WhiteList query should work in OracleVerified mode");
         
         assert_eq!(whitelist.users.len(), 0, "Should return empty whitelist in OracleVerified mode");
@@ -3390,7 +3393,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr(),
-                &crate::msg::QueryMsg::IsWhiteList { sender: user1() },
+                &QueryMsg::IsWhiteList { sender: user1() },
             )
             .expect("IsWhiteList query should work in OracleVerified mode");
         
@@ -3401,7 +3404,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr(),
-                &crate::msg::QueryMsg::IsRegister { sender: user1() },
+                &QueryMsg::IsRegister { sender: user1() },
             )
             .expect("IsRegister query should work in OracleVerified mode");
         
@@ -3412,7 +3415,7 @@ mod test {
             .wrap()
             .query_wasm_smart(
                 contract.addr(),
-                &crate::msg::QueryMsg::CanSignUp { sender: user1() },
+                &QueryMsg::CanSignUp { sender: user1() },
             )
             .expect("CanSignUp query should work in OracleVerified mode");
         

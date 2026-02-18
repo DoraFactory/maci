@@ -4,8 +4,8 @@ use cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor, StargateAcc
 use crate::error::ContractError;
 use crate::msg::ExecuteMsg;
 use crate::multitest::{
-    admin, create_app, creator, operator1, operator2, treasury_manager, user1, user2, SaasCodeId,
-    DORA_DEMON,
+    admin, create_app, creator, mock_registry_contract, operator1, operator2, treasury_manager,
+    test_round_info, test_voting_time, user1, user2, SaasCodeId, DORA_DEMON,
 };
 use cw_amaci::multitest::uint256_from_decimal_string;
 use cw_maci;
@@ -22,7 +22,7 @@ fn test_instantiate_saas_contract() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -57,7 +57,7 @@ fn test_update_config() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -92,7 +92,7 @@ fn test_operator_management() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -169,7 +169,7 @@ fn test_deposit_and_withdraw() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -391,7 +391,7 @@ fn test_create_api_maci_round_unauthorized() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -901,7 +901,7 @@ fn test_treasury_manager_withdraw_success() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -952,7 +952,7 @@ fn test_admin_withdraw_fails() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -984,7 +984,7 @@ fn test_treasury_manager_cannot_manage_operators() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -1045,7 +1045,7 @@ fn test_deposit_still_public() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -1096,7 +1096,7 @@ fn test_role_separation_complete_workflow() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -1157,7 +1157,7 @@ fn test_migration_sets_treasury_manager() {
             creator(),
             admin(),
             treasury_manager(),
-            crate::multitest::mock_registry_contract(),
+            mock_registry_contract(),
             DORA_DEMON.to_string(),
             "SaaS Contract",
         )
@@ -1345,8 +1345,8 @@ fn test_create_amaci_round_success_real() {
     let dora_operator = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug"); // Use valid dora address
     let max_voter = Uint256::from(25u128);
     let voice_credit_amount = Uint256::from(100u128);
-    let round_info = crate::multitest::test_round_info();
-    let voting_time = crate::multitest::test_voting_time();
+    let round_info = test_round_info();
+    let voting_time = test_voting_time();
     let circuit_type = Uint256::zero();
     let certification_system = Uint256::zero();
 
@@ -1501,8 +1501,8 @@ fn test_create_amaci_round_unauthorized_real() {
             "Test Option 4".to_string(),
             "Test Option 5".to_string(),
         ], // vote_option_map
-        crate::multitest::test_round_info(),
-        crate::multitest::test_voting_time(),
+        test_round_info(),
+        test_voting_time(),
         cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
             whitelist: cw_amaci::msg::WhitelistBase {
                 users: vec![],

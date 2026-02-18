@@ -6,7 +6,8 @@ mod tests;
 use anyhow::Result as AnyResult;
 
 use crate::state::{
-    DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VotingTime,
+    DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VoiceCreditMode,
+    VotingTime,
 };
 use crate::{
     contract::{execute, instantiate, query},
@@ -343,11 +344,11 @@ impl MaciContract {
             fee_recipient: fee_recipient(),
             poll_id: 1u64,
             // Unified MACI Configuration
-            voice_credit_mode: crate::state::VoiceCreditMode::Unified {
+            voice_credit_mode: VoiceCreditMode::Unified {
                 amount: Uint256::from_u128(100u128),
             },
-            registration_mode: crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: whitelist.unwrap_or_else(|| crate::msg::WhitelistBase {
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: whitelist.unwrap_or_else(|| WhitelistBase {
                     users: vec![],
                 }),
             },
@@ -410,11 +411,11 @@ impl MaciContract {
             fee_recipient: fee_recipient(),
             poll_id: 1u64,
             // Unified MACI Configuration
-            voice_credit_mode: crate::state::VoiceCreditMode::Unified {
+            voice_credit_mode: VoiceCreditMode::Unified {
                 amount: Uint256::from_u128(100u128),
             },
-            registration_mode: crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: whitelist.unwrap_or_else(|| crate::msg::WhitelistBase {
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: whitelist.unwrap_or_else(|| WhitelistBase {
                     users: vec![],
                 }),
             },
@@ -437,7 +438,7 @@ impl MaciContract {
         &self,
         app: &mut App,
         sender: Addr,
-        config: crate::msg::RegistrationConfigUpdate,
+        config: RegistrationConfigUpdate,
     ) -> AnyResult<AppResponse> {
         app.execute_contract(
             sender,
@@ -535,10 +536,10 @@ impl MaciContract {
     #[track_caller]
     pub fn set_whitelist(&self, app: &mut App, sender: Addr) -> AnyResult<AppResponse> {
         // Use UpdateRegistrationConfig instead of deprecated SetWhitelists
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+            registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: WhitelistBase {
                     users: vec![
                         WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
@@ -910,10 +911,10 @@ impl MaciContract {
         sender: Addr,
     ) -> AnyResult<AppResponse> {
         // Use UpdateRegistrationConfig instead of deprecated SetWhitelists
-        let config = crate::msg::RegistrationConfigUpdate {
+        let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
-            registration_mode: Some(crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+            registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: WhitelistBase {
                     users: vec![
                         WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
@@ -1265,10 +1266,10 @@ impl MaciContract {
             fee_recipient: fee_recipient(),
             poll_id: 1u64,
             // Unified MACI Configuration
-            voice_credit_mode: crate::state::VoiceCreditMode::Unified {
+            voice_credit_mode: VoiceCreditMode::Unified {
                 amount: Uint256::from_u128(100u128),
             },
-            registration_mode: crate::msg::RegistrationModeConfig::SignUpWithOracle {
+            registration_mode: RegistrationModeConfig::SignUpWithOracle {
                 oracle_pubkey: oracle_whitelist_pubkey,
             },
             deactivate_enabled: false, // Default: disabled
@@ -1298,11 +1299,11 @@ impl MaciContract {
         let whitelist_cfg = Some(WhitelistBase {
             users: if whitelist {
                 vec![
-                    crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                         addr: user1(),
                         voice_credit_amount: None, // Will use Unified mode default
                     },
-                    crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                         addr: user2(),
                         voice_credit_amount: None, // Will use Unified mode default
                     },
@@ -1350,11 +1351,11 @@ impl MaciContract {
         let whitelist_cfg = Some(WhitelistBase {
             users: if whitelist {
                 vec![
-                    crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                         addr: user1(),
                         voice_credit_amount: None, // Will use Unified mode default
                     },
-                    crate::msg::WhitelistBaseConfig {
+WhitelistBaseConfig {
                         addr: user2(),
                         voice_credit_amount: None, // Will use Unified mode default
                     },
@@ -1395,11 +1396,11 @@ impl MaciContract {
             fee_recipient: fee_recipient(),
             poll_id: 1u64,
             // Unified MACI Configuration
-            voice_credit_mode: crate::state::VoiceCreditMode::Unified {
+            voice_credit_mode: VoiceCreditMode::Unified {
                 amount: Uint256::from_u128(100u128),
             },
-            registration_mode: crate::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: whitelist_cfg.unwrap_or_else(|| crate::msg::WhitelistBase {
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: whitelist_cfg.unwrap_or_else(|| WhitelistBase {
                     users: vec![],
                 }),
             },
