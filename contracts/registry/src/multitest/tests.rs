@@ -7,7 +7,7 @@ use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
 use crate::{
     multitest::{
         admin, creator, operator, operator2, operator3, operator_pubkey1, operator_pubkey2,
-        operator_pubkey3, user1, user2, user3, user4, AmaciRegistryCodeId, InstantiationData,
+        operator_pubkey3, user1, user2, user3, user4, user5, AmaciRegistryCodeId, InstantiationData,
         DORA_DEMON,
     },
     state::ValidatorSet,
@@ -2878,4 +2878,356 @@ fn test_created_round_event_pre_populated() {
         event_coord_y, "222",
         "pre_deactivate_coordinator_y must match"
     );
+}
+
+/// Test QueryRegistrationStatus for SignUpWithStaticWhitelist mode.
+/// Covers: whitelisted user, non-whitelisted user, no sender, and after sign-up.
+#[test]
+fn test_query_registration_status_static_whitelist() {
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pay = 20000000000000000000u128; // 20 DORA
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128), // 1p1v
+            Uint256::from_u128(0u128), // groth16
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let amaci_addr = amaci_contract_addr.addr.clone();
+    let maci_contract = MaciContract::new(amaci_addr.clone());
+
+    // user1() ("0") is in whitelist, not yet registered → can_sign_up = true
+    let status: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: Some(user1()),
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(status.can_sign_up, "whitelisted user should be able to sign up");
+    assert!(!status.is_register, "whitelisted user should not be registered yet");
+    assert_eq!(
+        status.balance,
+        Uint256::from_u128(100u128),
+        "balance should equal the unified voice credit amount"
+    );
+
+    // user5() ("4") is NOT in whitelist → can_sign_up = false
+    let status_not_whitelisted: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: Some(user5()),
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_not_whitelisted.can_sign_up,
+        "non-whitelisted user must not be able to sign up"
+    );
+    assert!(
+        !status_not_whitelisted.is_register,
+        "non-whitelisted user must not be registered"
+    );
+
+    // No sender provided → all false
+    let status_no_sender: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(!status_no_sender.can_sign_up);
+    assert!(!status_no_sender.is_register);
+
+    // Advance block to enter voting period, then sign up user1
+    app.update_block(next_block);
+    _ = maci_contract.amaci_sign_up(&mut app, user1(), operator_pubkey1());
+
+    // After sign-up: is_register = true, can_sign_up = false
+    let status_after: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: Some(user1()),
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_after.can_sign_up,
+        "registered user must not be able to sign up again"
+    );
+    assert!(
+        status_after.is_register,
+        "user1 should be registered after sign-up"
+    );
+}
+
+/// Test QueryRegistrationStatus for SignUpWithOracle mode.
+/// Covers: valid certificate, wrong certificate, no pubkey/cert, and after sign-up.
+#[test]
+fn test_query_registration_status_oracle() {
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let oracle_pubkey = "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string();
+    let pay = 20000000000000000000u128; // 20 DORA
+    let resp = contract
+        .create_round_with_oracle(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128), // 1p1v
+            Uint256::from_u128(0u128), // groth16
+            oracle_pubkey,
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let amaci_addr = amaci_contract_addr.addr.clone();
+    let maci_contract = MaciContract::new(amaci_addr.clone());
+    let contract_addr_str = amaci_addr.to_string();
+
+    let test_pubkey = cw_amaci::multitest::test_pubkey1();
+    let valid_cert = generate_certificate_for_pubkey(
+        &contract_addr_str,
+        &test_pubkey.x.to_string(),
+        &test_pubkey.y.to_string(),
+        100u128,
+    );
+
+    // Valid pubkey + valid cert → can_sign_up = true, is_register = false
+    let status_valid: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: Some(test_pubkey.clone()),
+                certificate: Some(valid_cert.clone()),
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(status_valid.can_sign_up, "valid cert should allow sign up");
+    assert!(!status_valid.is_register, "pubkey should not be registered yet");
+    assert_eq!(
+        status_valid.balance,
+        Uint256::from_u128(100u128),
+        "balance should equal the unified voice credit amount"
+    );
+
+    // Valid pubkey + wrong certificate (valid base64, wrong signature) → can_sign_up = false
+    let wrong_cert = "9N+0uBmu7b2Sr2ibC0ViOQ00z7LZwrTJDZmoGit8TScDDzbjXUmOkB4hLKSnLEORX7ITYbeG9409VL3OLCZdag==";
+    let status_wrong_cert: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: Some(test_pubkey.clone()),
+                certificate: Some(wrong_cert.to_string()),
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_wrong_cert.can_sign_up,
+        "wrong cert should not allow sign up"
+    );
+    assert!(!status_wrong_cert.is_register);
+
+    // No pubkey/cert provided → all false
+    let status_no_input: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(!status_no_input.can_sign_up);
+    assert!(!status_no_input.is_register);
+
+    // Advance block to enter voting period, then sign up the pubkey
+    app.update_block(next_block);
+    _ = maci_contract.amaci_sign_up_oracle(&mut app, user1(), test_pubkey.clone(), valid_cert);
+
+    // After sign-up: oracle_registration_status returns early with is_register = true
+    // No certificate re-verification is needed once the pubkey is in ORACLE_WHITELIST
+    let status_after: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: Some(test_pubkey.clone()),
+                certificate: Some(wrong_cert.to_string()),
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_after.can_sign_up,
+        "registered pubkey must not be able to sign up again"
+    );
+    assert!(
+        status_after.is_register,
+        "pubkey should be registered after sign-up"
+    );
+}
+
+/// Test QueryRegistrationStatus for PrePopulated mode.
+/// In this mode can_sign_up is always false; is_register reflects the SIGNUPED map.
+#[test]
+fn test_query_registration_status_pre_populated() {
+    use cw_amaci::state::PubKey;
+
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pre_deactivate_root = Uint256::from_u128(12345u128);
+    let pre_deactivate_coordinator = PubKey {
+        x: Uint256::from_u128(111u128),
+        y: Uint256::from_u128(222u128),
+    };
+
+    let pay = 20000000000000000000u128; // 20 DORA
+    let resp = contract
+        .create_round_with_pre_populated(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128), // 1p1v
+            Uint256::from_u128(0u128), // groth16
+            pre_deactivate_root,
+            pre_deactivate_coordinator,
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let amaci_addr = amaci_contract_addr.addr.clone();
+
+    let test_pubkey = cw_amaci::multitest::test_pubkey1();
+
+    // Query with a pubkey not in SIGNUPED → can_sign_up = false, is_register = false
+    let status_with_pubkey: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: Some(test_pubkey),
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_with_pubkey.can_sign_up,
+        "PrePopulated mode: direct sign-up is not allowed"
+    );
+    assert!(
+        !status_with_pubkey.is_register,
+        "pubkey should not be registered in a fresh round"
+    );
+
+    // Query without pubkey → both false
+    let status_no_pubkey: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(!status_no_pubkey.can_sign_up);
+    assert!(!status_no_pubkey.is_register);
 }

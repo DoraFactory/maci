@@ -9,7 +9,7 @@ import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 import { CertificateEcosystem, ErrorResponse, RoundType } from '../../types';
 import { SignatureResponse } from '../oracle-certificate/types';
 import { getAMaciRoundCircuitFee } from '../contract/utils';
-import { Groth16ProofType, OracleWhitelistConfig } from '../contract/ts/Maci.types';
+import { Groth16ProofType, NullableString, RegistrationStatus } from '../contract/ts/AMaci.types';
 
 export function isErrorResponse(response: unknown): response is ErrorResponse {
   return (
@@ -45,56 +45,31 @@ export class MACI {
     this.maciKeypair = maciKeypair;
   }
 
-  async getPollId({ signer, contractAddress }: { signer: OfflineSigner; contractAddress: string }) {
-    const client = await this.contract.amaciClient({
-      signer,
-      contractAddress
-    });
-
-    const pollId = await client.getPollId();
-    return pollId;
+  async getPollId({ contractAddress }: { contractAddress: string }) {
+    const client = await this.contract.amaciQueryClient({ contractAddress });
+    return client.getPollId();
   }
 
   async getStateIdxInc({
-    signer,
     address,
     contractAddress
   }: {
-    signer: OfflineSigner;
-    address?: string;
+    address: string;
     contractAddress: string;
   }) {
-    if (!address) {
-      address = (await signer.getAccounts())[0].address;
-    }
-
-    const client = await this.contract.maciClient({
-      signer,
-      contractAddress
-    });
-
-    const stateIdx = await client.getStateIdxInc({ address });
-    return stateIdx;
+    const client = await this.contract.amaciQueryClient({ contractAddress });
+    return client.getStateIdxInc({ address });
   }
 
   async getVoiceCreditBalance({
-    signer,
     stateIdx,
     contractAddress
   }: {
-    signer: OfflineSigner;
     stateIdx: number;
     contractAddress: string;
   }) {
-    const client = await this.contract.maciClient({
-      signer,
-      contractAddress
-    });
-
-    const voiceCredit = await client.getVoiceCreditBalance({
-      index: stateIdx.toString()
-    });
-    return voiceCredit;
+    const client = await this.contract.amaciQueryClient({ contractAddress });
+    return client.getVoiceCreditBalance({ index: stateIdx.toString() });
   }
 
   async getStateIdxByPubKey({
@@ -146,117 +121,40 @@ export class MACI {
     }
   }
 
-  // only for maci and oracle maci, amaci will set the voice credit when deploy the contract
-  async queryWhitelistBalanceOf({
-    signer,
-    address,
+  async queryRegistrationStatus({
     contractAddress,
-    certificate
-  }: {
-    signer: OfflineSigner;
-    address?: string;
-    contractAddress: string;
-    certificate?: {
-      signature: string;
-      amount: string;
-    };
-  }): Promise<string> {
-    if (!address) {
-      address = (await signer.getAccounts())[0].address;
-    }
-
-    const round = await this.indexer.getRoundWithFields(contractAddress, [
-      'maciType',
-      'voiceCreditAmount'
-    ]);
-
-    if (isErrorResponse(round)) {
-      throw new Error(`Failed to get round info: ${round.error.type} ${round.error.message}`);
-    }
-
-    if (round.data.round.maciType === 'aMACI') {
-      const isWhiteListed = await this.isWhitelisted({
-        signer,
-        address,
-        contractAddress
-      });
-
-      if (isWhiteListed) {
-        const round = await this.indexer.getRoundWithFields(contractAddress, ['voiceCreditAmount']);
-
-        if (!isErrorResponse(round)) {
-          if (round.data.round.voiceCreditAmount) {
-            return round.data.round.voiceCreditAmount;
-          } else {
-            return '0';
-          }
-        } else {
-          throw new Error(
-            `Failed to query amaci voice credit: ${round.error.type} ${round.error.message}`
-          );
-        }
-      } else {
-        return '0';
-      }
-    }
-
-    // Use unified MACI client (now supports Oracle whitelist)
-    const client = await this.contract.maciClient({
-      signer,
-      contractAddress
-    });
-
-    const balance = await client.whiteBalanceOf({
-      amount: certificate?.amount || '0',
-      certificate: certificate?.signature || '',
-      pubkey: {
-        x: '0',
-        y: '0'
-      }
-    });
-
-    return balance;
-  }
-
-  async isWhitelisted({
-    signer,
     address,
-    contractAddress
+    pubkey,
+    certificate,
+    amount
   }: {
-    signer: OfflineSigner;
-    address?: string;
     contractAddress: string;
-  }) {
-    if (!address) {
-      address = (await signer.getAccounts())[0].address;
-    }
+    /** For SignUpWithStaticWhitelist: the user's wallet address */
+    address?: string;
+    /** For SignUpWithOracle / PrePopulated: the user's MACI pubkey */
+    pubkey?: { x: string; y: string };
+    /** For SignUpWithOracle: the oracle-issued certificate (base64 signature) */
+    certificate?: string;
+    /** For SignUpWithOracle + Dynamic VoiceCreditMode: the amount included in the certificate */
+    amount?: string;
+  }): Promise<RegistrationStatus> {
+    const client = await this.contract.amaciQueryClient({ contractAddress });
 
-    const client = await this.contract.amaciClient({
-      signer,
-      contractAddress
+    return client.queryRegistrationStatus({
+      sender: address,
+      pubkey,
+      certificate,
+      amount
     });
-
-    const isWhitelisted = await client.isWhiteList({
-      sender: address
-    });
-
-    return isWhitelisted;
   }
 
   async getOracleWhitelistConfig({
-    signer,
     contractAddress
   }: {
-    signer: OfflineSigner;
     contractAddress: string;
-  }): Promise<OracleWhitelistConfig> {
-    const client = await this.contract.maciClient({
-      signer,
-      contractAddress
-    });
-
-    const snapshotHeight = await client.queryOracleWhitelistConfig();
-    return snapshotHeight;
+  }): Promise<NullableString> {
+    const client = await this.contract.amaciQueryClient({ contractAddress });
+    return client.queryOracleWhitelistConfig();
   }
 
   async getRoundInfo({ contractAddress }: { contractAddress: string }) {
@@ -685,7 +583,6 @@ export class MACI {
         }
       } else {
         voiceCreditBalance = await this.getVoiceCreditBalance({
-          signer,
           stateIdx,
           contractAddress
         });
@@ -705,10 +602,7 @@ export class MACI {
       });
 
       // Get poll_id from contract
-      const pollId = await this.getPollId({
-        signer,
-        contractAddress
-      });
+      const pollId = await this.getPollId({ contractAddress });
 
       const payload = batchGenMessage(
         stateIdx,
@@ -910,7 +804,18 @@ export class MACI {
         y: p.encPubkeys[1]
       }));
       const messagesBigInt = payload.map((p) => ({
-        data: p.msg as [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint]
+        data: p.msg as [
+          bigint,
+          bigint,
+          bigint,
+          bigint,
+          bigint,
+          bigint,
+          bigint,
+          bigint,
+          bigint,
+          bigint
+        ]
       }));
       const msg: MsgExecuteContractEncodeObject = {
         typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
@@ -978,7 +883,6 @@ export class MACI {
       });
 
       const stateIdx = await this.getStateIdxInc({
-        signer,
         address,
         contractAddress
       });
@@ -988,10 +892,7 @@ export class MACI {
       });
 
       // Get poll_id from contract
-      const pollId = await this.getPollId({
-        signer,
-        contractAddress
-      });
+      const pollId = await this.getPollId({ contractAddress });
 
       const payload = batchGenMessage(
         Number(stateIdx),

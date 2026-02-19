@@ -509,6 +509,17 @@
             "pubkey"
           ],
           "properties": {
+            "amount": {
+              "description": "Required for Dynamic VoiceCreditMode; ignored for Unified mode",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "certificate": {
               "type": "string"
             },
@@ -534,6 +545,17 @@
             "pubkey"
           ],
           "properties": {
+            "amount": {
+              "description": "Required for Dynamic VoiceCreditMode; ignored for Unified mode",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "certificate": {
               "type": "string"
             },
@@ -640,6 +662,61 @@
       "properties": {
         "get_registration_config": {
           "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Unified registration status by mode: can_sign_up and balance (Static whitelist or Oracle).",
+      "type": "object",
+      "required": [
+        "query_registration_status"
+      ],
+      "properties": {
+        "query_registration_status": {
+          "type": "object",
+          "properties": {
+            "amount": {
+              "description": "For SignUpWithOracle + Dynamic VoiceCreditMode: the amount included in the signed certificate.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "certificate": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pubkey": {
+              "description": "For SignUpWithOracle: provide pubkey and certificate.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/PubKey"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sender": {
+              "description": "For SignUpWithStaticWhitelist: provide sender.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
           "additionalProperties": false
         }
       },

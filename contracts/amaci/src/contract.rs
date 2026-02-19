@@ -3,8 +3,8 @@ use crate::error::ContractError;
 use crate::groth16_parser::{parse_groth16_proof, parse_groth16_vkey};
 use crate::msg::{
     ExecuteMsg, Groth16ProofType, InstantiateMsg, InstantiationData, QueryMsg,
-    RegistrationConfigInfo, RegistrationConfigUpdate, RegistrationModeConfig, TallyDelayInfo,
-    WhitelistBaseConfig,
+    RegistrationConfigInfo, RegistrationConfigUpdate, RegistrationModeConfig, RegistrationStatus,
+    TallyDelayInfo, WhitelistBaseConfig,
 };
 use crate::state::{
     Admin, DelayRecord, DelayRecords, DelayType, Groth16ProofStr, MaciParameters, MessageData,
@@ -683,9 +683,9 @@ pub fn execute(
             message,
             enc_pub_key,
         } => execute_publish_deactivate_message(deps, env, info, message, enc_pub_key),
-        ExecuteMsg::UploadDeactivateMessage { deactivate_message } => {
-            execute_upload_deactivate_message(deps, env, info, deactivate_message)
-        }
+        // ExecuteMsg::UploadDeactivateMessage { deactivate_message } => {
+        //     execute_upload_deactivate_message(deps, env, info, deactivate_message)
+        // }
         ExecuteMsg::ProcessDeactivateMessage {
             size,
             new_deactivate_commitment,
@@ -2654,6 +2654,16 @@ fn can_sign_up(deps: Deps, sender: &Addr) -> StdResult<bool> {
     Ok(is_whitelist && !is_register)
 }
 
+fn balance_of_static_whitelist(deps: Deps, sender: &Addr) -> StdResult<Uint256> {
+    let cfg = WHITELIST.load(deps.storage)?;
+    Ok(cfg
+        .users
+        .iter()
+        .find(|u| u.addr == sender)
+        .map(|u| u.voice_credit_amount.clone())
+        .unwrap_or_else(Uint256::zero))
+}
+
 // Load the root node of the state tree
 fn state_root(deps: Deps) -> Result<Uint256, ContractError> {
     let root = NODES.load(
@@ -2945,15 +2955,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::CanSignUpWithOracle {
             pubkey,
             certificate,
+            amount,
         } => {
-            let can_signup = can_sign_up_with_oracle(deps, _env, pubkey, certificate)?;
+            let can_signup = can_sign_up_with_oracle(deps, &_env, &pubkey, &certificate, amount)?;
             to_json_binary(&can_signup)
         }
         QueryMsg::WhiteBalanceOf {
             pubkey,
             certificate,
+            amount,
         } => {
-            let balance = user_balance_of_oracle(deps, _env, pubkey, certificate)?;
+            let balance = user_balance_of_oracle(deps, &_env, &pubkey, &certificate, amount)?;
             to_json_binary(&balance)
         }
         QueryMsg::QueryCurrentStateCommitment {} => {
@@ -2995,6 +3007,88 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             };
 
             to_json_binary(&config_info)
+        }
+        QueryMsg::QueryRegistrationStatus {
+            sender,
+            pubkey,
+            certificate,
+            amount,
+        } => {
+            let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
+            let voice_credit_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
+            let status = match registration_mode {
+                RegistrationMode::SignUpWithStaticWhitelist => {
+                    // is_register is tracked per wallet address in WHITELIST
+                    let (can_sign_up, is_register, balance) = match sender {
+                        Some(s) => {
+                            let whitelist = WHITELIST.load(deps.storage)?;
+                            let reg = whitelist.is_register(&s);
+                            let can = whitelist.is_whitelist(&s) && !reg;
+                            let bal = match &voice_credit_mode {
+                                VoiceCreditMode::Unified { .. } => {
+                                    VOICE_CREDIT_AMOUNT.load(deps.storage)?
+                                }
+                                VoiceCreditMode::Dynamic => balance_of_static_whitelist(deps, &s)?,
+                            };
+                            (can, reg, bal)
+                        }
+                        None => (false, false, Uint256::zero()),
+                    };
+                    RegistrationStatus {
+                        can_sign_up,
+                        is_register,
+                        balance,
+                    }
+                }
+                RegistrationMode::SignUpWithOracle { .. } => {
+                    // is_register is tracked per pubkey in ORACLE_WHITELIST;
+                    // oracle_registration_status checks this in a single pass.
+                    let (can_sign_up, is_register, balance) = match (&pubkey, &certificate) {
+                        (Some(pk), Some(cert)) => oracle_registration_status(
+                            deps,
+                            &_env,
+                            pk,
+                            cert,
+                            amount,
+                            &voice_credit_mode,
+                        )?,
+                        _ => (false, false, Uint256::zero()),
+                    };
+                    RegistrationStatus {
+                        can_sign_up,
+                        is_register,
+                        balance,
+                    }
+                }
+                // PrePopulated only supports Unified VoiceCreditMode.
+                // is_register is checked via SIGNUPED (keyed by pubkey).
+                RegistrationMode::PrePopulated { .. } => {
+                    let is_register = match &pubkey {
+                        Some(pk) => SIGNUPED.has(
+                            deps.storage,
+                            &(pk.x.to_be_bytes().to_vec(), pk.y.to_be_bytes().to_vec()),
+                        ),
+                        None => false,
+                    };
+                    RegistrationStatus {
+                        can_sign_up: false,
+                        is_register,
+                        balance: VOICE_CREDIT_AMOUNT.load(deps.storage)?,
+                    }
+                }
+            };
+            // Invariant: a registered user can never sign up again.
+            // Each branch above already enforces this, but we guard here centrally
+            // to remain correct if any branch is changed in the future.
+            let status = if status.is_register {
+                RegistrationStatus {
+                    can_sign_up: false,
+                    ..status
+                }
+            } else {
+                status
+            };
+            to_json_binary(&status)
         }
     }
 }
@@ -3189,68 +3283,104 @@ fn get_oracle_pubkey(deps: Deps) -> StdResult<Option<String>> {
     }))
 }
 
-// Check if user can sign up with oracle
-fn can_sign_up_with_oracle(
+// ============================================================
+// Oracle certificate verification helpers
+// ============================================================
+
+// Low-level signature verification against an oracle certificate.
+// The payload format must match what the oracle signs:
+//   { amount, contract_address, pubkey_x, pubkey_y }
+fn verify_oracle_certificate(
     deps: Deps,
-    env: Env,
-    pubkey: PubKey,
-    certificate: String,
+    env: &Env,
+    pubkey: &PubKey,
+    certificate: &str,
+    verify_amount: Uint256,
+    oracle_pubkey_str: &str,
 ) -> StdResult<bool> {
-    let oracle_pubkey_str = match get_oracle_pubkey(deps)? {
-        Some(p) => p,
-        None => return Ok(false),
-    };
-
-    // Use the contract's voice_credit_amount for verification
-    let voice_credit_amount = VOICE_CREDIT_AMOUNT.load(deps.storage)?;
-
-    // Convert contract address to uint256 format to match api-maci
     let contract_address_uint256 = address_to_uint256(&env.contract.address);
 
     let payload = serde_json::json!({
-        "amount": voice_credit_amount.to_string(),
+        "amount": verify_amount.to_string(),
         "contract_address": contract_address_uint256.to_string(),
         "pubkey_x": pubkey.x.to_string(),
         "pubkey_y": pubkey.y.to_string(),
     });
 
-    let msg = payload.to_string().into_bytes();
-    let hash = Sha256::digest(&msg);
+    let hash = Sha256::digest(payload.to_string().as_bytes());
+    let certificate_binary = Binary::from_base64(certificate)?;
+    let oracle_pubkey_binary = Binary::from_base64(oracle_pubkey_str)?;
 
-    let certificate_binary = Binary::from_base64(&certificate)?;
-    let oracle_pubkey_binary = Binary::from_base64(&oracle_pubkey_str)?;
-    let verify_result = deps.api.secp256k1_verify(
+    Ok(deps.api.secp256k1_verify(
         hash.as_ref(),
         certificate_binary.as_slice(),
         oracle_pubkey_binary.as_slice(),
-    )?;
-
-    Ok(verify_result)
+    )?)
 }
 
-// Get user balance with oracle verification (uses oracle_pubkey from registration mode)
+// Resolve the amount to use in the oracle verification payload based on VoiceCreditMode.
+// Returns None when Dynamic mode requires a user-provided amount but none was given.
+fn resolve_oracle_verify_amount(deps: Deps, amount: Option<Uint256>) -> StdResult<Option<Uint256>> {
+    let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
+    match vc_mode {
+        VoiceCreditMode::Unified { amount: vc_amount } => Ok(Some(vc_amount)),
+        VoiceCreditMode::Dynamic => Ok(amount),
+    }
+}
+
+// Convenience key type for ORACLE_WHITELIST map lookups.
+fn oracle_whitelist_key(pubkey: &PubKey) -> (Vec<u8>, Vec<u8>) {
+    (
+        pubkey.x.to_be_bytes().to_vec(),
+        pubkey.y.to_be_bytes().to_vec(),
+    )
+}
+
+// Check if user can sign up with oracle (used by CanSignUpWithOracle query).
+fn can_sign_up_with_oracle(
+    deps: Deps,
+    env: &Env,
+    pubkey: &PubKey,
+    certificate: &str,
+    amount: Option<Uint256>,
+) -> StdResult<bool> {
+    // Already registered users cannot sign up again
+    if ORACLE_WHITELIST.has(deps.storage, &oracle_whitelist_key(pubkey)) {
+        return Ok(false);
+    }
+
+    let oracle_pubkey_str = match get_oracle_pubkey(deps)? {
+        Some(p) => p,
+        None => return Ok(false),
+    };
+
+    let verify_amount = match resolve_oracle_verify_amount(deps, amount)? {
+        Some(a) => a,
+        None => return Ok(false),
+    };
+
+    verify_oracle_certificate(
+        deps,
+        env,
+        pubkey,
+        certificate,
+        verify_amount,
+        &oracle_pubkey_str,
+    )
+}
+
+// Get user balance with oracle verification (used by WhiteBalanceOf query).
 fn user_balance_of_oracle(
     deps: Deps,
-    env: Env,
-    pubkey: PubKey,
-    certificate: String,
+    env: &Env,
+    pubkey: &PubKey,
+    certificate: &str,
+    amount: Option<Uint256>,
 ) -> StdResult<Uint256> {
-    // Check if user already registered (by pubkey)
-    if ORACLE_WHITELIST.has(
-        deps.storage,
-        &(
-            pubkey.x.to_be_bytes().to_vec(),
-            pubkey.y.to_be_bytes().to_vec(),
-        ),
-    ) {
-        let cfg = ORACLE_WHITELIST.load(
-            deps.storage,
-            &(
-                pubkey.x.to_be_bytes().to_vec(),
-                pubkey.y.to_be_bytes().to_vec(),
-            ),
-        )?;
-        return Ok(cfg.balance_of());
+    // Already registered: return stored balance without re-verifying
+    let key = oracle_whitelist_key(pubkey);
+    if ORACLE_WHITELIST.has(deps.storage, &key) {
+        return Ok(ORACLE_WHITELIST.load(deps.storage, &key)?.balance_of());
     }
 
     let oracle_pubkey_str = match get_oracle_pubkey(deps)? {
@@ -3258,33 +3388,71 @@ fn user_balance_of_oracle(
         None => return Ok(Uint256::zero()),
     };
 
-    // Use the contract's voice_credit_amount for verification
-    let voice_credit_amount = VOICE_CREDIT_AMOUNT.load(deps.storage)?;
+    let verify_amount = match resolve_oracle_verify_amount(deps, amount)? {
+        Some(a) => a,
+        None => return Ok(Uint256::zero()),
+    };
 
-    // Convert contract address to uint256 format to match api-maci
-    let contract_address_uint256 = address_to_uint256(&env.contract.address);
-
-    let payload = serde_json::json!({
-        "amount": voice_credit_amount.to_string(),
-        "contract_address": contract_address_uint256.to_string(),
-        "pubkey_x": pubkey.x.to_string(),
-        "pubkey_y": pubkey.y.to_string(),
-    });
-
-    let msg = payload.to_string().into_bytes();
-    let hash = Sha256::digest(&msg);
-
-    let certificate_binary = Binary::from_base64(&certificate)?;
-    let oracle_pubkey_binary = Binary::from_base64(&oracle_pubkey_str)?;
-    let verify_result = deps.api.secp256k1_verify(
-        hash.as_ref(),
-        certificate_binary.as_slice(),
-        oracle_pubkey_binary.as_slice(),
-    )?;
-
-    if verify_result {
-        // Always return voice_credit_amount if verification passes
-        return Ok(voice_credit_amount);
+    if verify_oracle_certificate(
+        deps,
+        env,
+        pubkey,
+        certificate,
+        verify_amount,
+        &oracle_pubkey_str,
+    )? {
+        Ok(verify_amount)
+    } else {
+        Ok(Uint256::zero())
     }
-    Ok(Uint256::zero())
+}
+
+// Combined oracle registration status for QueryRegistrationStatus.
+// Performs a single signature verification and returns (can_sign_up, is_register, balance)
+// together, avoiding the double verification that would occur when calling the two functions
+// above separately.
+fn oracle_registration_status(
+    deps: Deps,
+    env: &Env,
+    pubkey: &PubKey,
+    certificate: &str,
+    amount: Option<Uint256>,
+    voice_credit_mode: &VoiceCreditMode,
+) -> StdResult<(bool, bool, Uint256)> {
+    let key = oracle_whitelist_key(pubkey);
+
+    // Already registered: cannot sign up again, but return their actual stored balance
+    if ORACLE_WHITELIST.has(deps.storage, &key) {
+        let stored_balance = ORACLE_WHITELIST.load(deps.storage, &key)?.balance_of();
+        return Ok((false, true, stored_balance));
+    }
+
+    let oracle_pubkey_str = match get_oracle_pubkey(deps)? {
+        Some(p) => p,
+        None => return Ok((false, false, Uint256::zero())),
+    };
+
+    // For Unified mode the balance is the contract-wide fixed amount regardless of the certificate.
+    // For Dynamic mode the oracle signs a per-user amount that we must verify.
+    let verify_amount = match voice_credit_mode {
+        VoiceCreditMode::Unified { amount: vc_amount } => *vc_amount,
+        VoiceCreditMode::Dynamic => match amount {
+            Some(a) => a,
+            None => return Ok((false, false, Uint256::zero())),
+        },
+    };
+
+    // Single verification covers can_sign_up, is_register, and balance in one shot
+    if verify_oracle_certificate(
+        deps,
+        env,
+        pubkey,
+        certificate,
+        verify_amount,
+        &oracle_pubkey_str,
+    )? {
+        Ok((true, false, verify_amount))
+    } else {
+        Ok((false, false, Uint256::zero()))
+    }
 }

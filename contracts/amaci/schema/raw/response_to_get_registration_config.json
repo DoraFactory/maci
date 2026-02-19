@@ -41,9 +41,29 @@
         {
           "type": "string",
           "enum": [
-            "sign_up_with_static_whitelist",
-            "sign_up_with_oracle"
+            "sign_up_with_static_whitelist"
           ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "sign_up_with_oracle"
+          ],
+          "properties": {
+            "sign_up_with_oracle": {
+              "type": "object",
+              "required": [
+                "oracle_pubkey"
+              ],
+              "properties": {
+                "oracle_pubkey": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",

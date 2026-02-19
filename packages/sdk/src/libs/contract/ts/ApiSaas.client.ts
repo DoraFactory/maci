@@ -12,13 +12,15 @@ import {
   ExecuteMsg,
   Uint128,
   Uint256,
+  RegistrationModeConfig,
+  VoiceCreditMode,
   Timestamp,
   Uint64,
+  WhitelistBase,
+  WhitelistBaseConfig,
   PubKey,
   RoundInfo,
   VotingTime,
-  WhitelistBase,
-  WhitelistBaseConfig,
   QueryMsg,
   Config,
   Boolean,
@@ -31,7 +33,6 @@ export interface ApiSaasReadOnlyInterface {
   operators: () => Promise<ArrayOfOperatorInfo>;
   isOperator: ({ address }: { address: Addr }) => Promise<Boolean>;
   balance: () => Promise<Uint128>;
-  maciCodeId: () => Promise<Uint64>;
   treasuryManager: () => Promise<Addr>;
 }
 export class ApiSaasQueryClient implements ApiSaasReadOnlyInterface {
@@ -44,7 +45,6 @@ export class ApiSaasQueryClient implements ApiSaasReadOnlyInterface {
     this.operators = this.operators.bind(this);
     this.isOperator = this.isOperator.bind(this);
     this.balance = this.balance.bind(this);
-    this.maciCodeId = this.maciCodeId.bind(this);
     this.treasuryManager = this.treasuryManager.bind(this);
   }
   config = async (): Promise<Config> => {
@@ -69,11 +69,6 @@ export class ApiSaasQueryClient implements ApiSaasReadOnlyInterface {
       balance: {}
     });
   };
-  maciCodeId = async (): Promise<Uint64> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      maci_code_id: {}
-    });
-  };
   treasuryManager = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
       treasury_manager: {}
@@ -90,16 +85,6 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
     }: {
       admin?: Addr;
       denom?: string;
-    },
-    fee?: number | StdFee | 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ) => Promise<ExecuteResult>;
-  updateMaciCodeId: (
-    {
-      codeId
-    }: {
-      codeId: number;
     },
     fee?: number | StdFee | 'auto',
     memo?: string,
@@ -152,59 +137,29 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
-  createMaciRound: (
-    {
-      certificationSystem,
-      circuitType,
-      coordinator,
-      endTime,
-      maxVoters,
-      roundInfo,
-      startTime,
-      voteOptionMap,
-      whitelistBackendPubkey
-    }: {
-      certificationSystem: Uint256;
-      circuitType: Uint256;
-      coordinator: PubKey;
-      endTime: Timestamp;
-      maxVoters: number;
-      roundInfo: RoundInfo;
-      startTime: Timestamp;
-      voteOptionMap: string[];
-      whitelistBackendPubkey: string;
-    },
-    fee?: number | StdFee | 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ) => Promise<ExecuteResult>;
   createAmaciRound: (
     {
       certificationSystem,
       circuitType,
+      deactivateEnabled,
       maxVoter,
       operator,
-      oracleWhitelistPubkey,
-      preDeactivateCoordinator,
-      preDeactivateRoot,
+      registrationMode,
       roundInfo,
-      voiceCreditAmount,
+      voiceCreditMode,
       voteOptionMap,
-      votingTime,
-      whitelist
+      votingTime
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
+      deactivateEnabled: boolean;
       maxVoter: Uint256;
       operator: Addr;
-      oracleWhitelistPubkey?: string;
-      preDeactivateCoordinator?: PubKey;
-      preDeactivateRoot: Uint256;
+      registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
-      voiceCreditAmount: Uint256;
+      voiceCreditMode: VoiceCreditMode;
       voteOptionMap: string[];
       votingTime: VotingTime;
-      whitelist?: WhitelistBase;
     },
     fee?: number | StdFee | 'auto',
     memo?: string,
@@ -245,13 +200,11 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
     this.sender = sender;
     this.contractAddress = contractAddress;
     this.updateConfig = this.updateConfig.bind(this);
-    this.updateMaciCodeId = this.updateMaciCodeId.bind(this);
     this.updateAmaciRegistryContract = this.updateAmaciRegistryContract.bind(this);
     this.addOperator = this.addOperator.bind(this);
     this.removeOperator = this.removeOperator.bind(this);
     this.deposit = this.deposit.bind(this);
     this.withdraw = this.withdraw.bind(this);
-    this.createMaciRound = this.createMaciRound.bind(this);
     this.createAmaciRound = this.createAmaciRound.bind(this);
     this.setRoundInfo = this.setRoundInfo.bind(this);
     this.setVoteOptionsMap = this.setVoteOptionsMap.bind(this);
@@ -275,29 +228,6 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
         update_config: {
           admin,
           denom
-        }
-      },
-      fee,
-      memo,
-      _funds
-    );
-  };
-  updateMaciCodeId = async (
-    {
-      codeId
-    }: {
-      codeId: number;
-    },
-    fee: number | StdFee | 'auto' = 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ): Promise<ExecuteResult> => {
-    return await this.client.execute(
-      this.sender,
-      this.contractAddress,
-      {
-        update_maci_code_id: {
-          code_id: codeId
         }
       },
       fee,
@@ -416,80 +346,29 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
       _funds
     );
   };
-  createMaciRound = async (
-    {
-      certificationSystem,
-      circuitType,
-      coordinator,
-      endTime,
-      maxVoters,
-      roundInfo,
-      startTime,
-      voteOptionMap,
-      whitelistBackendPubkey
-    }: {
-      certificationSystem: Uint256;
-      circuitType: Uint256;
-      coordinator: PubKey;
-      endTime: Timestamp;
-      maxVoters: number;
-      roundInfo: RoundInfo;
-      startTime: Timestamp;
-      voteOptionMap: string[];
-      whitelistBackendPubkey: string;
-    },
-    fee: number | StdFee | 'auto' = 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ): Promise<ExecuteResult> => {
-    return await this.client.execute(
-      this.sender,
-      this.contractAddress,
-      {
-        create_maci_round: {
-          certification_system: certificationSystem,
-          circuit_type: circuitType,
-          coordinator,
-          end_time: endTime,
-          max_voters: maxVoters.toString(),
-          round_info: roundInfo,
-          start_time: startTime,
-          vote_option_map: voteOptionMap,
-          whitelist_backend_pubkey: whitelistBackendPubkey
-        }
-      },
-      fee,
-      memo,
-      _funds
-    );
-  };
   createAmaciRound = async (
     {
       certificationSystem,
       circuitType,
+      deactivateEnabled,
       maxVoter,
       operator,
-      oracleWhitelistPubkey,
-      preDeactivateCoordinator,
-      preDeactivateRoot,
+      registrationMode,
       roundInfo,
-      voiceCreditAmount,
+      voiceCreditMode,
       voteOptionMap,
-      votingTime,
-      whitelist
+      votingTime
     }: {
       certificationSystem: Uint256;
       circuitType: Uint256;
+      deactivateEnabled: boolean;
       maxVoter: Uint256;
       operator: Addr;
-      oracleWhitelistPubkey?: string;
-      preDeactivateCoordinator?: PubKey;
-      preDeactivateRoot: Uint256;
+      registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
-      voiceCreditAmount: Uint256;
+      voiceCreditMode: VoiceCreditMode;
       voteOptionMap: string[];
       votingTime: VotingTime;
-      whitelist?: WhitelistBase;
     },
     fee: number | StdFee | 'auto' = 'auto',
     memo?: string,
@@ -502,16 +381,14 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
         create_amaci_round: {
           certification_system: certificationSystem,
           circuit_type: circuitType,
+          deactivate_enabled: deactivateEnabled,
           max_voter: maxVoter,
           operator,
-          oracle_whitelist_pubkey: oracleWhitelistPubkey,
-          pre_deactivate_coordinator: preDeactivateCoordinator,
-          pre_deactivate_root: preDeactivateRoot,
+          registration_mode: registrationMode,
           round_info: roundInfo,
-          voice_credit_amount: voiceCreditAmount,
+          voice_credit_mode: voiceCreditMode,
           vote_option_map: voteOptionMap,
-          voting_time: votingTime,
-          whitelist
+          voting_time: votingTime
         }
       },
       fee,

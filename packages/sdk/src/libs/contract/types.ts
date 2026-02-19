@@ -1,7 +1,12 @@
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import { StdFee } from '@cosmjs/amino';
 
-import { WhitelistBase as RegistryWhitelist } from './ts/Registry.types';
+import {
+  WhitelistBase as RegistryWhitelist,
+  type RegistrationModeConfig as RegistryRegistrationModeConfig,
+  type VoiceCreditMode as RegistryVoiceCreditMode
+} from './ts/Registry.types';
+import type { RegistrationModeConfig, VoiceCreditMode } from './ts/ApiSaas.types';
 import { MaciCircuitType, MaciCertSystemType, CertificateEcosystem } from '../../types';
 import { PubKey } from '../crypto';
 
@@ -17,34 +22,24 @@ export type CreateRoundParams = {
 };
 
 export type CreateAMaciRoundParams = {
+  operator: string;
   maxVoter: number;
   voteOptionMap: string[];
-  operator: string;
-  whitelist?: RegistryWhitelist;
-  voiceCreditAmount: string;
-  preDeactivateRoot?: string;
-  preDeactivateCoordinator?: PubKey | bigint;
-  oracleWhitelistPubkey?: string;
+  certificationSystem?: string;
+  deactivateEnabled: boolean;
+  registrationMode: RegistryRegistrationModeConfig;
+  voiceCreditMode: RegistryVoiceCreditMode;
+  fee?: number | StdFee | 'auto';
 } & CreateRoundParams;
 
 export type CreateApiSaasAmaciRoundParams = {
-  maxVoter: number;
-  voteOptionMap: string[];
   operator: string;
-  whitelist?: RegistryWhitelist;
-  voiceCreditAmount: string;
-  preDeactivateRoot?: string;
-  preDeactivateCoordinator?: PubKey | bigint;
-  oracleWhitelistPubkey?: string;
-  gasStation?: boolean;
-  fee?: StdFee | 'auto' | number;
-} & CreateRoundParams;
-
-export type CreateApiSaasMaciRoundParams = {
   maxVoter: number;
   voteOptionMap: string[];
-  operatorPubkey: PubKey | bigint;
-  whitelistBackendPubkey: string;
+  certificationSystem?: string;
+  deactivateEnabled: boolean;
+  registrationMode: RegistrationModeConfig;
+  voiceCreditMode: VoiceCreditMode;
   gasStation?: boolean;
   fee?: StdFee | 'auto' | number;
 } & CreateRoundParams;

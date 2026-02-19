@@ -131,9 +131,9 @@ pub enum ExecuteMsg {
         message: MessageData,
         enc_pub_key: PubKey,
     },
-    UploadDeactivateMessage {
-        deactivate_message: Vec<Vec<Uint256>>,
-    },
+    // UploadDeactivateMessage {
+    //     deactivate_message: Vec<Vec<Uint256>>,
+    // },
     ProcessDeactivateMessage {
         size: Uint256,
         new_deactivate_commitment: Uint256,
@@ -288,10 +288,20 @@ pub enum QueryMsg {
     QueryOracleWhitelistConfig {},
 
     #[returns(bool)]
-    CanSignUpWithOracle { pubkey: PubKey, certificate: String },
+    CanSignUpWithOracle {
+        pubkey: PubKey,
+        certificate: String,
+        /// Required for Dynamic VoiceCreditMode; ignored for Unified mode
+        amount: Option<Uint256>,
+    },
 
     #[returns(Uint256)]
-    WhiteBalanceOf { pubkey: PubKey, certificate: String },
+    WhiteBalanceOf {
+        pubkey: PubKey,
+        certificate: String,
+        /// Required for Dynamic VoiceCreditMode; ignored for Unified mode
+        amount: Option<Uint256>,
+    },
 
     #[returns(Uint256)]
     QueryCurrentStateCommitment {},
@@ -313,6 +323,18 @@ pub enum QueryMsg {
 
     #[returns(RegistrationConfigInfo)]
     GetRegistrationConfig {},
+
+    /// Unified registration status by mode: can_sign_up and balance (Static whitelist or Oracle).
+    #[returns(RegistrationStatus)]
+    QueryRegistrationStatus {
+        /// For SignUpWithStaticWhitelist: provide sender.
+        sender: Option<Addr>,
+        /// For SignUpWithOracle: provide pubkey and certificate.
+        pubkey: Option<PubKey>,
+        certificate: Option<String>,
+        /// For SignUpWithOracle + Dynamic VoiceCreditMode: the amount included in the signed certificate.
+        amount: Option<Uint256>,
+    },
 }
 
 // Response type for GetRegistrationConfig query
@@ -321,6 +343,17 @@ pub struct RegistrationConfigInfo {
     pub deactivate_enabled: bool,
     pub voice_credit_mode: VoiceCreditMode,
     pub registration_mode: RegistrationMode,
+}
+
+#[cw_serde]
+pub struct RegistrationStatus {
+    pub can_sign_up: bool,
+    /// Whether the user has already completed sign-up.
+    /// - StaticWhitelist: checked by sender address via WHITELIST
+    /// - Oracle:          checked by pubkey via ORACLE_WHITELIST
+    /// - PrePopulated:    checked by pubkey via SIGNUPED
+    pub is_register: bool,
+    pub balance: Uint256,
 }
 
 #[cw_serde]

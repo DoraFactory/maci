@@ -8,7 +8,6 @@ export type Addr = string;
 export interface InstantiateMsg {
   admin: Addr;
   amaci_code_id: number;
-  maci_code_id: number;
   operator: Addr;
 }
 export type ExecuteMsg =
@@ -31,29 +30,14 @@ export type ExecuteMsg =
       create_round: {
         certification_system: Uint256;
         circuit_type: Uint256;
+        deactivate_enabled: boolean;
         max_voter: Uint256;
         operator: Addr;
-        oracle_whitelist_pubkey?: string | null;
-        pre_deactivate_coordinator?: PubKey | null;
-        pre_deactivate_root: Uint256;
+        registration_mode: RegistrationModeConfig;
         round_info: RoundInfo;
-        voice_credit_amount: Uint256;
+        voice_credit_mode: VoiceCreditMode;
         vote_option_map: string[];
         voting_time: VotingTime;
-        whitelist?: WhitelistBase | null;
-      };
-    }
-  | {
-      create_maci_round: {
-        certification_system: Uint256;
-        circuit_type: Uint256;
-        coordinator: PubKey;
-        max_voters: number;
-        round_info: RoundInfo;
-        vote_option_map: string[];
-        voting_time: VotingTime;
-        whitelist_backend_pubkey: string;
-        whitelist_voting_power_mode: VotingPowerMode;
       };
     }
   | {
@@ -68,12 +52,7 @@ export type ExecuteMsg =
     }
   | {
       update_amaci_code_id: {
-        amaci_code_id: number;
-      };
-    }
-  | {
-      update_maci_code_id: {
-        maci_code_id: number;
+        code_id: number;
       };
     }
   | {
@@ -87,13 +66,43 @@ export type ExecuteMsg =
       };
     };
 export type Uint256 = string;
+export type RegistrationModeConfig =
+  | {
+      sign_up_with_static_whitelist: {
+        whitelist: WhitelistBase;
+      };
+    }
+  | {
+      sign_up_with_oracle: {
+        oracle_pubkey: string;
+      };
+    }
+  | {
+      pre_populated: {
+        pre_deactivate_coordinator: PubKey;
+        pre_deactivate_root: Uint256;
+      };
+    };
+export type VoiceCreditMode =
+  | 'dynamic'
+  | {
+      unified: {
+        amount: Uint256;
+      };
+    };
 export type Timestamp = Uint64;
 export type Uint64 = number;
-export type VotingPowerMode = 'slope' | 'threshold';
 export type Decimal = string;
 export interface PubKey {
   x: Uint256;
   y: Uint256;
+}
+export interface WhitelistBase {
+  users: WhitelistBaseConfig[];
+}
+export interface WhitelistBaseConfig {
+  addr: Addr;
+  voice_credit_amount?: Uint256 | null;
 }
 export interface RoundInfo {
   description: string;
@@ -103,12 +112,6 @@ export interface RoundInfo {
 export interface VotingTime {
   end_time: Timestamp;
   start_time: Timestamp;
-}
-export interface WhitelistBase {
-  users: WhitelistBaseConfig[];
-}
-export interface WhitelistBaseConfig {
-  addr: Addr;
 }
 export interface ValidatorSet {
   addresses: Addr[];
@@ -166,9 +169,6 @@ export type QueryMsg =
     }
   | {
       get_next_poll_id: {};
-    }
-  | {
-      get_maci_code_id: {};
     }
   | {
       get_amaci_code_id: {};

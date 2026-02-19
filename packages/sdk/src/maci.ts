@@ -2,11 +2,7 @@ import { ClientParams, CertificateEcosystem } from './types';
 import { Http, Indexer, Contract, OracleCertificate, MACI, MaciApiClient } from './libs';
 import type { operations } from './libs/api/types';
 import { getDefaultParams } from './libs/const';
-import {
-  CreateAMaciRoundParams,
-  CreateApiSaasAmaciRoundParams,
-  CreateApiSaasMaciRoundParams
-} from './libs/contract/types';
+import { CreateAMaciRoundParams, CreateApiSaasAmaciRoundParams } from './libs/contract/types';
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import {
   genKeypair,
@@ -18,7 +14,11 @@ import {
 } from './libs/crypto';
 import { SignatureResponse } from './libs/oracle-certificate/types';
 import { StdFee } from '@cosmjs/amino';
-import { Groth16ProofType, OracleWhitelistConfig } from './libs/contract/ts/Maci.types';
+import {
+  Groth16ProofType,
+  NullableString,
+  RegistrationStatus
+} from './libs/contract/ts/AMaci.types';
 import { isErrorResponse } from './libs/maci/maci';
 
 /**
@@ -204,17 +204,6 @@ export class MaciClient {
     return await this.contract.registryClient({ signer, contractAddress });
   }
 
-  async maciClient({
-    signer,
-    contractAddress
-  }: {
-    signer?: OfflineSigner;
-    contractAddress: string;
-  }) {
-    signer = this.getSigner(signer);
-    return await this.contract.maciClient({ signer, contractAddress });
-  }
-
   async amaciClient({
     signer,
     contractAddress
@@ -228,13 +217,6 @@ export class MaciClient {
 
   async createAMaciRound(params: CreateAMaciRoundParams) {
     return await this.contract.createAMaciRound({
-      signer: this.getSigner(params.signer),
-      ...params
-    });
-  }
-
-  async createApiSaasMaciRound(params: CreateApiSaasMaciRoundParams) {
-    return await this.contract.createApiSaasMaciRound({
       signer: this.getSigner(params.signer),
       ...params
     });
@@ -270,11 +252,10 @@ export class MaciClient {
     address?: string;
     contractAddress: string;
   }) {
-    return await this.maci.getStateIdxInc({
-      signer: this.getSigner(signer),
-      address,
-      contractAddress
-    });
+    if (!address) {
+      address = await this.getAddress(signer);
+    }
+    return await this.maci.getStateIdxInc({ address, contractAddress });
   }
 
   async getVoiceCreditBalance({
@@ -300,7 +281,6 @@ export class MaciClient {
     }
 
     return await this.maci.getVoiceCreditBalance({
-      signer: this.getSigner(signer),
       stateIdx,
       contractAddress
     });
@@ -353,49 +333,35 @@ export class MaciClient {
     });
   }
 
-  async queryWhitelistBalanceOf({
+  async queryRegistrationStatus({
     signer,
-    address,
     contractAddress,
-    certificate
-  }: {
-    signer?: OfflineSigner;
-    address?: string;
-    contractAddress: string;
-    certificate?: {
-      signature: string;
-      amount: string;
-    };
-  }): Promise<string> {
-    signer = this.getSigner(signer);
-    if (!address) {
-      address = await this.getAddress(signer);
-    }
-    return await this.maci.queryWhitelistBalanceOf({
-      signer,
-      address,
-      contractAddress,
-      certificate
-    });
-  }
-
-  async isWhitelisted({
-    signer,
     address,
-    contractAddress
+    pubkey,
+    certificate,
+    amount
   }: {
     signer?: OfflineSigner;
-    address?: string;
     contractAddress: string;
-  }) {
+    /** For SignUpWithStaticWhitelist: the user's wallet address */
+    address?: string;
+    /** For SignUpWithOracle / PrePopulated: the user's MACI pubkey */
+    pubkey?: { x: string; y: string };
+    /** For SignUpWithOracle: the oracle-issued certificate (base64 signature) */
+    certificate?: string;
+    /** For SignUpWithOracle + Dynamic VoiceCreditMode: the amount included in the certificate */
+    amount?: string;
+  }): Promise<RegistrationStatus> {
     signer = this.getSigner(signer);
-    if (!address) {
+    if (!address && !pubkey) {
       address = await this.getAddress(signer);
     }
-    return await this.maci.isWhitelisted({
-      signer,
+    return await this.maci.queryRegistrationStatus({
+      contractAddress,
       address,
-      contractAddress
+      pubkey,
+      certificate,
+      amount
     });
   }
 
@@ -405,11 +371,8 @@ export class MaciClient {
   }: {
     signer?: OfflineSigner;
     contractAddress: string;
-  }): Promise<OracleWhitelistConfig> {
-    return await this.maci.getOracleWhitelistConfig({
-      signer: this.getSigner(signer),
-      contractAddress
-    });
+  }): Promise<NullableString> {
+    return await this.maci.getOracleWhitelistConfig({ contractAddress });
   }
 
   async getRounds(after?: string, limit?: number) {
