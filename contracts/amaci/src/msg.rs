@@ -131,9 +131,9 @@ pub enum ExecuteMsg {
         message: MessageData,
         enc_pub_key: PubKey,
     },
-    // UploadDeactivateMessage {
-    //     deactivate_message: Vec<Vec<Uint256>>,
-    // },
+    UploadDeactivateMessage {
+        deactivate_message: Vec<Vec<Uint256>>,
+    },
     ProcessDeactivateMessage {
         size: Uint256,
         new_deactivate_commitment: Uint256,

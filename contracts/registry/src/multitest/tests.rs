@@ -7,8 +7,8 @@ use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
 use crate::{
     multitest::{
         admin, creator, operator, operator2, operator3, operator_pubkey1, operator_pubkey2,
-        operator_pubkey3, user1, user2, user3, user4, user5, AmaciRegistryCodeId, InstantiationData,
-        DORA_DEMON,
+        operator_pubkey3, user1, user2, user3, user4, user5, AmaciRegistryCodeId,
+        InstantiationData, DORA_DEMON,
     },
     state::ValidatorSet,
 };
@@ -2933,8 +2933,14 @@ fn test_query_registration_status_static_whitelist() {
             },
         )
         .unwrap();
-    assert!(status.can_sign_up, "whitelisted user should be able to sign up");
-    assert!(!status.is_register, "whitelisted user should not be registered yet");
+    assert!(
+        status.can_sign_up,
+        "whitelisted user should be able to sign up"
+    );
+    assert!(
+        !status.is_register,
+        "whitelisted user should not be registered yet"
+    );
     assert_eq!(
         status.balance,
         Uint256::from_u128(100u128),
@@ -3071,7 +3077,10 @@ fn test_query_registration_status_oracle() {
         )
         .unwrap();
     assert!(status_valid.can_sign_up, "valid cert should allow sign up");
-    assert!(!status_valid.is_register, "pubkey should not be registered yet");
+    assert!(
+        !status_valid.is_register,
+        "pubkey should not be registered yet"
+    );
     assert_eq!(
         status_valid.balance,
         Uint256::from_u128(100u128),
@@ -3079,7 +3088,8 @@ fn test_query_registration_status_oracle() {
     );
 
     // Valid pubkey + wrong certificate (valid base64, wrong signature) → can_sign_up = false
-    let wrong_cert = "9N+0uBmu7b2Sr2ibC0ViOQ00z7LZwrTJDZmoGit8TScDDzbjXUmOkB4hLKSnLEORX7ITYbeG9409VL3OLCZdag==";
+    let wrong_cert =
+        "9N+0uBmu7b2Sr2ibC0ViOQ00z7LZwrTJDZmoGit8TScDDzbjXUmOkB4hLKSnLEORX7ITYbeG9409VL3OLCZdag==";
     let status_wrong_cert: cw_amaci::msg::RegistrationStatus = app
         .wrap()
         .query_wasm_smart(
@@ -3230,4 +3240,508 @@ fn test_query_registration_status_pre_populated() {
         .unwrap();
     assert!(!status_no_pubkey.can_sign_up);
     assert!(!status_no_pubkey.is_register);
+}
+
+// ─── UpdateRegistrationConfig tests ────────────────────────────────────────
+
+/// Helper: set up registry + amaci, create a StaticWhitelist round, return (app, maci_contract).
+fn setup_whitelist_round() -> (cw_multi_test::App, MaciContract) {
+    let creator_coin_amount = 50000000000000000000u128;
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pay = 20000000000000000000u128;
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let maci_contract = MaciContract::new(amaci_contract_addr.addr.clone());
+    (app, maci_contract)
+}
+
+/// Test: toggle deactivate_enabled before voting starts, verify event and query.
+#[test]
+fn test_update_registration_config_deactivate_enabled() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // Initial state: deactivate_enabled = false (created with deactivate_enabled: false)
+    let config = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(!config.deactivate_enabled);
+
+    // Admin enables deactivate
+    let resp = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(), // creator is the round admin
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap();
+
+    // Verify event attribute
+    let action_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "action")
+        .expect("response must have action attribute");
+    assert_eq!(action_attr.value, "update_registration_config");
+
+    let deactivate_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "deactivate_enabled")
+        .expect("response must have deactivate_enabled attribute");
+    assert_eq!(deactivate_attr.value, "true");
+
+    // Query confirms the change
+    let config_after = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(config_after.deactivate_enabled);
+
+    // Disable it again
+    let resp2 = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(false),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap();
+
+    let deactivate_attr2 = resp2
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "deactivate_enabled")
+        .expect("response must have deactivate_enabled attribute");
+    assert_eq!(deactivate_attr2.value, "false");
+
+    let config_after2 = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(!config_after2.deactivate_enabled);
+}
+
+/// Test: non-admin cannot call UpdateRegistrationConfig.
+#[test]
+fn test_update_registration_config_unauthorized() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    let err = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            user2(), // not the admin
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(AmaciContractError::Unauthorized {}, err.downcast().unwrap());
+}
+
+/// Test: UpdateRegistrationConfig is rejected once voting has started.
+#[test]
+fn test_update_registration_config_after_voting_starts() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // Advance block into the voting period
+    app.update_block(next_block);
+
+    let err = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(AmaciContractError::PeriodError {}, err.downcast().unwrap());
+}
+
+/// Test: update voice_credit_mode before voting, verify event and query.
+#[test]
+fn test_update_registration_config_voice_credit_mode() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // Initial mode: Unified(100) (set by create_round_with_whitelist)
+    let config = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config.voice_credit_mode,
+        cw_amaci::state::VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(100u128)
+    ));
+
+    // Update to Unified(200)
+    let resp = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: Some(cw_amaci::state::VoiceCreditMode::Unified {
+                    amount: Uint256::from_u128(200u128),
+                }),
+                registration_mode: None,
+            },
+        )
+        .unwrap();
+
+    let vc_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "voice_credit_mode")
+        .expect("response must have voice_credit_mode attribute");
+    assert_eq!(vc_attr.value, "Unified");
+
+    let vc_amount_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "voice_credit_amount")
+        .expect("response must have voice_credit_amount attribute");
+    assert_eq!(vc_amount_attr.value, "200");
+
+    let config_after = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config_after.voice_credit_mode,
+        cw_amaci::state::VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(200u128)
+    ));
+}
+
+/// Test: switch registration mode (StaticWhitelist → Oracle → PrePopulated → StaticWhitelist),
+/// verify events and query after each transition.
+#[test]
+fn test_update_registration_config_registration_mode() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // ── Switch to Oracle mode ──
+    let oracle_pubkey = "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string();
+    let resp_oracle = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
+                    oracle_pubkey: oracle_pubkey.clone(),
+                }),
+            },
+        )
+        .unwrap();
+
+    let reg_attr_oracle = resp_oracle
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "registration_mode")
+        .expect("response must have registration_mode attribute");
+    assert_eq!(reg_attr_oracle.value, "SignUpWithOracle");
+
+    // No pre_deactivate_root attribute for Oracle mode
+    let has_root_attr = resp_oracle
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .any(|a| a.key == "pre_deactivate_root");
+    assert!(
+        !has_root_attr,
+        "Oracle mode must not emit pre_deactivate_root"
+    );
+
+    let config_oracle = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config_oracle.registration_mode,
+        cw_amaci::state::RegistrationMode::SignUpWithOracle { .. }
+    ));
+
+    // ── Switch to PrePopulated mode ──
+    let pre_root = Uint256::from_u128(99999u128);
+    let pre_coord = cw_amaci::state::PubKey {
+        x: Uint256::from_u128(111u128),
+        y: Uint256::from_u128(222u128),
+    };
+    let resp_pre = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::PrePopulated {
+                    pre_deactivate_root: pre_root,
+                    pre_deactivate_coordinator: pre_coord,
+                }),
+            },
+        )
+        .unwrap();
+
+    let reg_attr_pre = resp_pre
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "registration_mode")
+        .expect("response must have registration_mode attribute");
+    assert_eq!(reg_attr_pre.value, "PrePopulated");
+
+    let root_attr = resp_pre
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "pre_deactivate_root")
+        .expect("PrePopulated mode must emit pre_deactivate_root attribute");
+    assert_eq!(root_attr.value, "99999");
+
+    let coord_x_attr = resp_pre
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "pre_deactivate_coordinator_x")
+        .expect("PrePopulated mode must emit pre_deactivate_coordinator_x attribute");
+    assert_eq!(coord_x_attr.value, "111");
+
+    let coord_y_attr = resp_pre
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "pre_deactivate_coordinator_y")
+        .expect("PrePopulated mode must emit pre_deactivate_coordinator_y attribute");
+    assert_eq!(coord_y_attr.value, "222");
+
+    let config_pre = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config_pre.registration_mode,
+        cw_amaci::state::RegistrationMode::PrePopulated { .. }
+    ));
+
+    // ── Switch back to StaticWhitelist mode ──
+    let resp_wl = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(
+                    cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+                        whitelist: cw_amaci::msg::WhitelistBase {
+                            users: vec![
+                                cw_amaci::msg::WhitelistBaseConfig {
+                                    addr: user1(),
+                                    voice_credit_amount: None,
+                                },
+                                cw_amaci::msg::WhitelistBaseConfig {
+                                    addr: user2(),
+                                    voice_credit_amount: None,
+                                },
+                            ],
+                        },
+                    },
+                ),
+            },
+        )
+        .unwrap();
+
+    let reg_attr_wl = resp_wl
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "registration_mode")
+        .expect("response must have registration_mode attribute");
+    assert_eq!(reg_attr_wl.value, "SignUpWithStaticWhitelist");
+
+    let config_wl = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config_wl.registration_mode,
+        cw_amaci::state::RegistrationMode::SignUpWithStaticWhitelist
+    ));
+}
+
+/// Test: after voting starts and a user signs up, ALL config update attempts fail with PeriodError.
+///
+/// Note: `ConfigModificationAfterSignup` is a defensive check in the contract but cannot be
+/// triggered in normal flow, because:
+/// - `sign_up` requires the voting period to be active (block.time >= start_time)
+/// - `update_registration_config` requires the pending period (block.time < start_time)
+/// Therefore, the PeriodError check always fires first once voting has begun.
+#[test]
+fn test_update_registration_config_after_signup() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // Enter voting period and sign up user1
+    app.update_block(next_block);
+    let signup_result = maci_contract.amaci_sign_up(&mut app, user1(), operator_pubkey1());
+    assert!(
+        signup_result.is_ok(),
+        "sign up should succeed once voting period is active"
+    );
+
+    // All update_registration_config calls now fail with PeriodError (voting has started)
+    let err_vc = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: Some(cw_amaci::state::VoiceCreditMode::Unified {
+                    amount: Uint256::from_u128(50u128),
+                }),
+                registration_mode: None,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        AmaciContractError::PeriodError {},
+        err_vc.downcast().unwrap(),
+        "updating voice_credit_mode after voting starts must return PeriodError"
+    );
+
+    let err_rm = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
+                    oracle_pubkey: "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string(),
+                }),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        AmaciContractError::PeriodError {},
+        err_rm.downcast().unwrap(),
+        "updating registration_mode after voting starts must return PeriodError"
+    );
+
+    let err_de = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        AmaciContractError::PeriodError {},
+        err_de.downcast().unwrap(),
+        "updating deactivate_enabled after voting starts must also return PeriodError"
+    );
+}
+
+/// Test: PrePopulated mode with zero coordinator is rejected.
+#[test]
+fn test_update_registration_config_pre_populated_invalid_coordinator() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    let err = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::PrePopulated {
+                    pre_deactivate_root: Uint256::from_u128(12345u128),
+                    pre_deactivate_coordinator: cw_amaci::state::PubKey {
+                        x: Uint256::zero(),
+                        y: Uint256::zero(),
+                    },
+                }),
+            },
+        )
+        .unwrap_err();
+
+    assert!(matches!(
+        err.downcast::<AmaciContractError>().unwrap(),
+        AmaciContractError::InvalidRegistrationConfig { .. }
+    ));
+}
+
+/// Test: single call can update multiple fields simultaneously, all attributes emitted.
+#[test]
+fn test_update_registration_config_multiple_fields() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    let resp = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: Some(cw_amaci::state::VoiceCreditMode::Unified {
+                    amount: Uint256::from_u128(500u128),
+                }),
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
+                    oracle_pubkey: "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string(),
+                }),
+            },
+        )
+        .unwrap();
+
+    let all_attrs: Vec<_> = resp.events.iter().flat_map(|e| &e.attributes).collect();
+
+    let find = |key: &str| {
+        all_attrs
+            .iter()
+            .find(|a| a.key == key)
+            .map(|a| a.value.as_str())
+    };
+    println!("all_attrs: {:?}", all_attrs);
+
+    assert_eq!(find("action"), Some("update_registration_config"));
+    assert_eq!(find("deactivate_enabled"), Some("true"));
+    assert_eq!(find("voice_credit_mode"), Some("Unified"));
+    assert_eq!(find("voice_credit_amount"), Some("500"));
+    assert_eq!(find("registration_mode"), Some("SignUpWithOracle"));
+
+    // Verify config matches all changes
+    let config = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(config.deactivate_enabled);
+    assert!(matches!(
+        config.voice_credit_mode,
+        cw_amaci::state::VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(500u128)
+    ));
+    assert!(matches!(
+        config.registration_mode,
+        cw_amaci::state::RegistrationMode::SignUpWithOracle { .. }
+    ));
 }

@@ -683,9 +683,9 @@ pub fn execute(
             message,
             enc_pub_key,
         } => execute_publish_deactivate_message(deps, env, info, message, enc_pub_key),
-        // ExecuteMsg::UploadDeactivateMessage { deactivate_message } => {
-        //     execute_upload_deactivate_message(deps, env, info, deactivate_message)
-        // }
+        ExecuteMsg::UploadDeactivateMessage { deactivate_message } => {
+            execute_upload_deactivate_message(deps, env, info, deactivate_message)
+        }
         ExecuteMsg::ProcessDeactivateMessage {
             size,
             new_deactivate_commitment,
@@ -883,88 +883,71 @@ fn apply_registration_config_update(
 
     // Update voice_credit_mode if provided
     if let Some(voice_credit_mode) = config.voice_credit_mode {
-        VOICE_CREDIT_MODE.save(deps.storage, &voice_credit_mode)?;
-
-        // Update VOICE_CREDIT_AMOUNT based on the mode
-        match &voice_credit_mode {
-            VoiceCreditMode::Unified { amount } => {
-                VOICE_CREDIT_AMOUNT.save(deps.storage, amount)?;
-                attributes.push(attr("voice_credit_mode", format!("Unified({})", amount)));
-            }
-            VoiceCreditMode::Dynamic => {
-                VOICE_CREDIT_AMOUNT.save(deps.storage, &Uint256::zero())?;
-                attributes.push(attr("voice_credit_mode", "Dynamic"));
-            }
+        let vc_amount = match &voice_credit_mode {
+            VoiceCreditMode::Unified { amount } => *amount,
+            VoiceCreditMode::Dynamic => Uint256::zero(),
         };
+        VOICE_CREDIT_AMOUNT.save(deps.storage, &vc_amount)?;
+        VOICE_CREDIT_MODE.save(deps.storage, &voice_credit_mode)?;
+        attributes.push(attr("voice_credit_mode", voice_credit_mode.variant_name()));
+        attributes.push(attr("voice_credit_amount", vc_amount.to_string()));
     }
 
     // Update registration_mode if provided
     if let Some(registration_mode_config) = config.registration_mode {
-        match registration_mode_config {
+        let new_mode = match registration_mode_config {
             RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
-                // Save whitelist (already validated)
                 let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
                 let default_amount = match &vc_mode {
                     VoiceCreditMode::Unified { amount } => *amount,
                     VoiceCreditMode::Dynamic => Uint256::zero(),
                 };
-
                 let users =
                     validate_and_process_whitelist(&whitelist.users, &vc_mode, default_amount)?;
                 WHITELIST.save(deps.storage, &Whitelist { users })?;
-
-                // Save registration mode (SignUp variant)
-                REGISTRATION_MODE
-                    .save(deps.storage, &RegistrationMode::SignUpWithStaticWhitelist)?;
-
-                // SignUp mode: save default/zero pre_deactivate_root
                 PRE_DEACTIVATE_ROOT.save(deps.storage, &Uint256::zero())?;
                 PRE_DEACTIVATE_COORDINATOR_HASH.remove(deps.storage);
-
-                attributes.push(attr("registration_mode", "SignUpWithStaticWhitelist"));
+                RegistrationMode::SignUpWithStaticWhitelist
             }
             RegistrationModeConfig::SignUpWithOracle { oracle_pubkey } => {
-                // Clear static whitelist if switching from SignUpWithStaticWhitelist
                 WHITELIST.remove(deps.storage);
-
-                // Save registration mode (SignUp with Oracle variant, pubkey in enum)
-                REGISTRATION_MODE.save(
-                    deps.storage,
-                    &RegistrationMode::SignUpWithOracle {
-                        oracle_pubkey: oracle_pubkey.clone(),
-                    },
-                )?;
-
-                // SignUp mode: save default/zero pre_deactivate_root
                 PRE_DEACTIVATE_ROOT.save(deps.storage, &Uint256::zero())?;
                 PRE_DEACTIVATE_COORDINATOR_HASH.remove(deps.storage);
-
-                attributes.push(attr("registration_mode", "SignUpWithOracle"));
+                RegistrationMode::SignUpWithOracle { oracle_pubkey }
             }
             RegistrationModeConfig::PrePopulated {
                 pre_deactivate_root,
                 pre_deactivate_coordinator,
             } => {
-                // Save registration mode with pre-deactivate data
-                REGISTRATION_MODE.save(
-                    deps.storage,
-                    &RegistrationMode::PrePopulated {
-                        pre_deactivate_root,
-                        pre_deactivate_coordinator: pre_deactivate_coordinator.clone(),
-                    },
-                )?;
-
-                // Save pre_deactivate_root for PreAddNewKey proof verification
                 PRE_DEACTIVATE_ROOT.save(deps.storage, &pre_deactivate_root)?;
-
-                // Save pre_deactivate_coordinator hash (required for PreAddNewKey)
                 let coordinator_hash =
                     hash2([pre_deactivate_coordinator.x, pre_deactivate_coordinator.y]);
                 PRE_DEACTIVATE_COORDINATOR_HASH.save(deps.storage, &coordinator_hash)?;
-
-                attributes.push(attr("registration_mode", "PrePopulated"));
-                attributes.push(attr("pre_deactivate_root", pre_deactivate_root.to_string()));
+                RegistrationMode::PrePopulated {
+                    pre_deactivate_root,
+                    pre_deactivate_coordinator,
+                }
             }
+        };
+
+        REGISTRATION_MODE.save(deps.storage, &new_mode)?;
+        attributes.push(attr("registration_mode", new_mode.variant_name()));
+
+        // PrePopulated-specific extra attributes
+        if let RegistrationMode::PrePopulated {
+            pre_deactivate_root,
+            pre_deactivate_coordinator,
+        } = &new_mode
+        {
+            attributes.push(attr("pre_deactivate_root", pre_deactivate_root.to_string()));
+            attributes.push(attr(
+                "pre_deactivate_coordinator_x",
+                pre_deactivate_coordinator.x.to_string(),
+            ));
+            attributes.push(attr(
+                "pre_deactivate_coordinator_y",
+                pre_deactivate_coordinator.y.to_string(),
+            ));
         }
     }
 

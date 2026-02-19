@@ -1220,6 +1220,29 @@ impl MaciContract {
             .query_wasm_smart(self.addr(), &QueryMsg::GetTallyDelay {})
     }
 
+    pub fn amaci_get_registration_config(
+        &self,
+        app: &DefaultApp,
+    ) -> StdResult<RegistrationConfigInfo> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetRegistrationConfig {})
+    }
+
+    #[track_caller]
+    pub fn amaci_update_registration_config(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        config: RegistrationConfigUpdate,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::UpdateRegistrationConfig { config },
+            &[],
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     #[track_caller]
     pub fn instantiate_with_oracle(

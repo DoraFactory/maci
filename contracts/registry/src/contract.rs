@@ -523,22 +523,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// Returns the enum variant name for event attributes (e.g. "Unified" or "Dynamic").
-fn voice_credit_mode_variant_name(mode: &VoiceCreditMode) -> &'static str {
-    match mode {
-        VoiceCreditMode::Unified { .. } => "Unified",
-        VoiceCreditMode::Dynamic => "Dynamic",
-    }
-}
-
-/// Returns the enum variant name for event attributes (e.g. "SignUpWithStaticWhitelist").
-fn registration_mode_variant_name(mode: &RegistrationMode) -> &'static str {
-    match mode {
-        RegistrationMode::SignUpWithStaticWhitelist => "SignUpWithStaticWhitelist",
-        RegistrationMode::SignUpWithOracle { .. } => "SignUpWithOracle",
-        RegistrationMode::PrePopulated { .. } => "PrePopulated",
-    }
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
@@ -616,11 +600,11 @@ pub fn reply_created_round(
         // Unified MACI Configuration (emit enum variant name only for readability)
         attr(
             "voice_credit_mode",
-            voice_credit_mode_variant_name(&amaci_return_data.voice_credit_mode),
+            amaci_return_data.voice_credit_mode.variant_name(),
         ),
         attr(
             "registration_mode",
-            registration_mode_variant_name(&amaci_return_data.registration_mode),
+            amaci_return_data.registration_mode.variant_name(),
         ),
         attr(
             "state_tree_depth",

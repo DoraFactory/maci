@@ -96,6 +96,16 @@ pub enum VoiceCreditMode {
     Dynamic,
 }
 
+impl VoiceCreditMode {
+    /// Returns the enum variant name for use in event attributes ("Unified" or "Dynamic").
+    pub fn variant_name(&self) -> &'static str {
+        match self {
+            VoiceCreditMode::Unified { .. } => "Unified",
+            VoiceCreditMode::Dynamic => "Dynamic",
+        }
+    }
+}
+
 // Registration Mode: combines access control and state initialization
 // This unified enum prevents invalid configuration combinations
 #[cw_serde]
@@ -126,6 +136,18 @@ pub enum RegistrationMode {
         // REQUIRED: Must be provided for PreAddNewKey proof verification
         pre_deactivate_coordinator: PubKey,
     },
+}
+
+impl RegistrationMode {
+    /// Returns the enum variant name for use in event attributes
+    /// (e.g. "SignUpWithStaticWhitelist", "SignUpWithOracle", "PrePopulated").
+    pub fn variant_name(&self) -> &'static str {
+        match self {
+            RegistrationMode::SignUpWithStaticWhitelist => "SignUpWithStaticWhitelist",
+            RegistrationMode::SignUpWithOracle { .. } => "SignUpWithOracle",
+            RegistrationMode::PrePopulated { .. } => "PrePopulated",
+        }
+    }
 }
 
 // Storage items for unified configuration
