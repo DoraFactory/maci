@@ -1,13 +1,8 @@
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import { StdFee } from '@cosmjs/amino';
 
-import {
-  WhitelistBase as RegistryWhitelist,
-  type RegistrationModeConfig as RegistryRegistrationModeConfig,
-  type VoiceCreditMode as RegistryVoiceCreditMode
-} from './ts/Registry.types';
-import type { RegistrationModeConfig, VoiceCreditMode } from './ts/ApiSaas.types';
-import { MaciCircuitType, MaciCertSystemType, CertificateEcosystem } from '../../types';
+import type { RegistrationModeConfig, VoiceCreditMode } from './ts/AMaci.types';
+import { MaciCircuitType } from '../../types';
 import { PubKey } from '../crypto';
 
 export type CreateRoundParams = {
@@ -27,8 +22,8 @@ export type CreateAMaciRoundParams = {
   voteOptionMap: string[];
   certificationSystem?: string;
   deactivateEnabled: boolean;
-  registrationMode: RegistryRegistrationModeConfig;
-  voiceCreditMode: RegistryVoiceCreditMode;
+  registrationMode: RegistrationModeConfig;
+  voiceCreditMode: VoiceCreditMode;
   fee?: number | StdFee | 'auto';
 } & CreateRoundParams;
 
@@ -51,3 +46,5 @@ export type CreateMaciRoundParams = {
   whitelistBackendPubkey: string;
   whitelistVotingPowerMode: 'slope' | 'threshold';
 } & CreateRoundParams;
+
+export type { RegistrationModeConfig, VoiceCreditMode } from './ts/AMaci.types';
