@@ -198,4 +198,7 @@ pub enum ContractError {
 
     #[error("Invalid registration config: {reason}")]
     InvalidRegistrationConfig { reason: String },
+
+    #[error("SignUpWithStaticWhitelist mode only supports up to {max_allowed} voters (state_tree_depth <= 4). For larger scales, use SignUpWithOracle or PrePopulated mode instead.")]
+    StaticWhitelistScaleExceeded { max_allowed: Uint256 },
 }

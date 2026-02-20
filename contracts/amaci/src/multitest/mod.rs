@@ -6,8 +6,8 @@ mod tests;
 use anyhow::Result as AnyResult;
 
 use crate::state::{
-    DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VoiceCreditMode,
-    VotingTime,
+    DelayRecords, FEE_DENOM, MaciParameters, MESSAGE_FEE, MessageData, Period, PubKey, RoundInfo,
+    VoiceCreditMode, VotingTime,
 };
 use crate::{
     contract::{execute, instantiate, query},
@@ -16,10 +16,10 @@ use crate::{
 use maci_utils::uint256_from_hex_string;
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
-use cosmwasm_std::{Addr, Empty, StdResult, Timestamp, Uint128, Uint256};
+use cosmwasm_std::{Addr, Empty, StdResult, Timestamp, Uint128, Uint256, coins};
 use cw_multi_test::App as DefaultApp;
 use cw_multi_test::{
-    no_init, AppBuilder, AppResponse, BankKeeper, ContractWrapper, DistributionKeeper, Executor,
+    AppBuilder, AppResponse, BankKeeper, ContractWrapper, DistributionKeeper, Executor,
     FailingModule, GovFailingModule, IbcFailingModule, StakeKeeper, StargateAccepting, WasmKeeper,
 };
 use num_bigint::BigUint;
@@ -55,10 +55,20 @@ pub type App<ExecC = Empty, QueryC = Empty> = cw_multi_test::App<
     StargateAccepting,
 >;
 
+// 1000 DORA per test user, enough to cover all publish_message fees in any test
+const TEST_USER_BALANCE: u128 = 1_000_000_000_000_000_000_000u128;
+
 pub fn create_app() -> App {
     AppBuilder::new()
         .with_stargate(StargateAccepting)
-        .build(no_init)
+        .build(|router, _, storage| {
+            for addr in [user1(), user2(), user3()] {
+                router
+                    .bank
+                    .init_balance(storage, &addr, coins(TEST_USER_BALANCE, "peaka"))
+                    .unwrap();
+            }
+        })
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -497,7 +507,27 @@ impl MaciContract {
                 message,
                 enc_pub_key,
             },
-            &[],
+            &coins(MESSAGE_FEE.u128(), FEE_DENOM),
+        )
+    }
+
+    #[track_caller]
+    pub fn publish_message_batch(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+    ) -> AnyResult<AppResponse> {
+        let total_fee = MESSAGE_FEE.u128() * messages.len() as u128;
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessageBatch {
+                messages,
+                enc_pub_keys,
+            },
+            &coins(total_fee, FEE_DENOM),
         )
     }
 
@@ -860,7 +890,105 @@ impl MaciContract {
                 message,
                 enc_pub_key,
             },
+            &coins(MESSAGE_FEE.u128(), FEE_DENOM),
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_batch(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+    ) -> AnyResult<AppResponse> {
+        let total_fee = MESSAGE_FEE.u128() * messages.len() as u128;
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessageBatch {
+                messages,
+                enc_pub_keys,
+            },
+            &coins(total_fee, FEE_DENOM),
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_no_fee(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        message: MessageData,
+        enc_pub_key: PubKey,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                message,
+                enc_pub_key,
+            },
             &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_with_funds(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        message: MessageData,
+        enc_pub_key: PubKey,
+        funds: &[cosmwasm_std::Coin],
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                message,
+                enc_pub_key,
+            },
+            funds,
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_batch_no_fee(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessageBatch {
+                messages,
+                enc_pub_keys,
+            },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_batch_with_funds(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+        funds: &[cosmwasm_std::Coin],
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessageBatch {
+                messages,
+                enc_pub_keys,
+            },
+            funds,
         )
     }
 

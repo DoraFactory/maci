@@ -17,10 +17,11 @@ use cw_amaci::multitest::{fee_recipient, owner, MaciCodeId, MaciContract};
 use cosmwasm_std::Binary;
 use cw_amaci::ContractError as AmaciContractError;
 
-use cw_amaci::msg::Groth16ProofType;
+use cw_amaci::msg::{Groth16ProofType, WhitelistBase, WhitelistBaseConfig};
 use cw_amaci::multitest::uint256_from_decimal_string;
 use cw_amaci::state::{
     DelayRecord, DelayRecords, DelayType, MessageData, Period, PeriodStatus, PubKey,
+    MESSAGE_FEE, FEE_DENOM,
 };
 use cw_multi_test::next_block;
 use serde::{Deserialize, Serialize};
@@ -3744,4 +3745,513 @@ fn test_update_registration_config_multiple_fields() {
         config.registration_mode,
         cw_amaci::state::RegistrationMode::SignUpWithOracle { .. }
     ));
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Publish-message fee tests
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Creates a round inside the voting period.
+/// - creator has 50 DORA (for create_round deposit)
+/// - user2  has 1000 DORA (for publish_message fees)
+fn setup_voting_round_with_user_balance() -> (App, MaciContract) {
+    let creator_coin_amount = 50_000_000_000_000_000_000u128; // 50 DORA
+    let user_coin_amount = 1_000_000_000_000_000_000_000u128; // 1000 DORA
+
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+            .unwrap();
+        router
+            .bank
+            .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pay = 20_000_000_000_000_000_000u128; // 20 DORA
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let maci_contract = MaciContract::new(amaci_contract_addr.addr.clone());
+
+    // Advance into the voting period
+    app.update_block(next_block);
+
+    (app, maci_contract)
+}
+
+/// Constructs a dummy MessageData using a seed value.
+fn dummy_message(seed: u128) -> MessageData {
+    MessageData {
+        data: [
+            Uint256::from_u128(seed),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+        ],
+    }
+}
+
+/// Constructs a unique enc_pub_key. Both x and y must be non-zero, y must
+/// not equal 1, and both must be smaller than the snark scalar field.
+/// Small integer pairs (x >= 2, y >= 2) satisfy all constraints.
+fn dummy_enc_pub_key(x: u128, y: u128) -> PubKey {
+    PubKey {
+        x: Uint256::from_u128(x),
+        y: Uint256::from_u128(y),
+    }
+}
+
+/// Test: publish_message fails with InsufficientFundsSend when no fee is sent.
+#[test]
+fn test_publish_message_insufficient_fee() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let err = maci_contract
+        .amaci_publish_message_no_fee(
+            &mut app,
+            user2(),
+            dummy_message(1),
+            dummy_enc_pub_key(2, 3),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::InsufficientFundsSend {},
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message fails when the sent fee is less than MESSAGE_FEE.
+#[test]
+fn test_publish_message_partial_fee_rejected() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let partial_fee = MESSAGE_FEE.u128() / 2;
+    let err = maci_contract
+        .amaci_publish_message_with_funds(
+            &mut app,
+            user2(),
+            dummy_message(1),
+            dummy_enc_pub_key(2, 3),
+            &coins(partial_fee, FEE_DENOM),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::InsufficientFundsSend {},
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message with exact fee succeeds, contract balance grows by
+/// MESSAGE_FEE, and the fee_paid event attribute is emitted.
+#[test]
+fn test_publish_message_fee_paid() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let contract_addr = maci_contract.addr();
+    let balance_before = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    let resp = maci_contract
+        .amaci_publish_message(
+            &mut app,
+            user2(),
+            dummy_message(1),
+            dummy_enc_pub_key(2, 3),
+        )
+        .unwrap();
+
+    let balance_after = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    // Contract balance must grow by exactly MESSAGE_FEE
+    assert_eq!(
+        balance_after - balance_before,
+        Uint128::from(MESSAGE_FEE.u128()),
+        "contract balance should increase by MESSAGE_FEE"
+    );
+
+    // Response must carry the fee_paid attribute
+    let fee_paid_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "fee_paid")
+        .expect("response must include fee_paid attribute");
+
+    assert_eq!(
+        fee_paid_attr.value,
+        format!("{}{}", MESSAGE_FEE.u128(), FEE_DENOM)
+    );
+}
+
+/// Test: multiple publish_message calls accumulate fees in the contract.
+#[test]
+fn test_publish_message_fee_accumulation() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let contract_addr = maci_contract.addr();
+    let balance_before = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    // Send 3 messages with distinct enc_pub_keys
+    let pubkeys = [(2u128, 3u128), (4u128, 5u128), (6u128, 7u128)];
+    for (i, (x, y)) in pubkeys.iter().enumerate() {
+        maci_contract
+            .amaci_publish_message(
+                &mut app,
+                user2(),
+                dummy_message(i as u128 + 1),
+                dummy_enc_pub_key(*x, *y),
+            )
+            .unwrap();
+    }
+
+    let balance_after = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    let expected_total = Uint128::from(MESSAGE_FEE.u128() * 3);
+    assert_eq!(
+        balance_after - balance_before,
+        expected_total,
+        "contract balance should increase by 3 × MESSAGE_FEE"
+    );
+}
+
+/// Test: publish_message_batch fails with InsufficientFundsSend when no fee is sent.
+#[test]
+fn test_publish_message_batch_insufficient_fee() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let messages = vec![dummy_message(1), dummy_message(2)];
+    let enc_pub_keys = vec![dummy_enc_pub_key(2, 3), dummy_enc_pub_key(4, 5)];
+
+    let err = maci_contract
+        .amaci_publish_message_batch_no_fee(&mut app, user2(), messages, enc_pub_keys)
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::InsufficientFundsSend {},
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message_batch fails when the fee covers fewer messages than
+/// the actual batch size.
+#[test]
+fn test_publish_message_batch_partial_fee_rejected() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let messages = vec![dummy_message(1), dummy_message(2), dummy_message(3)];
+    let enc_pub_keys = vec![
+        dummy_enc_pub_key(2, 3),
+        dummy_enc_pub_key(4, 5),
+        dummy_enc_pub_key(6, 7),
+    ];
+    // Pay only for 1 message instead of 3
+    let partial_fee = MESSAGE_FEE.u128();
+
+    let err = maci_contract
+        .amaci_publish_message_batch_with_funds(
+            &mut app,
+            user2(),
+            messages,
+            enc_pub_keys,
+            &coins(partial_fee, FEE_DENOM),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::InsufficientFundsSend {},
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message_batch with correct total fee (batch_size × MESSAGE_FEE)
+/// succeeds, contract balance grows by the full amount, and the fee_paid
+/// event attribute is emitted with the total.
+#[test]
+fn test_publish_message_batch_fee_paid() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let contract_addr = maci_contract.addr();
+    let balance_before = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    let batch_size = 3usize;
+    let messages = vec![dummy_message(1), dummy_message(2), dummy_message(3)];
+    let enc_pub_keys = vec![
+        dummy_enc_pub_key(2, 3),
+        dummy_enc_pub_key(4, 5),
+        dummy_enc_pub_key(6, 7),
+    ];
+
+    let resp = maci_contract
+        .amaci_publish_message_batch(&mut app, user2(), messages, enc_pub_keys)
+        .unwrap();
+
+    let balance_after = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    let expected_total = MESSAGE_FEE.u128() * batch_size as u128;
+
+    // Contract balance must grow by exactly batch_size × MESSAGE_FEE
+    assert_eq!(
+        balance_after - balance_before,
+        Uint128::from(expected_total),
+        "contract balance should increase by batch_size × MESSAGE_FEE"
+    );
+
+    // fee_paid attribute must equal total fee sent
+    let fee_paid_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "fee_paid")
+        .expect("response must include fee_paid attribute");
+
+    assert_eq!(
+        fee_paid_attr.value,
+        format!("{}{}", expected_total, FEE_DENOM)
+    );
+}
+
+// ============================================================================
+// Static Whitelist Scale Restriction Tests
+//
+// The StaticWhitelist registration mode is limited to circuits with
+// state_tree_depth <= 4 (max 625 voters).  Larger scales must use
+// SignUpWithOracle or PrePopulated instead.
+//
+// Circuit mapping (via calculate_round_fee_and_params in registry/utils.rs):
+//   max_voter <=   25 → 2-1-1-5  (state_tree_depth=2, fee=20 DORA)  ✅ allowed
+//   max_voter <=  625 → 4-2-2-25 (state_tree_depth=4, fee=540 DORA) ✅ allowed
+//   max_voter <= 15625 → 6-3-3-125 (state_tree_depth=6, fee=1080 DORA) ❌ rejected
+// ============================================================================
+
+/// Shared setup: creates an App funded for `creator`, stores both contract
+/// codes, instantiates the registry, configures a validator/operator chain.
+fn setup_registry_for_scale_test(creator_balance: u128) -> (App, crate::multitest::AmaciRegistryContract) {
+    let mut app = App::new(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &creator(), coins(creator_balance, DORA_DEMON))
+            .unwrap();
+    });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Dora AMaci Registry")
+        .unwrap();
+
+    // Set validators, then bind operator to validator user1, then register pubkey.
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    (app, contract)
+}
+
+/// Test: 2-1-1-5 scale (max_voter=25) with SignUpWithStaticWhitelist should succeed.
+#[test]
+fn test_static_whitelist_small_scale_2_1_1_5_allowed() {
+    let fee = 20_000_000_000_000_000_000u128; // 20 DORA
+    let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
+
+    let whitelist = WhitelistBase {
+        users: vec![
+            WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
+            WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
+            WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+        ],
+    };
+
+    // max_voter=25 → registry selects 2-1-1-5 (state_tree_depth=2, max_voters=25)
+    let result = contract.create_round_static_whitelist_custom(
+        &mut app,
+        creator(),
+        operator(),
+        Uint256::from_u128(25u128),
+        whitelist,
+        Uint256::from_u128(0u128),
+        Uint256::from_u128(0u128),
+        &coins(fee, DORA_DEMON),
+    );
+
+    assert!(
+        result.is_ok(),
+        "2-1-1-5 (state_tree_depth=2) should be allowed with SignUpWithStaticWhitelist, got: {:?}",
+        result.err()
+    );
+}
+
+/// Test: 4-2-2-25 scale (max_voter=625) with SignUpWithStaticWhitelist should succeed.
+#[test]
+fn test_static_whitelist_medium_scale_4_2_2_25_allowed() {
+    let fee = 540_000_000_000_000_000_000u128; // 540 DORA
+    let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
+
+    let whitelist = WhitelistBase {
+        users: vec![
+            WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
+            WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
+            WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+        ],
+    };
+
+    // max_voter=625 → registry selects 4-2-2-25 (state_tree_depth=4, max_voters=625)
+    let result = contract.create_round_static_whitelist_custom(
+        &mut app,
+        creator(),
+        operator(),
+        Uint256::from_u128(625u128),
+        whitelist,
+        Uint256::from_u128(0u128),
+        Uint256::from_u128(0u128),
+        &coins(fee, DORA_DEMON),
+    );
+
+    assert!(
+        result.is_ok(),
+        "4-2-2-25 (state_tree_depth=4) should be allowed with SignUpWithStaticWhitelist, got: {:?}",
+        result.err()
+    );
+}
+
+/// Test: 6-3-3-125 scale (max_voter=626) with SignUpWithStaticWhitelist should be rejected.
+/// The 6-3-3-125 circuit has state_tree_depth=6 which exceeds the static whitelist
+/// limit of 625 voters. Callers must use SignUpWithOracle or PrePopulated instead.
+#[test]
+fn test_static_whitelist_large_scale_6_3_3_125_rejected() {
+    let fee = 1_080_000_000_000_000_000_000u128; // 1080 DORA
+    let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
+
+    let whitelist = WhitelistBase {
+        users: vec![
+            WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
+            WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
+            WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+        ],
+    };
+
+    // max_voter=626 → registry selects 6-3-3-125 (state_tree_depth=6, max_voters=15625)
+    // SignUpWithStaticWhitelist is not allowed at this scale.
+    let err = contract
+        .create_round_static_whitelist_custom(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(626u128),
+            whitelist,
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            &coins(fee, DORA_DEMON),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::StaticWhitelistScaleExceeded {
+            max_allowed: Uint256::from_u128(625u128),
+        },
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message_batch accumulates fees correctly across multiple batches.
+#[test]
+fn test_publish_message_batch_fee_accumulation() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let contract_addr = maci_contract.addr();
+    let balance_before = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    // First batch: 2 messages
+    maci_contract
+        .amaci_publish_message_batch(
+            &mut app,
+            user2(),
+            vec![dummy_message(1), dummy_message(2)],
+            vec![dummy_enc_pub_key(2, 3), dummy_enc_pub_key(4, 5)],
+        )
+        .unwrap();
+
+    // Second batch: 3 messages
+    maci_contract
+        .amaci_publish_message_batch(
+            &mut app,
+            user2(),
+            vec![dummy_message(3), dummy_message(4), dummy_message(5)],
+            vec![
+                dummy_enc_pub_key(6, 7),
+                dummy_enc_pub_key(8, 9),
+                dummy_enc_pub_key(10, 11),
+            ],
+        )
+        .unwrap();
+
+    let balance_after = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    // Total: (2 + 3) × MESSAGE_FEE
+    let expected_total = Uint128::from(MESSAGE_FEE.u128() * 5);
+    assert_eq!(
+        balance_after - balance_before,
+        expected_total,
+        "contract balance should increase by 5 × MESSAGE_FEE across two batches"
+    );
 }

@@ -436,6 +436,57 @@ impl AmaciRegistryContract {
         app.execute_contract(sender, self.addr(), &msg, send_funds)
     }
 
+    /// Generic helper for testing the StaticWhitelist scale restriction.
+    /// Allows full control over max_voter and whitelist so tests can cover
+    /// 2-1-1-5 (≤25), 4-2-2-25 (≤625), and the forbidden 6-3-3-125 (>625) cases.
+    #[track_caller]
+    pub fn create_round_static_whitelist_custom(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        operator: Addr,
+        max_voter: Uint256,
+        whitelist: WhitelistBase,
+        circuit_type: Uint256,
+        certification_system: Uint256,
+        send_funds: &[Coin],
+    ) -> AnyResult<AppResponse> {
+        let round_info = RoundInfo {
+            title: String::from("Static Whitelist Scale Test"),
+            description: String::from("Testing static whitelist scale restriction"),
+            link: String::from("https://test.com"),
+        };
+
+        let start_time = Timestamp::from_nanos(1571797424879000000);
+        let end_time = start_time.plus_minutes(21);
+
+        let msg = ExecuteMsg::CreateRound {
+            operator,
+            round_info,
+            max_voter,
+            vote_option_map: vec![
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ],
+            voting_time: VotingTime {
+                start_time,
+                end_time,
+            },
+            circuit_type,
+            certification_system,
+            deactivate_enabled: false,
+            voice_credit_mode: cw_amaci::state::VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist },
+        };
+
+        app.execute_contract(sender, self.addr(), &msg, send_funds)
+    }
+
     // #[track_caller]
     // pub fn upload_deactivate_message(
     //     &self,

@@ -423,9 +423,14 @@ pub const FEE_RECIPIENT: Item<Addr> = Item::new("fee_recipient");
 // Deactivate feature enabled/disabled flag
 pub const DEACTIVATE_ENABLED: Item<bool> = Item::new("deactivate_enabled");
 
+// Shared fee denomination
+pub const FEE_DENOM: &str = "peaka";
+
 // Deactivate fee constants (hard-coded)
 pub const DEACTIVATE_FEE: Uint128 = Uint128::new(10_000_000_000_000_000_000); // 10 DORA = 10 * 10^18 peaka
-pub const DEACTIVATE_DENOM: &str = "peaka";
+
+// Publish message fee constants (hard-coded)
+pub const MESSAGE_FEE: Uint128 = Uint128::new(10_000_000_000_000_000_000); // 10 DORA = 10 * 10^18 peaka
 
 #[cw_serde]
 pub enum DelayType {

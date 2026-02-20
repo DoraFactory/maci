@@ -10,6 +10,7 @@ import { CertificateEcosystem, ErrorResponse, RoundType } from '../../types';
 import { SignatureResponse } from '../oracle-certificate/types';
 import { getAMaciRoundCircuitFee } from '../contract/utils';
 import { Groth16ProofType, NullableString, RegistrationStatus } from '../contract/ts/AMaci.types';
+import { DEACTIVATE_FEE, FEE_DENOM, MESSAGE_FEE } from './config';
 
 export function isErrorResponse(response: unknown): response is ErrorResponse {
   return (
@@ -719,7 +720,8 @@ export class MACI {
               }
             })
           )
-        )
+        ),
+        funds: [{ denom: FEE_DENOM, amount: MESSAGE_FEE }]
       })
     }));
 
@@ -796,6 +798,10 @@ export class MACI {
       y: p.encPubkeys[1].toString()
     }));
 
+    // Total fee: MESSAGE_FEE per message
+    const totalFee = (BigInt(MESSAGE_FEE) * BigInt(payload.length)).toString();
+    const batchFunds = [{ denom: FEE_DENOM, amount: totalFee }];
+
     if (gasStation && typeof fee !== 'object') {
       // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
       const client = await this.contract.contractClient({ signer });
@@ -831,7 +837,8 @@ export class MACI {
                 }
               })
             )
-          )
+          ),
+          funds: batchFunds
         })
       };
       const gasEstimation = await client.simulate(address, [msg], '');
@@ -843,17 +850,17 @@ export class MACI {
         gas: calculatedFee.gas,
         granter: granter || contractAddress
       };
-      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee);
+      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee, undefined, batchFunds);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
         granter: granter || contractAddress
       };
-      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee);
+      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee, undefined, batchFunds);
     }
 
-    return amaciClient.publishMessageBatch({ encPubKeys, messages }, fee);
+    return amaciClient.publishMessageBatch({ encPubKeys, messages }, fee, undefined, batchFunds);
   }
 
   async deactivate({
@@ -919,6 +926,8 @@ export class MACI {
         }
       });
 
+      const deactivateFunds = [{ denom: FEE_DENOM, amount: DEACTIVATE_FEE }];
+
       if (gasStation === true && typeof fee !== 'object') {
         // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
         const gasEstimation = await client.simulate(
@@ -926,11 +935,12 @@ export class MACI {
           [
             {
               typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-              value: {
+              value: MsgExecuteContract.fromPartial({
                 sender: address,
                 contract: contractAddress,
-                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg))
-              }
+                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg)),
+                funds: deactivateFunds
+              })
             }
           ],
           ''
@@ -943,17 +953,17 @@ export class MACI {
           gas: calculatedFee.gas,
           granter: contractAddress
         };
-        return client.execute(address, contractAddress, deactivateMsg, grantFee);
+        return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
       } else if (gasStation === true && typeof fee === 'object') {
         // When gasStation is true and fee is StdFee, add granter
         const grantFee: StdFee = {
           ...fee,
           granter: contractAddress
         };
-        return client.execute(address, contractAddress, deactivateMsg, grantFee);
+        return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
       }
 
-      return client.execute(address, contractAddress, deactivateMsg, fee);
+      return client.execute(address, contractAddress, deactivateMsg, fee, undefined, deactivateFunds);
     } catch (error) {
       throw Error(`Submit deactivate failed! ${error}`);
     }
@@ -1010,6 +1020,8 @@ export class MACI {
         }
       });
 
+      const deactivateFunds = [{ denom: FEE_DENOM, amount: DEACTIVATE_FEE }];
+
       if (gasStation === true && typeof fee !== 'object') {
         // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
         const gasEstimation = await client.simulate(
@@ -1017,11 +1029,12 @@ export class MACI {
           [
             {
               typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-              value: {
+              value: MsgExecuteContract.fromPartial({
                 sender: address,
                 contract: contractAddress,
-                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg))
-              }
+                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg)),
+                funds: deactivateFunds
+              })
             }
           ],
           ''
@@ -1034,17 +1047,17 @@ export class MACI {
           gas: calculatedFee.gas,
           granter: granter || contractAddress
         };
-        return client.execute(address, contractAddress, deactivateMsg, grantFee);
+        return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
       } else if (gasStation === true && typeof fee === 'object') {
         // When gasStation is true and fee is StdFee, add granter
         const grantFee: StdFee = {
           ...fee,
           granter: granter || contractAddress
         };
-        return client.execute(address, contractAddress, deactivateMsg, grantFee);
+        return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
       }
 
-      return client.execute(address, contractAddress, deactivateMsg, fee);
+      return client.execute(address, contractAddress, deactivateMsg, fee, undefined, deactivateFunds);
     } catch (error) {
       throw Error(`Submit deactivate failed! ${error}`);
     }

@@ -146,30 +146,41 @@ export class AmaciContractClient extends BaseContractClient {
 
   /**
    * Publish message (vote)
+   * NOTE: Requires 10 DORA fee (10 * 10^18 peaka) per message
    */
   async publishMessage(message: string[], encPubKey: { x: string; y: string }): Promise<any> {
-    return await this.execute({
-      publish_message: {
-        message: { data: message },
-        enc_pub_key: encPubKey
-      }
-    });
+    const messageFee = [{ denom: 'peaka', amount: '10000000000000000000' }];
+    return await this.execute(
+      {
+        publish_message: {
+          message: { data: message },
+          enc_pub_key: encPubKey
+        }
+      },
+      messageFee
+    );
   }
 
   /**
    * Publish message batch (multiple votes in one transaction)
+   * NOTE: Requires 10 DORA fee per message (batch_size * 10 * 10^18 peaka total)
    */
   async publishMessageBatch(
     messages: Array<{ message: string[]; encPubKey: { x: string; y: string } }>
   ): Promise<any> {
     const formattedMessages = messages.map((m) => ({ data: m.message }));
     const encPubKeys = messages.map((m) => m.encPubKey);
-    return await this.execute({
-      publish_message_batch: {
-        messages: formattedMessages,
-        enc_pub_keys: encPubKeys
-      }
-    });
+    const totalFee = BigInt('10000000000000000000') * BigInt(messages.length);
+    const batchFee = [{ denom: 'peaka', amount: totalFee.toString() }];
+    return await this.execute(
+      {
+        publish_message_batch: {
+          messages: formattedMessages,
+          enc_pub_keys: encPubKeys
+        }
+      },
+      batchFee
+    );
   }
 
   /**

@@ -12,12 +12,12 @@ use crate::state::{
     RoundInfo, StateLeaf, VoiceCreditMode, VotingTime, Whitelist, WhitelistConfig, ADMIN,
     CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH, CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT,
     CURRENT_STATE_COMMITMENT, CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_DELAY,
-    DEACTIVATE_DENOM, DEACTIVATE_ENABLED, DEACTIVATE_FEE, DELAY_RECORDS, DMSG_CHAIN_LENGTH,
-    DMSG_HASHES, DNODES, FEE_RECIPIENT, FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS,
-    GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS, GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS,
-    MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR, MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH,
-    MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE, PERIOD, POLL_ID,
-    PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT,
+    DEACTIVATE_ENABLED, DEACTIVATE_FEE, DELAY_RECORDS, DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES,
+    FEE_DENOM, FEE_RECIPIENT, FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS, GROTH16_NEWKEY_VKEYS,
+    GROTH16_PROCESS_VKEYS, GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS,
+    MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR, MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MESSAGE_FEE,
+    MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE,
+    PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT,
     PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB, REGISTRATION_MODE, RESULT, ROUNDINFO,
     SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_DELAY_MAX_HOURS, TALLY_TIMEOUT, TOTAL_RESULT,
     USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE, VOTEOPTIONMAP,
@@ -217,6 +217,27 @@ pub fn instantiate(
         return Err(ContractError::WrongTimeSet {});
     }
 
+    // Compute the maximum number of leaves based on the state tree depth.
+    // This is needed both for registration mode validation and for tree initialization,
+    // so it is computed once here and reused throughout instantiate.
+    let max_leaves_count = Uint256::from_u128(
+        5u128.pow(
+            msg.parameters
+                .state_tree_depth
+                .to_string()
+                .parse()
+                .map_err(|e| ContractError::ParseError {
+                    value: msg.parameters.state_tree_depth.to_string(),
+                    reason: format!("{}", e),
+                })?,
+        ),
+    );
+    MAX_LEAVES_COUNT.save(deps.storage, &max_leaves_count)?;
+
+    // Calculate the index of the first leaf in the tree
+    let leaf_idx0 = (max_leaves_count - Uint256::from_u128(1u128)) / Uint256::from_u128(4u128);
+    LEAF_IDX_0.save(deps.storage, &leaf_idx0)?;
+
     // ============================================
     // Process Registration Mode Configuration
     // ============================================
@@ -225,23 +246,20 @@ pub fn instantiate(
 
     let registration_mode = match &msg.registration_mode {
         RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
-            // SignUp with static whitelist mode
-            let max_voter_amount = Uint256::from_u128(
-                5u128.pow(
-                    msg.parameters
-                        .state_tree_depth
-                        .to_string()
-                        .parse()
-                        .map_err(|e| ContractError::ParseError {
-                            value: msg.parameters.state_tree_depth.to_string(),
-                            reason: format!("{}", e),
-                        })?,
-                ),
-            );
-            if Uint256::from_u128(whitelist.users.len() as u128) > max_voter_amount {
+            // Static whitelist mode is limited to 625 max voters (state_tree_depth <= 4).
+            // For larger scales (e.g. 6-3-3-125 with 15625 voters), use SignUpWithOracle
+            // or PrePopulated mode instead.
+            let static_whitelist_max_voters = Uint256::from_u128(625u128);
+            if max_leaves_count > static_whitelist_max_voters {
+                return Err(ContractError::StaticWhitelistScaleExceeded {
+                    max_allowed: static_whitelist_max_voters,
+                });
+            }
+
+            if Uint256::from_u128(whitelist.users.len() as u128) > max_leaves_count {
                 return Err(ContractError::MaxVoterExceeded {
                     current: Uint256::from_u128(whitelist.users.len() as u128),
-                    max_allowed: max_voter_amount,
+                    max_allowed: max_leaves_count,
                 });
             }
 
@@ -355,25 +373,6 @@ pub fn instantiate(
     // Compute the coordinator hash from the coordinator values in the message
     let coordinator_hash = hash2([msg.coordinator.x, msg.coordinator.y]);
     COORDINATORHASH.save(deps.storage, &coordinator_hash)?;
-
-    // Compute the maximum number of leaves based on the state tree depth
-    let max_leaves_count = Uint256::from_u128(
-        5u128.pow(
-            msg.parameters
-                .state_tree_depth
-                .to_string()
-                .parse()
-                .map_err(|e| ContractError::ParseError {
-                    value: msg.parameters.state_tree_depth.to_string(),
-                    reason: format!("{}", e),
-                })?,
-        ),
-    );
-    MAX_LEAVES_COUNT.save(deps.storage, &max_leaves_count)?;
-
-    // Calculate the index of the first leaf in the tree
-    let leaf_idx0 = (max_leaves_count - Uint256::from_u128(1u128)) / Uint256::from_u128(4u128);
-    LEAF_IDX_0.save(deps.storage, &leaf_idx0)?;
 
     // Define an array of zero values
     let zeros_h10: [Uint256; 7] = [
@@ -786,16 +785,7 @@ fn validate_registration_config_update(
     if let Some(registration_mode) = &config.registration_mode {
         match registration_mode {
             RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
-                // Validate whitelist user count against state tree depth
-                let cfg = MACIPARAMETERS.load(deps.storage)?;
-                let max_voter_amount = Uint256::from_u128(5u128.pow(
-                    cfg.state_tree_depth.to_string().parse().map_err(|e| {
-                        ContractError::ParseError {
-                            value: cfg.state_tree_depth.to_string(),
-                            reason: format!("{}", e),
-                        }
-                    })?,
-                ));
+                let max_voter_amount = MAX_LEAVES_COUNT.load(deps.storage)?;
 
                 if Uint256::from_u128(whitelist.users.len() as u128) > max_voter_amount {
                     return Err(ContractError::MaxVoterExceeded {
@@ -897,6 +887,18 @@ fn apply_registration_config_update(
     if let Some(registration_mode_config) = config.registration_mode {
         let new_mode = match registration_mode_config {
             RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
+                let max_voter_amount = MAX_LEAVES_COUNT.load(deps.storage)?;
+
+                // Static whitelist mode is limited to 625 max voters (state_tree_depth <= 4).
+                // For larger scales (e.g. 6-3-3-125 with 15625 voters), use SignUpWithOracle
+                // or PrePopulated mode instead.
+                let static_whitelist_max_voters = Uint256::from_u128(625u128);
+                if max_voter_amount > static_whitelist_max_voters {
+                    return Err(ContractError::StaticWhitelistScaleExceeded {
+                        max_allowed: static_whitelist_max_voters,
+                    });
+                }
+
                 let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
                 let default_amount = match &vc_mode {
                     VoiceCreditMode::Unified { amount } => *amount,
@@ -1273,13 +1275,26 @@ pub fn execute_sign_up(
 pub fn execute_publish_message(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     message: MessageData,
     enc_pub_key: PubKey,
 ) -> Result<Response, ContractError> {
     // Check if the period status is Voting
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env, voting_time)?;
+
+    // Check payment: require MESSAGE_FEE in FEE_DENOM per message
+    let payment = info
+        .funds
+        .iter()
+        .find(|coin| coin.denom == FEE_DENOM)
+        .map(|coin| coin.amount)
+        .unwrap_or(Uint128::zero());
+
+    if payment < MESSAGE_FEE {
+        return Err(ContractError::InsufficientFundsSend {});
+    }
+
     // Load the scalar field value
     let snark_scalar_field =
         uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
@@ -1335,7 +1350,8 @@ pub fn execute_publish_message(
                     enc_pub_key.x.to_string(),
                     enc_pub_key.y.to_string()
                 ),
-            ))
+            )
+            .add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
     } else {
         // Return an error response for invalid user or encrypted public key
         Ok(Response::new()
@@ -1348,7 +1364,7 @@ pub fn execute_publish_message(
 pub fn execute_publish_message_batch(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     messages: Vec<MessageData>,
     enc_pub_keys: Vec<PubKey>,
 ) -> Result<Response, ContractError> {
@@ -1364,19 +1380,36 @@ pub fn execute_publish_message_batch(
         });
     }
 
+    // Check payment: require MESSAGE_FEE * batch_size in FEE_DENOM
+    let batch_size = messages.len();
+    let required_fee = MESSAGE_FEE
+        .checked_mul(Uint128::from(batch_size as u128))
+        .map_err(|_| ContractError::ValueTooLarge {})?;
+
+    let payment = info
+        .funds
+        .iter()
+        .find(|coin| coin.denom == FEE_DENOM)
+        .map(|coin| coin.amount)
+        .unwrap_or(Uint128::zero());
+
+    if payment < required_fee {
+        return Err(ContractError::InsufficientFundsSend {});
+    }
+
     // Load the scalar field value (once for the entire batch)
     let snark_scalar_field =
         uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
 
     // Record the starting chain length
     let start_chain_length = MSG_CHAIN_LENGTH.load(deps.storage)?;
-    let batch_size = messages.len();
 
     // Build attributes for the batch
     let mut attributes = vec![
         attr("action", "publish_message_batch"),
         attr("batch_size", batch_size.to_string()),
         attr("start_chain_length", start_chain_length.to_string()),
+        attr("fee_paid", format!("{}{}", payment, FEE_DENOM)),
     ];
 
     // Process each message in the batch
@@ -1462,11 +1495,11 @@ pub fn execute_publish_deactivate_message(
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env.clone(), voting_time)?;
 
-    // Check payment: require DEACTIVATE_FEE in DEACTIVATE_DENOM
+    // Check payment: require DEACTIVATE_FEE in FEE_DENOM
     let payment = info
         .funds
         .iter()
-        .find(|coin| coin.denom == DEACTIVATE_DENOM)
+        .find(|coin| coin.denom == FEE_DENOM)
         .map(|coin| coin.amount)
         .unwrap_or(Uint128::zero());
 
@@ -1582,7 +1615,8 @@ pub fn execute_publish_deactivate_message(
                     enc_pub_key.x.to_string(),
                     enc_pub_key.y.to_string()
                 ),
-            ))
+            )
+            .add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
     } else {
         // Return an error response for invalid user or encrypted public key
         Ok(Response::new()
