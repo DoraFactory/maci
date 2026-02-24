@@ -364,24 +364,27 @@ pub fn hash_message_and_enc_pub_key(
     enc_pub_key: PubKey,
     prev_hash: Uint256,
 ) -> Uint256 {
+    // Hash first 5 elements of the message
     let mut m: [Uint256; 5] = [Uint256::zero(); 5];
     m[0] = message.data[0];
     m[1] = message.data[1];
     m[2] = message.data[2];
     m[3] = message.data[3];
     m[4] = message.data[4];
+    let m_hash = hash5(m);
 
+    // Hash next 5 elements of the message
     let mut n: [Uint256; 5] = [Uint256::zero(); 5];
     n[0] = message.data[5];
     n[1] = message.data[6];
-    n[2] = enc_pub_key.x;
-    n[3] = enc_pub_key.y;
-    n[4] = prev_hash;
-
-    let m_hash = hash5(m);
+    n[2] = message.data[7];
+    n[3] = message.data[8];
+    n[4] = message.data[9];
     let n_hash = hash5(n);
-    let m_n_hash = hash2([m_hash, n_hash]);
-    return m_n_hash;
+
+    // Final hash combining message hashes, public key, and previous hash
+    // Matches circuit's Hasher13: hash5([m_hash, n_hash, encPubKey[0], encPubKey[1], prevHash])
+    return hash5([m_hash, n_hash, enc_pub_key.x, enc_pub_key.y, prev_hash]);
 }
 
 // ============================================================================

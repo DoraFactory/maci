@@ -1,0 +1,280 @@
+[0;36m[21:00:46][0m Starting automated test suite...
+[0;36m[21:00:46][0m Test configuration:
+[0;36m[21:00:46][0m   Chain ID: vota-testnet
+[0;36m[21:00:46][0m   RPC Node: https://vota-testnet-rpc.dorafactory.org:443
+[0;36m[21:00:46][0m   Test Account: test-manage
+[0;36m[21:00:46][0m   WASM File: ../../artifacts/cw_test-aarch64.wasm
+[0;36m[21:00:46][0m   Debug Mode: Disabled (Set DEBUG=1 to enable)
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;35m  Pre-flight Checks[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[0;32m[✓][0m dorad found: 0.3.1
+[0;32m[✓][0m jq found: jq-1.7.1-apple
+[0;32m[✓][0m WASM file found: ../../artifacts/cw_test-aarch64.wasm (2.1M)
+[0;32m[✓][0m Account found: test-manage
+[0;32m[✓][0m RPC connection successful: https://vota-testnet-rpc.dorafactory.org:443
+[0;32m[✓][0m All pre-flight checks passed!
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;35m  Contract Deployment[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[0;36m[21:00:47][0m Storing contract code...
+[0;36m[21:00:47][0m Executing: store_code
+[0;34m[i][0m Transaction hash: 43023BBE32C110278CA5169BB29727CAD264AE7EFD19CEF3071A4AC35DFF894B
+[0;36m[21:00:51][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 12972485
+[0;34m[i][0m Fee: 1942945300000000000 peaka (1.942945 DORA)
+[0;32m[✓][0m Test completed: store_code
+[0;32m[✓][0m Code ID: 223
+[0;36m[21:01:40][0m Instantiating contract...
+[0;36m[21:01:40][0m Executing: instantiate
+[0;34m[i][0m Transaction hash: 2E4FB932987C02C17778B1B3141337D329F823CF65214F124B91F1452A24062B
+[0;36m[21:01:42][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 264847
+[0;34m[i][0m Fee: 36813000000000000 peaka (0.036813 DORA)
+[0;32m[✓][0m Test completed: instantiate
+[0;32m[✓][0m Contract Address: dora1xje8a3822ysf7tfy4zylrcckwy9fy5h5g7rwysuwcu4sxxtq9sks8hyqzx
+[0;32m[✓][0m Ready to test - Code ID: 223, Contract: dora1xje8a3822ysf7tfy4zylrcckwy9fy5h5g7rwysuwcu4sxxtq9sks8hyqzx
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;35m  Basic Functionality Tests[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[0;36m[21:01:52][0m Testing SignUp for User 1...
+[0;36m[21:01:52][0m Executing: signup_user1
+[0;34m[i][0m Transaction hash: 7A64A5B797E5DE6EF77D60FEB00561DBBF75BC3137202D01FD510DFD65FDD179
+[0;36m[21:01:54][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 195090
+[0;34m[i][0m Fee: 26349300000000000 peaka (0.026349 DORA)
+[0;32m[✓][0m Test completed: signup_user1
+[0;36m[21:02:03][0m Querying: query_num_signups_1
+[0;34m[i][0m Result: 1
+[0;32m[✓][0m Query completed: query_num_signups_1
+[0;36m[21:02:03][0m Testing SignUp for User 2...
+[0;36m[21:02:03][0m Executing: signup_user2
+[0;34m[i][0m Transaction hash: EE387EE5B30E8C93292C1916439C4825416835C8432CB0FD798840981401D5F8
+[0;36m[21:02:04][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 197087
+[0;34m[i][0m Fee: 26649000000000000 peaka (0.026649 DORA)
+[0;32m[✓][0m Test completed: signup_user2
+[0;36m[21:02:13][0m Querying: query_num_signups_2
+[0;34m[i][0m Result: 2
+[0;32m[✓][0m Query completed: query_num_signups_2
+[0;36m[21:02:13][0m Testing PublishMessage...
+[0;36m[21:02:13][0m Executing: publish_message
+[0;34m[i][0m Transaction hash: 4DEBE004FE7E6D98450031ED5A790A2011BB5D1FD5E8B1DED424E6D24280F223
+[0;36m[21:02:14][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 155835
+[0;34m[i][0m Fee: 20461200000000000 peaka (0.020461 DORA)
+[0;32m[✓][0m Test completed: publish_message
+[0;36m[21:02:23][0m Querying: query_msg_chain_length
+[0;34m[i][0m Result: 1
+[0;32m[✓][0m Query completed: query_msg_chain_length
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;35m  Gas Performance Tests[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[0;36m[21:02:24][0m Testing SignupNoHash (baseline)...
+[0;36m[21:02:24][0m Executing: test_signup_no_hash
+[0;34m[i][0m Transaction hash: 31CF1BA1932F712FD45900AEBAE888BB428517C86193B63A6B26A91857861C9F
+[0;36m[21:02:25][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 156950
+[0;34m[i][0m Fee: 20628300000000000 peaka (0.020628 DORA)
+[0;32m[✓][0m Test completed: test_signup_no_hash
+[0;36m[21:02:34][0m Testing SignupWithHash (full hash)...
+[0;36m[21:02:34][0m Executing: test_signup_with_hash
+[0;34m[i][0m Transaction hash: 0C96AA8D5FF1356EFD37AFEBA1B814844F5A542F6754F359B6CE4E27E34B9AA0
+[0;36m[21:02:36][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 195793
+[0;34m[i][0m Fee: 26454900000000000 peaka (0.026455 DORA)
+[0;32m[✓][0m Test completed: test_signup_with_hash
+[0;36m[21:02:46][0m Testing PublishMessage...
+[0;36m[21:02:46][0m Executing: test_publish_message
+[0;34m[i][0m Transaction hash: C68B64E175F8CC710F00F8DF8FC965463D42ACD66CD0B661FF91D1D7B54EE233
+[0;36m[21:02:48][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 150266
+[0;34m[i][0m Fee: 19625800000000000 peaka (0.019626 DORA)
+[0;32m[✓][0m Test completed: test_publish_message
+[0;36m[21:02:58][0m Testing Hash2...
+[0;36m[21:02:58][0m Executing: test_hash2
+[0;34m[i][0m Transaction hash: 2A6192C642F7BF24C906DE567E75E2B8607D397D419F509835B04A421F3EFEC1
+[0;36m[21:03:00][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 114462
+[0;34m[i][0m Fee: 14255100000000000 peaka (0.014255 DORA)
+[0;32m[✓][0m Test completed: test_hash2
+[0;36m[21:03:08][0m Testing Hash5...
+[0;36m[21:03:08][0m Executing: test_hash5
+[0;34m[i][0m Transaction hash: 4897AC641DD143F51F18DCFEDF561E82A3B59A2F9962E0DD5630ED4D1513572D
+[0;36m[21:03:10][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 119976
+[0;34m[i][0m Fee: 15082300000000000 peaka (0.015082 DORA)
+[0;32m[✓][0m Test completed: test_hash5
+[0;36m[21:03:19][0m Testing HashUint256...
+[0;36m[21:03:19][0m Executing: test_hash_uint256
+[0;34m[i][0m Transaction hash: 5714298754689217537A29B5E295F944C68860B6978A29A65C3512DA59975AEE
+[0;36m[21:03:22][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 113426
+[0;34m[i][0m Fee: 14099800000000000 peaka (0.014100 DORA)
+[0;32m[✓][0m Test completed: test_hash_uint256
+[0;36m[21:03:38][0m Testing HashOnce...
+[0;36m[21:03:38][0m Executing: test_hash_once
+[0;34m[i][0m Transaction hash: C74EAE11E43952C6C9B4399701AF935CDA326617925C44EB39F47773E453348D
+[0;36m[21:03:42][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 120023
+[0;34m[i][0m Fee: 15089400000000000 peaka (0.015089 DORA)
+[0;32m[✓][0m Test completed: test_hash_once
+[0;36m[21:03:58][0m Testing HashMultiple with 1 calls...
+[0;36m[21:03:58][0m Executing: test_hash_multiple_1
+[0;34m[i][0m Transaction hash: 6386514C7714F5D39F0A095C956C76C56B56CC80BB0A6209D6986B10537B5C63
+[0;36m[21:04:00][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 120248
+[0;34m[i][0m Fee: 15123000000000000 peaka (0.015123 DORA)
+[0;32m[✓][0m Test completed: test_hash_multiple_1
+[0;36m[21:04:11][0m Testing HashMultiple with 5 calls...
+[0;36m[21:04:11][0m Executing: test_hash_multiple_5
+[0;34m[i][0m Transaction hash: 9137A2C16522195E7977DF532D5429CEC3572400D703CCB3EF1A080DC9BDD919
+[0;36m[21:04:12][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 153186
+[0;34m[i][0m Fee: 20063800000000000 peaka (0.020064 DORA)
+[0;32m[✓][0m Test completed: test_hash_multiple_5
+[0;36m[21:04:22][0m Testing HashMultiple with 10 calls...
+[0;36m[21:04:22][0m Executing: test_hash_multiple_10
+[0;34m[i][0m Transaction hash: F48D295B90748972048EDE07CA02D8240678BA70D69500707888C54E770EDD8A
+[0;36m[21:04:23][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 194372
+[0;34m[i][0m Fee: 26241700000000000 peaka (0.026242 DORA)
+[0;32m[✓][0m Test completed: test_hash_multiple_10
+[0;36m[21:04:33][0m Testing HashMultiple with 20 calls...
+[0;36m[21:04:33][0m Executing: test_hash_multiple_20
+[0;34m[i][0m Transaction hash: 8179602571DCA47BEF932F94A3C25FEEF355F07D69ABAAFC27D447248B3A5F36
+[0;36m[21:04:37][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 276719
+[0;34m[i][0m Fee: 38593800000000000 peaka (0.038594 DORA)
+[0;32m[✓][0m Test completed: test_hash_multiple_20
+[0;36m[21:04:48][0m Testing HashMultiple with 50 calls...
+[0;36m[21:04:48][0m Executing: test_hash_multiple_50
+[0;34m[i][0m Transaction hash: A8D8813DA4577BAF2C902497F5E17AD05EDEB3D33FF5C988ECCE7B4E6E21EA1E
+[0;36m[21:05:20][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 523761
+[0;34m[i][0m Fee: 75650100000000000 peaka (0.075650 DORA)
+[0;32m[✓][0m Test completed: test_hash_multiple_50
+[0;36m[21:06:02][0m Testing HashMultiple with 100 calls...
+[0;36m[21:06:02][0m Executing: test_hash_multiple_100
+[0;34m[i][0m Transaction hash: FB993D4C02AA6F9497A9CDE6542BD16F3E67A3B3EAB94C3FAD6C924038A64BF9
+[0;36m[21:06:04][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 935549
+[0;34m[i][0m Fee: 137412300000000000 peaka (0.137412 DORA)
+[0;32m[✓][0m Test completed: test_hash_multiple_100
+[0;36m[21:06:18][0m Testing HashBatch (batch of 3)...
+[0;36m[21:06:18][0m Executing: test_hash_batch_3
+[0;34m[i][0m Transaction hash: CB696A8C99EB53BCCA8D6D5B0A4460C16EDD34A0B233C8C3859DC5957D37132A
+[0;36m[21:06:19][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 137099
+[0;34m[i][0m Fee: 17650800000000000 peaka (0.017651 DORA)
+[0;32m[✓][0m Test completed: test_hash_batch_3
+[0;36m[21:06:27][0m Testing HashComposed...
+[0;36m[21:06:27][0m Executing: test_hash_composed
+[0;34m[i][0m Transaction hash: 141BC596CEFF60F80C18C1B11DCAFB92EF7FBC9D1C18F08F9BCCC67FD01B2611
+[0;36m[21:06:29][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 142565
+[0;34m[i][0m Fee: 18470700000000000 peaka (0.018471 DORA)
+[0;32m[✓][0m Test completed: test_hash_composed
+[0;36m[21:06:42][0m Testing BatchHash with 1 operations...
+[0;36m[21:06:42][0m Executing: test_batch_hash_1
+[0;34m[i][0m Transaction hash: C135CAB69CA99851A8F5795C86F87D6DF761EEB0C8CEB6A4DD5B5C3446DF9F8F
+[0;36m[21:06:45][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 207207
+[0;34m[i][0m Fee: 28166700000000000 peaka (0.028167 DORA)
+[0;32m[✓][0m Test completed: test_batch_hash_1
+[0;36m[21:06:55][0m Testing BatchHash with 5 operations...
+[0;36m[21:06:55][0m Executing: test_batch_hash_5
+[0;34m[i][0m Transaction hash: 40B97147166BFA5ABBBCCCD00771F4A671FC18B4ED92616BF242FFFC16B241FB
+[0;36m[21:06:57][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 586377
+[0;34m[i][0m Fee: 85041100000000000 peaka (0.085041 DORA)
+[0;32m[✓][0m Test completed: test_batch_hash_5
+[0;36m[21:07:06][0m Testing BatchHash with 10 operations...
+[0;36m[21:07:06][0m Executing: test_batch_hash_10
+[0;34m[i][0m Transaction hash: 70C4FD4AEFA9EC816CA0CDEC1A99B1C552C7F4565019C0CEAE5759457C64EB82
+[0;36m[21:07:09][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 1137384
+[0;34m[i][0m Fee: 167684400000000000 peaka (0.167684 DORA)
+[0;32m[✓][0m Test completed: test_batch_hash_10
+[0;36m[21:07:21][0m Testing BatchHash with 20 operations...
+[0;36m[21:07:21][0m Executing: test_batch_hash_20
+[0;34m[i][0m Transaction hash: 150A5F3BFCA6C42C71148EB2E53E45C0A83BBC3CACBE6423D97CE27705A538FF
+[0;36m[21:07:23][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 2449325
+[0;34m[i][0m Fee: 364470700000000000 peaka (0.364471 DORA)
+[0;32m[✓][0m Test completed: test_batch_hash_20
+[0;36m[21:07:36][0m Testing BatchHash with 50 operations...
+[0;36m[21:07:36][0m Executing: test_batch_hash_50
+[0;34m[i][0m Transaction hash: A31D31D787FAB6B16DAB65542F792A957F09A98C8EF470A2E6CED516C5627D22
+[0;36m[21:07:40][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 7630740
+[0;34m[i][0m Fee: 1141666800000000000 peaka (1.141667 DORA)
+[0;32m[✓][0m Test completed: test_batch_hash_50
+[0;36m[21:07:57][0m Testing BatchHash with 100 operations...
+[0;36m[21:07:57][0m Executing: test_batch_hash_100
+[0;34m[i][0m Transaction hash: FCB72340C10EDD612F219306FFA4127013F02ADBFFBBAD2C3E372C238F18DEF3
+[0;36m[21:08:20][0m Waiting for transaction to be processed...
+[0;34m[i][0m Gas used: 20654255
+[0;34m[i][0m Fee: 3095177500000000000 peaka (3.095178 DORA)
+[0;32m[✓][0m Test completed: test_batch_hash_100
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;35m  Query Function Tests[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[0;36m[21:08:43][0m Querying: query_state_tree_root
+[0;34m[i][0m Result: 13119797066032851477360351414991012611294925242647139710897540494594231809208
+[0;32m[✓][0m Query completed: query_state_tree_root
+[0;36m[21:08:45][0m Querying: query_voice_credit_amount
+[0;34m[i][0m Result: 100
+[0;32m[✓][0m Query completed: query_voice_credit_amount
+[0;36m[21:08:46][0m Querying: query_user1_signuped
+[0;34m[i][0m Result: 0
+[0;32m[✓][0m Query completed: query_user1_signuped
+[0;36m[21:08:46][0m Querying tree nodes...
+[0;36m[21:08:46][0m Querying: query_node_root
+[0;34m[i][0m Result: 13119797066032851477360351414991012611294925242647139710897540494594231809208
+[0;32m[✓][0m Query completed: query_node_root
+[0;36m[21:08:47][0m Querying: query_node_leaf_31
+[0;34m[i][0m Result: 0
+[0;32m[✓][0m Query completed: query_node_leaf_31
+[0;36m[21:08:48][0m Querying: query_node_leaf_32
+[0;34m[i][0m Result: 0
+[0;32m[✓][0m Query completed: query_node_leaf_32
+[0;36m[21:08:49][0m Querying no-hash test data...
+[0;36m[21:08:49][0m Querying: query_num_signup_no_hash
+[0;34m[i][0m Result: 1
+[0;32m[✓][0m Query completed: query_num_signup_no_hash
+[0;36m[21:08:49][0m Querying: query_state_tree_root_no_hash
+[0;34m[i][0m Result: 100
+[0;32m[✓][0m Query completed: query_state_tree_root_no_hash
+[0;36m[21:08:51][0m Querying: query_signuped_no_hash
+[0;34m[i][0m Result: 0
+[0;32m[✓][0m Query completed: query_signuped_no_hash
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;35m  Generating Test Report[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[0;32m[✓][0m Report generated: test-report-20260224-210046.md
+[0;32m[✓][0m Log file: test-log-20260224-210046.log
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;35m  Test Suite Completed[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+
+[0;32m[✓][0m Total Tests: 38
+[0;32m[✓][0m Passed: 38
+[0;32m[✓][0m Failed: 0
+[0;32m[✓][0m Contract Address: dora1xje8a3822ysf7tfy4zylrcckwy9fy5h5g7rwysuwcu4sxxtq9sks8hyqzx
+[0;32m[✓][0m Code ID: 223
+[0;32m[✓][0m Report: test-report-20260224-210046.md
+[0;32m[✓][0m Log: test-log-20260224-210046.log
