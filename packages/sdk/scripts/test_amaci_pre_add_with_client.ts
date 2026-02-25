@@ -33,13 +33,13 @@ async function main() {
   console.log('='.repeat(80));
 
   // API base configuration
-  // const API_BASE_URL = 'http://localhost:8080';
+  const API_BASE_URL = 'http://localhost:8080';
   // const API_BASE_URL = undefined;
 
   // Create temporary MaciClient (for admin operations, no API key required)
   const adminMaciClient = new MaciClient({
-    network: network
-    // saasApiEndpoint: API_BASE_URL
+    network: network,
+    saasApiEndpoint: API_BASE_URL
   });
 
   // ==================== 1. Create Tenant and API Key ====================
@@ -74,7 +74,7 @@ async function main() {
   // Create MaciClient with API Key
   const maciClient = new MaciClient({
     network: network,
-    // saasApiEndpoint: API_BASE_URL,
+    saasApiEndpoint: API_BASE_URL,
     saasApiKey: apiKey
   });
 
@@ -84,7 +84,7 @@ async function main() {
 
   const startVoting = new Date();
   const endVoting = new Date(startVoting.getTime() + 11 * 60 * 1000); // 11 minutes later
-  const maxVoter = 25;
+  const maxVoter = 5;
 
   const createRoundData = await maciClient.saasCreateAmaciRound({
     title: 'Pre-Add-New-Key Test Round',
@@ -94,33 +94,7 @@ async function main() {
     endVoting: endVoting.toISOString(),
     operator,
     maxVoter: maxVoter,
-    voteOptionMap: [
-      'Option A',
-      'Option B',
-      'Option C',
-      'Option D',
-      'Option E',
-      'Option F',
-      'Option G',
-      'Option H',
-      'Option I',
-      'Option J',
-      'Option K',
-      'Option L',
-      'Option M',
-      'Option N',
-      'Option O',
-      'Option P',
-      'Option Q',
-      'Option R',
-      'Option S',
-      'Option T',
-      'Option U',
-      'Option V',
-      'Option W',
-      'Option X',
-      'Option Y'
-    ],
+    voteOptionMap: ['Option A', 'Option B', 'Option C', 'Option D', 'Option E'],
     circuitType: MaciCircuitType.IP1V,
     voiceCreditAmount: 100
     // Without allowlistId, API will auto-generate pre-deactivate data
@@ -169,8 +143,8 @@ async function main() {
 
   // Use public API (no API key required) - create a temporary VoterClient
   const publicVoterClient = new VoterClient({
-    network: network
-    // saasApiEndpoint: API_BASE_URL
+    network: network,
+    saasApiEndpoint: API_BASE_URL
   });
 
   const deactivateData = await publicVoterClient.saasGetPreDeactivate(contractAddress);
@@ -195,11 +169,13 @@ async function main() {
   // Create voter client using account's secretKey
   const voterClient = new VoterClient({
     network: network,
-    secretKey: testAccount.secretKey
-    // saasApiEndpoint: API_BASE_URL
+    secretKey: testAccount.secretKey,
+    saasApiEndpoint: API_BASE_URL
   });
 
-  const circuitPower = '4-2-2-25';
+  const circuitPower = 'new_2-1-1-5';
+  const stateTreeDepth = 2;
+
   console.log('Executing Pre-Add-New-Key (with auto payload generation)...');
 
   // Get coordinator pubkey from deactivateData
@@ -208,13 +184,13 @@ async function main() {
   try {
     // Use saasPreCreateNewAccount: builds payload + submits pre-add-new-key
     // const derivePathParams = { accountIndex: 2 };
-    console.log('stateTreeDepth', Number(circuitPower.split('-')[0]));
+    console.log('stateTreeDepth', stateTreeDepth);
     console.log('deactivates.length', deactivateData.deactivates.length);
     console.log('addKey file name', `add-new-key_v3/${circuitPower}/addKey.wasm`);
     console.log('addKey file name', `add-new-key_v3/${circuitPower}/addKey.zkey`);
     const { account, result } = await voterClient.saasPreCreateNewAccount({
       contractAddress: contractAddress,
-      stateTreeDepth: Number(circuitPower.split('-')[0]),
+      stateTreeDepth: stateTreeDepth,
       coordinatorPubkey: coordinatorPubkey,
       deactivates: deactivateData.deactivates,
       wasmFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.wasm`),
@@ -258,40 +234,18 @@ async function main() {
     });
 
     console.log('✓ Voting succeeded!', voteResult);
-    const voteResult2 = await account.saasVote({
-      contractAddress,
-      operatorPubkey,
-      selectedOptions: [
-        { idx: 0, vc: 1 },
-        { idx: 1, vc: 1 },
-        { idx: 2, vc: 1 },
-        { idx: 3, vc: 1 },
-        { idx: 4, vc: 1 },
-        { idx: 5, vc: 1 },
-        { idx: 6, vc: 1 },
-        { idx: 7, vc: 1 },
-        { idx: 8, vc: 1 },
-        { idx: 9, vc: 1 },
-        { idx: 10, vc: 1 },
-        { idx: 11, vc: 1 },
-        { idx: 12, vc: 1 },
-        { idx: 13, vc: 1 },
-        { idx: 14, vc: 1 },
-        { idx: 15, vc: 1 },
-        { idx: 16, vc: 1 },
-        { idx: 17, vc: 1 },
-        { idx: 18, vc: 1 },
-        { idx: 19, vc: 1 },
-        { idx: 20, vc: 1 },
-        { idx: 21, vc: 1 },
-        { idx: 22, vc: 1 },
-        { idx: 23, vc: 1 },
-        { idx: 24, vc: 1 }
-      ],
-      ticket: ticket
-    });
+    // const voteResult2 = await account.saasVote({
+    //   contractAddress,
+    //   operatorPubkey,
+    //   selectedOptions: [
+    //     { idx: 0, vc: 1 },
+    //     { idx: 1, vc: 1 },
+    //     { idx: 2, vc: 1 }
+    //   ],
+    //   ticket: ticket
+    // });
 
-    console.log('✓ Voting succeeded!', voteResult2);
+    // console.log('✓ Voting succeeded!', voteResult2);
   } catch (error) {
     console.log('⚠ Failed:', error);
     if (error instanceof Error) {

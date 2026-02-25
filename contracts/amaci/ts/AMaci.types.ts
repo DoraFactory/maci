@@ -240,24 +240,6 @@ export type QueryMsg =
       get_voice_credit_amount: {};
     }
   | {
-      white_list: {};
-    }
-  | {
-      can_sign_up: {
-        sender: Addr;
-      };
-    }
-  | {
-      is_white_list: {
-        sender: Addr;
-      };
-    }
-  | {
-      is_register: {
-        sender: Addr;
-      };
-    }
-  | {
       signuped: {
         pubkey: PubKey;
       };
@@ -290,20 +272,6 @@ export type QueryMsg =
       query_oracle_whitelist_config: {};
     }
   | {
-      can_sign_up_with_oracle: {
-        amount?: Uint256 | null;
-        certificate: string;
-        pubkey: PubKey;
-      };
-    }
-  | {
-      white_balance_of: {
-        amount?: Uint256 | null;
-        certificate: string;
-        pubkey: PubKey;
-      };
-    }
-  | {
       query_current_state_commitment: {};
     }
   | {
@@ -334,8 +302,8 @@ export type QueryMsg =
         sender?: Addr | null;
       };
     };
-export type Boolean = boolean;
 export type ArrayOfUint256 = Uint256[];
+export type Boolean = boolean;
 export type DelayType = 'deactivate_delay' | 'tally_delay';
 export interface DelayRecords {
   records: DelayRecord[];
@@ -384,11 +352,3 @@ export interface RegistrationStatus {
   is_register: boolean;
 }
 export type ArrayOfString = string[];
-export interface Whitelist {
-  users: WhitelistConfig[];
-}
-export interface WhitelistConfig {
-  addr: Addr;
-  is_register: boolean;
-  voice_credit_amount: Uint256;
-}

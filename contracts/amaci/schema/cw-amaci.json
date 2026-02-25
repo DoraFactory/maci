@@ -1242,83 +1242,6 @@
       {
         "type": "object",
         "required": [
-          "white_list"
-        ],
-        "properties": {
-          "white_list": {
-            "type": "object",
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "description": "Checks permissions of the caller on this proxy. If CanExecute returns true then a call to `Execute` with the same message, before any further state changes, should also succeed.",
-        "type": "object",
-        "required": [
-          "can_sign_up"
-        ],
-        "properties": {
-          "can_sign_up": {
-            "type": "object",
-            "required": [
-              "sender"
-            ],
-            "properties": {
-              "sender": {
-                "$ref": "#/definitions/Addr"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "is_white_list"
-        ],
-        "properties": {
-          "is_white_list": {
-            "type": "object",
-            "required": [
-              "sender"
-            ],
-            "properties": {
-              "sender": {
-                "$ref": "#/definitions/Addr"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "is_register"
-        ],
-        "properties": {
-          "is_register": {
-            "type": "object",
-            "required": [
-              "sender"
-            ],
-            "properties": {
-              "sender": {
-                "$ref": "#/definitions/Addr"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
           "signuped"
         ],
         "properties": {
@@ -1449,78 +1372,6 @@
         "properties": {
           "query_oracle_whitelist_config": {
             "type": "object",
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "can_sign_up_with_oracle"
-        ],
-        "properties": {
-          "can_sign_up_with_oracle": {
-            "type": "object",
-            "required": [
-              "certificate",
-              "pubkey"
-            ],
-            "properties": {
-              "amount": {
-                "description": "Required for Dynamic VoiceCreditMode; ignored for Unified mode",
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/Uint256"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "certificate": {
-                "type": "string"
-              },
-              "pubkey": {
-                "$ref": "#/definitions/PubKey"
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "white_balance_of"
-        ],
-        "properties": {
-          "white_balance_of": {
-            "type": "object",
-            "required": [
-              "certificate",
-              "pubkey"
-            ],
-            "properties": {
-              "amount": {
-                "description": "Required for Dynamic VoiceCreditMode; ignored for Unified mode",
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/Uint256"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "certificate": {
-                "type": "string"
-              },
-              "pubkey": {
-                "$ref": "#/definitions/PubKey"
-              }
-            },
             "additionalProperties": false
           }
         },
@@ -1716,16 +1567,6 @@
       "title": "Addr",
       "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
       "type": "string"
-    },
-    "can_sign_up": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Boolean",
-      "type": "boolean"
-    },
-    "can_sign_up_with_oracle": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Boolean",
-      "type": "boolean"
     },
     "get_all_result": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -2174,16 +2015,6 @@
         }
       }
     },
-    "is_register": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Boolean",
-      "type": "boolean"
-    },
-    "is_white_list": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Boolean",
-      "type": "boolean"
-    },
     "max_vote_options": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Uint256",
@@ -2299,59 +2130,6 @@
       "type": "array",
       "items": {
         "type": "string"
-      }
-    },
-    "white_balance_of": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Uint256",
-      "description": "An implementation of u256 that is using strings for JSON encoding/decoding, such that the full u256 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances out of primitive uint types or `new` to provide big endian bytes:\n\n``` # use cosmwasm_std::Uint256; let a = Uint256::from(258u128); let b = Uint256::new([ 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 2u8, ]); assert_eq!(a, b); ```",
-      "type": "string"
-    },
-    "white_list": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Whitelist",
-      "type": "object",
-      "required": [
-        "users"
-      ],
-      "properties": {
-        "users": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/WhitelistConfig"
-          }
-        }
-      },
-      "additionalProperties": false,
-      "definitions": {
-        "Addr": {
-          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
-          "type": "string"
-        },
-        "Uint256": {
-          "description": "An implementation of u256 that is using strings for JSON encoding/decoding, such that the full u256 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances out of primitive uint types or `new` to provide big endian bytes:\n\n``` # use cosmwasm_std::Uint256; let a = Uint256::from(258u128); let b = Uint256::new([ 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 2u8, ]); assert_eq!(a, b); ```",
-          "type": "string"
-        },
-        "WhitelistConfig": {
-          "type": "object",
-          "required": [
-            "addr",
-            "is_register",
-            "voice_credit_amount"
-          ],
-          "properties": {
-            "addr": {
-              "$ref": "#/definitions/Addr"
-            },
-            "is_register": {
-              "type": "boolean"
-            },
-            "voice_credit_amount": {
-              "$ref": "#/definitions/Uint256"
-            }
-          },
-          "additionalProperties": false
-        }
       }
     }
   }

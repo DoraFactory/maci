@@ -91,7 +91,7 @@ export type VoiceCreditMode =
       };
     };
 export type Timestamp = Uint64;
-export type Uint64 = number;
+export type Uint64 = string;
 export type Decimal = string;
 export interface PubKey {
   x: Uint256;

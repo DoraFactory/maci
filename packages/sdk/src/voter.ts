@@ -308,7 +308,6 @@ export class VoterClient {
 
       // Encrypt command with shared key derived from encPriKey and coordinator's public key
       const message = poseidonEncrypt(command, genEcdhSharedKey(encPriKey, coordPubkey), 0n);
-      console.log('length of message', message.length);
       return message;
     };
   }

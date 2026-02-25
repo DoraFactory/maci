@@ -1080,10 +1080,7 @@ pub fn execute_set_vote_options_map(
         MAX_VOTE_OPTIONS.save(deps.storage, &Uint256::from_u128(max_vote_options))?;
         let res = Response::new()
             .add_attribute("action", "set_vote_option")
-            .add_attribute(
-                "vote_option_map",
-                to_json_or(&vote_option_map, "[]"),
-            )
+            .add_attribute("vote_option_map", to_json_or(&vote_option_map, "[]"))
             .add_attribute("max_vote_options", max_vote_options.to_string());
         Ok(res)
     }
@@ -1256,8 +1253,7 @@ pub fn execute_sign_up(
         &voice_credit_balance,
     )?;
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
-    SIGNUPED.save(deps.storage, &pubkey_key(&pubkey), &state_index,
-    )?;
+    SIGNUPED.save(deps.storage, &pubkey_key(&pubkey), &state_index)?;
 
     // ============================================
     // Step 4: Update Registration State
@@ -1466,10 +1462,7 @@ pub fn execute_publish_deactivate_message(
             .add_attribute("action", "publish_deactivate_message")
             .add_attribute("dmsg_chain_length", old_chain_length.to_string())
             .add_attribute("num_sign_ups", num_sign_ups.to_string())
-            .add_attribute(
-                "message",
-                to_json_or(&message.data, "[]"),
-            )
+            .add_attribute("message", to_json_or(&message.data, "[]"))
             .add_attribute(
                 "enc_pub_key",
                 format!(
@@ -1590,10 +1583,7 @@ pub fn execute_process_deactivate_message(
     let mut attributes = vec![
         attr("zk_verify", "true"),
         attr("commitment", new_deactivate_commitment.to_string()),
-        attr(
-            "proof",
-            to_json_or(&groth16_proof, "{}"),
-        ),
+        attr("proof", to_json_or(&groth16_proof, "{}")),
         attr("certification_system", "groth16"),
         attr("processed_dmsg_count", processed_dmsg_count.to_string()),
     ];
@@ -1734,8 +1724,7 @@ fn add_key_internal(
     state_enqueue(&mut deps, state_leaf)?;
     num_sign_ups += Uint256::from_u128(1u128);
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
-    SIGNUPED.save(deps.storage, &pubkey_key(&pubkey), &state_index,
-    )?;
+    SIGNUPED.save(deps.storage, &pubkey_key(&pubkey), &state_index)?;
 
     let action = if is_pre_populated {
         "pre_add_new_key"
@@ -1919,10 +1908,7 @@ pub fn execute_process_message(
     let attributes = vec![
         attr("zk_verify", "true"),
         attr("commitment", new_state_commitment.to_string()),
-        attr(
-            "proof",
-            to_json_or(&groth16_proof_data, "{}"),
-        ),
+        attr("proof", to_json_or(&groth16_proof_data, "{}")),
         attr("certification_system", "groth16"),
         attr("processed_msg_count", processed_msg_count.to_string()),
     ];
@@ -2023,10 +2009,7 @@ pub fn execute_process_tally(
     let attributes = vec![
         attr("zk_verify", "true"),
         attr("commitment", new_tally_commitment.to_string()),
-        attr(
-            "proof",
-            to_json_or(&groth16_proof_data, "{}"),
-        ),
+        attr("proof", to_json_or(&groth16_proof_data, "{}")),
         attr("certification_system", "groth16"),
         attr("processed_user_count", processed_user_count.to_string()),
     ];
@@ -2684,7 +2667,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {}

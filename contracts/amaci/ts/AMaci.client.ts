@@ -25,8 +25,8 @@ import {
   MessageData,
   Groth16ProofType,
   QueryMsg,
-  Boolean,
   ArrayOfUint256,
+  Boolean,
   DelayType,
   DelayRecords,
   DelayRecord,
@@ -38,9 +38,7 @@ import {
   NullableString,
   NullableUint256,
   RegistrationStatus,
-  ArrayOfString,
-  Whitelist,
-  WhitelistConfig
+  ArrayOfString
 } from './AMaci.types';
 export interface AMaciReadOnlyInterface {
   contractAddress: string;
@@ -63,10 +61,6 @@ export interface AMaciReadOnlyInterface {
   getStateIdxInc: ({ address }: { address: Addr }) => Promise<Uint256>;
   getVoiceCreditBalance: ({ index }: { index: Uint256 }) => Promise<Uint256>;
   getVoiceCreditAmount: () => Promise<Uint256>;
-  whiteList: () => Promise<Whitelist>;
-  canSignUp: ({ sender }: { sender: Addr }) => Promise<Boolean>;
-  isWhiteList: ({ sender }: { sender: Addr }) => Promise<Boolean>;
-  isRegister: ({ sender }: { sender: Addr }) => Promise<Boolean>;
   signuped: ({ pubkey }: { pubkey: PubKey }) => Promise<NullableUint256>;
   voteOptionMap: () => Promise<ArrayOfString>;
   maxVoteOptions: () => Promise<Uint256>;
@@ -77,24 +71,6 @@ export interface AMaciReadOnlyInterface {
   getDelayRecords: () => Promise<DelayRecords>;
   getTallyDelay: () => Promise<TallyDelayInfo>;
   queryOracleWhitelistConfig: () => Promise<NullableString>;
-  canSignUpWithOracle: ({
-    amount,
-    certificate,
-    pubkey
-  }: {
-    amount?: Uint256;
-    certificate: string;
-    pubkey: PubKey;
-  }) => Promise<Boolean>;
-  whiteBalanceOf: ({
-    amount,
-    certificate,
-    pubkey
-  }: {
-    amount?: Uint256;
-    certificate: string;
-    pubkey: PubKey;
-  }) => Promise<Uint256>;
   queryCurrentStateCommitment: () => Promise<Uint256>;
   getCoordinatorHash: () => Promise<Uint256>;
   getMsgHash: ({ index }: { index: Uint256 }) => Promise<Uint256>;
@@ -139,10 +115,6 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getStateIdxInc = this.getStateIdxInc.bind(this);
     this.getVoiceCreditBalance = this.getVoiceCreditBalance.bind(this);
     this.getVoiceCreditAmount = this.getVoiceCreditAmount.bind(this);
-    this.whiteList = this.whiteList.bind(this);
-    this.canSignUp = this.canSignUp.bind(this);
-    this.isWhiteList = this.isWhiteList.bind(this);
-    this.isRegister = this.isRegister.bind(this);
     this.signuped = this.signuped.bind(this);
     this.voteOptionMap = this.voteOptionMap.bind(this);
     this.maxVoteOptions = this.maxVoteOptions.bind(this);
@@ -153,8 +125,6 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getDelayRecords = this.getDelayRecords.bind(this);
     this.getTallyDelay = this.getTallyDelay.bind(this);
     this.queryOracleWhitelistConfig = this.queryOracleWhitelistConfig.bind(this);
-    this.canSignUpWithOracle = this.canSignUpWithOracle.bind(this);
-    this.whiteBalanceOf = this.whiteBalanceOf.bind(this);
     this.queryCurrentStateCommitment = this.queryCurrentStateCommitment.bind(this);
     this.getCoordinatorHash = this.getCoordinatorHash.bind(this);
     this.getMsgHash = this.getMsgHash.bind(this);
@@ -267,32 +237,6 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
       get_voice_credit_amount: {}
     });
   };
-  whiteList = async (): Promise<Whitelist> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      white_list: {}
-    });
-  };
-  canSignUp = async ({ sender }: { sender: Addr }): Promise<Boolean> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      can_sign_up: {
-        sender
-      }
-    });
-  };
-  isWhiteList = async ({ sender }: { sender: Addr }): Promise<Boolean> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      is_white_list: {
-        sender
-      }
-    });
-  };
-  isRegister = async ({ sender }: { sender: Addr }): Promise<Boolean> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      is_register: {
-        sender
-      }
-    });
-  };
   signuped = async ({ pubkey }: { pubkey: PubKey }): Promise<NullableUint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       signuped: {
@@ -343,40 +287,6 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
   queryOracleWhitelistConfig = async (): Promise<NullableString> => {
     return this.client.queryContractSmart(this.contractAddress, {
       query_oracle_whitelist_config: {}
-    });
-  };
-  canSignUpWithOracle = async ({
-    amount,
-    certificate,
-    pubkey
-  }: {
-    amount?: Uint256;
-    certificate: string;
-    pubkey: PubKey;
-  }): Promise<Boolean> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      can_sign_up_with_oracle: {
-        amount,
-        certificate,
-        pubkey
-      }
-    });
-  };
-  whiteBalanceOf = async ({
-    amount,
-    certificate,
-    pubkey
-  }: {
-    amount?: Uint256;
-    certificate: string;
-    pubkey: PubKey;
-  }): Promise<Uint256> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      white_balance_of: {
-        amount,
-        certificate,
-        pubkey
-      }
     });
   };
   queryCurrentStateCommitment = async (): Promise<Uint256> => {

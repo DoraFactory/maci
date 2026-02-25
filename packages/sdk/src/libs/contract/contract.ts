@@ -61,8 +61,8 @@ export class Contract {
       link: params.link ?? ''
     };
     const votingTime = {
-      start_time: params.startVoting.getTime() * 1_000_000,
-      end_time: params.endVoting.getTime() * 1_000_000
+      start_time: (BigInt(params.startVoting.getTime()) * 1_000_000n).toString(),
+      end_time: (BigInt(params.endVoting.getTime()) * 1_000_000n).toString()
     };
 
     const client = await createRegistryClientBy({
@@ -519,8 +519,8 @@ export class Contract {
       link: params.link ?? ''
     };
     const votingTime = {
-      start_time: (params.startVoting.getTime() * 1_000_000).toString(),
-      end_time: (params.endVoting.getTime() * 1_000_000).toString()
+      start_time: (BigInt(params.startVoting.getTime()) * 1_000_000n).toString(),
+      end_time: (BigInt(params.endVoting.getTime()) * 1_000_000n).toString()
     };
     const circuitType = params.circuitType.toString();
 

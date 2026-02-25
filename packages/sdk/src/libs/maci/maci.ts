@@ -845,17 +845,17 @@ export class MACI {
         gas: calculatedFee.gas,
         granter: granter || contractAddress
       };
-      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee, undefined, batchFunds);
+      return amaciClient.publishMessage({ encPubKeys, messages }, grantFee, undefined, batchFunds);
     } else if (gasStation && typeof fee === 'object') {
       // When gasStation is true and fee is StdFee, add granter
       const grantFee: StdFee = {
         ...fee,
         granter: granter || contractAddress
       };
-      return amaciClient.publishMessageBatch({ encPubKeys, messages }, grantFee, undefined, batchFunds);
+      return amaciClient.publishMessage({ encPubKeys, messages }, grantFee, undefined, batchFunds);
     }
 
-    return amaciClient.publishMessageBatch({ encPubKeys, messages }, fee, undefined, batchFunds);
+    return amaciClient.publishMessage({ encPubKeys, messages }, fee, undefined, batchFunds);
   }
 
   async deactivate({
