@@ -37,7 +37,6 @@ impl Admin {
 #[cw_serde]
 pub enum PeriodStatus {
     Pending,
-    Voting,
     Processing,
     Tallying,
     Ended,
@@ -77,7 +76,7 @@ pub const MAX_VOTE_OPTIONS: Item<Uint256> = Item::new("max_vote_options");
 pub const CURRENT_STATE_COMMITMENT: Item<Uint256> = Item::new("current_state_commitment");
 pub const CURRENT_TALLY_COMMITMENT: Item<Uint256> = Item::new("current_tally_commitment");
 
-pub const RESULT: Map<Vec<u8>, Uint256> = Map::new("voice_credit_balance");
+pub const RESULT: Map<Vec<u8>, Uint256> = Map::new("result");
 pub const TOTAL_RESULT: Item<Uint256> = Item::new("total_result");
 
 // ============================================

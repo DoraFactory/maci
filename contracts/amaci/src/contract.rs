@@ -554,7 +554,6 @@ pub fn instantiate(
 
     VOTINGTIME.save(deps.storage, &msg.voting_time)?;
 
-    // Create a period struct with the initial status set to Voting
     let period = Period {
         status: PeriodStatus::Pending,
     };
@@ -1226,12 +1225,14 @@ pub fn execute_sign_up(
     let max_leaves_count = MAX_LEAVES_COUNT.load(deps.storage)?;
 
     // Validate capacity and pubkey
-    assert!(num_sign_ups < max_leaves_count, "full");
-    assert!(
-        pubkey.x < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-            && pubkey.y < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX),
-        "MACI: pubkey values should be less than the snark scalar field"
-    );
+    if num_sign_ups >= max_leaves_count {
+        return Err(ContractError::StateTreeFull {});
+    }
+    if pubkey.x >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+        || pubkey.y >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+    {
+        return Err(ContractError::InvalidPubKey {});
+    }
 
     // Create state leaf with calculated voice credit balance
     let state_leaf = StateLeaf {
@@ -1306,6 +1307,17 @@ pub fn execute_publish_message(
         });
     }
 
+    // Pre-validate all enc_pub_keys before charging fee to prevent fee loss on invalid keys
+    for enc_pub_key in &enc_pub_keys {
+        if enc_pub_key.x == Uint256::from_u128(0u128)
+            || enc_pub_key.y == Uint256::from_u128(1u128)
+            || enc_pub_key.x >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+            || enc_pub_key.y >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+        {
+            return Err(ContractError::InvalidEncPubKey {});
+        }
+    }
+
     let batch_size = messages.len();
     let required_fee = MESSAGE_FEE
         .checked_mul(Uint128::from(batch_size as u128))
@@ -1325,47 +1337,41 @@ pub fn execute_publish_message(
     let mut msg_chain_length = start_chain_length;
 
     for (i, (message, enc_pub_key)) in messages.iter().zip(enc_pub_keys.iter()).enumerate() {
-        if enc_pub_key.x != Uint256::from_u128(0u128)
-            && enc_pub_key.y != Uint256::from_u128(1u128)
-            && enc_pub_key.x < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-            && enc_pub_key.y < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-        {
-            let pubkey_storage_key = generate_pubkey_storage_key(enc_pub_key);
-            if USED_ENC_PUB_KEYS.has(deps.storage, pubkey_storage_key.clone()) {
-                return Err(ContractError::EncPubKeyAlreadyUsed {});
-            }
-            USED_ENC_PUB_KEYS.save(deps.storage, pubkey_storage_key, &true)?;
-
-            let old_msg_hashes =
-                MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
-            let new_hash = hash_message_and_enc_pub_key(message, enc_pub_key, old_msg_hashes);
-            MSG_HASHES.save(
-                deps.storage,
-                (msg_chain_length + Uint256::from_u128(1u128))
-                    .to_be_bytes()
-                    .to_vec(),
-                &new_hash,
-            )?;
-
-            attributes.push(attr(
-                format!("msg_{}_chain_length", i),
-                msg_chain_length.to_string(),
-            ));
-            attributes.push(attr(
-                format!("msg_{}_data", i),
-                to_json_or(&message.data, "[]"),
-            ));
-            attributes.push(attr(
-                format!("msg_{}_enc_pub_key", i),
-                format!(
-                    "{:?},{:?}",
-                    enc_pub_key.x.to_string(),
-                    enc_pub_key.y.to_string()
-                ),
-            ));
-
-            msg_chain_length += Uint256::from_u128(1u128);
+        let pubkey_storage_key = generate_pubkey_storage_key(enc_pub_key);
+        if USED_ENC_PUB_KEYS.has(deps.storage, pubkey_storage_key.clone()) {
+            return Err(ContractError::EncPubKeyAlreadyUsed {});
         }
+        USED_ENC_PUB_KEYS.save(deps.storage, pubkey_storage_key, &true)?;
+
+        let old_msg_hashes =
+            MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
+        let new_hash = hash_message_and_enc_pub_key(message, enc_pub_key, old_msg_hashes);
+        MSG_HASHES.save(
+            deps.storage,
+            (msg_chain_length + Uint256::from_u128(1u128))
+                .to_be_bytes()
+                .to_vec(),
+            &new_hash,
+        )?;
+
+        attributes.push(attr(
+            format!("msg_{}_chain_length", i),
+            msg_chain_length.to_string(),
+        ));
+        attributes.push(attr(
+            format!("msg_{}_data", i),
+            to_json_or(&message.data, "[]"),
+        ));
+        attributes.push(attr(
+            format!("msg_{}_enc_pub_key", i),
+            format!(
+                "{:?},{:?}",
+                enc_pub_key.x.to_string(),
+                enc_pub_key.y.to_string()
+            ),
+        ));
+
+        msg_chain_length += Uint256::from_u128(1u128);
     }
 
     MSG_CHAIN_LENGTH.save(deps.storage, &msg_chain_length)?;
@@ -1388,6 +1394,15 @@ pub fn execute_publish_deactivate_message(
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env.clone(), voting_time)?;
 
+    // Validate enc_pub_key BEFORE charging fee to prevent fee loss on invalid keys
+    if enc_pub_key.x == Uint256::from_u128(0u128)
+        || enc_pub_key.y == Uint256::from_u128(1u128)
+        || enc_pub_key.x >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+        || enc_pub_key.y >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+    {
+        return Err(ContractError::InvalidEncPubKey {});
+    }
+
     // Check payment: require DEACTIVATE_FEE in FEE_DENOM
     let payment = check_fee_payment(&info, DEACTIVATE_FEE)?;
 
@@ -1409,75 +1424,64 @@ pub fn execute_publish_deactivate_message(
             max_deactivate_messages,
         });
     }
-    // Check if the encrypted public key is valid
-    if enc_pub_key.x != Uint256::from_u128(0u128)
-        && enc_pub_key.y != Uint256::from_u128(1u128)
-        && enc_pub_key.x < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-        && enc_pub_key.y < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-    {
-        let processed_dmsg_count = PROCESSED_DMSG_COUNT.load(deps.storage)?;
 
-        // When the processed_dmsg_count catches up with dmsg_chain_length, it indicates that the previous batch has been processed.
-        // At this point, the new incoming message is the first one of the new batch, and we record the timestamp.
-        if processed_dmsg_count == dmsg_chain_length {
-            FIRST_DMSG_TIMESTAMP.save(deps.storage, &env.block.time)?;
-        }
+    let processed_dmsg_count = PROCESSED_DMSG_COUNT.load(deps.storage)?;
 
-        let old_msg_hashes =
-            DMSG_HASHES.load(deps.storage, dmsg_chain_length.to_be_bytes().to_vec())?;
-
-        let m_n_hash = hash_message_and_enc_pub_key(&message, &enc_pub_key, old_msg_hashes);
-
-        // Compute the new message hash using the provided message, encrypted public key, and previous hash
-        DMSG_HASHES.save(
-            deps.storage,
-            (dmsg_chain_length + Uint256::from_u128(1u128))
-                .to_be_bytes()
-                .to_vec(),
-            &m_n_hash,
-        )?;
-
-        let state_root = state_root(deps.as_ref())?;
-
-        STATE_ROOT_BY_DMSG.save(
-            deps.storage,
-            (dmsg_chain_length + Uint256::from_u128(1u128))
-                .to_be_bytes()
-                .to_vec(),
-            &state_root,
-        )?;
-
-        let old_chain_length = dmsg_chain_length;
-        // Update the message chain length
-        dmsg_chain_length += Uint256::from_u128(1u128);
-        DMSG_CHAIN_LENGTH.save(deps.storage, &dmsg_chain_length)?;
-
-        let mut deactivate_count = DEACTIVATE_COUNT.load(deps.storage)?;
-        deactivate_count += 1u128;
-        DEACTIVATE_COUNT.save(deps.storage, &deactivate_count)?;
-
-        let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "publish_deactivate_message")
-            .add_attribute("dmsg_chain_length", old_chain_length.to_string())
-            .add_attribute("num_sign_ups", num_sign_ups.to_string())
-            .add_attribute("message", to_json_or(&message.data, "[]"))
-            .add_attribute(
-                "enc_pub_key",
-                format!(
-                    "{:?},{:?}",
-                    enc_pub_key.x.to_string(),
-                    enc_pub_key.y.to_string()
-                ),
-            )
-            .add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
-    } else {
-        // Return an error response for invalid user or encrypted public key
-        Ok(Response::new()
-            .add_attribute("action", "publish_deactivate_message")
-            .add_attribute("event", "error user."))
+    // When the processed_dmsg_count catches up with dmsg_chain_length, it indicates that the previous batch has been processed.
+    // At this point, the new incoming message is the first one of the new batch, and we record the timestamp.
+    if processed_dmsg_count == dmsg_chain_length {
+        FIRST_DMSG_TIMESTAMP.save(deps.storage, &env.block.time)?;
     }
+
+    let old_msg_hashes =
+        DMSG_HASHES.load(deps.storage, dmsg_chain_length.to_be_bytes().to_vec())?;
+
+    let m_n_hash = hash_message_and_enc_pub_key(&message, &enc_pub_key, old_msg_hashes);
+
+    // Compute the new message hash using the provided message, encrypted public key, and previous hash
+    DMSG_HASHES.save(
+        deps.storage,
+        (dmsg_chain_length + Uint256::from_u128(1u128))
+            .to_be_bytes()
+            .to_vec(),
+        &m_n_hash,
+    )?;
+
+    let state_root = state_root(deps.as_ref())?;
+
+    STATE_ROOT_BY_DMSG.save(
+        deps.storage,
+        (dmsg_chain_length + Uint256::from_u128(1u128))
+            .to_be_bytes()
+            .to_vec(),
+        &state_root,
+    )?;
+
+    let old_chain_length = dmsg_chain_length;
+    // Update the message chain length
+    dmsg_chain_length += Uint256::from_u128(1u128);
+    DMSG_CHAIN_LENGTH.save(deps.storage, &dmsg_chain_length)?;
+
+    let mut deactivate_count = DEACTIVATE_COUNT.load(deps.storage)?;
+    deactivate_count += 1u128;
+    DEACTIVATE_COUNT.save(deps.storage, &deactivate_count)?;
+
+    let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "publish_deactivate_message")
+        .add_attribute("dmsg_chain_length", old_chain_length.to_string())
+        .add_attribute("num_sign_ups", num_sign_ups.to_string())
+        .add_attribute("message", to_json_or(&message.data, "[]"))
+        .add_attribute(
+            "enc_pub_key",
+            format!(
+                "{:?},{:?}",
+                enc_pub_key.x.to_string(),
+                enc_pub_key.y.to_string()
+            ),
+        )
+        .add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
 }
 
 pub fn execute_upload_deactivate_message(
@@ -1525,23 +1529,20 @@ pub fn execute_process_deactivate_message(
 ) -> Result<Response, ContractError> {
     require_deactivate_enabled(deps.as_ref())?;
 
-    // // Check if the period status is Voting
-    // let voting_time = VOTINGTIME.load(deps.storage)?;
-    // check_voting_time(env, voting_time)?;
-
     let processed_dmsg_count = PROCESSED_DMSG_COUNT.load(deps.storage)?;
     let dmsg_chain_length = DMSG_CHAIN_LENGTH.load(deps.storage)?;
 
-    assert!(
-        processed_dmsg_count < dmsg_chain_length,
-        "all deactivate messages have been processed"
-    );
+    if processed_dmsg_count >= dmsg_chain_length {
+        return Err(ContractError::AllDeactivateMessagesProcessed {});
+    }
 
     // Load the MACI parameters
     let parameters = MACIPARAMETERS.load(deps.storage)?;
     let batch_size = parameters.message_batch_size;
 
-    assert!(size <= batch_size, "size overflow the batchsize");
+    if size > batch_size {
+        return Err(ContractError::BatchSizeOverflow {});
+    }
 
     DNODES.save(
         deps.storage,
@@ -1653,12 +1654,14 @@ fn add_key_internal(
     let mut num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
     let max_leaves_count = MAX_LEAVES_COUNT.load(deps.storage)?;
 
-    assert!(num_sign_ups < max_leaves_count, "full");
-    assert!(
-        pubkey.x < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-            && pubkey.y < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX),
-        "MACI: pubkey values should be less than the snark scalar field"
-    );
+    if num_sign_ups >= max_leaves_count {
+        return Err(ContractError::StateTreeFull {});
+    }
+    if pubkey.x >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+        || pubkey.y >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+    {
+        return Err(ContractError::InvalidPubKey {});
+    }
 
     let mut input: [Uint256; 7] = [Uint256::zero(); 7];
     if is_pre_populated {
@@ -1753,13 +1756,12 @@ fn add_key_internal(
 pub fn execute_add_new_key(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     pubkey: PubKey,
     nullifier: Uint256,
     d: [Uint256; 4],
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
-    let _ = info;
     add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, false)
 }
 
@@ -1767,13 +1769,12 @@ pub fn execute_add_new_key(
 pub fn execute_pre_add_new_key(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     pubkey: PubKey,
     nullifier: Uint256,
     d: [Uint256; 4],
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
-    let _ = info;
     let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
     if !matches!(registration_mode, RegistrationMode::PrePopulated { .. }) {
         return Err(ContractError::PreAddNewKeyNotAllowed {});
@@ -1836,10 +1837,9 @@ pub fn execute_process_message(
     let mut processed_msg_count = PROCESSED_MSG_COUNT.load(deps.storage)?;
     let msg_chain_length = MSG_CHAIN_LENGTH.load(deps.storage)?;
     // Check that all messages have not been processed yet
-    assert!(
-        processed_msg_count < msg_chain_length,
-        "all messages have been processed"
-    );
+    if processed_msg_count >= msg_chain_length {
+        return Err(ContractError::AllMessagesProcessed {});
+    }
 
     // Create an array to store the input values for the SNARK proof
     let mut input: [Uint256; 8] = [Uint256::zero(); 8];
@@ -1967,10 +1967,9 @@ pub fn execute_process_tally(
     let mut processed_user_count = PROCESSED_USER_COUNT.load(deps.storage)?;
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
     // Check that all users have not been processed yet
-    assert!(
-        processed_user_count.clone() < num_sign_ups.clone(),
-        "all users have been processed"
-    );
+    if processed_user_count >= num_sign_ups {
+        return Err(ContractError::AllUsersProcessed {});
+    }
 
     let parameters = MACIPARAMETERS.load(deps.storage)?;
     // Calculate the batch size
@@ -2097,10 +2096,17 @@ fn execute_stop_tallying_period(
     let max_vote_options = MAX_VOTE_OPTIONS.load(deps.storage)?;
 
     // Check that all users have been processed
-    assert!(processed_user_count >= num_sign_ups);
+    if processed_user_count < num_sign_ups {
+        return Err(ContractError::NotAllUsersProcessed {});
+    }
 
     // Check that the number of results is not greater than the maximum vote options
-    assert!(Uint256::from_u128(results.len() as u128) <= max_vote_options);
+    if Uint256::from_u128(results.len() as u128) > max_vote_options {
+        return Err(ContractError::MaxVoteOptionsExceeded {
+            current: Uint256::from_u128(results.len() as u128),
+            max_allowed: max_vote_options,
+        });
+    }
 
     // Load the QTR library and MACI parameters
     let qtr_lib = QTR_LIB.load(deps.storage)?;
@@ -2114,9 +2120,10 @@ fn execute_stop_tallying_period(
 
     // Load the current tally commitment and verify if needed
     let current_tally_commitment = CURRENT_TALLY_COMMITMENT.load(deps.storage)?;
-    if current_tally_commitment != Uint256::from_u128(0u128) {
-        // Check that the tally commitment matches the current tally commitment
-        assert_eq!(tally_commitment, current_tally_commitment);
+    if current_tally_commitment != Uint256::from_u128(0u128)
+        && tally_commitment != current_tally_commitment
+    {
+        return Err(ContractError::TallyCommitmentMismatch {});
     }
 
     // Save the results and calculate the sum
@@ -2845,7 +2852,7 @@ fn check_fee_payment(info: &MessageInfo, required: Uint128) -> Result<Uint128, C
         .find(|coin| coin.denom == FEE_DENOM)
         .map(|coin| coin.amount)
         .unwrap_or(Uint128::zero());
-    if payment < required {
+    if payment != required {
         return Err(ContractError::InsufficientFundsSend {});
     }
     Ok(payment)

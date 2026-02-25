@@ -2368,7 +2368,7 @@ mod test {
         let err = result.unwrap_err();
         let err_string = format!("{:?}", err);
         assert!(
-            err_string.contains("Insufficient funds sent"),
+            err_string.contains("Incorrect funds sent"),
             "Expected InsufficientFundsSend error, got: {}",
             err_string
         );

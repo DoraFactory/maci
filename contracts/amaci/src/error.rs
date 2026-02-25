@@ -9,7 +9,7 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Insufficient funds sent")]
+    #[error("Incorrect funds sent: payment must exactly equal the required fee")]
     InsufficientFundsSend {},
 
     #[error("PeriodError")]
@@ -201,4 +201,31 @@ pub enum ContractError {
 
     #[error("SignUpWithStaticWhitelist mode only supports up to {max_allowed} voters (state_tree_depth <= 4). For larger scales, use SignUpWithOracle or PrePopulated mode instead.")]
     StaticWhitelistScaleExceeded { max_allowed: Uint256 },
+
+    #[error("State tree is full, cannot register more users")]
+    StateTreeFull {},
+
+    #[error("Invalid pubkey: values must be less than the snark scalar field")]
+    InvalidPubKey {},
+
+    #[error("Invalid encrypted public key")]
+    InvalidEncPubKey {},
+
+    #[error("All deactivate messages have already been processed")]
+    AllDeactivateMessagesProcessed {},
+
+    #[error("Batch size exceeds the maximum allowed batch size")]
+    BatchSizeOverflow {},
+
+    #[error("All messages have already been processed")]
+    AllMessagesProcessed {},
+
+    #[error("All users have already been tallied")]
+    AllUsersProcessed {},
+
+    #[error("Not all users have been tallied yet")]
+    NotAllUsersProcessed {},
+
+    #[error("Tally commitment mismatch: submitted results do not match the verified tally commitment")]
+    TallyCommitmentMismatch {},
 }
