@@ -551,18 +551,6 @@ export interface AMaciInterface extends AMaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   publishMessage: (
     {
-      encPubKey,
-      message
-    }: {
-      encPubKey: PubKey;
-      message: MessageData;
-    },
-    fee?: number | StdFee | 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ) => Promise<ExecuteResult>;
-  publishMessageBatch: (
-    {
       encPubKeys,
       messages
     }: {
@@ -635,7 +623,6 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
     this.addNewKey = this.addNewKey.bind(this);
     this.preAddNewKey = this.preAddNewKey.bind(this);
     this.publishMessage = this.publishMessage.bind(this);
-    this.publishMessageBatch = this.publishMessageBatch.bind(this);
     this.processMessage = this.processMessage.bind(this);
     this.stopProcessingPeriod = this.stopProcessingPeriod.bind(this);
     this.processTally = this.processTally.bind(this);
@@ -880,32 +867,6 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
   };
   publishMessage = async (
     {
-      encPubKey,
-      message
-    }: {
-      encPubKey: PubKey;
-      message: MessageData;
-    },
-    fee: number | StdFee | 'auto' = 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ): Promise<ExecuteResult> => {
-    return await this.client.execute(
-      this.sender,
-      this.contractAddress,
-      {
-        publish_message: {
-          enc_pub_key: encPubKey,
-          message
-        }
-      },
-      fee,
-      memo,
-      _funds
-    );
-  };
-  publishMessageBatch = async (
-    {
       encPubKeys,
       messages
     }: {
@@ -920,7 +881,7 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
       this.sender,
       this.contractAddress,
       {
-        publish_message_batch: {
+        publish_message: {
           enc_pub_keys: encPubKeys,
           messages
         }

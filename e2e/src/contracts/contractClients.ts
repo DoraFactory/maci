@@ -153,8 +153,8 @@ export class AmaciContractClient extends BaseContractClient {
     return await this.execute(
       {
         publish_message: {
-          message: { data: message },
-          enc_pub_key: encPubKey
+          messages: [{ data: message }],
+          enc_pub_keys: [encPubKey]
         }
       },
       messageFee
@@ -162,8 +162,9 @@ export class AmaciContractClient extends BaseContractClient {
   }
 
   /**
-   * Publish message batch (multiple votes in one transaction)
-   * NOTE: Requires 10 DORA fee per message (batch_size * 10 * 10^18 peaka total)
+   * Publish multiple messages in one transaction (batch).
+   * NOTE: Requires 10 DORA fee per message (batch_size * 10 * 10^18 peaka total).
+   * Uses the unified publish_message endpoint.
    */
   async publishMessageBatch(
     messages: Array<{ message: string[]; encPubKey: { x: string; y: string } }>
@@ -174,7 +175,7 @@ export class AmaciContractClient extends BaseContractClient {
     const batchFee = [{ denom: 'peaka', amount: totalFee.toString() }];
     return await this.execute(
       {
-        publish_message_batch: {
+        publish_message: {
           messages: formattedMessages,
           enc_pub_keys: encPubKeys
         }
@@ -427,8 +428,8 @@ export class MaciContractClient extends BaseContractClient {
 
     return await this.execute({
       publish_message: {
-        message: { data: message },
-        enc_pub_key: pubkeyObj
+        messages: [{ data: message }],
+        enc_pub_keys: [pubkeyObj]
       }
     });
   }

@@ -261,31 +261,6 @@
         "publish_message": {
           "type": "object",
           "required": [
-            "enc_pub_key",
-            "message"
-          ],
-          "properties": {
-            "enc_pub_key": {
-              "$ref": "#/definitions/PubKey"
-            },
-            "message": {
-              "$ref": "#/definitions/MessageData"
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "publish_message_batch"
-      ],
-      "properties": {
-        "publish_message_batch": {
-          "type": "object",
-          "required": [
             "enc_pub_keys",
             "messages"
           ],

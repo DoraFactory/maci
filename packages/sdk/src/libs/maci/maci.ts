@@ -710,13 +710,8 @@ export class MACI {
           JSON.stringify(
             stringizing({
               publish_message: {
-                enc_pub_key: {
-                  x: encPubkeys[0],
-                  y: encPubkeys[1]
-                },
-                message: {
-                  data: msg
-                }
+                messages: [{ data: msg }],
+                enc_pub_keys: [{ x: encPubkeys[0], y: encPubkeys[1] }]
               }
             })
           )
@@ -831,7 +826,7 @@ export class MACI {
           msg: new TextEncoder().encode(
             JSON.stringify(
               stringizing({
-                publish_message_batch: {
+                publish_message: {
                   enc_pub_keys: encPubKeysBigInt,
                   messages: messagesBigInt
                 }

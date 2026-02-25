@@ -58,8 +58,13 @@ pub type App<ExecC = Empty, QueryC = Empty> = cw_multi_test::App<
 // 1000 DORA per test user, enough to cover all publish_message fees in any test
 const TEST_USER_BALANCE: u128 = 1_000_000_000_000_000_000_000u128;
 
+pub fn dora_mock_api() -> MockApi {
+    MockApi::default().with_prefix("dora")
+}
+
 pub fn create_app() -> App {
     AppBuilder::new()
+        .with_api(dora_mock_api())
         .with_stargate(StargateAccepting)
         .build(|router, _, storage| {
             for addr in [user1(), user2(), user3()] {
@@ -504,8 +509,8 @@ impl MaciContract {
             sender,
             self.addr(),
             &ExecuteMsg::PublishMessage {
-                message,
-                enc_pub_key,
+                messages: vec![message],
+                enc_pub_keys: vec![enc_pub_key],
             },
             &coins(MESSAGE_FEE.u128(), FEE_DENOM),
         )
@@ -523,7 +528,7 @@ impl MaciContract {
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::PublishMessageBatch {
+            &ExecuteMsg::PublishMessage {
                 messages,
                 enc_pub_keys,
             },
@@ -887,8 +892,8 @@ impl MaciContract {
             sender,
             self.addr(),
             &ExecuteMsg::PublishMessage {
-                message,
-                enc_pub_key,
+                messages: vec![message],
+                enc_pub_keys: vec![enc_pub_key],
             },
             &coins(MESSAGE_FEE.u128(), FEE_DENOM),
         )
@@ -906,7 +911,7 @@ impl MaciContract {
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::PublishMessageBatch {
+            &ExecuteMsg::PublishMessage {
                 messages,
                 enc_pub_keys,
             },
@@ -926,8 +931,8 @@ impl MaciContract {
             sender,
             self.addr(),
             &ExecuteMsg::PublishMessage {
-                message,
-                enc_pub_key,
+                messages: vec![message],
+                enc_pub_keys: vec![enc_pub_key],
             },
             &[],
         )
@@ -946,8 +951,8 @@ impl MaciContract {
             sender,
             self.addr(),
             &ExecuteMsg::PublishMessage {
-                message,
-                enc_pub_key,
+                messages: vec![message],
+                enc_pub_keys: vec![enc_pub_key],
             },
             funds,
         )
@@ -964,7 +969,7 @@ impl MaciContract {
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::PublishMessageBatch {
+            &ExecuteMsg::PublishMessage {
                 messages,
                 enc_pub_keys,
             },
@@ -984,7 +989,7 @@ impl MaciContract {
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::PublishMessageBatch {
+            &ExecuteMsg::PublishMessage {
                 messages,
                 enc_pub_keys,
             },
@@ -1577,15 +1582,15 @@ impl From<Addr> for MaciContract {
 }
 
 pub fn user1() -> Addr {
-    Addr::unchecked("user1")
+    dora_mock_api().addr_make("user1")
 }
 
 pub fn user2() -> Addr {
-    Addr::unchecked("1")
+    dora_mock_api().addr_make("user2")
 }
 
 pub fn user3() -> Addr {
-    Addr::unchecked("2")
+    dora_mock_api().addr_make("user3")
 }
 
 pub fn owner() -> Addr {

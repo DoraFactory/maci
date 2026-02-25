@@ -1,6 +1,7 @@
+#[allow(unused_imports)] // DelayRecords is used by the #[returns] proc-macro attribute
 use crate::state::{
     DelayRecords, MaciParameters, MessageData, PeriodStatus, PubKey, RegistrationMode, RoundInfo,
-    VoiceCreditMode, VotingTime, Whitelist,
+    VoiceCreditMode, VotingTime,
 };
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Timestamp, Uint256};
@@ -153,10 +154,6 @@ pub enum ExecuteMsg {
         groth16_proof: Groth16ProofType,
     },
     PublishMessage {
-        message: MessageData,
-        enc_pub_key: PubKey,
-    },
-    PublishMessageBatch {
         messages: Vec<MessageData>,
         enc_pub_keys: Vec<PubKey>,
     },
@@ -241,22 +238,6 @@ pub enum QueryMsg {
     #[returns(Uint256)]
     GetVoiceCreditAmount {},
 
-    #[returns(Whitelist)]
-    WhiteList {},
-    /// Checks permissions of the caller on this proxy.
-    /// If CanExecute returns true then a call to `Execute` with the same message,
-    /// before any further state changes, should also succeed.
-    #[returns(bool)]
-    CanSignUp { sender: Addr },
-
-    #[returns(bool)]
-    IsWhiteList { sender: Addr },
-
-    #[returns(bool)]
-    IsRegister { sender: Addr },
-
-    // #[returns(Uint256)]
-    // WhiteBalanceOf { sender: String },
     #[returns(Option<Uint256>)]
     Signuped { pubkey: PubKey },
 
@@ -286,22 +267,6 @@ pub enum QueryMsg {
 
     #[returns(Option<String>)]
     QueryOracleWhitelistConfig {},
-
-    #[returns(bool)]
-    CanSignUpWithOracle {
-        pubkey: PubKey,
-        certificate: String,
-        /// Required for Dynamic VoiceCreditMode; ignored for Unified mode
-        amount: Option<Uint256>,
-    },
-
-    #[returns(Uint256)]
-    WhiteBalanceOf {
-        pubkey: PubKey,
-        certificate: String,
-        /// Required for Dynamic VoiceCreditMode; ignored for Unified mode
-        amount: Option<Uint256>,
-    },
 
     #[returns(Uint256)]
     QueryCurrentStateCommitment {},

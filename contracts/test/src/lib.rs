@@ -5,9 +5,6 @@ pub mod groth16_parser;
 pub mod msg;
 pub mod state;
 
-// Re-export maci-utils for convenience
-pub use maci_utils;
-
 #[cfg(any(feature = "mt", test))]
 pub mod multitest;
 

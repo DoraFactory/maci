@@ -3,7 +3,8 @@ mod test {
     use crate::error::ContractError;
     use crate::msg::{
         ExecuteMsg, Groth16ProofType, InstantiateMsg, QueryMsg, RegistrationConfigInfo,
-        RegistrationConfigUpdate, RegistrationModeConfig, WhitelistBase, WhitelistBaseConfig,
+        RegistrationConfigUpdate, RegistrationModeConfig, RegistrationStatus, WhitelistBase,
+        WhitelistBaseConfig,
     };
     use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
     use crate::multitest::{
@@ -12,7 +13,7 @@ mod test {
     };
     use crate::state::{
         DelayRecord, DelayRecords, DelayType, MaciParameters, MessageData, Period, PeriodStatus,
-        PubKey, RegistrationMode, RoundInfo, VoiceCreditMode, VotingTime, Whitelist,
+        PubKey, RegistrationMode, RoundInfo, VoiceCreditMode, VotingTime,
     };
     use cosmwasm_std::{Addr, BlockInfo, Timestamp, Uint256};
     use cw_multi_test::{next_block, Executor};
@@ -2945,12 +2946,34 @@ WhitelistBaseConfig {
             .update_registration_config(&mut app, owner(), config)
             .expect("Should successfully switch to StaticWhitelist mode");
 
-        // Verify whitelist is set
-        let whitelist: Whitelist = app
+        // Verify whitelist is set: both users should be able to sign up
+        let status1: RegistrationStatus = app
             .wrap()
-            .query_wasm_smart(contract.addr(), &QueryMsg::WhiteList {})
+            .query_wasm_smart(
+                contract.addr(),
+                &QueryMsg::QueryRegistrationStatus {
+                    sender: Some(user1()),
+                    pubkey: None,
+                    certificate: None,
+                    amount: None,
+                },
+            )
             .unwrap();
-        assert_eq!(whitelist.users.len(), 2, "Whitelist should have 2 users");
+        assert!(status1.can_sign_up, "user1 should be in whitelist");
+
+        let status2: RegistrationStatus = app
+            .wrap()
+            .query_wasm_smart(
+                contract.addr(),
+                &QueryMsg::QueryRegistrationStatus {
+                    sender: Some(user2()),
+                    pubkey: None,
+                    certificate: None,
+                    amount: None,
+                },
+            )
+            .unwrap();
+        assert!(status2.can_sign_up, "user2 should be in whitelist");
     }
 
     // NOTE: This test is no longer applicable in the new RegistrationMode design
@@ -3014,21 +3037,36 @@ WhitelistBaseConfig {
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should be enabled");
 
-        let whitelist: Whitelist = app
+        // Verify whitelist users and their VC balances via QueryRegistrationStatus
+        let status1: RegistrationStatus = app
             .wrap()
-            .query_wasm_smart(maci_contract.addr(), &QueryMsg::WhiteList {})
+            .query_wasm_smart(
+                maci_contract.addr(),
+                &QueryMsg::QueryRegistrationStatus {
+                    sender: Some(user1()),
+                    pubkey: None,
+                    certificate: None,
+                    amount: None,
+                },
+            )
             .unwrap();
-        assert_eq!(whitelist.users.len(), 2, "Whitelist should have 2 users");
-        assert_eq!(
-            whitelist.users[0].voice_credit_amount,
-            Uint256::from_u128(100),
-            "User1 should have 100 VC"
-        );
-        assert_eq!(
-            whitelist.users[1].voice_credit_amount,
-            Uint256::from_u128(200),
-            "User2 should have 200 VC"
-        );
+        assert!(status1.can_sign_up, "user1 should be in whitelist");
+        assert_eq!(status1.balance, Uint256::from_u128(100), "User1 should have 100 VC");
+
+        let status2: RegistrationStatus = app
+            .wrap()
+            .query_wasm_smart(
+                maci_contract.addr(),
+                &QueryMsg::QueryRegistrationStatus {
+                    sender: Some(user2()),
+                    pubkey: None,
+                    certificate: None,
+                    amount: None,
+                },
+            )
+            .unwrap();
+        assert!(status2.can_sign_up, "user2 should be in whitelist");
+        assert_eq!(status2.balance, Uint256::from_u128(200), "User2 should have 200 VC");
     }
 
     #[test]
@@ -3380,45 +3418,26 @@ VoiceCreditMode::Unified { amount } => {
             "MACI with Oracle",
         ).unwrap();
 
-        // Query whitelist in OracleVerified mode (should return empty list, not error)
-        let whitelist: Whitelist = app
-            .wrap()
-            .query_wasm_smart(contract.addr(), &QueryMsg::WhiteList {})
-            .expect("WhiteList query should work in OracleVerified mode");
-        
-        assert_eq!(whitelist.users.len(), 0, "Should return empty whitelist in OracleVerified mode");
-
-        // Query IsWhiteList in OracleVerified mode (should return false, not error)
-        let is_whitelist: bool = app
+        // In OracleVerified mode without a certificate, all fields should be false/zero
+        let status: RegistrationStatus = app
             .wrap()
             .query_wasm_smart(
                 contract.addr(),
-                &QueryMsg::IsWhiteList { sender: user1() },
+                &QueryMsg::QueryRegistrationStatus {
+                    sender: None,
+                    pubkey: None,
+                    certificate: None,
+                    amount: None,
+                },
             )
-            .expect("IsWhiteList query should work in OracleVerified mode");
-        
-        assert!(!is_whitelist, "Should return false in OracleVerified mode");
+            .expect("QueryRegistrationStatus should work in OracleVerified mode");
 
-        // Query IsRegister in OracleVerified mode (should return false, not error)
-        let is_register: bool = app
-            .wrap()
-            .query_wasm_smart(
-                contract.addr(),
-                &QueryMsg::IsRegister { sender: user1() },
-            )
-            .expect("IsRegister query should work in OracleVerified mode");
-        
-        assert!(!is_register, "Should return false in OracleVerified mode");
-
-        // Query CanSignUp in OracleVerified mode (should return false as it needs certificate)
-        let can_signup: bool = app
-            .wrap()
-            .query_wasm_smart(
-                contract.addr(),
-                &QueryMsg::CanSignUp { sender: user1() },
-            )
-            .expect("CanSignUp query should work in OracleVerified mode");
-        
-        assert!(!can_signup, "Should return false in OracleVerified mode (needs certificate)");
+        assert!(!status.can_sign_up, "can_sign_up should be false without certificate");
+        assert!(!status.is_register, "is_register should be false for unregistered user");
+        // is_whitelist is derivable: can_sign_up || is_register
+        assert!(
+            !status.can_sign_up && !status.is_register,
+            "user should not be in whitelist in OracleVerified mode without certificate"
+        );
     }
 }

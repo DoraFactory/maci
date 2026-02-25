@@ -11,10 +11,11 @@ use crate::{
     state::{CircuitChargeConfig, ValidatorSet},
 };
 use cosmwasm_std::{Addr, Coin, StdResult, Timestamp, Uint256};
+use cosmwasm_std::testing::MockApi;
 use cw_amaci::msg::{RegistrationModeConfig, WhitelistBase, WhitelistBaseConfig};
 
 use cw_amaci::state::{PubKey, RoundInfo, VotingTime};
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
+use cw_multi_test::{App, AppBuilder, AppResponse, ContractWrapper, Executor};
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 pub const DORA_DEMON: &str = "peaka";
 pub const DORA_DECIMALS: u8 = 18;
@@ -610,16 +611,20 @@ impl From<Addr> for AmaciRegistryContract {
     }
 }
 
+pub fn dora_mock_api() -> MockApi {
+    MockApi::default().with_prefix("dora")
+}
+
 pub fn user1() -> Addr {
-    Addr::unchecked("0")
+    dora_mock_api().addr_make("user1")
 }
 
 pub fn user2() -> Addr {
-    Addr::unchecked("1")
+    dora_mock_api().addr_make("user2")
 }
 
 pub fn user3() -> Addr {
-    Addr::unchecked("2")
+    dora_mock_api().addr_make("user3")
 }
 
 pub fn user4() -> Addr {

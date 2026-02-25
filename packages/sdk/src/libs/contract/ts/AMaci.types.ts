@@ -132,12 +132,6 @@ export type ExecuteMsg =
     }
   | {
       publish_message: {
-        enc_pub_key: PubKey;
-        message: MessageData;
-      };
-    }
-  | {
-      publish_message_batch: {
         enc_pub_keys: PubKey[];
         messages: MessageData[];
       };

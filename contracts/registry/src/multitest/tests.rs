@@ -1,14 +1,14 @@
 use cosmwasm_std::{coins, from_json, Addr, BlockInfo, Timestamp, Uint128, Uint256};
-use cw_multi_test::App;
+use cw_multi_test::{App, AppBuilder};
 
 // use crate::error::ContractError;
 // use crate::msg::ClaimsResponse;
 use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
 use crate::{
     multitest::{
-        admin, creator, operator, operator2, operator3, operator_pubkey1, operator_pubkey2,
-        operator_pubkey3, user1, user2, user3, user4, user5, AmaciRegistryCodeId,
-        InstantiationData, DORA_DEMON,
+        admin, creator, dora_mock_api, operator, operator2, operator3, operator_pubkey1,
+        operator_pubkey2, operator_pubkey3, user1, user2, user3, user4, user5,
+        AmaciRegistryCodeId, InstantiationData, DORA_DEMON,
     },
     state::ValidatorSet,
 };
@@ -199,7 +199,7 @@ pub fn next_block_4_days(block: &mut BlockInfo) {
 //     let user2_coin_amount = 20u128;
 //     let user3_coin_amount = 10u128;
 
-//     let mut app = App::new(|router, _api, storage| {
+//     let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
 //         router
 //             .bank
 //             .init_balance(storage, &user1(), coins(user1_coin_amount, DORA_DEMON))
@@ -322,7 +322,7 @@ pub fn next_block_4_days(block: &mut BlockInfo) {
 // fn create_round_should_works() {
 //     let user1_coin_amount = 30u128;
 
-//     let mut app = App::new(|router, _api, storage| {
+//     let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
 //         router
 //             .bank
 //             .init_balance(storage, &user1(), coins(user1_coin_amount, DORA_DEMON))
@@ -420,7 +420,7 @@ fn create_round_with_reward_should_works() {
     let admin_coin_amount = 1000000000000000000000u128; // 1000 DORA (register 500, create round 50)
     let creator_coin_amount = 1000000000000000000000u128; // 1000 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &admin(), coins(admin_coin_amount, DORA_DEMON))
@@ -605,7 +605,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
     let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -796,17 +796,17 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
         y: uint256_from_decimal_string(&pubkey_data.pubkeys[1][1]),
     };
 
-    let _ = maci_contract.amaci_sign_up(&mut app, Addr::unchecked("0"), pubkey0.clone());
+    let _ = maci_contract.amaci_sign_up(&mut app, user1(), pubkey0.clone());
 
     let can_sign_up_error = maci_contract
-        .amaci_sign_up(&mut app, Addr::unchecked("0"), pubkey0.clone())
+        .amaci_sign_up(&mut app, user1(), pubkey0.clone())
         .unwrap_err();
     assert_eq!(
         AmaciContractError::UserAlreadyRegistered {},
         can_sign_up_error.downcast().unwrap()
     );
 
-    let _ = maci_contract.amaci_sign_up(&mut app, Addr::unchecked("1"), pubkey1.clone());
+    let _ = maci_contract.amaci_sign_up(&mut app, user2(), pubkey1.clone());
 
     assert_eq!(
         maci_contract.amaci_num_sign_up(&app).unwrap(),
@@ -1233,7 +1233,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
     let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -1419,17 +1419,17 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
         y: uint256_from_decimal_string(&pubkey_data.pubkeys[1][1]),
     };
 
-    let _ = maci_contract.amaci_sign_up(&mut app, Addr::unchecked("0"), pubkey0.clone());
+    let _ = maci_contract.amaci_sign_up(&mut app, user1(), pubkey0.clone());
 
     let can_sign_up_error = maci_contract
-        .amaci_sign_up(&mut app, Addr::unchecked("0"), pubkey0.clone())
+        .amaci_sign_up(&mut app, user1(), pubkey0.clone())
         .unwrap_err();
     assert_eq!(
         AmaciContractError::UserAlreadyRegistered {},
         can_sign_up_error.downcast().unwrap()
     );
 
-    let _ = maci_contract.amaci_sign_up(&mut app, Addr::unchecked("1"), pubkey1.clone());
+    let _ = maci_contract.amaci_sign_up(&mut app, user2(), pubkey1.clone());
 
     assert_eq!(
         maci_contract.amaci_num_sign_up(&app).unwrap(),
@@ -1857,7 +1857,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
     let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -2433,7 +2433,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
 fn test_create_round_event_data() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -2567,7 +2567,7 @@ fn test_reply_created_round_event() {
     // Same setup as test_create_round_event_data: create round and capture response
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -2732,7 +2732,7 @@ fn test_reply_created_round_event() {
 fn test_created_round_event_sign_up_with_static_whitelist() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -2804,7 +2804,7 @@ fn test_created_round_event_pre_populated() {
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -2887,7 +2887,7 @@ fn test_created_round_event_pre_populated() {
 fn test_query_registration_status_static_whitelist() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -3019,7 +3019,7 @@ fn test_query_registration_status_static_whitelist() {
 fn test_query_registration_status_oracle() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -3161,7 +3161,7 @@ fn test_query_registration_status_pre_populated() {
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -3248,7 +3248,7 @@ fn test_query_registration_status_pre_populated() {
 /// Helper: set up registry + amaci, create a StaticWhitelist round, return (app, maci_contract).
 fn setup_whitelist_round() -> (cw_multi_test::App, MaciContract) {
     let creator_coin_amount = 50000000000000000000u128;
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -3758,7 +3758,7 @@ fn setup_voting_round_with_user_balance() -> (App, MaciContract) {
     let creator_coin_amount = 50_000_000_000_000_000_000u128; // 50 DORA
     let user_coin_amount = 1_000_000_000_000_000_000_000u128; // 1000 DORA
 
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
@@ -4078,7 +4078,7 @@ fn test_publish_message_batch_fee_paid() {
 /// Shared setup: creates an App funded for `creator`, stores both contract
 /// codes, instantiates the registry, configures a validator/operator chain.
 fn setup_registry_for_scale_test(creator_balance: u128) -> (App, crate::multitest::AmaciRegistryContract) {
-    let mut app = App::new(|router, _api, storage| {
+    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
         router
             .bank
             .init_balance(storage, &creator(), coins(creator_balance, DORA_DEMON))

@@ -369,24 +369,6 @@ pub const CIRCUITTYPE: Item<Uint256> = Item::new("circuit_type"); // <0: 1p1v | 
 pub const CERTSYSTEM: Item<Uint256> = Item::new("certification_system"); // <0: groth16 | 1: plonk>
 
 #[cw_serde]
-pub struct PlonkProofStr {
-    pub num_inputs: usize,
-    pub n: usize,
-    pub input_values: Vec<String>,
-    pub wire_commitments: Vec<Vec<u8>>,
-    pub grand_product_commitment: Vec<u8>,
-    pub quotient_poly_commitments: Vec<Vec<u8>>,
-    pub wire_values_at_z: Vec<String>,
-    pub wire_values_at_z_omega: Vec<String>,
-    pub grand_product_at_z_omega: String,
-    pub quotient_polynomial_at_z: String,
-    pub linearization_polynomial_at_z: String,
-    pub permutation_polynomials_at_z: Vec<String>,
-    pub opening_at_z_proof: Vec<u8>,
-    pub opening_at_z_omega_proof: Vec<u8>,
-}
-
-#[cw_serde]
 pub struct Groth16VkeyStr {
     pub alpha_1: Vec<u8>,
     pub beta_2: Vec<u8>,

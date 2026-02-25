@@ -42,8 +42,22 @@ use bellman_ce_verifier::{prepare_verifying_key, verify_proof as groth16_verify}
 
 use ff_ce::PrimeField as Fr;
 
-use bech32;
 use hex;
+use serde_json_wasm as serde_json;
+
+// Used by both certificate verification paths; fields must remain in this alphabetical order
+// to produce JSON identical to what serde_json::json!{} generated with its BTreeMap backing.
+#[derive(serde::Serialize)]
+struct VerifyPayload {
+    amount: String,
+    contract_address: String,
+    pubkey_x: String,
+    pubkey_y: String,
+}
+
+/// BN254 scalar field modulus (hex), used to reduce input hashes before proof verification
+const SNARK_SCALAR_FIELD_HEX: &str =
+    "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001";
 
 /// Convert Uint256 to a field element for proof verification
 /// This helper centralizes the conversion logic
@@ -52,6 +66,37 @@ fn uint256_to_field<F: Fr>(input: &Uint256) -> Result<F, ContractError> {
     F::from_str(&input.to_string()).ok_or_else(|| ContractError::FieldConversionError {
         value: input.to_string(),
     })
+}
+
+/// Decode hex-encoded a/b/c components of a Groth16 proof into byte vectors
+fn decode_groth16_proof(proof: &Groth16ProofType) -> Result<Groth16ProofStr, ContractError> {
+    Ok(Groth16ProofStr {
+        pi_a: hex::decode(&proof.a).map_err(|_| ContractError::HexDecodingError {})?,
+        pi_b: hex::decode(&proof.b).map_err(|_| ContractError::HexDecodingError {})?,
+        pi_c: hex::decode(&proof.c).map_err(|_| ContractError::HexDecodingError {})?,
+    })
+}
+
+/// Parse and verify a Groth16 proof against a given vkey and input hash.
+/// Returns an error with the provided step name if verification fails.
+fn run_groth16_verify(
+    vkey_str: crate::state::Groth16VkeyStr,
+    proof: &Groth16ProofType,
+    input_hash: Uint256,
+    step: &str,
+) -> Result<(), ContractError> {
+    let proof_str = decode_groth16_proof(proof)?;
+    let vkey = parse_groth16_vkey::<Bn256>(vkey_str)?;
+    let pvk = prepare_verifying_key(&vkey);
+    let pof = parse_groth16_proof::<Bn256>(proof_str)?;
+    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
+        .map_err(|_| ContractError::SynthesisError {})?;
+    if !is_passed {
+        return Err(ContractError::InvalidProof {
+            step: step.to_string(),
+        });
+    }
+    Ok(())
 }
 
 /// Convert a contract address to Uint256 format
@@ -85,12 +130,13 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// This helper function performs the following validations:
 /// 1. Address must have 'dora1' prefix
-/// 2. Address must be valid bech32 format
+/// 2. Address must be a valid chain address (validated via cosmwasm_std::Api)
 /// 3. For Dynamic VC mode: voice_credit_amount must exist and be non-zero
 /// 4. For Unified VC mode: uses the provided default_amount for all users
 ///
 /// Returns a Vec<WhitelistConfig> ready to be stored
 fn validate_and_process_whitelist(
+    api: &dyn cosmwasm_std::Api,
     users: &[WhitelistBaseConfig],
     voice_credit_mode: &VoiceCreditMode,
     default_amount: cosmwasm_std::Uint256,
@@ -98,28 +144,17 @@ fn validate_and_process_whitelist(
     let mut processed_users: Vec<WhitelistConfig> = Vec::new();
 
     for user_config in users {
-        // Validate address format: must be dora prefix (skip validation in test environment)
         let addr_str = user_config.addr.as_str();
 
-        // Validate address using bech32 decode (only if it looks like a bech32 address)
-        if addr_str.contains('1') && addr_str.len() > 10 {
-            // Looks like a bech32 address, validate it
-            match bech32::decode(addr_str) {
-                Ok((prefix, _data, _variant)) => {
-                    if prefix != "dora" {
-                        return Err(ContractError::InvalidWhitelistConfig {
-                            reason: format!("Must use dora address: {}", addr_str),
-                        });
-                    }
-                }
-                Err(_) => {
-                    return Err(ContractError::InvalidWhitelistConfig {
-                        reason: format!("Invalid address format: {}", addr_str),
-                    });
-                }
-            }
+        if !addr_str.starts_with("dora1") {
+            return Err(ContractError::InvalidWhitelistConfig {
+                reason: format!("Must use dora address: {}", addr_str),
+            });
         }
-        // For test addresses like "user1", "user2", skip validation
+        api.addr_validate(addr_str)
+            .map_err(|_| ContractError::InvalidWhitelistConfig {
+                reason: format!("Invalid address format: {}", addr_str),
+            })?;
 
         // Determine amount and validate based on VoiceCreditMode
         let amount = match voice_credit_mode {
@@ -270,6 +305,7 @@ pub fn instantiate(
             };
 
             let users = validate_and_process_whitelist(
+                deps.api,
                 &whitelist.users,
                 &msg.voice_credit_mode,
                 default_amount,
@@ -712,13 +748,9 @@ pub fn execute(
             groth16_proof,
         } => execute_pre_add_new_key(deps, env, info, pubkey, nullifier, d, groth16_proof),
         ExecuteMsg::PublishMessage {
-            message,
-            enc_pub_key,
-        } => execute_publish_message(deps, env, info, message, enc_pub_key),
-        ExecuteMsg::PublishMessageBatch {
             messages,
             enc_pub_keys,
-        } => execute_publish_message_batch(deps, env, info, messages, enc_pub_keys),
+        } => execute_publish_message(deps, env, info, messages, enc_pub_keys),
         ExecuteMsg::StartProcessPeriod {} => execute_start_process_period(deps, env, info),
         ExecuteMsg::ProcessMessage {
             new_state_commitment,
@@ -807,7 +839,12 @@ fn validate_registration_config_update(
                 };
 
                 // Use the existing validation function
-                validate_and_process_whitelist(&whitelist.users, vc_mode, default_amount)?;
+                validate_and_process_whitelist(
+                    deps.api,
+                    &whitelist.users,
+                    vc_mode,
+                    default_amount,
+                )?;
             }
             RegistrationModeConfig::SignUpWithOracle { oracle_pubkey: _ } => {
                 // SignUpWithOracle mode: oracle_pubkey is already provided in the enum
@@ -904,8 +941,12 @@ fn apply_registration_config_update(
                     VoiceCreditMode::Unified { amount } => *amount,
                     VoiceCreditMode::Dynamic => Uint256::zero(),
                 };
-                let users =
-                    validate_and_process_whitelist(&whitelist.users, &vc_mode, default_amount)?;
+                let users = validate_and_process_whitelist(
+                    deps.api,
+                    &whitelist.users,
+                    &vc_mode,
+                    default_amount,
+                )?;
                 WHITELIST.save(deps.storage, &Whitelist { users })?;
                 PRE_DEACTIVATE_ROOT.save(deps.storage, &Uint256::zero())?;
                 PRE_DEACTIVATE_COORDINATOR_HASH.remove(deps.storage);
@@ -1041,7 +1082,7 @@ pub fn execute_set_vote_options_map(
             .add_attribute("action", "set_vote_option")
             .add_attribute(
                 "vote_option_map",
-                serde_json::to_string(&vote_option_map).unwrap_or_else(|_| "[]".to_string()),
+                to_json_or(&vote_option_map, "[]"),
             )
             .add_attribute("max_vote_options", max_vote_options.to_string());
         Ok(res)
@@ -1081,11 +1122,11 @@ pub fn execute_sign_up(
         }
         RegistrationMode::SignUpWithStaticWhitelist => {
             // SignUp with Static whitelist mode: check if sender is in whitelist
-            if !is_whitelist(deps.as_ref(), &info.sender)? {
+            let whitelist_cfg = WHITELIST.load(deps.storage)?;
+            if !whitelist_cfg.is_whitelist(&info.sender) {
                 return Err(ContractError::Unauthorized {});
             }
-
-            if is_register(deps.as_ref(), &info.sender)? {
+            if whitelist_cfg.is_register(&info.sender) {
                 return Err(ContractError::UserAlreadyRegistered {});
             }
         }
@@ -1107,15 +1148,17 @@ pub fn execute_sign_up(
 
             // Construct verification payload
             let contract_address_uint256 = address_to_uint256(&env.contract.address);
-            let payload = serde_json::json!({
-                "amount": verify_amount.to_string(),
-                "contract_address": contract_address_uint256.to_string(),
-                "pubkey_x": pubkey.x.to_string(),
-                "pubkey_y": pubkey.y.to_string(),
-            });
+            let payload = VerifyPayload {
+                amount: verify_amount.to_string(),
+                contract_address: contract_address_uint256.to_string(),
+                pubkey_x: pubkey.x.to_string(),
+                pubkey_y: pubkey.y.to_string(),
+            };
 
             // Verify signature
-            let msg = payload.to_string().into_bytes();
+            let msg = serde_json::to_string(&payload)
+                .unwrap_or_default()
+                .into_bytes();
             let hash = Sha256::digest(&msg);
             let certificate_binary =
                 Binary::from_base64(&cert).map_err(|_| ContractError::InvalidBase64 {})?;
@@ -1136,13 +1179,7 @@ pub fn execute_sign_up(
             }
 
             // Check if already signed up (use pubkey for oracle mode)
-            if ORACLE_WHITELIST.has(
-                deps.storage,
-                &(
-                    pubkey.x.to_be_bytes().to_vec(),
-                    pubkey.y.to_be_bytes().to_vec(),
-                ),
-            ) {
+            if ORACLE_WHITELIST.has(deps.storage, &pubkey_key(&pubkey)) {
                 return Err(ContractError::AlreadySignedUp {});
             }
         }
@@ -1191,14 +1228,11 @@ pub fn execute_sign_up(
     let mut num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
     let max_leaves_count = MAX_LEAVES_COUNT.load(deps.storage)?;
 
-    // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-
     // Validate capacity and pubkey
     assert!(num_sign_ups < max_leaves_count, "full");
     assert!(
-        pubkey.x < snark_scalar_field && pubkey.y < snark_scalar_field,
+        pubkey.x < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+            && pubkey.y < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX),
         "MACI: pubkey values should be less than the snark scalar field"
     );
 
@@ -1222,13 +1256,7 @@ pub fn execute_sign_up(
         &voice_credit_balance,
     )?;
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
-    SIGNUPED.save(
-        deps.storage,
-        &(
-            pubkey.x.to_be_bytes().to_vec(),
-            pubkey.y.to_be_bytes().to_vec(),
-        ),
-        &state_index,
+    SIGNUPED.save(deps.storage, &pubkey_key(&pubkey), &state_index,
     )?;
 
     // ============================================
@@ -1247,14 +1275,7 @@ pub fn execute_sign_up(
                 balance: voice_credit_balance,
                 is_register: true,
             };
-            ORACLE_WHITELIST.save(
-                deps.storage,
-                &(
-                    pubkey.x.to_be_bytes().to_vec(),
-                    pubkey.y.to_be_bytes().to_vec(),
-                ),
-                &oracle_user,
-            )?;
+            ORACLE_WHITELIST.save(deps.storage, &pubkey_key(&pubkey), &oracle_user)?;
         }
         RegistrationMode::PrePopulated { .. } => {
             // Already handled above, this branch should not be reached
@@ -1276,103 +1297,12 @@ pub fn execute_publish_message(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    message: MessageData,
-    enc_pub_key: PubKey,
-) -> Result<Response, ContractError> {
-    // Check if the period status is Voting
-    let voting_time = VOTINGTIME.load(deps.storage)?;
-    check_voting_time(env, voting_time)?;
-
-    // Check payment: require MESSAGE_FEE in FEE_DENOM per message
-    let payment = info
-        .funds
-        .iter()
-        .find(|coin| coin.denom == FEE_DENOM)
-        .map(|coin| coin.amount)
-        .unwrap_or(Uint128::zero());
-
-    if payment < MESSAGE_FEE {
-        return Err(ContractError::InsufficientFundsSend {});
-    }
-
-    // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-
-    // let snark_scalar_field = uint256_from_decimal_string(
-    //     "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-    // );
-
-    // Check if the encrypted public key is valid
-    if enc_pub_key.x != Uint256::from_u128(0u128)
-        && enc_pub_key.y != Uint256::from_u128(1u128)
-        && enc_pub_key.x < snark_scalar_field
-        && enc_pub_key.y < snark_scalar_field
-    {
-        // Check if enc_pub_key has already been used
-        let pubkey_storage_key = generate_pubkey_storage_key(&enc_pub_key);
-        if USED_ENC_PUB_KEYS.has(deps.storage, pubkey_storage_key.clone()) {
-            return Err(ContractError::EncPubKeyAlreadyUsed {});
-        }
-
-        // Mark this enc_pub_key as used
-        USED_ENC_PUB_KEYS.save(deps.storage, pubkey_storage_key, &true)?;
-
-        let mut msg_chain_length = MSG_CHAIN_LENGTH.load(deps.storage)?;
-        let old_msg_hashes =
-            MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
-
-        // Compute the new message hash using the provided message, encrypted public key, and previous hash
-        MSG_HASHES.save(
-            deps.storage,
-            (msg_chain_length + Uint256::from_u128(1u128))
-                .to_be_bytes()
-                .to_vec(),
-            &hash_message_and_enc_pub_key(&message, &enc_pub_key, old_msg_hashes),
-        )?;
-
-        let old_chain_length = msg_chain_length;
-        // Update the message chain length
-        msg_chain_length += Uint256::from_u128(1u128);
-        MSG_CHAIN_LENGTH.save(deps.storage, &msg_chain_length)?;
-        // Return a success response
-        Ok(Response::new()
-            .add_attribute("action", "publish_message")
-            .add_attribute("msg_chain_length", old_chain_length.to_string())
-            .add_attribute(
-                "message",
-                serde_json::to_string(&message.data).unwrap_or_else(|_| "[]".to_string()),
-            )
-            .add_attribute(
-                "enc_pub_key",
-                format!(
-                    "{:?},{:?}",
-                    enc_pub_key.x.to_string(),
-                    enc_pub_key.y.to_string()
-                ),
-            )
-            .add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
-    } else {
-        // Return an error response for invalid user or encrypted public key
-        Ok(Response::new()
-            .add_attribute("action", "publish_message")
-            .add_attribute("event", "error user."))
-    }
-}
-
-// in voting - batch version
-pub fn execute_publish_message_batch(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
     messages: Vec<MessageData>,
     enc_pub_keys: Vec<PubKey>,
 ) -> Result<Response, ContractError> {
-    // Check if the period status is Voting (once for the entire batch)
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env, voting_time)?;
 
-    // Validate that messages and enc_pub_keys have the same length
     if messages.len() != enc_pub_keys.len() {
         return Err(ContractError::BatchLengthMismatch {
             messages_len: messages.len(),
@@ -1380,61 +1310,38 @@ pub fn execute_publish_message_batch(
         });
     }
 
-    // Check payment: require MESSAGE_FEE * batch_size in FEE_DENOM
     let batch_size = messages.len();
     let required_fee = MESSAGE_FEE
         .checked_mul(Uint128::from(batch_size as u128))
         .map_err(|_| ContractError::ValueTooLarge {})?;
 
-    let payment = info
-        .funds
-        .iter()
-        .find(|coin| coin.denom == FEE_DENOM)
-        .map(|coin| coin.amount)
-        .unwrap_or(Uint128::zero());
+    let payment = check_fee_payment(&info, required_fee)?;
 
-    if payment < required_fee {
-        return Err(ContractError::InsufficientFundsSend {});
-    }
-
-    // Load the scalar field value (once for the entire batch)
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-
-    // Record the starting chain length
     let start_chain_length = MSG_CHAIN_LENGTH.load(deps.storage)?;
 
-    // Build attributes for the batch
     let mut attributes = vec![
-        attr("action", "publish_message_batch"),
+        attr("action", "publish_message"),
         attr("batch_size", batch_size.to_string()),
         attr("start_chain_length", start_chain_length.to_string()),
         attr("fee_paid", format!("{}{}", payment, FEE_DENOM)),
     ];
 
-    // Process each message in the batch
     let mut msg_chain_length = start_chain_length;
 
     for (i, (message, enc_pub_key)) in messages.iter().zip(enc_pub_keys.iter()).enumerate() {
-        // Check if the encrypted public key is valid
         if enc_pub_key.x != Uint256::from_u128(0u128)
             && enc_pub_key.y != Uint256::from_u128(1u128)
-            && enc_pub_key.x < snark_scalar_field
-            && enc_pub_key.y < snark_scalar_field
+            && enc_pub_key.x < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+            && enc_pub_key.y < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
         {
-            // Check if enc_pub_key has already been used
-            let pubkey_storage_key = generate_pubkey_storage_key(&enc_pub_key);
+            let pubkey_storage_key = generate_pubkey_storage_key(enc_pub_key);
             if USED_ENC_PUB_KEYS.has(deps.storage, pubkey_storage_key.clone()) {
                 return Err(ContractError::EncPubKeyAlreadyUsed {});
             }
-
-            // Mark this enc_pub_key as used
             USED_ENC_PUB_KEYS.save(deps.storage, pubkey_storage_key, &true)?;
 
             let old_msg_hashes =
                 MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
-
-            // Compute the new message hash using the provided message, encrypted public key, and previous hash
             let new_hash = hash_message_and_enc_pub_key(message, enc_pub_key, old_msg_hashes);
             MSG_HASHES.save(
                 deps.storage,
@@ -1444,14 +1351,13 @@ pub fn execute_publish_message_batch(
                 &new_hash,
             )?;
 
-            // Add individual message attributes
             attributes.push(attr(
                 format!("msg_{}_chain_length", i),
                 msg_chain_length.to_string(),
             ));
             attributes.push(attr(
                 format!("msg_{}_data", i),
-                serde_json::to_string(&message.data).unwrap_or_else(|_| "[]".to_string()),
+                to_json_or(&message.data, "[]"),
             ));
             attributes.push(attr(
                 format!("msg_{}_enc_pub_key", i),
@@ -1462,18 +1368,13 @@ pub fn execute_publish_message_batch(
                 ),
             ));
 
-            // Update the message chain length
             msg_chain_length += Uint256::from_u128(1u128);
         }
     }
 
-    // Save the final chain length (once for the entire batch)
     MSG_CHAIN_LENGTH.save(deps.storage, &msg_chain_length)?;
-
-    // Add the ending chain length to attributes
     attributes.push(attr("end_chain_length", msg_chain_length.to_string()));
 
-    // Return a success response with all attributes
     Ok(Response::new().add_attributes(attributes))
 }
 
@@ -1485,31 +1386,15 @@ pub fn execute_publish_deactivate_message(
     message: MessageData,
     enc_pub_key: PubKey,
 ) -> Result<Response, ContractError> {
-    // Check if deactivate feature is enabled
-    let deactivate_enabled = DEACTIVATE_ENABLED.load(deps.storage)?;
-    if !deactivate_enabled {
-        return Err(ContractError::DeactivateDisabled {});
-    }
+    require_deactivate_enabled(deps.as_ref())?;
 
     // Check if the period status is Voting
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env.clone(), voting_time)?;
 
     // Check payment: require DEACTIVATE_FEE in FEE_DENOM
-    let payment = info
-        .funds
-        .iter()
-        .find(|coin| coin.denom == FEE_DENOM)
-        .map(|coin| coin.amount)
-        .unwrap_or(Uint128::zero());
+    let payment = check_fee_payment(&info, DEACTIVATE_FEE)?;
 
-    if payment < DEACTIVATE_FEE {
-        return Err(ContractError::InsufficientFundsSend {});
-    }
-
-    // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
     let mut dmsg_chain_length = DMSG_CHAIN_LENGTH.load(deps.storage)?;
 
     let maci_parameters: MaciParameters = MACIPARAMETERS.load(deps.storage)?;
@@ -1528,14 +1413,11 @@ pub fn execute_publish_deactivate_message(
             max_deactivate_messages,
         });
     }
-    // let snark_scalar_field = uint256_from_decimal_string(
-    //     "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-    // );
     // Check if the encrypted public key is valid
     if enc_pub_key.x != Uint256::from_u128(0u128)
         && enc_pub_key.y != Uint256::from_u128(1u128)
-        && enc_pub_key.x < snark_scalar_field
-        && enc_pub_key.y < snark_scalar_field
+        && enc_pub_key.x < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+        && enc_pub_key.y < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
     {
         let processed_dmsg_count = PROCESSED_DMSG_COUNT.load(deps.storage)?;
 
@@ -1548,27 +1430,7 @@ pub fn execute_publish_deactivate_message(
         let old_msg_hashes =
             DMSG_HASHES.load(deps.storage, dmsg_chain_length.to_be_bytes().to_vec())?;
 
-        // Hash first 5 elements of the message
-        let mut m: [Uint256; 5] = [Uint256::zero(); 5];
-        m[0] = message.data[0];
-        m[1] = message.data[1];
-        m[2] = message.data[2];
-        m[3] = message.data[3];
-        m[4] = message.data[4];
-        let m_hash = hash5(m);
-
-        // Hash next 5 elements of the message
-        let mut n: [Uint256; 5] = [Uint256::zero(); 5];
-        n[0] = message.data[5];
-        n[1] = message.data[6];
-        n[2] = message.data[7];
-        n[3] = message.data[8];
-        n[4] = message.data[9];
-        let n_hash = hash5(n);
-
-        // Final hash combining message hashes, public key, and previous hash
-        // This matches the circuit's Hasher13 structure
-        let m_n_hash = hash5([m_hash, n_hash, enc_pub_key.x, enc_pub_key.y, old_msg_hashes]);
+        let m_n_hash = hash_message_and_enc_pub_key(&message, &enc_pub_key, old_msg_hashes);
 
         // Compute the new message hash using the provided message, encrypted public key, and previous hash
         DMSG_HASHES.save(
@@ -1606,7 +1468,7 @@ pub fn execute_publish_deactivate_message(
             .add_attribute("num_sign_ups", num_sign_ups.to_string())
             .add_attribute(
                 "message",
-                serde_json::to_string(&message.data).unwrap_or_else(|_| "[]".to_string()),
+                to_json_or(&message.data, "[]"),
             )
             .add_attribute(
                 "enc_pub_key",
@@ -1631,11 +1493,7 @@ pub fn execute_upload_deactivate_message(
     info: MessageInfo,
     deactivate_message: Vec<Vec<Uint256>>,
 ) -> Result<Response, ContractError> {
-    // Check if deactivate feature is enabled
-    let deactivate_enabled = DEACTIVATE_ENABLED.load(deps.storage)?;
-    if !deactivate_enabled {
-        return Err(ContractError::DeactivateDisabled {});
-    }
+    require_deactivate_enabled(deps.as_ref())?;
 
     if !is_operator(deps.as_ref(), &info.sender.as_ref())? {
         Err(ContractError::Unauthorized {})
@@ -1657,7 +1515,7 @@ pub fn execute_upload_deactivate_message(
             .add_attribute("maci_operator", &info.sender.to_string())
             .add_attribute(
                 "deactivate_message",
-                serde_json::to_string(&deactivate_format_data).unwrap_or_else(|_| "{}".to_string()),
+                to_json_or(&deactivate_format_data, "{}"),
             ))
     }
 }
@@ -1672,11 +1530,7 @@ pub fn execute_process_deactivate_message(
     new_deactivate_root: Uint256,
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
-    // Check if deactivate feature is enabled
-    let deactivate_enabled = DEACTIVATE_ENABLED.load(deps.storage)?;
-    if !deactivate_enabled {
-        return Err(ContractError::DeactivateDisabled {});
-    }
+    require_deactivate_enabled(deps.as_ref())?;
 
     // // Check if the period status is Voting
     // let voting_time = VOTINGTIME.load(deps.storage)?;
@@ -1719,45 +1573,14 @@ pub fn execute_process_deactivate_message(
     input[6] = STATE_ROOT_BY_DMSG.load(deps.storage, batch_end_index.to_be_bytes().to_vec())?;
     input[7] = Uint256::from(POLL_ID.load(deps.storage)?); // Poll ID for replay attack prevention
 
-    // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-    // let snark_scalar_field = uint256_from_decimal_string(
-    //     "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-    // );
-
-    // Compute the hash of the input values
-    let input_hash = uint256_from_hex_string(&hash_256_uint256_list(&input)) % snark_scalar_field;
-    // Load the process verification keys
+    let input_hash = compute_input_hash(&input);
     let deactivate_vkeys_str = GROTH16_DEACTIVATE_VKEYS.load(deps.storage)?;
-
-    // Parse the SNARK proof
-    let proof_str = Groth16ProofStr {
-        pi_a: hex::decode(groth16_proof.a.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_b: hex::decode(groth16_proof.b.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_c: hex::decode(groth16_proof.c.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-    };
-
-    // Parse the verification key and prepare for verification
-    let vkey = parse_groth16_vkey::<Bn256>(deactivate_vkeys_str)?;
-    let pvk = prepare_verifying_key(&vkey);
-
-    // Parse the proof and prepare for verification
-    let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
-
-    // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
-        .map_err(|_| ContractError::SynthesisError {})?;
-
-    // If the proof verification fails, return an error
-    if !is_passed {
-        return Err(ContractError::InvalidProof {
-            step: String::from("ProcessDeactivate"),
-        });
-    }
+    run_groth16_verify(
+        deactivate_vkeys_str,
+        &groth16_proof,
+        input_hash,
+        "ProcessDeactivate",
+    )?;
 
     CURRENT_DEACTIVATE_COMMITMENT.save(deps.storage, &new_deactivate_commitment)?;
     PROCESSED_DMSG_COUNT.save(
@@ -1765,11 +1588,11 @@ pub fn execute_process_deactivate_message(
         &(processed_dmsg_count + batch_end_index - batch_start_index),
     )?;
     let mut attributes = vec![
-        attr("zk_verify", is_passed.to_string()),
+        attr("zk_verify", "true"),
         attr("commitment", new_deactivate_commitment.to_string()),
         attr(
             "proof",
-            serde_json::to_string(&groth16_proof).unwrap_or_else(|_| "{}".to_string()),
+            to_json_or(&groth16_proof, "{}"),
         ),
         attr("certification_system", "groth16"),
         attr("processed_dmsg_count", processed_dmsg_count.to_string()),
@@ -1818,284 +1641,155 @@ pub fn execute_process_deactivate_message(
         .add_attributes(attributes))
 }
 
-// in voting
-pub fn execute_add_new_key(
+/// Shared logic for AddNewKey and PreAddNewKey.
+/// When `is_pre_populated` is true, inputs and state-leaf hashing follow the PrePopulated path.
+fn add_key_internal(
     mut deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
     pubkey: PubKey,
     nullifier: Uint256,
     d: [Uint256; 4],
     groth16_proof: Groth16ProofType,
+    is_pre_populated: bool,
 ) -> Result<Response, ContractError> {
-    // Check if the period status is Voting
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env, voting_time)?;
 
     if NULLIFIERS.has(deps.storage, nullifier.to_be_bytes().to_vec()) {
-        // Return an error response for invalid user or encrypted public key
         return Err(ContractError::NewKeyExist {});
     }
-
     NULLIFIERS.save(deps.storage, nullifier.to_be_bytes().to_vec(), &true)?;
 
     let mut num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
-
     let max_leaves_count = MAX_LEAVES_COUNT.load(deps.storage)?;
 
-    // // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-
     assert!(num_sign_ups < max_leaves_count, "full");
-    // Check if the pubkey values are within the allowed range
     assert!(
-        pubkey.x < snark_scalar_field && pubkey.y < snark_scalar_field,
+        pubkey.x < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+            && pubkey.y < uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX),
         "MACI: pubkey values should be less than the snark scalar field"
     );
 
     let mut input: [Uint256; 7] = [Uint256::zero(); 7];
-    input[0] = DNODES.load(
-        deps.storage,
-        Uint256::from_u128(0u128).to_be_bytes().to_vec(),
-    )?;
-    input[1] = COORDINATORHASH.load(deps.storage)?;
+    if is_pre_populated {
+        input[0] = PRE_DEACTIVATE_ROOT.load(deps.storage)?;
+        // PreAddNewKey MUST use pre_deactivate_coordinator hash
+        input[1] = PRE_DEACTIVATE_COORDINATOR_HASH.load(deps.storage)?;
+    } else {
+        input[0] = DNODES.load(
+            deps.storage,
+            Uint256::from_u128(0u128).to_be_bytes().to_vec(),
+        )?;
+        input[1] = COORDINATORHASH.load(deps.storage)?;
+    }
     input[2] = nullifier;
     input[3] = d[0];
     input[4] = d[1];
     input[5] = d[2];
     input[6] = d[3];
 
-    // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-    //     "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-
-    // Compute the hash of the input values
-    let input_hash = uint256_from_hex_string(&hash_256_uint256_list(&input)) % snark_scalar_field; // input hash
-
-    // Load the process verification keys
+    let input_hash = compute_input_hash(&input);
     let process_vkeys_str = GROTH16_NEWKEY_VKEYS.load(deps.storage)?;
+    let proof_step = if is_pre_populated {
+        "PreAddNewKey"
+    } else {
+        "AddNewKey"
+    };
+    run_groth16_verify(process_vkeys_str, &groth16_proof, input_hash, proof_step)?;
 
-    // Parse the SNARK proof
-    let proof_str = Groth16ProofStr {
-        pi_a: hex::decode(groth16_proof.a.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_b: hex::decode(groth16_proof.b.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_c: hex::decode(groth16_proof.c.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
+    let voice_credit_amount = if is_pre_populated {
+        let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
+        match vc_mode {
+            VoiceCreditMode::Unified { amount } => amount,
+            VoiceCreditMode::Dynamic => {
+                // PrePopulated mode is restricted to Unified VC mode during instantiation
+                return Err(ContractError::InvalidRegistrationConfig {
+                    reason: "PrePopulated mode requires Unified VoiceCreditMode".to_string(),
+                });
+            }
+        }
+    } else {
+        VOICE_CREDIT_AMOUNT.load(deps.storage)?
     };
 
-    // Parse the verification key and prepare for verification
-    let vkey = parse_groth16_vkey::<Bn256>(process_vkeys_str)?;
-    let pvk = prepare_verifying_key(&vkey);
-
-    // Parse the proof and prepare for verification
-    let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
-
-    // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
-        .map_err(|_| ContractError::SynthesisError {})?;
-
-    // If the proof verification fails, return an error
-    if !is_passed {
-        return Err(ContractError::InvalidProof {
-            step: String::from("AddNewKey"),
-        });
-    }
-
-    // let user_balance = user_balance_of(deps.as_ref(), info.sender.as_ref())?;
-    // if user_balance == Uint256::from_u128(0u128) {
-    //     return Err(ContractError::Unauthorized {});
-    // }
-
-    let voice_credit_amount = VOICE_CREDIT_AMOUNT.load(deps.storage)?;
-
-    // let voice_credit_balance = VOICECREDITBALANCE.load(deps.storage, )
-    // Create a state leaf with the provided pubkey and amount
-    let state_leaf = StateLeaf {
-        pub_key: pubkey.clone(),
-        voice_credit_balance: voice_credit_amount,
-        vote_option_tree_root: Uint256::from_u128(0),
-        nonce: Uint256::from_u128(0),
-    }
-    .hash_new_key_state_leaf(d);
+    let state_leaf = if is_pre_populated {
+        StateLeaf {
+            pub_key: pubkey.clone(),
+            voice_credit_balance: voice_credit_amount,
+            vote_option_tree_root: Uint256::from_u128(0),
+            nonce: Uint256::from_u128(0),
+        }
+        .hash_decativate_state_leaf()
+    } else {
+        StateLeaf {
+            pub_key: pubkey.clone(),
+            voice_credit_balance: voice_credit_amount,
+            vote_option_tree_root: Uint256::from_u128(0),
+            nonce: Uint256::from_u128(0),
+        }
+        .hash_new_key_state_leaf(d)
+    };
 
     let state_index = num_sign_ups;
-    // Enqueue the state leaf
     state_enqueue(&mut deps, state_leaf)?;
-
     num_sign_ups += Uint256::from_u128(1u128);
-
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
-    // Save the actual state_index (0-based), not num_sign_ups
-    SIGNUPED.save(
-        deps.storage,
-        &(
-            pubkey.x.to_be_bytes().to_vec(),
-            pubkey.y.to_be_bytes().to_vec(),
-        ),
-        &state_index,
+    SIGNUPED.save(deps.storage, &pubkey_key(&pubkey), &state_index,
     )?;
 
-    Ok(Response::new()
-        .add_attribute("action", "add_new_key")
+    let action = if is_pre_populated {
+        "pre_add_new_key"
+    } else {
+        "add_new_key"
+    };
+    let mut resp = Response::new()
+        .add_attribute("action", action)
         .add_attribute("state_idx", state_index.to_string())
         .add_attribute(
             "pubkey",
             format!("{:?},{:?}", pubkey.x.to_string(), pubkey.y.to_string()),
         )
-        .add_attribute("balance", voice_credit_amount.to_string())
-        .add_attribute("d0", d[0].to_string())
-        .add_attribute("d1", d[1].to_string())
-        .add_attribute("d2", d[2].to_string())
-        .add_attribute("d3", d[3].to_string()))
+        .add_attribute("balance", voice_credit_amount.to_string());
+    if !is_pre_populated {
+        resp = resp
+            .add_attribute("d0", d[0].to_string())
+            .add_attribute("d1", d[1].to_string())
+            .add_attribute("d2", d[2].to_string())
+            .add_attribute("d3", d[3].to_string());
+    }
+    Ok(resp)
 }
 
 // in voting
-pub fn execute_pre_add_new_key(
-    mut deps: DepsMut,
+pub fn execute_add_new_key(
+    deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     pubkey: PubKey,
     nullifier: Uint256,
     d: [Uint256; 4],
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
-    // Check RegistrationMode: PreAddNewKey is ONLY allowed in PrePopulated mode
+    let _ = info;
+    add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, false)
+}
+
+// in voting — only allowed in PrePopulated registration mode
+pub fn execute_pre_add_new_key(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    pubkey: PubKey,
+    nullifier: Uint256,
+    d: [Uint256; 4],
+    groth16_proof: Groth16ProofType,
+) -> Result<Response, ContractError> {
+    let _ = info;
     let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
     if !matches!(registration_mode, RegistrationMode::PrePopulated { .. }) {
         return Err(ContractError::PreAddNewKeyNotAllowed {});
     }
-
-    // Check if the period status is Voting
-    let voting_time = VOTINGTIME.load(deps.storage)?;
-    check_voting_time(env, voting_time)?;
-
-    if NULLIFIERS.has(deps.storage, nullifier.to_be_bytes().to_vec()) {
-        // Return an error response for invalid user or encrypted public key
-        return Err(ContractError::NewKeyExist {});
-    }
-
-    NULLIFIERS.save(deps.storage, nullifier.to_be_bytes().to_vec(), &true)?;
-
-    let mut num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
-
-    let max_leaves_count = MAX_LEAVES_COUNT.load(deps.storage)?;
-
-    // // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-
-    assert!(num_sign_ups < max_leaves_count, "full");
-    // Check if the pubkey values are within the allowed range
-    assert!(
-        pubkey.x < snark_scalar_field && pubkey.y < snark_scalar_field,
-        "MACI: pubkey values should be less than the snark scalar field"
-    );
-
-    let mut input: [Uint256; 7] = [Uint256::zero(); 7];
-
-    input[0] = PRE_DEACTIVATE_ROOT.load(deps.storage)?;
-
-    // PreAddNewKey MUST use pre_deactivate_coordinator hash
-    // (only valid in PrePopulated mode, already checked above)
-    input[1] = PRE_DEACTIVATE_COORDINATOR_HASH.load(deps.storage)?;
-
-    input[2] = nullifier;
-    input[3] = d[0];
-    input[4] = d[1];
-    input[5] = d[2];
-    input[6] = d[3];
-
-    // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-    //     "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-
-    // Compute the hash of the input values
-    let input_hash = uint256_from_hex_string(&hash_256_uint256_list(&input)) % snark_scalar_field; // input hash
-
-    // Load the process verification keys
-    let process_vkeys_str = GROTH16_NEWKEY_VKEYS.load(deps.storage)?;
-
-    // Parse the SNARK proof
-    let proof_str = Groth16ProofStr {
-        pi_a: hex::decode(groth16_proof.a.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_b: hex::decode(groth16_proof.b.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_c: hex::decode(groth16_proof.c.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-    };
-
-    // Parse the verification key and prepare for verification
-    let vkey = parse_groth16_vkey::<Bn256>(process_vkeys_str)?;
-    let pvk = prepare_verifying_key(&vkey);
-
-    // Parse the proof and prepare for verification
-    let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
-
-    // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
-        .map_err(|_| ContractError::SynthesisError {})?;
-
-    // If the proof verification fails, return an error
-    if !is_passed {
-        return Err(ContractError::InvalidProof {
-            step: String::from("PreAddNewKey"),
-        });
-    }
-
-    // Get voice credit amount
-    // Note: PrePopulated mode is validated to only work with Unified VC mode during instantiation
-    let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
-    let voice_credit_amount = match vc_mode {
-        VoiceCreditMode::Unified { amount } => amount,
-        VoiceCreditMode::Dynamic => {
-            // This should never happen as PrePopulated mode is restricted to Unified VC mode
-            // But we handle it gracefully for safety
-            return Err(ContractError::InvalidRegistrationConfig {
-                reason: "PrePopulated mode requires Unified VoiceCreditMode".to_string(),
-            });
-        }
-    };
-
-    // Create a state leaf with the provided pubkey and amount
-    let state_leaf = StateLeaf {
-        pub_key: pubkey.clone(),
-        voice_credit_balance: voice_credit_amount,
-        vote_option_tree_root: Uint256::from_u128(0),
-        nonce: Uint256::from_u128(0),
-    }
-    .hash_decativate_state_leaf();
-
-    let state_index = num_sign_ups;
-    // Enqueue the state leaf
-    state_enqueue(&mut deps, state_leaf)?;
-
-    num_sign_ups += Uint256::from_u128(1u128);
-
-    NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
-    // Save the actual state_index (0-based), not num_sign_ups
-    SIGNUPED.save(
-        deps.storage,
-        &(
-            pubkey.x.to_be_bytes().to_vec(),
-            pubkey.y.to_be_bytes().to_vec(),
-        ),
-        &state_index,
-    )?;
-
-    Ok(Response::new()
-        .add_attribute("action", "pre_add_new_key")
-        .add_attribute("state_idx", state_index.to_string())
-        .add_attribute(
-            "pubkey",
-            format!("{:?},{:?}", pubkey.x.to_string(), pubkey.y.to_string()),
-        )
-        .add_attribute("balance", voice_credit_amount.to_string()))
+    add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, true)
 }
 
 pub fn execute_start_process_period(
@@ -2149,11 +1843,7 @@ pub fn execute_process_message(
     new_state_commitment: Uint256,
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
-    let period = PERIOD.load(deps.storage)?;
-    // Check if the period status is Processing
-    if period.status != PeriodStatus::Processing {
-        return Err(ContractError::PeriodError {});
-    }
+    require_period_status(deps.as_ref(), PeriodStatus::Processing)?;
     let mut processed_msg_count = PROCESSED_MSG_COUNT.load(deps.storage)?;
     let msg_chain_length = MSG_CHAIN_LENGTH.load(deps.storage)?;
     // Check that all messages have not been processed yet
@@ -2215,52 +1905,23 @@ pub fn execute_process_message(
     input[6] = CURRENT_DEACTIVATE_COMMITMENT.load(deps.storage)?;
     input[7] = Uint256::from(POLL_ID.load(deps.storage)?); // Poll ID for replay attack prevention
 
-    // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-    //     "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-
-    // Compute the hash of the input values
-    let input_hash = uint256_from_hex_string(&hash_256_uint256_list(&input)) % snark_scalar_field; // input hash
+    let input_hash = compute_input_hash(&input);
 
     let groth16_proof_data = groth16_proof;
-    // Load the process verification keys
     let process_vkeys_str = GROTH16_PROCESS_VKEYS.load(deps.storage)?;
-
-    // Parse the SNARK proof
-    let proof_str = Groth16ProofStr {
-        pi_a: hex::decode(groth16_proof_data.a.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_b: hex::decode(groth16_proof_data.b.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_c: hex::decode(groth16_proof_data.c.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-    };
-
-    // Parse the verification key and prepare for verification
-    let vkey = parse_groth16_vkey::<Bn256>(process_vkeys_str)?;
-    let pvk = prepare_verifying_key(&vkey);
-
-    // Parse the proof and prepare for verification
-    let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
-
-    // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
-        .map_err(|_| ContractError::SynthesisError {})?;
-
-    // If the proof verification fails, return an error
-    if !is_passed {
-        return Err(ContractError::InvalidProof {
-            step: String::from("Process"),
-        });
-    }
+    run_groth16_verify(
+        process_vkeys_str,
+        &groth16_proof_data,
+        input_hash,
+        "Process",
+    )?;
 
     let attributes = vec![
-        attr("zk_verify", is_passed.to_string()),
+        attr("zk_verify", "true"),
         attr("commitment", new_state_commitment.to_string()),
         attr(
             "proof",
-            serde_json::to_string(&groth16_proof_data).unwrap_or_else(|_| "{}".to_string()),
+            to_json_or(&groth16_proof_data, "{}"),
         ),
         attr("certification_system", "groth16"),
         attr("processed_msg_count", processed_msg_count.to_string()),
@@ -2283,11 +1944,7 @@ pub fn execute_stop_processing_period(
     _env: Env,
     _info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let period = PERIOD.load(deps.storage)?;
-    // Check if the period status is Processing
-    if period.status != PeriodStatus::Processing {
-        return Err(ContractError::PeriodError {});
-    }
+    require_period_status(deps.as_ref(), PeriodStatus::Processing)?;
 
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
 
@@ -2319,11 +1976,7 @@ pub fn execute_process_tally(
     new_tally_commitment: Uint256,
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
-    let period = PERIOD.load(deps.storage)?;
-    // Check if the period status is Tallying
-    if period.status != PeriodStatus::Tallying {
-        return Err(ContractError::PeriodError {});
-    }
+    require_period_status(deps.as_ref(), PeriodStatus::Tallying)?;
 
     let mut processed_user_count = PROCESSED_USER_COUNT.load(deps.storage)?;
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
@@ -2361,54 +2014,18 @@ pub fn execute_process_tally(
     input[2] = current_tally_commitment; // tallyCommitment
     input[3] = new_tally_commitment; // newTallyCommitment
 
-    // Load the scalar field value
-    let snark_scalar_field =
-        uint256_from_hex_string("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
-    // let snark_scalar_field = uint256_from_decimal_string(
-    //     "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-    // );
-
-    // Compute the hash of the input values
-    let input_hash = uint256_from_hex_string(&hash_256_uint256_list(&input)) % snark_scalar_field;
+    let input_hash = compute_input_hash(&input);
 
     let groth16_proof_data = groth16_proof;
-    // Load the tally verification keys
     let tally_vkeys_str = GROTH16_TALLY_VKEYS.load(deps.storage)?;
-
-    // Parse the SNARK proof
-    let proof_str = Groth16ProofStr {
-        pi_a: hex::decode(groth16_proof_data.a.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_b: hex::decode(groth16_proof_data.b.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-        pi_c: hex::decode(groth16_proof_data.c.clone())
-            .map_err(|_| ContractError::HexDecodingError {})?,
-    };
-
-    // Parse the verification key and prepare for verification
-    let vkey = parse_groth16_vkey::<Bn256>(tally_vkeys_str)?;
-    let pvk = prepare_verifying_key(&vkey);
-
-    // Parse the proof and prepare for verification
-    let pof = parse_groth16_proof::<Bn256>(proof_str.clone())?;
-
-    // Verify the SNARK proof using the input hash
-    let is_passed = groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?])
-        .map_err(|_| ContractError::SynthesisError {})?;
-
-    // If the proof verification fails, return an error
-    if !is_passed {
-        return Err(ContractError::InvalidProof {
-            step: String::from("Tally"),
-        });
-    }
+    run_groth16_verify(tally_vkeys_str, &groth16_proof_data, input_hash, "Tally")?;
 
     let attributes = vec![
-        attr("zk_verify", is_passed.to_string()),
+        attr("zk_verify", "true"),
         attr("commitment", new_tally_commitment.to_string()),
         attr(
             "proof",
-            serde_json::to_string(&groth16_proof_data).unwrap_or_else(|_| "{}".to_string()),
+            to_json_or(&groth16_proof_data, "{}"),
         ),
         attr("certification_system", "groth16"),
         attr("processed_user_count", processed_user_count.to_string()),
@@ -2435,11 +2052,7 @@ fn execute_stop_tallying_period(
     results: Vec<Uint256>,
     salt: Uint256,
 ) -> Result<Response, ContractError> {
-    let period = PERIOD.load(deps.storage)?;
-    // Check if the period status is Tallying
-    if period.status != PeriodStatus::Tallying {
-        return Err(ContractError::PeriodError {});
-    }
+    require_period_status(deps.as_ref(), PeriodStatus::Tallying)?;
 
     // Get the final signup count and message count
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
@@ -2662,13 +2275,6 @@ fn execute_claim(deps: DepsMut, env: Env, _info: MessageInfo) -> Result<Response
         .add_attribute("penalty_amount", penalty_u128_amount.to_string())
         .add_attribute("miss_rate", performance.miss_rate.to_string())
         .add_attribute("is_tally_timeout", "false"))
-}
-
-fn can_sign_up(deps: Deps, sender: &Addr) -> StdResult<bool> {
-    let cfg = WHITELIST.load(deps.storage)?;
-    let is_whitelist = cfg.is_whitelist(sender);
-    let is_register = cfg.is_register(sender);
-    Ok(is_whitelist && !is_register)
 }
 
 fn balance_of_static_whitelist(deps: Deps, sender: &Addr) -> StdResult<Uint256> {
@@ -2916,20 +2522,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .may_load(deps.storage)?
                 .unwrap_or_default(),
         ),
-        QueryMsg::WhiteList {} => to_json_binary::<Whitelist>(&query_white_list(deps)?),
-        QueryMsg::CanSignUp { sender } => {
-            to_json_binary::<bool>(&query_can_sign_up(deps, &sender)?)
-        }
-        QueryMsg::IsWhiteList { sender } => to_json_binary::<bool>(&is_whitelist(deps, &sender)?),
-        QueryMsg::IsRegister { sender } => to_json_binary::<bool>(&is_register(deps, &sender)?),
         QueryMsg::Signuped { pubkey } => {
-            let state_idx = SIGNUPED.may_load(
-                deps.storage,
-                &(
-                    pubkey.x.to_be_bytes().to_vec(),
-                    pubkey.y.to_be_bytes().to_vec(),
-                ),
-            )?;
+            let state_idx = SIGNUPED.may_load(deps.storage, &pubkey_key(&pubkey))?;
             to_json_binary(&state_idx)
         }
         QueryMsg::VoteOptionMap {} => {
@@ -2968,22 +2562,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             // Compatible: return oracle pubkey from registration mode (same Option<String> as before)
             let pubkey = get_oracle_pubkey(deps)?;
             to_json_binary(&pubkey)
-        }
-        QueryMsg::CanSignUpWithOracle {
-            pubkey,
-            certificate,
-            amount,
-        } => {
-            let can_signup = can_sign_up_with_oracle(deps, &_env, &pubkey, &certificate, amount)?;
-            to_json_binary(&can_signup)
-        }
-        QueryMsg::WhiteBalanceOf {
-            pubkey,
-            certificate,
-            amount,
-        } => {
-            let balance = user_balance_of_oracle(deps, &_env, &pubkey, &certificate, amount)?;
-            to_json_binary(&balance)
         }
         QueryMsg::QueryCurrentStateCommitment {} => {
             let current_state_commitment = CURRENT_STATE_COMMITMENT.may_load(deps.storage)?;
@@ -3081,10 +2659,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 // is_register is checked via SIGNUPED (keyed by pubkey).
                 RegistrationMode::PrePopulated { .. } => {
                     let is_register = match &pubkey {
-                        Some(pk) => SIGNUPED.has(
-                            deps.storage,
-                            &(pk.x.to_be_bytes().to_vec(), pk.y.to_be_bytes().to_vec()),
-                        ),
+                        Some(pk) => SIGNUPED.has(deps.storage, &pubkey_key(pk)),
                         None => false,
                     };
                     RegistrationStatus {
@@ -3110,76 +2685,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_white_list(deps: Deps) -> StdResult<Whitelist> {
-    // Only valid for SignUpWithStaticWhitelist mode
-    let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
-    match registration_mode {
-        RegistrationMode::SignUpWithStaticWhitelist => {
-            let cfg = WHITELIST.load(deps.storage)?;
-            Ok(Whitelist {
-                users: cfg.users.into_iter().map(|a| a.into()).collect(),
-            })
-        }
-        _ => {
-            // Return empty whitelist for other modes
-            Ok(Whitelist { users: vec![] })
-        }
-    }
-}
-
-pub fn query_can_sign_up(deps: Deps, sender: &Addr) -> StdResult<bool> {
-    // Adapt to different registration modes
-    let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
-    match registration_mode {
-        RegistrationMode::SignUpWithStaticWhitelist => Ok(can_sign_up(deps, sender)?),
-        RegistrationMode::SignUpWithOracle { .. } => {
-            // For SignUpWithOracle mode, cannot determine without certificate
-            // Return false as it requires certificate verification
-            Ok(false)
-        }
-        RegistrationMode::PrePopulated { .. } => {
-            // For PrePopulated mode, users cannot signup directly
-            Ok(false)
-        }
-    }
-}
-
-pub fn is_whitelist(deps: Deps, sender: &Addr) -> StdResult<bool> {
-    // Only valid for SignUpWithStaticWhitelist mode
-    let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
-    match registration_mode {
-        RegistrationMode::SignUpWithStaticWhitelist => {
-            let cfg = WHITELIST.load(deps.storage)?;
-            let is_whitelist = cfg.is_whitelist(sender);
-            Ok(is_whitelist)
-        }
-        _ => {
-            // For other modes, whitelist check is not applicable
-            Ok(false)
-        }
-    }
-}
-
-pub fn is_register(deps: Deps, sender: &Addr) -> StdResult<bool> {
-    // Only valid for SignUpWithStaticWhitelist mode
-    let registration_mode = REGISTRATION_MODE.load(deps.storage)?;
-    match registration_mode {
-        RegistrationMode::SignUpWithStaticWhitelist => {
-            let cfg = WHITELIST.load(deps.storage)?;
-            let is_register = cfg.is_register(sender);
-            Ok(is_register)
-        }
-        _ => {
-            // For other modes, check if pubkey is signed up
-            // Cannot determine registration status by address alone
-            Ok(false)
-        }
-    }
-}
-
-// pub fn query_user_balance_of(deps: Deps, sender: String) -> StdResult<Uint256> {
-//     Ok(user_balance_of(deps, &sender)?)
-// }
 
 #[cfg(test)]
 mod tests {}
@@ -3317,14 +2822,18 @@ fn verify_oracle_certificate(
 ) -> StdResult<bool> {
     let contract_address_uint256 = address_to_uint256(&env.contract.address);
 
-    let payload = serde_json::json!({
-        "amount": verify_amount.to_string(),
-        "contract_address": contract_address_uint256.to_string(),
-        "pubkey_x": pubkey.x.to_string(),
-        "pubkey_y": pubkey.y.to_string(),
-    });
+    let payload = VerifyPayload {
+        amount: verify_amount.to_string(),
+        contract_address: contract_address_uint256.to_string(),
+        pubkey_x: pubkey.x.to_string(),
+        pubkey_y: pubkey.y.to_string(),
+    };
 
-    let hash = Sha256::digest(payload.to_string().as_bytes());
+    let hash = Sha256::digest(
+        serde_json::to_string(&payload)
+            .unwrap_or_default()
+            .as_bytes(),
+    );
     let certificate_binary = Binary::from_base64(certificate)?;
     let oracle_pubkey_binary = Binary::from_base64(oracle_pubkey_str)?;
 
@@ -3337,91 +2846,55 @@ fn verify_oracle_certificate(
 
 // Resolve the amount to use in the oracle verification payload based on VoiceCreditMode.
 // Returns None when Dynamic mode requires a user-provided amount but none was given.
-fn resolve_oracle_verify_amount(deps: Deps, amount: Option<Uint256>) -> StdResult<Option<Uint256>> {
-    let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
-    match vc_mode {
-        VoiceCreditMode::Unified { amount: vc_amount } => Ok(Some(vc_amount)),
-        VoiceCreditMode::Dynamic => Ok(amount),
-    }
-}
-
-// Convenience key type for ORACLE_WHITELIST map lookups.
-fn oracle_whitelist_key(pubkey: &PubKey) -> (Vec<u8>, Vec<u8>) {
+// Convenience key for any Map keyed by (pubkey.x, pubkey.y) – used by both
+// ORACLE_WHITELIST and SIGNUPED.
+fn pubkey_key(pubkey: &PubKey) -> (Vec<u8>, Vec<u8>) {
     (
         pubkey.x.to_be_bytes().to_vec(),
         pubkey.y.to_be_bytes().to_vec(),
     )
 }
 
-// Check if user can sign up with oracle (used by CanSignUpWithOracle query).
-fn can_sign_up_with_oracle(
-    deps: Deps,
-    env: &Env,
-    pubkey: &PubKey,
-    certificate: &str,
-    amount: Option<Uint256>,
-) -> StdResult<bool> {
-    // Already registered users cannot sign up again
-    if ORACLE_WHITELIST.has(deps.storage, &oracle_whitelist_key(pubkey)) {
-        return Ok(false);
+// Verify that enough fee was paid and return the actual payment amount.
+fn check_fee_payment(info: &MessageInfo, required: Uint128) -> Result<Uint128, ContractError> {
+    let payment = info
+        .funds
+        .iter()
+        .find(|coin| coin.denom == FEE_DENOM)
+        .map(|coin| coin.amount)
+        .unwrap_or(Uint128::zero());
+    if payment < required {
+        return Err(ContractError::InsufficientFundsSend {});
     }
-
-    let oracle_pubkey_str = match get_oracle_pubkey(deps)? {
-        Some(p) => p,
-        None => return Ok(false),
-    };
-
-    let verify_amount = match resolve_oracle_verify_amount(deps, amount)? {
-        Some(a) => a,
-        None => return Ok(false),
-    };
-
-    verify_oracle_certificate(
-        deps,
-        env,
-        pubkey,
-        certificate,
-        verify_amount,
-        &oracle_pubkey_str,
-    )
+    Ok(payment)
 }
 
-// Get user balance with oracle verification (used by WhiteBalanceOf query).
-fn user_balance_of_oracle(
-    deps: Deps,
-    env: &Env,
-    pubkey: &PubKey,
-    certificate: &str,
-    amount: Option<Uint256>,
-) -> StdResult<Uint256> {
-    // Already registered: return stored balance without re-verifying
-    let key = oracle_whitelist_key(pubkey);
-    if ORACLE_WHITELIST.has(deps.storage, &key) {
-        return Ok(ORACLE_WHITELIST.load(deps.storage, &key)?.balance_of());
+// Guard: return DeactivateDisabled if the feature is turned off.
+fn require_deactivate_enabled(deps: Deps) -> Result<(), ContractError> {
+    if !DEACTIVATE_ENABLED.load(deps.storage)? {
+        return Err(ContractError::DeactivateDisabled {});
     }
+    Ok(())
+}
 
-    let oracle_pubkey_str = match get_oracle_pubkey(deps)? {
-        Some(p) => p,
-        None => return Ok(Uint256::zero()),
-    };
-
-    let verify_amount = match resolve_oracle_verify_amount(deps, amount)? {
-        Some(a) => a,
-        None => return Ok(Uint256::zero()),
-    };
-
-    if verify_oracle_certificate(
-        deps,
-        env,
-        pubkey,
-        certificate,
-        verify_amount,
-        &oracle_pubkey_str,
-    )? {
-        Ok(verify_amount)
-    } else {
-        Ok(Uint256::zero())
+// Guard: return PeriodError if the current period status is not the expected one.
+fn require_period_status(deps: Deps, expected: PeriodStatus) -> Result<(), ContractError> {
+    let period = PERIOD.load(deps.storage)?;
+    if period.status != expected {
+        return Err(ContractError::PeriodError {});
     }
+    Ok(())
+}
+
+// Compute the SNARK-safe input hash used by all Groth16 proof verifications.
+fn compute_input_hash(input: &[Uint256]) -> Uint256 {
+    uint256_from_hex_string(&hash_256_uint256_list(input))
+        % uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
+}
+
+// Serialize a value to JSON, returning `fallback` on error.
+fn to_json_or<T: serde::Serialize>(value: &T, fallback: &'static str) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| fallback.to_string())
 }
 
 // Combined oracle registration status for QueryRegistrationStatus.
@@ -3436,7 +2909,7 @@ fn oracle_registration_status(
     amount: Option<Uint256>,
     voice_credit_mode: &VoiceCreditMode,
 ) -> StdResult<(bool, bool, Uint256)> {
-    let key = oracle_whitelist_key(pubkey);
+    let key = pubkey_key(pubkey);
 
     // Already registered: cannot sign up again, but return their actual stored balance
     if ORACLE_WHITELIST.has(deps.storage, &key) {

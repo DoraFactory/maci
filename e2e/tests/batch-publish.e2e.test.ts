@@ -262,7 +262,7 @@ describe('Batch Publish Message E2E Test', function () {
       const events = result.events;
       const batchEvent = events.find((e: any) =>
         e.attributes.some(
-          (attr: any) => attr.key === 'action' && attr.value === 'publish_message_batch'
+          (attr: any) => attr.key === 'action' && attr.value === 'publish_message'
         )
       );
       expect(batchEvent).to.exist;
