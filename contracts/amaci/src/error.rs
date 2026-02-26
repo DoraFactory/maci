@@ -226,6 +226,8 @@ pub enum ContractError {
     #[error("Not all users have been tallied yet")]
     NotAllUsersProcessed {},
 
-    #[error("Tally commitment mismatch: submitted results do not match the verified tally commitment")]
+    #[error(
+        "Tally commitment mismatch: submitted results do not match the verified tally commitment"
+    )]
     TallyCommitmentMismatch {},
 }

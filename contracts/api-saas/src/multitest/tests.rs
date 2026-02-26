@@ -7,7 +7,7 @@ use crate::multitest::{
     admin, create_app, creator, mock_registry_contract, operator1, operator2, treasury_manager,
     test_round_info, test_voting_time, user1, user2, SaasCodeId, DORA_DEMON,
 };
-use cw_amaci::multitest::uint256_from_decimal_string;
+use cw_amaci::multitest::{test_pubkey1, uint256_from_decimal_string};
 use cw_maci;
 use cw_maci::state::RoundInfo as OracleMaciRoundInfo;
 
@@ -1301,10 +1301,7 @@ fn test_create_amaci_round_success_real() {
     .unwrap();
 
     // Set operator pubkey in registry (operator can do this)
-    let pubkey = cw_amaci::state::PubKey {
-        x: Uint256::from(1u128),
-        y: Uint256::from(2u128),
-    };
+    let pubkey = test_pubkey1();
     app.execute_contract(
         dora_operator.clone(), // dora operator sets own pubkey
         registry_addr.clone(),

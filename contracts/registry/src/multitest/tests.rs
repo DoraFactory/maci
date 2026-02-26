@@ -7,12 +7,14 @@ use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
 use crate::{
     multitest::{
         admin, creator, dora_mock_api, operator, operator2, operator3, operator_pubkey1,
-        operator_pubkey2, operator_pubkey3, user1, user2, user3, user4, user5,
-        AmaciRegistryCodeId, InstantiationData, DORA_DEMON,
+        operator_pubkey2, operator_pubkey3, user1, user2, user3, user4, user5, AmaciRegistryCodeId,
+        InstantiationData, DORA_DEMON,
     },
     state::ValidatorSet,
 };
-use cw_amaci::multitest::{fee_recipient, owner, MaciCodeId, MaciContract};
+use cw_amaci::multitest::{
+    fee_recipient, owner, test_pubkey1, test_pubkey2, MaciCodeId, MaciContract,
+};
 // Oracle whitelist config no longer needed - using simple pubkey string
 use cosmwasm_std::Binary;
 use cw_amaci::ContractError as AmaciContractError;
@@ -20,8 +22,8 @@ use cw_amaci::ContractError as AmaciContractError;
 use cw_amaci::msg::{Groth16ProofType, WhitelistBase, WhitelistBaseConfig};
 use cw_amaci::multitest::uint256_from_decimal_string;
 use cw_amaci::state::{
-    DelayRecord, DelayRecords, DelayType, MessageData, Period, PeriodStatus, PubKey,
-    MESSAGE_FEE, FEE_DENOM,
+    DelayRecord, DelayRecords, DelayType, MessageData, Period, PeriodStatus, PubKey, FEE_DENOM,
+    MESSAGE_FEE,
 };
 use cw_multi_test::next_block;
 use serde::{Deserialize, Serialize};
@@ -420,16 +422,18 @@ fn create_round_with_reward_should_works() {
     let admin_coin_amount = 1000000000000000000000u128; // 1000 DORA (register 500, create round 50)
     let creator_coin_amount = 1000000000000000000000u128; // 1000 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &admin(), coins(admin_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &admin(), coins(admin_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -605,24 +609,26 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
     let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -1233,24 +1239,26 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
     let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -1857,24 +1865,26 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
     let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -2433,12 +2443,14 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
 fn test_create_round_event_data() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -2567,12 +2579,14 @@ fn test_reply_created_round_event() {
     // Same setup as test_create_round_event_data: create round and capture response
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -2732,12 +2746,14 @@ fn test_reply_created_round_event() {
 fn test_created_round_event_sign_up_with_static_whitelist() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -2804,12 +2820,14 @@ fn test_created_round_event_pre_populated() {
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -2823,10 +2841,7 @@ fn test_created_round_event_pre_populated() {
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
     let pre_deactivate_root = Uint256::from_u128(12345u128);
-    let pre_deactivate_coordinator = PubKey {
-        x: Uint256::from_u128(111u128),
-        y: Uint256::from_u128(222u128),
-    };
+    let pre_deactivate_coordinator = test_pubkey2();
 
     let pay = 20000000000000000000u128; // 20 DORA
     let resp = contract
@@ -2872,11 +2887,13 @@ fn test_created_round_event_pre_populated() {
     let event_coord_y = event_attr_value(attrs, "pre_deactivate_coordinator_y")
         .expect("PrePopulated event must have pre_deactivate_coordinator_y");
     assert_eq!(
-        event_coord_x, "111",
+        event_coord_x,
+        test_pubkey2().x.to_string(),
         "pre_deactivate_coordinator_x must match"
     );
     assert_eq!(
-        event_coord_y, "222",
+        event_coord_y,
+        test_pubkey2().y.to_string(),
         "pre_deactivate_coordinator_y must match"
     );
 }
@@ -2887,12 +2904,14 @@ fn test_created_round_event_pre_populated() {
 fn test_query_registration_status_static_whitelist() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -3019,12 +3038,14 @@ fn test_query_registration_status_static_whitelist() {
 fn test_query_registration_status_oracle() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -3161,12 +3182,14 @@ fn test_query_registration_status_pre_populated() {
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -3180,10 +3203,7 @@ fn test_query_registration_status_pre_populated() {
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
     let pre_deactivate_root = Uint256::from_u128(12345u128);
-    let pre_deactivate_coordinator = PubKey {
-        x: Uint256::from_u128(111u128),
-        y: Uint256::from_u128(222u128),
-    };
+    let pre_deactivate_coordinator = test_pubkey2();
 
     let pay = 20000000000000000000u128; // 20 DORA
     let resp = contract
@@ -3248,12 +3268,14 @@ fn test_query_registration_status_pre_populated() {
 /// Helper: set up registry + amaci, create a StaticWhitelist round, return (app, maci_contract).
 fn setup_whitelist_round() -> (cw_multi_test::App, MaciContract) {
     let creator_coin_amount = 50000000000000000000u128;
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -3492,10 +3514,7 @@ fn test_update_registration_config_registration_mode() {
 
     // ── Switch to PrePopulated mode ──
     let pre_root = Uint256::from_u128(99999u128);
-    let pre_coord = cw_amaci::state::PubKey {
-        x: Uint256::from_u128(111u128),
-        y: Uint256::from_u128(222u128),
-    };
+    let pre_coord = test_pubkey2();
     let resp_pre = maci_contract
         .amaci_update_registration_config(
             &mut app,
@@ -3533,7 +3552,7 @@ fn test_update_registration_config_registration_mode() {
         .flat_map(|e| &e.attributes)
         .find(|a| a.key == "pre_deactivate_coordinator_x")
         .expect("PrePopulated mode must emit pre_deactivate_coordinator_x attribute");
-    assert_eq!(coord_x_attr.value, "111");
+    assert_eq!(coord_x_attr.value, test_pubkey2().x.to_string());
 
     let coord_y_attr = resp_pre
         .events
@@ -3541,7 +3560,7 @@ fn test_update_registration_config_registration_mode() {
         .flat_map(|e| &e.attributes)
         .find(|a| a.key == "pre_deactivate_coordinator_y")
         .expect("PrePopulated mode must emit pre_deactivate_coordinator_y attribute");
-    assert_eq!(coord_y_attr.value, "222");
+    assert_eq!(coord_y_attr.value, test_pubkey2().y.to_string());
 
     let config_pre = maci_contract.amaci_get_registration_config(&app).unwrap();
     assert!(matches!(
@@ -3758,16 +3777,18 @@ fn setup_voting_round_with_user_balance() -> (App, MaciContract) {
     let creator_coin_amount = 50_000_000_000_000_000_000u128; // 50 DORA
     let user_coin_amount = 1_000_000_000_000_000_000_000u128; // 1000 DORA
 
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -3818,13 +3839,40 @@ fn dummy_message(seed: u128) -> MessageData {
     }
 }
 
-/// Constructs a unique enc_pub_key. Both x and y must be non-zero, y must
-/// not equal 1, and both must be smaller than the snark scalar field.
-/// Small integer pairs (x >= 2, y >= 2) satisfy all constraints.
-fn dummy_enc_pub_key(x: u128, y: u128) -> PubKey {
-    PubKey {
-        x: Uint256::from_u128(x),
-        y: Uint256::from_u128(y),
+/// Constructs an enc_pub_key for tests. Returns a valid BabyJubJub curve point.
+/// The contract enforces global uniqueness of enc_pub_keys within a round, so each
+/// distinct x argument maps to a distinct valid curve point.
+///
+/// Callers use x = 2, 4, 6, 8, 10 (step 2, starting at 2); we map each to a
+/// unique pre-verified BabyJubJub point:
+///   x=2  → test_pubkey1
+///   x=4  → test_pubkey2
+///   x=6  → test_pubkey3 (BASE8)
+///   x=8  → neg(test_pubkey1)  = (p − x1, y1)  — also on the curve
+///   x=10 → neg(test_pubkey2)  = (p − x2, y2)  — also on the curve
+fn dummy_enc_pub_key(x: u128, _y: u128) -> PubKey {
+    let idx = x.wrapping_sub(2) / 2; // x=2→0, x=4→1, x=6→2, x=8→3, x=10→4
+    match idx {
+        0 => test_pubkey1(),
+        1 => test_pubkey2(),
+        2 => cw_amaci::multitest::test_pubkey3(),
+        // Negation on Twisted Edwards: neg(x, y) = (p - x, y), which is also on the curve.
+        3 => PubKey {
+            x: uint256_from_decimal_string(
+                "18330650710046509409342318032445163966638846089274028457040951814671531797846",
+            ),
+            y: uint256_from_decimal_string(
+                "4363822302427519764561660537570341277214758164895027920046745209970137856681",
+            ),
+        },
+        _ => PubKey {
+            x: uint256_from_decimal_string(
+                "16953397073957751294591563499869634831180054965890073281096930076506392151886",
+            ),
+            y: uint256_from_decimal_string(
+                "7218132018004361008636029786293016526331813670637191622129869640055131468762",
+            ),
+        },
     }
 }
 
@@ -3834,12 +3882,7 @@ fn test_publish_message_insufficient_fee() {
     let (mut app, maci_contract) = setup_voting_round_with_user_balance();
 
     let err = maci_contract
-        .amaci_publish_message_no_fee(
-            &mut app,
-            user2(),
-            dummy_message(1),
-            dummy_enc_pub_key(2, 3),
-        )
+        .amaci_publish_message_no_fee(&mut app, user2(), dummy_message(1), dummy_enc_pub_key(2, 3))
         .unwrap_err();
 
     assert_eq!(
@@ -3884,12 +3927,7 @@ fn test_publish_message_fee_paid() {
         .amount;
 
     let resp = maci_contract
-        .amaci_publish_message(
-            &mut app,
-            user2(),
-            dummy_message(1),
-            dummy_enc_pub_key(2, 3),
-        )
+        .amaci_publish_message(&mut app, user2(), dummy_message(1), dummy_enc_pub_key(2, 3))
         .unwrap();
 
     let balance_after = app
@@ -4077,19 +4115,28 @@ fn test_publish_message_batch_fee_paid() {
 
 /// Shared setup: creates an App funded for `creator`, stores both contract
 /// codes, instantiates the registry, configures a validator/operator chain.
-fn setup_registry_for_scale_test(creator_balance: u128) -> (App, crate::multitest::AmaciRegistryContract) {
-    let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_balance, DORA_DEMON))
-            .unwrap();
-    });
+fn setup_registry_for_scale_test(
+    creator_balance: u128,
+) -> (App, crate::multitest::AmaciRegistryContract) {
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_balance, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
 
     let contract = register_code_id
-        .instantiate(&mut app, creator(), amaci_code_id.id(), "Dora AMaci Registry")
+        .instantiate(
+            &mut app,
+            creator(),
+            amaci_code_id.id(),
+            "Dora AMaci Registry",
+        )
         .unwrap();
 
     // Set validators, then bind operator to validator user1, then register pubkey.
@@ -4108,9 +4155,18 @@ fn test_static_whitelist_small_scale_2_1_1_5_allowed() {
 
     let whitelist = WhitelistBase {
         users: vec![
-            WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
-            WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
-            WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+            WhitelistBaseConfig {
+                addr: user1(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user2(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user3(),
+                voice_credit_amount: None,
+            },
         ],
     };
 
@@ -4141,9 +4197,18 @@ fn test_static_whitelist_medium_scale_4_2_2_25_allowed() {
 
     let whitelist = WhitelistBase {
         users: vec![
-            WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
-            WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
-            WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+            WhitelistBaseConfig {
+                addr: user1(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user2(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user3(),
+                voice_credit_amount: None,
+            },
         ],
     };
 
@@ -4176,9 +4241,18 @@ fn test_static_whitelist_large_scale_6_3_3_125_rejected() {
 
     let whitelist = WhitelistBase {
         users: vec![
-            WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
-            WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
-            WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+            WhitelistBaseConfig {
+                addr: user1(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user2(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user3(),
+                voice_credit_amount: None,
+            },
         ],
     };
 

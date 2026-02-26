@@ -5,17 +5,18 @@ use cosmwasm_std::{
     attr, coins, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
     Response, StdError, StdResult, SubMsg, SubMsgResponse, Uint128, Uint256, WasmMsg,
 };
+use maci_utils::is_on_babyjubjub_curve;
 
 use crate::error::ContractError;
 use crate::migrates::migrate_v0_1_5::migrate_v0_1_5;
 use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, QueryMsg};
-use crate::utils::calculate_round_fee_and_params;
 use crate::state::{
-    Admin, CircuitChargeConfig, ValidatorSet, ADDRESS_TO_POLL_ID, ADMIN, CIRCUIT_CHARGE_CONFIG,
-    COORDINATOR_PUBKEY_MAP, MACI_OPERATOR_IDENTITY, MACI_OPERATOR_PUBKEY, MACI_OPERATOR_SET,
-    MACI_VALIDATOR_LIST, MACI_VALIDATOR_OPERATOR_SET, NEXT_POLL_ID, OPERATOR, POLL_ID_TO_ADDRESS,
-    AMACI_CODE_ID,
+    Admin, CircuitChargeConfig, ValidatorSet, ADDRESS_TO_POLL_ID, ADMIN, AMACI_CODE_ID,
+    CIRCUIT_CHARGE_CONFIG, COORDINATOR_PUBKEY_MAP, MACI_OPERATOR_IDENTITY, MACI_OPERATOR_PUBKEY,
+    MACI_OPERATOR_SET, MACI_VALIDATOR_LIST, MACI_VALIDATOR_OPERATOR_SET, NEXT_POLL_ID, OPERATOR,
+    POLL_ID_TO_ADDRESS,
 };
+use crate::utils::calculate_round_fee_and_params;
 use cosmwasm_std::Decimal;
 use cw2::set_contract_version;
 use cw_amaci::msg::{
@@ -156,8 +157,7 @@ pub fn execute_create_round(
 
     // Calculate circuit fee and parameters
     let max_option = Uint256::from_u128(vote_option_map.len() as u128);
-    let (required_fee, maci_parameters) =
-        calculate_round_fee_and_params(max_voter, max_option)?;
+    let (required_fee, maci_parameters) = calculate_round_fee_and_params(max_voter, max_option)?;
 
     // Verify payment
     let denom = "peaka".to_string();
@@ -290,6 +290,10 @@ pub fn execute_set_maci_operator_pubkey(
     if !is_operator_set(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {})
     } else {
+        if !is_on_babyjubjub_curve(pubkey.x, pubkey.y) {
+            return Err(ContractError::InvalidPubKey {});
+        }
+
         if COORDINATOR_PUBKEY_MAP.has(
             deps.storage,
             &(
@@ -523,7 +527,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
     match reply.id {
@@ -642,7 +645,10 @@ pub fn reply_created_round(
             "tally_timeout",
             &amaci_return_data.tally_timeout.seconds().to_string(),
         ),
-        attr("deactivate_enabled", &amaci_return_data.deactivate_enabled.to_string()),
+        attr(
+            "deactivate_enabled",
+            &amaci_return_data.deactivate_enabled.to_string(),
+        ),
     ];
 
     if amaci_return_data.round_info.description != "" {
@@ -657,7 +663,8 @@ pub fn reply_created_round(
     }
 
     // voice_credit_amount: only for Unified mode (backward compatible optional attr)
-    if let cw_amaci::state::VoiceCreditMode::Unified { amount } = &amaci_return_data.voice_credit_mode
+    if let cw_amaci::state::VoiceCreditMode::Unified { amount } =
+        &amaci_return_data.voice_credit_mode
     {
         attributes.push(attr("voice_credit_amount", amount.to_string()));
     }

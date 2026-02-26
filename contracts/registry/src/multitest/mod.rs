@@ -10,8 +10,8 @@ use crate::{
     msg::*,
     state::{CircuitChargeConfig, ValidatorSet},
 };
-use cosmwasm_std::{Addr, Coin, StdResult, Timestamp, Uint256};
 use cosmwasm_std::testing::MockApi;
+use cosmwasm_std::{Addr, Coin, StdResult, Timestamp, Uint256};
 use cw_amaci::msg::{RegistrationModeConfig, WhitelistBase, WhitelistBaseConfig};
 
 use cw_amaci::state::{PubKey, RoundInfo, VotingTime};
@@ -93,14 +93,7 @@ impl AmaciRegistryCodeId {
         amaci_code_id: u64,
         label: &str,
     ) -> AnyResult<AmaciRegistryContract> {
-        AmaciRegistryContract::instantiate(
-            app,
-            self,
-            sender,
-            operator(),
-            amaci_code_id,
-            label,
-        )
+        AmaciRegistryContract::instantiate(app, self, sender, operator(), amaci_code_id, label)
     }
 }
 
@@ -217,7 +210,7 @@ impl AmaciRegistryContract {
             },
             registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: cw_amaci::msg::WhitelistBase {
-                    users: vec![],  // Empty whitelist for open registration
+                    users: vec![], // Empty whitelist for open registration
                 },
             },
         };
@@ -246,9 +239,18 @@ impl AmaciRegistryContract {
 
         let whitelist = WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+                WhitelistBaseConfig {
+                    addr: user1(),
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2(),
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user3(),
+                    voice_credit_amount: None,
+                },
             ],
         };
 
@@ -302,9 +304,18 @@ impl AmaciRegistryContract {
 
         let whitelist = WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+                WhitelistBaseConfig {
+                    addr: user1(),
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2(),
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user3(),
+                    voice_credit_amount: None,
+                },
             ],
         };
 

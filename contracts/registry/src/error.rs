@@ -68,6 +68,9 @@ pub enum ContractError {
     #[error("This pubkey is already existed.")]
     PubkeyExisted {},
 
+    #[error("Invalid pubkey: coordinates must be on the BabyJubJub curve")]
+    InvalidPubKey {},
+
     #[error("Not set operator pubkey.")]
     NotSetOperatorPubkey,
 

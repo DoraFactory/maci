@@ -844,6 +844,7 @@ dependencies = [
  "cw4",
  "derivative",
  "hex",
+ "maci-utils",
  "num-bigint",
  "num-traits",
  "schemars",

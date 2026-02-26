@@ -21,11 +21,13 @@ let result = hash2(data);
 ```
 */
 
+mod babyjubjub;
 mod conversions;
 mod poseidon;
 mod sha256_utils;
 
 // Re-export main types and functions
+pub use babyjubjub::is_on_babyjubjub_curve;
 pub use conversions::{hex_to_decimal, hex_to_uint256, uint256_from_hex_string, uint256_to_hex};
 pub use poseidon::{hash, hash2, hash5, hash_uint256, uint256_to_fr, Fr};
 pub use sha256_utils::{encode_packed, hash_256_uint256_list};

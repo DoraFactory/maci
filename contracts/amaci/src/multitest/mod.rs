@@ -6,8 +6,8 @@ mod tests;
 use anyhow::Result as AnyResult;
 
 use crate::state::{
-    DelayRecords, FEE_DENOM, MaciParameters, MESSAGE_FEE, MessageData, Period, PubKey, RoundInfo,
-    VoiceCreditMode, VotingTime,
+    DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VoiceCreditMode,
+    VotingTime, FEE_DENOM, MESSAGE_FEE,
 };
 use crate::{
     contract::{execute, instantiate, query},
@@ -16,7 +16,7 @@ use crate::{
 use maci_utils::uint256_from_hex_string;
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
-use cosmwasm_std::{Addr, Empty, StdResult, Timestamp, Uint128, Uint256, coins};
+use cosmwasm_std::{coins, Addr, Empty, StdResult, Timestamp, Uint128, Uint256};
 use cw_multi_test::App as DefaultApp;
 use cw_multi_test::{
     AppBuilder, AppResponse, BankKeeper, ContractWrapper, DistributionKeeper, Executor,
@@ -115,8 +115,14 @@ impl MaciCodeId {
         };
         let whitelist = Some(WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1, voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user2, voice_credit_amount: None },
+                WhitelistBaseConfig {
+                    addr: user1,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2,
+                    voice_credit_amount: None,
+                },
             ],
         });
 
@@ -157,8 +163,14 @@ impl MaciCodeId {
         };
         let whitelist = Some(WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1, voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user2, voice_credit_amount: None },
+                WhitelistBaseConfig {
+                    addr: user1,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2,
+                    voice_credit_amount: None,
+                },
             ],
         });
         let voting_time = VotingTime {
@@ -228,8 +240,14 @@ impl MaciCodeId {
         };
         let whitelist = Some(WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1, voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user2, voice_credit_amount: None },
+                WhitelistBaseConfig {
+                    addr: user1,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2,
+                    voice_credit_amount: None,
+                },
             ],
         });
         let voting_time = VotingTime {
@@ -268,9 +286,18 @@ impl MaciCodeId {
         };
         let whitelist = Some(WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1, voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user2, voice_credit_amount: None },
-                WhitelistBaseConfig { addr: user3, voice_credit_amount: None },
+                WhitelistBaseConfig {
+                    addr: user1,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user3,
+                    voice_credit_amount: None,
+                },
             ],
         });
         let start_time = Timestamp::from_nanos(1571797424879000000);
@@ -363,9 +390,7 @@ impl MaciContract {
                 amount: Uint256::from_u128(100u128),
             },
             registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: whitelist.unwrap_or_else(|| WhitelistBase {
-                    users: vec![],
-                }),
+                whitelist: whitelist.unwrap_or_else(|| WhitelistBase { users: vec![] }),
             },
             deactivate_enabled: false, // Default: disabled
         };
@@ -430,9 +455,7 @@ impl MaciContract {
                 amount: Uint256::from_u128(100u128),
             },
             registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: whitelist.unwrap_or_else(|| WhitelistBase {
-                    users: vec![],
-                }),
+                whitelist: whitelist.unwrap_or_else(|| WhitelistBase { users: vec![] }),
             },
             deactivate_enabled: true, // ENABLED for deactivate and add_new_key tests
         };
@@ -577,8 +600,14 @@ impl MaciContract {
             registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: WhitelistBase {
                     users: vec![
-                        WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
-                        WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
+                        WhitelistBaseConfig {
+                            addr: user1(),
+                            voice_credit_amount: None,
+                        },
+                        WhitelistBaseConfig {
+                            addr: user2(),
+                            voice_credit_amount: None,
+                        },
                     ],
                 },
             }),
@@ -1050,8 +1079,14 @@ impl MaciContract {
             registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: WhitelistBase {
                     users: vec![
-                        WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
-                        WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
+                        WhitelistBaseConfig {
+                            addr: user1(),
+                            voice_credit_amount: None,
+                        },
+                        WhitelistBaseConfig {
+                            addr: user2(),
+                            voice_credit_amount: None,
+                        },
                     ],
                 },
             }),
@@ -1451,15 +1486,15 @@ impl MaciContract {
             description: String::from("Test Description"),
             link: String::from("https://github.com"),
         };
-        
+
         let whitelist_cfg = Some(WhitelistBase {
             users: if whitelist {
                 vec![
-WhitelistBaseConfig {
+                    WhitelistBaseConfig {
                         addr: user1(),
                         voice_credit_amount: None, // Will use Unified mode default
                     },
-WhitelistBaseConfig {
+                    WhitelistBaseConfig {
                         addr: user2(),
                         voice_credit_amount: None, // Will use Unified mode default
                     },
@@ -1503,15 +1538,15 @@ WhitelistBaseConfig {
             description: String::from("Test Description"),
             link: String::from("https://github.com"),
         };
-        
+
         let whitelist_cfg = Some(WhitelistBase {
             users: if whitelist {
                 vec![
-WhitelistBaseConfig {
+                    WhitelistBaseConfig {
                         addr: user1(),
                         voice_credit_amount: None, // Will use Unified mode default
                     },
-WhitelistBaseConfig {
+                    WhitelistBaseConfig {
                         addr: user2(),
                         voice_credit_amount: None, // Will use Unified mode default
                     },
@@ -1545,7 +1580,7 @@ WhitelistBaseConfig {
             ],
             round_info,
             voting_time,
-            circuit_type: Uint256::from_u128(0), // 1p1v
+            circuit_type: Uint256::from_u128(0),         // 1p1v
             certification_system: Uint256::from_u128(0), // groth16
             operator: operator(),
             admin: owner(),
@@ -1556,9 +1591,7 @@ WhitelistBaseConfig {
                 amount: Uint256::from_u128(100u128),
             },
             registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
-                whitelist: whitelist_cfg.unwrap_or_else(|| WhitelistBase {
-                    users: vec![],
-                }),
+                whitelist: whitelist_cfg.unwrap_or_else(|| WhitelistBase { users: vec![] }),
             },
             deactivate_enabled: true, // ENABLED!
         };
@@ -1620,10 +1653,22 @@ pub fn test_pubkey1() -> PubKey {
 pub fn test_pubkey2() -> PubKey {
     PubKey {
         x: uint256_from_decimal_string(
-            "1234567890123456789012345678901234567890123456789012345678901234567890123456",
+            "4934845797881523927654842245387640257368309434525961062601274110069416343731",
         ),
         y: uint256_from_decimal_string(
-            "9876543210987654321098765432109876543210987654321098765432109876543210987654",
+            "7218132018004361008636029786293016526331813670637191622129869640055131468762",
+        ),
+    }
+}
+
+// BabyJubJub BASE8 generator point — a canonical valid curve point for test data
+pub fn test_pubkey3() -> PubKey {
+    PubKey {
+        x: uint256_from_decimal_string(
+            "5299619240641551281634865583518297030282874472190772894086521144482721001553",
+        ),
+        y: uint256_from_decimal_string(
+            "16950150798460657717958625567821834550301663161624707787222815936182638968203",
         ),
     }
 }

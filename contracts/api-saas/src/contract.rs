@@ -2,8 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, Uint128, Uint256,
-    WasmMsg,
+    Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, Uint128, Uint256, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::{may_pay, parse_instantiate_response_data};

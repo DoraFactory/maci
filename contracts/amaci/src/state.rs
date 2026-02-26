@@ -87,9 +87,7 @@ pub const TOTAL_RESULT: Item<Uint256> = Item::new("total_result");
 #[cw_serde]
 pub enum VoiceCreditMode {
     // Unified mode: all users get the same voice credit amount (original AMACI)
-    Unified { 
-        amount: Uint256 
-    },
+    Unified { amount: Uint256 },
     // Dynamic mode: each user's voice credit equals their provided amount (original MACI)
     // No calculation needed - amount is voice credit directly
     Dynamic,
@@ -113,14 +111,14 @@ pub enum RegistrationMode {
     // - Pre-defined list of addresses (original AMACI traditional mode)
     // - Whitelist data stored in WHITELIST storage item
     SignUpWithStaticWhitelist,
-    
+
     // SignUp with Oracle: users register individually, access controlled by Oracle signature
     // - Backend signature verification (both AMACI and MACI support)
     // - oracle_pubkey: visa/verification pubkey (签证pubkey) for certificate verification
     SignUpWithOracle {
         oracle_pubkey: String,
     },
-    
+
     // PrePopulated: bulk import users via PreAddNewKey with ZK proof
     // - Users cannot signup directly, must use PreAddNewKey
     // - Access control is enforced by ZK proof verification
@@ -129,7 +127,7 @@ pub enum RegistrationMode {
         // Pre-deactivate root: Merkle root of the state tree after pre-deactivation
         // This is the initial state where all users are already in deactivated status
         pre_deactivate_root: Uint256,
-        
+
         // Pre-deactivate coordinator: coordinator pubkey for the pre-deactivated state
         // This coordinator performed the pre-deactivation operation
         // REQUIRED: Must be provided for PreAddNewKey proof verification

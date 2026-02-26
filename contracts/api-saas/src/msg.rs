@@ -45,27 +45,27 @@ pub enum ExecuteMsg {
     CreateAmaciRound {
         // Operator configuration
         operator: Addr,
-        
+
         // Round parameters
         max_voter: Uint256,
         vote_option_map: Vec<String>,
         round_info: RoundInfo,
         voting_time: VotingTime,
-        
+
         // Circuit configuration
         circuit_type: Uint256,
         certification_system: Uint256,
-        
+
         // Deactivate feature configuration
         deactivate_enabled: bool,
-        
+
         // ============================================
         // Unified MACI Configuration (aligned with Registry API)
         // ============================================
-        
+
         // Voice Credit Mode: how voting power is allocated
         voice_credit_mode: VoiceCreditMode,
-        
+
         // Registration Mode: combined access control and state initialization
         registration_mode: RegistrationModeConfig,
     },

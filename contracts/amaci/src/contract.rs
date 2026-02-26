@@ -34,7 +34,9 @@ use cosmwasm_std::{
     attr, coins, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Response, StdResult, Timestamp, Uint128, Uint256,
 };
-use maci_utils::{hash2, hash5, hash_256_uint256_list, uint256_from_hex_string};
+use maci_utils::{
+    hash2, hash5, hash_256_uint256_list, is_on_babyjubjub_curve, uint256_from_hex_string,
+};
 
 use sha2::{Digest, Sha256};
 
@@ -343,6 +345,10 @@ pub fn instantiate(
                 });
             }
 
+            if !is_on_babyjubjub_curve(pre_deactivate_coordinator.x, pre_deactivate_coordinator.y) {
+                return Err(ContractError::InvalidPubKey {});
+            }
+
             // Save pre_deactivate_root for PreAddNewKey proof verification
             PRE_DEACTIVATE_ROOT.save(deps.storage, pre_deactivate_root)?;
 
@@ -405,6 +411,10 @@ pub fn instantiate(
     GROTH16_TALLY_VKEYS.save(deps.storage, &vkey.tally_vkey)?;
     GROTH16_DEACTIVATE_VKEYS.save(deps.storage, &vkey.deactivate_vkey)?;
     GROTH16_NEWKEY_VKEYS.save(deps.storage, &vkey.add_key_vkey)?;
+
+    if !is_on_babyjubjub_curve(msg.coordinator.x, msg.coordinator.y) {
+        return Err(ContractError::InvalidPubKey {});
+    }
 
     // Compute the coordinator hash from the coordinator values in the message
     let coordinator_hash = hash2([msg.coordinator.x, msg.coordinator.y]);
@@ -854,9 +864,10 @@ fn validate_registration_config_update(
                 pre_deactivate_coordinator,
             } => {
                 // PrePopulated mode requires valid pre_deactivate_coordinator
-                if pre_deactivate_coordinator.x == Uint256::zero()
-                    && pre_deactivate_coordinator.y == Uint256::zero()
-                {
+                if !is_on_babyjubjub_curve(
+                    pre_deactivate_coordinator.x,
+                    pre_deactivate_coordinator.y,
+                ) {
                     return Err(ContractError::InvalidRegistrationConfig {
                         reason: "PrePopulated mode requires valid pre_deactivate_coordinator"
                             .to_string(),
@@ -961,6 +972,15 @@ fn apply_registration_config_update(
                 pre_deactivate_root,
                 pre_deactivate_coordinator,
             } => {
+                if !is_on_babyjubjub_curve(
+                    pre_deactivate_coordinator.x,
+                    pre_deactivate_coordinator.y,
+                ) {
+                    return Err(ContractError::InvalidRegistrationConfig {
+                        reason: "PrePopulated mode requires valid pre_deactivate_coordinator"
+                            .to_string(),
+                    });
+                }
                 PRE_DEACTIVATE_ROOT.save(deps.storage, &pre_deactivate_root)?;
                 let coordinator_hash =
                     hash2([pre_deactivate_coordinator.x, pre_deactivate_coordinator.y]);
@@ -1228,9 +1248,7 @@ pub fn execute_sign_up(
     if num_sign_ups >= max_leaves_count {
         return Err(ContractError::StateTreeFull {});
     }
-    if pubkey.x >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-        || pubkey.y >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-    {
+    if !is_on_babyjubjub_curve(pubkey.x, pubkey.y) {
         return Err(ContractError::InvalidPubKey {});
     }
 
@@ -1307,17 +1325,6 @@ pub fn execute_publish_message(
         });
     }
 
-    // Pre-validate all enc_pub_keys before charging fee to prevent fee loss on invalid keys
-    for enc_pub_key in &enc_pub_keys {
-        if enc_pub_key.x == Uint256::from_u128(0u128)
-            || enc_pub_key.y == Uint256::from_u128(1u128)
-            || enc_pub_key.x >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-            || enc_pub_key.y >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-        {
-            return Err(ContractError::InvalidEncPubKey {});
-        }
-    }
-
     let batch_size = messages.len();
     let required_fee = MESSAGE_FEE
         .checked_mul(Uint128::from(batch_size as u128))
@@ -1337,6 +1344,9 @@ pub fn execute_publish_message(
     let mut msg_chain_length = start_chain_length;
 
     for (i, (message, enc_pub_key)) in messages.iter().zip(enc_pub_keys.iter()).enumerate() {
+        if !is_on_babyjubjub_curve(enc_pub_key.x, enc_pub_key.y) {
+            return Err(ContractError::InvalidEncPubKey {});
+        }
         let pubkey_storage_key = generate_pubkey_storage_key(enc_pub_key);
         if USED_ENC_PUB_KEYS.has(deps.storage, pubkey_storage_key.clone()) {
             return Err(ContractError::EncPubKeyAlreadyUsed {});
@@ -1395,11 +1405,7 @@ pub fn execute_publish_deactivate_message(
     check_voting_time(env.clone(), voting_time)?;
 
     // Validate enc_pub_key BEFORE charging fee to prevent fee loss on invalid keys
-    if enc_pub_key.x == Uint256::from_u128(0u128)
-        || enc_pub_key.y == Uint256::from_u128(1u128)
-        || enc_pub_key.x >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-        || enc_pub_key.y >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-    {
+    if !is_on_babyjubjub_curve(enc_pub_key.x, enc_pub_key.y) {
         return Err(ContractError::InvalidEncPubKey {});
     }
 
@@ -1657,9 +1663,7 @@ fn add_key_internal(
     if num_sign_ups >= max_leaves_count {
         return Err(ContractError::StateTreeFull {});
     }
-    if pubkey.x >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-        || pubkey.y >= uint256_from_hex_string(SNARK_SCALAR_FIELD_HEX)
-    {
+    if !is_on_babyjubjub_curve(pubkey.x, pubkey.y) {
         return Err(ContractError::InvalidPubKey {});
     }
 

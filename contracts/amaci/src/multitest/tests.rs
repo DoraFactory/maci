@@ -8,7 +8,7 @@ mod test {
     };
     use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
     use crate::multitest::{
-        create_app, owner, test_oracle_pubkey, test_pubkey1, test_pubkey2,
+        create_app, owner, test_oracle_pubkey, test_pubkey1, test_pubkey2, test_pubkey3,
         uint256_from_decimal_string, user1, user2, user3, MaciCodeId, MaciContract,
     };
     use crate::state::{
@@ -1880,9 +1880,9 @@ mod test {
                 .any(|attr| attr.key == "action" && attr.value == "sign_up")
         }));
         assert!(response1.events.iter().any(|e| {
-            e.attributes
-                .iter()
-                .any(|attr| attr.key == "registration_mode" && attr.value.contains("SignUpWithOracle"))
+            e.attributes.iter().any(|attr| {
+                attr.key == "registration_mode" && attr.value.contains("SignUpWithOracle")
+            })
         }));
 
         // Test oracle signup for user2
@@ -2143,14 +2143,16 @@ mod test {
         // Start voting period
         app.update_block(next_block);
 
-        // Two different pubkeys with same x coordinate
-        let pubkey1 = PubKey {
-            x: Uint256::from_u128(100),
-            y: Uint256::from_u128(200),
-        };
+        // Two different pubkeys with same x coordinate.
+        // On Twisted Edwards: if (x, y) is on the curve, so is (x, p-y).
+        // p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+        let pubkey1 = test_pubkey1();
+        // pubkey2 shares the same x but uses the "negated y" (p - y1), which is also a valid curve point
         let pubkey2 = PubKey {
-            x: Uint256::from_u128(100), // Same x as pubkey1
-            y: Uint256::from_u128(300), // Different y
+            x: pubkey1.x,
+            y: uint256_from_decimal_string(
+                "17524420569411755457684745207686933811333606235521006423651458976605670638936",
+            ),
         };
 
         // User1 signs up with pubkey1
@@ -2247,7 +2249,8 @@ mod test {
         let err = result.unwrap_err();
         let err_string = format!("{:?}", err);
         assert!(
-            err_string.contains("Deactivate feature is disabled") || err_string.contains("DeactivateDisabled"),
+            err_string.contains("Deactivate feature is disabled")
+                || err_string.contains("DeactivateDisabled"),
             "Expected DeactivateDisabled error, got: {}",
             err_string
         );
@@ -2273,7 +2276,8 @@ mod test {
         let err = result.unwrap_err();
         let err_string = format!("{:?}", err);
         assert!(
-            err_string.contains("Deactivate feature is disabled") || err_string.contains("DeactivateDisabled"),
+            err_string.contains("Deactivate feature is disabled")
+                || err_string.contains("DeactivateDisabled"),
             "Expected DeactivateDisabled error, got: {}",
             err_string
         );
@@ -2306,7 +2310,8 @@ mod test {
         let err = result.unwrap_err();
         let err_string = format!("{:?}", err);
         assert!(
-            err_string.contains("Deactivate feature is disabled") || err_string.contains("DeactivateDisabled"),
+            err_string.contains("Deactivate feature is disabled")
+                || err_string.contains("DeactivateDisabled"),
             "Expected DeactivateDisabled error, got: {}",
             err_string
         );
@@ -2317,7 +2322,7 @@ mod test {
         use cosmwasm_std::{coin, coins};
         use cw_multi_test::next_block;
         let mut app = create_app();
-        
+
         // Mint tokens for user1
         app.sudo(cw_multi_test::SudoMsg::Bank(
             cw_multi_test::BankSudo::Mint {
@@ -2355,10 +2360,7 @@ mod test {
                 message: MessageData {
                     data: [Uint256::from_u128(1); 10],
                 },
-                enc_pub_key: PubKey {
-                    x: Uint256::from_u128(100),
-                    y: Uint256::from_u128(200),
-                },
+                enc_pub_key: test_pubkey1(),
             },
             &[coin(5_000_000_000_000_000_000, "peaka")], // Only 5 DORA, need 10 DORA
         );
@@ -2379,7 +2381,7 @@ mod test {
         use cosmwasm_std::{coin, coins};
         use cw_multi_test::next_block;
         let mut app = create_app();
-        
+
         // Mint tokens for user1
         app.sudo(cw_multi_test::SudoMsg::Bank(
             cw_multi_test::BankSudo::Mint {
@@ -2414,10 +2416,7 @@ mod test {
             .wrap()
             .query_balance(maci_contract.addr().clone(), "peaka")
             .unwrap();
-        let user_balance_before = app
-            .wrap()
-            .query_balance(user1(), "peaka")
-            .unwrap();
+        let user_balance_before = app.wrap().query_balance(user1(), "peaka").unwrap();
 
         // Publish deactivate message with correct fee (10 DORA)
         let result = app.execute_contract(
@@ -2427,10 +2426,7 @@ mod test {
                 message: MessageData {
                     data: [Uint256::from_u128(1); 10],
                 },
-                enc_pub_key: PubKey {
-                    x: Uint256::from_u128(100),
-                    y: Uint256::from_u128(200),
-                },
+                enc_pub_key: test_pubkey1(),
             },
             &[coin(10_000_000_000_000_000_000, "peaka")], // Exactly 10 DORA
         );
@@ -2454,10 +2450,7 @@ mod test {
         );
 
         // Verify user balance decreased by 10 DORA
-        let user_balance_after = app
-            .wrap()
-            .query_balance(user1(), "peaka")
-            .unwrap();
+        let user_balance_after = app.wrap().query_balance(user1(), "peaka").unwrap();
         assert_eq!(
             user_balance_after.amount.u128(),
             user_balance_before.amount.u128() - 10_000_000_000_000_000_000,
@@ -2484,7 +2477,7 @@ mod test {
         use cosmwasm_std::{coin, coins};
         use cw_multi_test::next_block;
         let mut app = create_app();
-        
+
         // Mint tokens for multiple users
         for i in 1..=3 {
             let user_addr = format!("user{}", i);
@@ -2507,10 +2500,7 @@ mod test {
         // Signup users
         let pubkey1 = test_pubkey1();
         let pubkey2 = test_pubkey2();
-        let pubkey3 = PubKey {
-            x: Uint256::from_u128(3333),
-            y: Uint256::from_u128(4444),
-        };
+        let pubkey3 = test_pubkey3();
 
         for (i, pubkey) in vec![&pubkey1, &pubkey2, &pubkey3].iter().enumerate() {
             let user_addr = Addr::unchecked(format!("user{}", i + 1));
@@ -2532,20 +2522,18 @@ mod test {
             .query_balance(maci_contract.addr().clone(), "peaka")
             .unwrap();
 
-        // Publish 3 deactivate messages
-        for i in 1..=3 {
-            let user_addr = Addr::unchecked(format!("user{}", i));
+        // Publish 3 deactivate messages — enc_pub_key must be a valid BabyJubJub point
+        let enc_pub_keys = vec![test_pubkey1(), test_pubkey2(), test_pubkey3()];
+        for (i, enc_pub_key) in enc_pub_keys.into_iter().enumerate() {
+            let user_addr = Addr::unchecked(format!("user{}", i + 1));
             let _ = app.execute_contract(
                 user_addr,
                 maci_contract.addr().clone(),
                 &ExecuteMsg::PublishDeactivateMessage {
                     message: MessageData {
-                        data: [Uint256::from_u128(i as u128); 10],
+                        data: [Uint256::from_u128((i + 1) as u128); 10],
                     },
-                    enc_pub_key: PubKey {
-                        x: Uint256::from_u128(100 * i as u128),
-                        y: Uint256::from_u128(200 * i as u128),
-                    },
+                    enc_pub_key,
                 },
                 &[coin(10_000_000_000_000_000_000, "peaka")], // 10 DORA each
             );
@@ -2589,12 +2577,12 @@ mod test {
         // Initially deactivate should be disabled
         let deactivate_enabled: bool = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetDeactivateEnabled {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetDeactivateEnabled {})
             .unwrap();
-        assert!(!deactivate_enabled, "Initially deactivate should be disabled");
+        assert!(
+            !deactivate_enabled,
+            "Initially deactivate should be disabled"
+        );
 
         // Update: enable deactivate
         let config = RegistrationConfigUpdate {
@@ -2610,10 +2598,7 @@ mod test {
         // Verify deactivate is now enabled
         let deactivate_enabled: bool = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetDeactivateEnabled {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetDeactivateEnabled {})
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should now be enabled");
     }
@@ -2626,18 +2611,19 @@ mod test {
 
         // Set block time to be before voting period starts
         app.update_block(|block| {
-            block.time = Timestamp::from_nanos(1571797424879000000 - 5 * 60_000_000_000); // 5 minutes before start
+            block.time = Timestamp::from_nanos(1571797424879000000 - 5 * 60_000_000_000);
+            // 5 minutes before start
         });
 
         // Initially deactivate should be disabled
         let deactivate_enabled: bool = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetDeactivateEnabled {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetDeactivateEnabled {})
             .unwrap();
-        assert!(!deactivate_enabled, "Initially deactivate should be disabled");
+        assert!(
+            !deactivate_enabled,
+            "Initially deactivate should be disabled"
+        );
 
         // Update 1: enable deactivate
         let config = RegistrationConfigUpdate {
@@ -2653,10 +2639,7 @@ mod test {
         // Verify deactivate is now enabled
         let deactivate_enabled: bool = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetDeactivateEnabled {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetDeactivateEnabled {})
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should be enabled");
 
@@ -2674,10 +2657,7 @@ mod test {
         // Verify deactivate is now disabled
         let deactivate_enabled: bool = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetDeactivateEnabled {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetDeactivateEnabled {})
             .unwrap();
         assert!(!deactivate_enabled, "Deactivate should be disabled again");
     }
@@ -2724,12 +2704,9 @@ mod test {
         // Verify VC mode is Dynamic
         let reg_config: RegistrationConfigInfo = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetRegistrationConfig {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetRegistrationConfig {})
             .unwrap();
-        
+
         assert!(
             matches!(reg_config.voice_credit_mode, VoiceCreditMode::Dynamic),
             "Should be Dynamic mode"
@@ -2751,12 +2728,9 @@ mod test {
         // Verify VC mode is Unified
         let reg_config: RegistrationConfigInfo = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetRegistrationConfig {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetRegistrationConfig {})
             .unwrap();
-        
+
         assert!(
             matches!(reg_config.voice_credit_mode, VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(200u128)),
             "Should be Unified mode with 200 credits"
@@ -2784,7 +2758,7 @@ mod test {
         };
 
         let result = maci_contract.update_registration_config(&mut app, owner(), config);
-        
+
         assert!(
             result.is_err(),
             "Should fail to update config during voting period"
@@ -2801,12 +2775,13 @@ mod test {
     #[test]
     fn test_update_registration_config_unauthorized() {
         let mut app = create_app();
-        
+
         // Set block time to be before voting period starts
         app.update_block(|block| {
-            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000); // 1 minute before start
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+            // 1 minute before start
         });
-        
+
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
 
         // Non-admin tries to update config
@@ -2831,17 +2806,19 @@ mod test {
     #[test]
     fn test_update_registration_config_after_voting_starts_fails() {
         let mut app = create_app();
-        
+
         // Set block time to be before voting period starts
         app.update_block(|block| {
-            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000); // 1 minute before start
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+            // 1 minute before start
         });
-        
+
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
 
         // Advance time to after voting start
         app.update_block(|block| {
-            block.time = Timestamp::from_nanos(1571797424879000000 + 60_000_000_000); // 1 minute after start
+            block.time = Timestamp::from_nanos(1571797424879000000 + 60_000_000_000);
+            // 1 minute after start
         });
 
         // Try to update config after voting starts (should fail)
@@ -2895,7 +2872,7 @@ mod test {
     #[test]
     fn test_update_registration_config_switch_to_static_whitelist() {
         let mut app = create_app();
-        
+
         // Instantiate with OracleVerified mode
         let code_id = MaciCodeId::store_code(&mut app);
         let round_info = RoundInfo {
@@ -2918,15 +2895,16 @@ mod test {
             Uint256::from_u128(0),
             "test_oracle_pubkey".to_string(),
             "MACI with Oracle",
-        ).unwrap();
+        )
+        .unwrap();
 
         // Update: switch from OracleVerified to StaticWhitelist
         let whitelist_users = vec![
-WhitelistBaseConfig {
+            WhitelistBaseConfig {
                 addr: user1(),
                 voice_credit_amount: None, // Unified mode, no need for individual amounts
             },
-WhitelistBaseConfig {
+            WhitelistBaseConfig {
                 addr: user2(),
                 voice_credit_amount: None,
             },
@@ -2986,7 +2964,7 @@ WhitelistBaseConfig {
         // to create a SignUpWithStaticWhitelist without whitelist data
     }
 
-    // NOTE: This test is no longer applicable in the new RegistrationMode design  
+    // NOTE: This test is no longer applicable in the new RegistrationMode design
     // The type system guarantees that oracle_pubkey must be provided when using
     // SignUpWithOracle variant
     #[test]
@@ -3003,11 +2981,11 @@ WhitelistBaseConfig {
 
         // Combined update: enable deactivate + change VC mode + change registration mode
         let whitelist_users = vec![
-WhitelistBaseConfig {
+            WhitelistBaseConfig {
                 addr: user1(),
                 voice_credit_amount: Some(Uint256::from_u128(100)),
             },
-WhitelistBaseConfig {
+            WhitelistBaseConfig {
                 addr: user2(),
                 voice_credit_amount: Some(Uint256::from_u128(200)),
             },
@@ -3030,10 +3008,7 @@ WhitelistBaseConfig {
         // Verify all changes
         let deactivate_enabled: bool = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetDeactivateEnabled {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetDeactivateEnabled {})
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should be enabled");
 
@@ -3051,7 +3026,11 @@ WhitelistBaseConfig {
             )
             .unwrap();
         assert!(status1.can_sign_up, "user1 should be in whitelist");
-        assert_eq!(status1.balance, Uint256::from_u128(100), "User1 should have 100 VC");
+        assert_eq!(
+            status1.balance,
+            Uint256::from_u128(100),
+            "User1 should have 100 VC"
+        );
 
         let status2: RegistrationStatus = app
             .wrap()
@@ -3066,13 +3045,17 @@ WhitelistBaseConfig {
             )
             .unwrap();
         assert!(status2.can_sign_up, "user2 should be in whitelist");
-        assert_eq!(status2.balance, Uint256::from_u128(200), "User2 should have 200 VC");
+        assert_eq!(
+            status2.balance,
+            Uint256::from_u128(200),
+            "User2 should have 200 VC"
+        );
     }
 
     #[test]
     fn test_update_registration_config_switch_to_signup_mode() {
         let mut app = create_app();
-        
+
         // Start with PrePopulated mode
         let code_id = MaciCodeId::store_code(&mut app);
         let parameters = MaciParameters {
@@ -3081,7 +3064,7 @@ WhitelistBaseConfig {
             message_batch_size: Uint256::from_u128(5u128),
             vote_option_tree_depth: Uint256::from_u128(1u128),
         };
-        
+
         let init_msg = InstantiateMsg {
             parameters,
             coordinator: PubKey {
@@ -3113,14 +3096,11 @@ WhitelistBaseConfig {
             },
             registration_mode: RegistrationModeConfig::PrePopulated {
                 pre_deactivate_root: Uint256::from_u128(12345),
-                pre_deactivate_coordinator: PubKey {
-                    x: Uint256::from_u128(111),
-                    y: Uint256::from_u128(222),
-                },
+                pre_deactivate_coordinator: test_pubkey2(),
             },
             deactivate_enabled: false,
         };
-        
+
         let contract_addr = app
             .instantiate_contract(
                 code_id.0,
@@ -3131,19 +3111,16 @@ WhitelistBaseConfig {
                 None,
             )
             .unwrap();
-        
+
         let contract = MaciContract::new(contract_addr.clone());
-        
+
         // Query initial pre_deactivate_root (should be 12345)
         let initial_root: Uint256 = app
             .wrap()
-            .query_wasm_smart(
-                contract.addr(),
-                &QueryMsg::QueryPreDeactivateRoot {},
-            )
+            .query_wasm_smart(contract.addr(), &QueryMsg::QueryPreDeactivateRoot {})
             .unwrap();
         assert_eq!(initial_root, Uint256::from_u128(12345));
-        
+
         // Switch to SignUp mode with StaticWhitelist
         let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
@@ -3152,58 +3129,53 @@ WhitelistBaseConfig {
                 whitelist: WhitelistBase { users: vec![] },
             }),
         };
-        
+
         let _ = contract
             .update_registration_config(&mut app, owner(), config)
             .expect("Should successfully switch to SignUp mode");
-        
+
         // Verify pre_deactivate_root is cleared (should be 0)
         let new_root: Uint256 = app
             .wrap()
-            .query_wasm_smart(
-                contract.addr(),
-                &QueryMsg::QueryPreDeactivateRoot {},
-            )
+            .query_wasm_smart(contract.addr(), &QueryMsg::QueryPreDeactivateRoot {})
             .unwrap();
-        assert_eq!(new_root, Uint256::zero(), "Pre-deactivate root should be cleared");
+        assert_eq!(
+            new_root,
+            Uint256::zero(),
+            "Pre-deactivate root should be cleared"
+        );
     }
 
     #[test]
     fn test_update_registration_config_switch_to_prepopulated_mode() {
         let mut app = create_app();
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
-        
+
         // Switch from SignUp to PrePopulated mode
         let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
             registration_mode: Some(RegistrationModeConfig::PrePopulated {
                 pre_deactivate_root: Uint256::from_u128(99999),
-                pre_deactivate_coordinator: PubKey {
-                    x: Uint256::from_u128(333),
-                    y: Uint256::from_u128(444),
-                },
+                pre_deactivate_coordinator: test_pubkey2(),
             }),
         };
-        
+
         let _ = maci_contract
             .update_registration_config(&mut app, owner(), config)
             .expect("Should successfully switch to PrePopulated mode");
-        
+
         // Verify pre_deactivate_root is set
         let new_root: Uint256 = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::QueryPreDeactivateRoot {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::QueryPreDeactivateRoot {})
             .unwrap();
         assert_eq!(
             new_root,
             Uint256::from_u128(99999),
             "Pre-deactivate root should be set"
         );
-        
+
         // Verify coordinator hash is set
         let coordinator_hash: Option<Uint256> = app
             .wrap()
@@ -3220,12 +3192,12 @@ WhitelistBaseConfig {
         // 测试：在投票开始前且无用户注册时，可以多次修改 registration_mode
         let mut app = create_app();
         let maci_contract = MaciContract::instantiate_default(&mut app, true).unwrap();
-        
+
         // Set block time to be before voting period starts
         app.update_block(|block| {
             block.time = Timestamp::from_nanos(1571797424879000000 - 5 * 60_000_000_000);
         });
-        
+
         // Update 1: Switch to Oracle mode
         let config1 = RegistrationConfigUpdate {
             deactivate_enabled: None,
@@ -3234,56 +3206,54 @@ WhitelistBaseConfig {
                 oracle_pubkey: "test_oracle_key_123".to_string(),
             }),
         };
-        
+
         let _ = maci_contract
             .update_registration_config(&mut app, owner(), config1)
             .expect("Should allow switching to Oracle mode before voting");
-        
+
         // Verify registration mode is Oracle
         let reg_config: RegistrationConfigInfo = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetRegistrationConfig {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetRegistrationConfig {})
             .unwrap();
-        
+
         assert!(
-            matches!(reg_config.registration_mode, RegistrationMode::SignUpWithOracle { .. }),
+            matches!(
+                reg_config.registration_mode,
+                RegistrationMode::SignUpWithOracle { .. }
+            ),
             "Should be Oracle mode"
         );
-        
+
         // Update 2: Switch back to Whitelist mode
         let config2 = RegistrationConfigUpdate {
             deactivate_enabled: None,
             voice_credit_mode: None,
             registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: WhitelistBase {
-                    users: vec![
-WhitelistBaseConfig {
-                            addr: user1(),
-                            voice_credit_amount: None,
-                        },
-                    ],
+                    users: vec![WhitelistBaseConfig {
+                        addr: user1(),
+                        voice_credit_amount: None,
+                    }],
                 },
             }),
         };
-        
+
         let _ = maci_contract
             .update_registration_config(&mut app, owner(), config2)
             .expect("Should allow switching back to Whitelist mode before voting");
-        
+
         // Verify registration mode is Whitelist
         let reg_config: RegistrationConfigInfo = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetRegistrationConfig {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetRegistrationConfig {})
             .unwrap();
-        
+
         assert!(
-            matches!(reg_config.registration_mode, RegistrationMode::SignUpWithStaticWhitelist),
+            matches!(
+                reg_config.registration_mode,
+                RegistrationMode::SignUpWithStaticWhitelist
+            ),
             "Should be Whitelist mode"
         );
     }
@@ -3291,14 +3261,15 @@ WhitelistBaseConfig {
     #[test]
     fn test_update_registration_config_prepopulated_requires_coordinator() {
         let mut app = create_app();
-        
+
         // Set block time to be before voting period starts
         app.update_block(|block| {
-            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000); // 1 minute before start
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+            // 1 minute before start
         });
-        
+
         let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
-        
+
         // Try to switch to PrePopulated without valid coordinator (should fail)
         let config = RegistrationConfigUpdate {
             deactivate_enabled: None,
@@ -3311,17 +3282,15 @@ WhitelistBaseConfig {
                 },
             }),
         };
-        
+
         let result = maci_contract.update_registration_config(&mut app, owner(), config);
 
-        assert!(
-            result.is_err(),
-            "Should fail without valid coordinator"
-        );
+        assert!(result.is_err(), "Should fail without valid coordinator");
 
         let err_string = result.unwrap_err().to_string();
         assert!(
-            err_string.contains("pre_deactivate_coordinator") || err_string.contains("PreDeactivateCoordinatorRequired"),
+            err_string.contains("pre_deactivate_coordinator")
+                || err_string.contains("PreDeactivateCoordinatorRequired"),
             "Expected error about coordinator required, but got: {}",
             err_string
         );
@@ -3335,24 +3304,31 @@ WhitelistBaseConfig {
         // Query initial configuration
         let config: RegistrationConfigInfo = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetRegistrationConfig {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetRegistrationConfig {})
             .unwrap();
 
         // Verify initial state
-        assert!(!config.deactivate_enabled, "Initially deactivate should be disabled");
-        
+        assert!(
+            !config.deactivate_enabled,
+            "Initially deactivate should be disabled"
+        );
+
         match config.voice_credit_mode {
-VoiceCreditMode::Unified { amount } => {
-                assert_eq!(amount, Uint256::from_u128(100), "Default VC amount should be 100");
+            VoiceCreditMode::Unified { amount } => {
+                assert_eq!(
+                    amount,
+                    Uint256::from_u128(100),
+                    "Default VC amount should be 100"
+                );
             }
             _ => panic!("Expected Unified mode"),
         }
-        
+
         assert!(
-            matches!(config.registration_mode, RegistrationMode::SignUpWithStaticWhitelist),
+            matches!(
+                config.registration_mode,
+                RegistrationMode::SignUpWithStaticWhitelist
+            ),
             "Should be SignUpWithStaticWhitelist mode"
         );
 
@@ -3370,22 +3346,25 @@ VoiceCreditMode::Unified { amount } => {
         // Query updated configuration
         let updated_config: RegistrationConfigInfo = app
             .wrap()
-            .query_wasm_smart(
-                maci_contract.addr(),
-                &QueryMsg::GetRegistrationConfig {},
-            )
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::GetRegistrationConfig {})
             .unwrap();
 
         // Verify updated state
-        assert!(updated_config.deactivate_enabled, "Deactivate should be enabled");
-        
+        assert!(
+            updated_config.deactivate_enabled,
+            "Deactivate should be enabled"
+        );
+
         assert!(
             matches!(updated_config.voice_credit_mode, VoiceCreditMode::Dynamic),
             "Should be Dynamic mode now"
         );
-        
+
         assert!(
-            matches!(updated_config.registration_mode, RegistrationMode::SignUpWithStaticWhitelist),
+            matches!(
+                updated_config.registration_mode,
+                RegistrationMode::SignUpWithStaticWhitelist
+            ),
             "Should still be SignUpWithStaticWhitelist mode"
         );
     }
@@ -3403,7 +3382,7 @@ VoiceCreditMode::Unified { amount } => {
             start_time: Timestamp::from_nanos(1571797424879000000),
             end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11),
         };
-        
+
         // Create contract with OracleVerified mode
         let contract = MaciContract::instantiate_with_oracle(
             &mut app,
@@ -3416,7 +3395,8 @@ VoiceCreditMode::Unified { amount } => {
             Uint256::from_u128(0),
             "test_oracle_pubkey".to_string(),
             "MACI with Oracle",
-        ).unwrap();
+        )
+        .unwrap();
 
         // In OracleVerified mode without a certificate, all fields should be false/zero
         let status: RegistrationStatus = app
@@ -3432,12 +3412,118 @@ VoiceCreditMode::Unified { amount } => {
             )
             .expect("QueryRegistrationStatus should work in OracleVerified mode");
 
-        assert!(!status.can_sign_up, "can_sign_up should be false without certificate");
-        assert!(!status.is_register, "is_register should be false for unregistered user");
+        assert!(
+            !status.can_sign_up,
+            "can_sign_up should be false without certificate"
+        );
+        assert!(
+            !status.is_register,
+            "is_register should be false for unregistered user"
+        );
         // is_whitelist is derivable: can_sign_up || is_register
         assert!(
             !status.can_sign_up && !status.is_register,
             "user should not be in whitelist in OracleVerified mode without certificate"
+        );
+    }
+
+    // ========== enc_pub_key Uniqueness Tests ==========
+
+    /// Sending two separate publish_message calls with the same enc_pub_key must fail
+    /// on the second call with EncPubKeyAlreadyUsed.
+    #[test]
+    fn test_enc_pub_key_duplicate_across_calls() {
+        use crate::state::{FEE_DENOM, MESSAGE_FEE};
+        use cosmwasm_std::coins;
+
+        let mut app = create_app();
+        let maci_contract = MaciContract::instantiate_default(&mut app, true).unwrap();
+
+        app.update_block(next_block);
+
+        maci_contract
+            .sign_up(&mut app, user1(), test_pubkey1())
+            .unwrap();
+
+        let enc_key = test_pubkey2();
+        let msg = MessageData {
+            data: [Uint256::from_u128(1); 10],
+        };
+        let fee = coins(MESSAGE_FEE.u128(), FEE_DENOM);
+
+        // First call with enc_key — must succeed.
+        app.execute_contract(
+            user1(),
+            maci_contract.addr().clone(),
+            &ExecuteMsg::PublishMessage {
+                messages: vec![msg.clone()],
+                enc_pub_keys: vec![enc_key.clone()],
+            },
+            &fee,
+        )
+        .unwrap();
+
+        // Second call with the same enc_key — must fail with EncPubKeyAlreadyUsed.
+        let err = app
+            .execute_contract(
+                user1(),
+                maci_contract.addr().clone(),
+                &ExecuteMsg::PublishMessage {
+                    messages: vec![msg],
+                    enc_pub_keys: vec![enc_key],
+                },
+                &fee,
+            )
+            .unwrap_err();
+
+        assert_eq!(
+            ContractError::EncPubKeyAlreadyUsed {},
+            err.downcast().unwrap(),
+            "duplicate enc_pub_key across calls should return EncPubKeyAlreadyUsed"
+        );
+    }
+
+    /// Sending a single publish_message batch that contains the same enc_pub_key twice
+    /// must fail with EncPubKeyAlreadyUsed on the second occurrence.
+    #[test]
+    fn test_enc_pub_key_duplicate_within_batch() {
+        use crate::state::{FEE_DENOM, MESSAGE_FEE};
+        use cosmwasm_std::coins;
+
+        let mut app = create_app();
+        let maci_contract = MaciContract::instantiate_default(&mut app, true).unwrap();
+
+        app.update_block(next_block);
+
+        maci_contract
+            .sign_up(&mut app, user1(), test_pubkey1())
+            .unwrap();
+
+        let enc_key = test_pubkey2();
+        let msg1 = MessageData {
+            data: [Uint256::from_u128(1); 10],
+        };
+        let msg2 = MessageData {
+            data: [Uint256::from_u128(2); 10],
+        };
+
+        // A batch where both messages share the same enc_pub_key — must fail.
+        let err = app
+            .execute_contract(
+                user1(),
+                maci_contract.addr().clone(),
+                &ExecuteMsg::PublishMessage {
+                    messages: vec![msg1, msg2],
+                    enc_pub_keys: vec![enc_key.clone(), enc_key],
+                },
+                &coins(MESSAGE_FEE.u128() * 2, FEE_DENOM),
+            )
+            .unwrap_err();
+
+        assert_eq!(
+            ContractError::EncPubKeyAlreadyUsed {},
+            err.downcast().unwrap(),
+            "duplicate enc_pub_key within a single batch should return EncPubKeyAlreadyUsed"
         );
     }
 }
