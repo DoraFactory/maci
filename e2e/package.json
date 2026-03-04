@@ -9,6 +9,7 @@
     "pretest": "ts-node scripts/checkCircuits.ts && pnpm run generate:all-vectors",
     "test": "pnpm run mocha-test tests/**/*.test.ts",
     "test:amaci": "pnpm run mocha-test tests/amaci.e2e.test.ts",
+    "test:amaci:4-2-2-25": "AMACI_CIRCUIT_SIZE=4-2-2-25 pnpm run mocha-test tests/amaci.e2e.test.ts",
     "test:maci": "pnpm run mocha-test tests/maci.e2e.test.ts",
     "test:registry": "pnpm run mocha-test tests/registry.e2e.test.ts",
     "test:advanced": "pnpm run mocha-test tests/advanced.e2e.test.ts",

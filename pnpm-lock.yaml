@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@scure/base': ~1.1.9
+
 importers:
 
   .:
@@ -1244,15 +1247,6 @@ packages:
 
   '@scure/base@1.1.9':
     resolution: {integrity: sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg==}
-
-  '@scure/base@1.2.1':
-    resolution: {integrity: sha512-DGmGtC8Tt63J5GfHgfl5CuAXh96VF/LD8K9Hr/Gv0J2lAoRGlPOMpqMpMbCTOoOJMZCk2Xt+DskdDyn6dEFdzQ==}
-
-  '@scure/base@1.2.6':
-    resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
-
-  '@scure/base@2.0.0':
-    resolution: {integrity: sha512-3E1kpuZginKkek01ovG8krQ0Z44E3DHPjc5S2rjJw9lZn3KSQOs8S7wqikF/AH7iRanHypj85uGyxk0XAyC37w==}
 
   '@scure/bip32@1.1.5':
     resolution: {integrity: sha512-XyNh1rB0SkEqd3tXcXMi+Xe1fvg+kUIcoRIEujP1Jgv7DqW2r9lg3Ah0NkFaCs9sTkQAQA8kw7xiRXzENi9Rtw==}
@@ -5638,7 +5632,7 @@ snapshots:
 
   '@cosmjs/encoding@0.37.0':
     dependencies:
-      '@scure/base': 2.0.0
+      '@scure/base': 1.1.9
       base64-js: 1.5.1
       readonly-date: 1.0.0
 
@@ -6501,12 +6495,6 @@ snapshots:
 
   '@scure/base@1.1.9': {}
 
-  '@scure/base@1.2.1': {}
-
-  '@scure/base@1.2.6': {}
-
-  '@scure/base@2.0.0': {}
-
   '@scure/bip32@1.1.5':
     dependencies:
       '@noble/hashes': 1.2.0
@@ -6523,7 +6511,7 @@ snapshots:
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
-      '@scure/base': 1.2.6
+      '@scure/base': 1.1.9
 
   '@scure/bip39@1.1.1':
     dependencies:
@@ -6538,7 +6526,7 @@ snapshots:
   '@scure/bip39@1.6.0':
     dependencies:
       '@noble/hashes': 1.8.0
-      '@scure/base': 1.2.6
+      '@scure/base': 1.1.9
 
   '@scure/starknet@1.1.0':
     dependencies:
@@ -9172,7 +9160,7 @@ snapshots:
 
   micro-packed@0.7.3:
     dependencies:
-      '@scure/base': 1.2.6
+      '@scure/base': 1.1.9
 
   micromatch@4.0.8:
     dependencies:
@@ -10268,7 +10256,7 @@ snapshots:
     dependencies:
       '@noble/curves': 1.7.0
       '@noble/hashes': 1.6.0
-      '@scure/base': 1.2.1
+      '@scure/base': 1.1.9
       '@scure/starknet': 1.1.0
       abi-wan-kanabi: 2.2.4
       fetch-cookie: 3.0.1

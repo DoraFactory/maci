@@ -13,8 +13,15 @@ import {
   log,
   assertBigIntEqual,
   advanceTime,
-  queryPollId
+  queryPollId,
+  getAmaciCircuitConfig
 } from '../src';
+
+const amaciCircuit = getAmaciCircuitConfig();
+
+function buildVoteOptionMap(count: number, prefix = 'Option'): string[] {
+  return Array.from({ length: count }, (_, index) => `${prefix} ${index}`);
+}
 
 /**
  * AMACI End-to-End Test (Simplified - Without Deactivate Process)
@@ -51,12 +58,12 @@ describe('AMACI End-to-End Test', function () {
   const voter2Address = 'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg';
   const voter1NewAddress = 'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2';
 
-  // Test parameters (must match zkey configuration: 2-1-1-5)
-  const stateTreeDepth = 2; // 5^2 = 25 max voters
-  const intStateTreeDepth = 1;
-  const voteOptionTreeDepth = 1; // 5^1 = 5 max options
-  const batchSize = 5; // Process 5 messages per batch
-  const maxVoteOptions = 5 ** voteOptionTreeDepth; // 5
+  // Test parameters (must match selected zkey configuration)
+  const stateTreeDepth = amaciCircuit.stateTreeDepth;
+  const intStateTreeDepth = amaciCircuit.intStateTreeDepth;
+  const voteOptionTreeDepth = amaciCircuit.voteOptionTreeDepth;
+  const batchSize = amaciCircuit.batchSize;
+  const maxVoteOptions = amaciCircuit.maxVoteOptions;
   const numSignUps = 3;
 
   // User indices
@@ -65,7 +72,7 @@ describe('AMACI End-to-End Test', function () {
   const USER_1A = 2; // User 1's new key
 
   // Circuit artifacts paths (AMACI uses different zkey files from MACI)
-  const circuitConfig = 'amaci-2-1-1-5'; // AMACI-specific configuration
+  const circuitConfig = amaciCircuit.circuitDirName;
   const circuitDir = path.join(__dirname, '../circuits', circuitConfig);
   const processMessagesWasm = path.join(circuitDir, 'processMessages.wasm');
   const processMessagesZkey = path.join(circuitDir, 'processMessages.zkey');
@@ -79,6 +86,7 @@ describe('AMACI End-to-End Test', function () {
 
   before(async () => {
     log('=== Setting up test environment ===');
+    log(`Using AMACI circuit config: ${amaciCircuit.id}`);
 
     // Create test environment
     const env = await createTestEnvironment({
@@ -184,7 +192,7 @@ describe('AMACI End-to-End Test', function () {
           }
         }
       },
-      vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
+      vote_option_map: buildVoteOptionMap(maxVoteOptions),
       round_info: {
         title: 'AMACI E2E Test Round',
         description: 'Test round for AMACI e2e testing',
@@ -485,15 +493,14 @@ describe('AMACI Dynamic Voice Credit E2E Test', function () {
   const mediumPowerUser = 'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg'; // 100 credits
   const highPowerUser = 'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2'; // 200 credits
 
-  // Test parameters (must match zkey configuration: 2-1-1-5)
-  const stateTreeDepth = 2;
-  const intStateTreeDepth = 1;
-  const voteOptionTreeDepth = 1;
-  const batchSize = 5;
-  const maxVoteOptions = 5;
+  const stateTreeDepth = amaciCircuit.stateTreeDepth;
+  const intStateTreeDepth = amaciCircuit.intStateTreeDepth;
+  const voteOptionTreeDepth = amaciCircuit.voteOptionTreeDepth;
+  const batchSize = amaciCircuit.batchSize;
+  const maxVoteOptions = amaciCircuit.maxVoteOptions;
 
   // Circuit artifacts paths
-  const circuitConfig = 'amaci-2-1-1-5';
+  const circuitConfig = amaciCircuit.circuitDirName;
   const circuitDir = path.join(__dirname, '../circuits', circuitConfig);
   const processMessagesWasm = path.join(circuitDir, 'processMessages.wasm');
   const processMessagesZkey = path.join(circuitDir, 'processMessages.zkey');
@@ -502,6 +509,7 @@ describe('AMACI Dynamic Voice Credit E2E Test', function () {
 
   before(async () => {
     log('\n=== Setting up AMACI Dynamic VC test environment ===');
+    log(`Using AMACI circuit config: ${amaciCircuit.id}`);
 
     const env = await createTestEnvironment({
       chainId: 'amaci-dynamic-vc-test',
@@ -597,7 +605,7 @@ describe('AMACI Dynamic Voice Credit E2E Test', function () {
           }
         }
       },
-      vote_option_map: ['Option A', 'Option B', 'Option C', 'Option D', 'Option E'],
+      vote_option_map: buildVoteOptionMap(maxVoteOptions, 'Dynamic Option'),
       round_info: {
         title: 'AMACI Dynamic VC Test',
         description: 'Testing dynamic voice credit allocation',

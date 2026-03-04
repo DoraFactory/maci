@@ -52,6 +52,22 @@ const CIRCUIT_CONFIGS: CircuitConfig[] = [
     },
     hasDeactivate: true,
     hasAddNewKey: true
+  },
+  {
+    name: 'AMACI',
+    configName: 'amaci-4-2-2-25',
+    circuitPath: path.join(CIRCUITS_DIR, 'amaci-4-2-2-25'),
+    outputFile: path.join(CIRCUITS_DIR, 'vkeys-amaci-4-2-2-25.json'),
+    description: {
+      state_tree_depth: 4,
+      int_state_tree_depth: 2,
+      vote_option_tree_depth: 2,
+      message_batch_size: 25,
+      max_voters: 625,
+      max_options: 25
+    },
+    hasDeactivate: true,
+    hasAddNewKey: true
   }
 ];
 
@@ -83,10 +99,13 @@ function convertVkeyToContractFormat(vkey: SnarkjsVKey): Groth16VKeyType {
   // Convert G1 point (2 elements) to hex string
   const vk_alpha1 = `0x${BigInt(vkey.vk_alpha_1[0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_alpha_1[1]).toString(16).padStart(64, '0')}`;
 
-  // Convert G2 point (4 elements: 2 pairs) to hex string
-  const vk_beta_2 = `0x${BigInt(vkey.vk_beta_2[0][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_beta_2[0][1]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_beta_2[1][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_beta_2[1][1]).toString(16).padStart(64, '0')}`;
-  const vk_gamma_2 = `0x${BigInt(vkey.vk_gamma_2[0][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_gamma_2[0][1]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_gamma_2[1][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_gamma_2[1][1]).toString(16).padStart(64, '0')}`;
-  const vk_delta_2 = `0x${BigInt(vkey.vk_delta_2[0][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_delta_2[0][1]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_delta_2[1][0]).toString(16).padStart(64, '0')}${BigInt(vkey.vk_delta_2[1][1]).toString(16).padStart(64, '0')}`;
+  // bellman_ce expects BN254 G2 points as c0.x, c1.x, c0.y, c1.y in uncompressed form.
+  const formatG2 = (point: string[][]): string =>
+    `0x${BigInt(point[0][1]).toString(16).padStart(64, '0')}${BigInt(point[0][0]).toString(16).padStart(64, '0')}${BigInt(point[1][1]).toString(16).padStart(64, '0')}${BigInt(point[1][0]).toString(16).padStart(64, '0')}`;
+
+  const vk_beta_2 = formatG2(vkey.vk_beta_2);
+  const vk_gamma_2 = formatG2(vkey.vk_gamma_2);
+  const vk_delta_2 = formatG2(vkey.vk_delta_2);
 
   // Convert IC points
   const vk_ic0 = `0x${BigInt(vkey.IC[0][0]).toString(16).padStart(64, '0')}${BigInt(vkey.IC[0][1]).toString(16).padStart(64, '0')}`;
