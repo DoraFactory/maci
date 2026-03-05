@@ -33,13 +33,13 @@ async function main() {
   console.log('='.repeat(80));
 
   // API base configuration
-  const API_BASE_URL = 'http://localhost:8080';
+  // const API_BASE_URL = 'http://localhost:8080';
   // const API_BASE_URL = undefined;
 
   // Create temporary MaciClient (for admin operations, no API key required)
   const adminMaciClient = new MaciClient({
-    network: network,
-    saasApiEndpoint: API_BASE_URL
+    network: network
+    // saasApiEndpoint: API_BASE_URL
   });
 
   // ==================== 1. Create Tenant and API Key ====================
@@ -74,7 +74,7 @@ async function main() {
   // Create MaciClient with API Key
   const maciClient = new MaciClient({
     network: network,
-    saasApiEndpoint: API_BASE_URL,
+    // saasApiEndpoint: API_BASE_URL,
     saasApiKey: apiKey
   });
 
@@ -143,8 +143,8 @@ async function main() {
 
   // Use public API (no API key required) - create a temporary VoterClient
   const publicVoterClient = new VoterClient({
-    network: network,
-    saasApiEndpoint: API_BASE_URL
+    network: network
+    // saasApiEndpoint: API_BASE_URL
   });
 
   const deactivateData = await publicVoterClient.saasGetPreDeactivate(contractAddress);
@@ -169,11 +169,11 @@ async function main() {
   // Create voter client using account's secretKey
   const voterClient = new VoterClient({
     network: network,
-    secretKey: testAccount.secretKey,
-    saasApiEndpoint: API_BASE_URL
+    secretKey: testAccount.secretKey
+    // saasApiEndpoint: API_BASE_URL
   });
 
-  const circuitPower = 'new_2-1-1-5';
+  const circuitPower = 'old_2-1-1-5';
   const stateTreeDepth = 2;
 
   console.log('Executing Pre-Add-New-Key (with auto payload generation)...');

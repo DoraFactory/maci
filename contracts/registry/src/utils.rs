@@ -47,6 +47,20 @@ pub fn calculate_round_fee_and_params(
         };
         let required_fee = Uint128::from(1080000000000000000000u128); // 1080 DORA
         Ok((required_fee, maci_parameters))
+    } else if max_voter <= Uint256::from_u128(1953125u128)
+        && max_option <= Uint256::from_u128(125u128)
+    {
+        // Extra large round configuration
+        // state_tree_depth: 9, int_state_tree_depth: 4, vote_option_tree_depth: 3
+        // price: 2160 DORA
+        let maci_parameters = MaciParameters {
+            state_tree_depth: Uint256::from_u128(9u128),
+            int_state_tree_depth: Uint256::from_u128(4u128),
+            vote_option_tree_depth: Uint256::from_u128(3u128),
+            message_batch_size: Uint256::from_u128(125u128),
+        };
+        let required_fee = Uint128::from(2160000000000000000000u128); // 2160 DORA
+        Ok((required_fee, maci_parameters))
     } else {
         Err(ContractError::NoMatchedSizeCircuit {})
     }
