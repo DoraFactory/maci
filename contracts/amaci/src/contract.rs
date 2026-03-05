@@ -399,6 +399,20 @@ pub fn instantiate(
             uint256_from_hex_string(
                 "268d82cc07023a1d5e7c987cbd0328b34762c9ea21369bea418f08b71b16846a",
             ),
+            // zeros[9..11] — required for state_tree_depth up to 9
+            // zeros[i] = poseidon5(zeros[i-1] × 5), zero_leaf = 0
+            uint256_from_hex_string(
+                "2e002d67c30ee0a2bd5fdecc4fb81646ecd6eb0746f5ff2d9b1d1b522a4a3f68",
+            ),
+            //     "20806704410832383274034364623685369279680495689837539882650535326035351322472",
+            uint256_from_hex_string(
+                "f14c3fb900b66f523694106f7fc3cbec1f5eee571f047a9eb05bef717d3e064",
+            ),
+            //     "6821382292698461711184253213986441870942786410912797736722948342942530789476",
+            uint256_from_hex_string(
+                "d14b45c0e1f64503a143581a25197e022ff9448c190d76938c3567690edac3d",
+            ),
+            //     "5916648769022832355861175588931687601652727028178402815013820610204855544893",
         ],
     };
 
@@ -420,8 +434,11 @@ pub fn instantiate(
     let coordinator_hash = hash2([msg.coordinator.x, msg.coordinator.y]);
     COORDINATORHASH.save(deps.storage, &coordinator_hash)?;
 
-    // Define an array of zero values
-    let zeros_h10: [Uint256; 7] = [
+    // Define an array of zero values for the state tree.
+    // zero_leaf = hash10([0×10]) = hash of an all-zero StateLeaf
+    // zeros_h10[i] = poseidon5(zeros_h10[i-1] × 5)
+    // This supports state_tree_depth up to 9 (requires zeros_h10[0] through zeros_h10[9])
+    let zeros_h10: [Uint256; 10] = [
         uint256_from_hex_string("26318ec8cdeef483522c15e9b226314ae39b86cde2a430dabf6ed19791917c47"),
         //     "17275449213996161510934492606295966958609980169974699290756906233261208992839",
         uint256_from_hex_string("28413250bf1cc56fabffd2fa32b52624941da885248fd1e015319e02c02abaf2"),
@@ -436,6 +453,13 @@ pub fn instantiate(
         //     "14638012437623529368951445143647110672059367053598285839401224214917416754349",
         uint256_from_hex_string("b21c625cd270e71c2ee266c939361515e690be27e26cfc852a30b24e83504b0"),
         //     "5035114852453394843899296226690566678263173670465782309520655898931824493744",
+        // zeros_h10[7..9] — required for state_tree_depth up to 9
+        uint256_from_hex_string("7afcc90cde2f45682df00da8e4cc107f9a53881c42ebc49c983c4c28559932b"),
+        //     "3476800036588530756460483358565739578209766454141876316818545165759359324971",
+        uint256_from_hex_string("6f5db1bd3b5139e46bb61cbcadb68c90f4c577c4c5c4a771af1f6517f1f91a4"),
+        //     "3148266855034193786148184232200661378440218813932266536184598444730954518948",
+        uint256_from_hex_string("1fcdecf7e78d4e167944cf76c1b1d60efeae81c733dc45b7903d013ec4946a7a"),
+        //     "14385537449990765079718963953260620244735269748758454223090277993998194076282",
     ];
     ZEROS_H10.save(deps.storage, &zeros_h10)?;
 
@@ -454,12 +478,12 @@ pub fn instantiate(
         // &Uint256::from_u128(0u128),
     )?;
 
-    // Define an array of zero values for Merkle tree
-    // These are precomputed hash values for empty subtrees at each depth
+    // Define an array of zero values for Merkle tree (5-ary quinary tree, zero_leaf = 0)
     // zeros[0] = 0 (zero leaf)
-    // zeros[i] = poseidon([zeros[i-1], zeros[i-1], zeros[i-1], zeros[i-1], zeros[i-1]])
-    // This supports state trees up to depth 6 (requires zeros[0] through zeros[8])
-    let zeros: [Uint256; 9] = [
+    // zeros[i] = poseidon5(zeros[i-1] × 5)
+    // This supports state_tree_depth up to 9 (deactivate commitment uses zeros[depth+2],
+    // so depth 9 requires zeros[0] through zeros[11])
+    let zeros: [Uint256; 12] = [
         Uint256::from_u128(0u128),
         uint256_from_hex_string("2066be41bebe6caf7e079360abe14fbf9118c62eabc42e2fe75e342b160a95bc"),
         //     "14655542659562014735865511769057053982292279840403315552050801315682099828156",
@@ -477,6 +501,13 @@ pub fn instantiate(
         //     "17716535433480122581515618850811568065658392066947958324371350481921422579201",
         uint256_from_hex_string("268d82cc07023a1d5e7c987cbd0328b34762c9ea21369bea418f08b71b16846a"),
         //     "17437916409890180001398333108882255895598851862997171508841759030332444017770",
+        // zeros[9..11] — required for state_tree_depth up to 9
+        uint256_from_hex_string("2e002d67c30ee0a2bd5fdecc4fb81646ecd6eb0746f5ff2d9b1d1b522a4a3f68"),
+        //     "20806704410832383274034364623685369279680495689837539882650535326035351322472",
+        uint256_from_hex_string("f14c3fb900b66f523694106f7fc3cbec1f5eee571f047a9eb05bef717d3e064"),
+        //     "6821382292698461711184253213986441870942786410912797736722948342942530789476",
+        uint256_from_hex_string("d14b45c0e1f64503a143581a25197e022ff9448c190d76938c3567690edac3d"),
+        //     "5916648769022832355861175588931687601652727028178402815013820610204855544893",
     ];
     ZEROS.save(deps.storage, &zeros)?;
 

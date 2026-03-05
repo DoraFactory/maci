@@ -106,6 +106,17 @@ mod test {
         proof: Groth16Proof,
     }
 
+    /// A slimmed-down variant that skips the nested `proof` field entirely.
+    /// Used when we only need the circuit state values (size / commitments / root)
+    /// and supply the proof bytes separately (e.g. in negative-path tests).
+    #[derive(Debug, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct DeactivateStateData {
+        size: String,
+        new_deactivate_commitment: String,
+        new_deactivate_root: String,
+    }
+
     #[derive(Debug, Serialize, Deserialize)]
     struct Groth16Proof {
         pi_a: Vec<String>,
@@ -3524,6 +3535,391 @@ mod test {
             ContractError::EncPubKeyAlreadyUsed {},
             err.downcast().unwrap(),
             "duplicate enc_pub_key within a single batch should return EncPubKeyAlreadyUsed"
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Groth16 verify error-propagation tests
+    //
+    // These tests verify two critical properties:
+    //   1. run_groth16_verify() correctly propagates InvalidProof when the proof
+    //      bytes do not match the vkey / input_hash (i.e. the `?` operator works
+    //      as expected and execution does NOT continue past a failed verify).
+    //   2. State mutations that happen *before* run_groth16_verify() (e.g.
+    //      NULLIFIERS.save, DNODES.save) are atomically reverted by CosmWasm
+    //      when the transaction returns an error.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// Helper: build the test app + contract used by the verify tests below.
+    ///
+    /// Returns (app, contract, deactivate_state) where deactivate_state contains
+    /// the size/commitment/root values loaded from logs.json (needed by the caller
+    /// to submit a ProcessDeactivate call).
+    ///
+    /// State after this helper:
+    ///   - deactivate_enabled = true
+    ///   - two users signed-up
+    ///   - one deactivate message published (from amaci_test/logs.json)
+    ///   - ProcessDeactivate NOT yet called (DNODES[0] is NOT set yet)
+    fn setup_contract_with_deactivate_message() -> (
+        cw_multi_test::App<
+            cw_multi_test::BankKeeper,
+            cosmwasm_std::testing::MockApi,
+            cosmwasm_std::testing::MockStorage,
+            cw_multi_test::FailingModule<
+                cosmwasm_std::Empty,
+                cosmwasm_std::Empty,
+                cosmwasm_std::Empty,
+            >,
+            cw_multi_test::WasmKeeper<cosmwasm_std::Empty, cosmwasm_std::Empty>,
+            cw_multi_test::StakeKeeper,
+            cw_multi_test::DistributionKeeper,
+            cw_multi_test::IbcFailingModule,
+            cw_multi_test::GovFailingModule,
+            cw_multi_test::StargateAccepting,
+        >,
+        MaciContract,
+        // (size, new_deactivate_commitment, new_deactivate_root)
+        (Uint256, Uint256, Uint256),
+    ) {
+        let pubkey_file_path = "./src/test/user_pubkey.json";
+        let mut pubkey_file = fs::File::open(pubkey_file_path).expect("Failed to open user_pubkey.json");
+        let mut pubkey_content = String::new();
+        pubkey_file.read_to_string(&mut pubkey_content).unwrap();
+        let pubkey_data: UserPubkeyData = serde_json::from_str(&pubkey_content).unwrap();
+
+        let logs_file_path = "./src/test/amaci_test/logs.json";
+        let mut logs_file = fs::File::open(logs_file_path).expect("Failed to open logs.json");
+        let mut logs_content = String::new();
+        logs_file.read_to_string(&mut logs_content).unwrap();
+        let logs_data: Vec<AMaciLogEntry> = serde_json::from_str(&logs_content).unwrap();
+
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let contract = code_id
+            .instantiate_with_voting_time_isqv_amaci(
+                &mut app,
+                owner(),
+                user1(),
+                user2(),
+                user3(),
+                "verify-test-group",
+            )
+            .unwrap();
+
+        _ = contract.set_vote_option_map(&mut app, owner());
+        app.update_block(next_block);
+
+        let pubkey0 = PubKey {
+            x: uint256_from_decimal_string(&pubkey_data.pubkeys[0][0]),
+            y: uint256_from_decimal_string(&pubkey_data.pubkeys[0][1]),
+        };
+        let pubkey1 = PubKey {
+            x: uint256_from_decimal_string(&pubkey_data.pubkeys[1][0]),
+            y: uint256_from_decimal_string(&pubkey_data.pubkeys[1][1]),
+        };
+        let _ = contract.sign_up(&mut app, Addr::unchecked("0"), pubkey0);
+        let _ = contract.sign_up(&mut app, Addr::unchecked("1"), pubkey1);
+
+        // Publish a deactivate message using the data from logs.json.
+        // The message in the JSON has 7 elements; pad the remaining slots with zeros
+        // to satisfy MessageData's fixed [Uint256; 10] field.
+        // Note: PublishDeactivateMessage requires a 10-DORA fee (10^19 apeaka).
+        let deactivate_fee = cosmwasm_std::coin(10_000_000_000_000_000_000u128, "peaka");
+        let mut size = Uint256::from_u128(1u128);
+        let mut new_deactivate_commitment = Uint256::from_u128(0u128);
+        let mut new_deactivate_root = Uint256::from_u128(0u128);
+
+        for entry in &logs_data {
+            match entry.log_type.as_str() {
+                "publishDeactivateMessage" => {
+                    let d: PublishDeactivateMessageData = deserialize_data(&entry.data);
+                    let mut msg_data = [Uint256::from_u128(0u128); 10];
+                    for (i, v) in d.message.iter().enumerate().take(10) {
+                        msg_data[i] = uint256_from_decimal_string(v);
+                    }
+                    let message = MessageData { data: msg_data };
+                    let enc_pub = PubKey {
+                        x: uint256_from_decimal_string(&d.enc_pub_key[0]),
+                        y: uint256_from_decimal_string(&d.enc_pub_key[1]),
+                    };
+                    app.execute_contract(
+                        user2(),
+                        contract.addr(),
+                        &ExecuteMsg::PublishDeactivateMessage {
+                            message,
+                            enc_pub_key: enc_pub,
+                        },
+                        &[deactivate_fee.clone()],
+                    )
+                    .expect("PublishDeactivateMessage must succeed in test setup");
+                }
+                "proofDeactivate" => {
+                    let d: DeactivateStateData = deserialize_data(&entry.data);
+                    size = uint256_from_decimal_string(&d.size);
+                    new_deactivate_commitment =
+                        uint256_from_decimal_string(&d.new_deactivate_commitment);
+                    new_deactivate_root = uint256_from_decimal_string(&d.new_deactivate_root);
+                }
+                _ => {}
+            }
+        }
+
+        (app, contract, (size, new_deactivate_commitment, new_deactivate_root))
+    }
+
+    /// Helper: build an app + contract configured so that `PreAddNewKey` can reach
+    /// `run_groth16_verify`.
+    ///
+    /// Strategy:
+    ///   1. Instantiate with `SignUpWithStaticWhitelist` + deactivate_enabled (so the
+    ///      newkey vkey is stored in GROTH16_NEWKEY_VKEYS).
+    ///   2. Before voting starts, switch to `PrePopulated` registration mode via
+    ///      `UpdateRegistrationConfig`.  This sets both `PRE_DEACTIVATE_ROOT` and
+    ///      `PRE_DEACTIVATE_COORDINATOR_HASH` in storage.
+    ///   3. Advance the block into the voting period.
+    ///
+    /// After this helper, calling `PreAddNewKey` will reach `run_groth16_verify`
+    /// without needing a prior successful `ProcessDeactivateMessage`.
+    fn setup_contract_for_pre_add_key() -> (
+        cw_multi_test::App<
+            cw_multi_test::BankKeeper,
+            cosmwasm_std::testing::MockApi,
+            cosmwasm_std::testing::MockStorage,
+            cw_multi_test::FailingModule<
+                cosmwasm_std::Empty,
+                cosmwasm_std::Empty,
+                cosmwasm_std::Empty,
+            >,
+            cw_multi_test::WasmKeeper<cosmwasm_std::Empty, cosmwasm_std::Empty>,
+            cw_multi_test::StakeKeeper,
+            cw_multi_test::DistributionKeeper,
+            cw_multi_test::IbcFailingModule,
+            cw_multi_test::GovFailingModule,
+            cw_multi_test::StargateAccepting,
+        >,
+        MaciContract,
+    ) {
+        let mut app = create_app();
+        let contract = MaciContract::instantiate_with_deactivate_enabled(&mut app, false).unwrap();
+
+        // Switch to PrePopulated mode BEFORE voting starts.
+        // This stores PRE_DEACTIVATE_ROOT (zero) and PRE_DEACTIVATE_COORDINATOR_HASH.
+        let config = RegistrationConfigUpdate {
+            deactivate_enabled: None,
+            voice_credit_mode: None,
+            registration_mode: Some(RegistrationModeConfig::PrePopulated {
+                pre_deactivate_root: Uint256::zero(),
+                pre_deactivate_coordinator: test_pubkey1(),
+            }),
+        };
+        contract
+            .update_registration_config(&mut app, owner(), config)
+            .expect("UpdateRegistrationConfig to PrePopulated must succeed");
+
+        // Advance block into the voting period.
+        app.update_block(next_block);
+
+        (app, contract)
+    }
+
+    /// Verify that ProcessDeactivate with a mismatched proof (proof bytes from the
+    /// addKey circuit submitted for the deactivate circuit) returns
+    /// `ContractError::InvalidProof` and does NOT update on-chain state.
+    ///
+    /// This specifically addresses the concern "会不会这里出现验证失败，却还是会继续运行":
+    /// the `?` in `run_groth16_verify(...)?` must propagate the error and halt execution.
+    #[test]
+    fn test_process_deactivate_mismatched_proof_returns_error() {
+        let (mut app, contract, (size, commitment, root)) =
+            setup_contract_with_deactivate_message();
+
+        // Use the addKey proof bytes as a deliberately wrong proof for ProcessDeactivate.
+        // The IC values for the deactivate circuit differ from those for the addKey
+        // circuit, so this proof cannot satisfy the deactivate vkey equation.
+        let wrong_proof = Groth16ProofType {
+            a: "053eb9bf62de01898e5d7049bfeaee4611b78b54f516ff4b0fd93ffcdc491d8b170e2c3de370f8eeec93ebb57e49279adc68fb137f4aafe1b4206d7186592673".to_string(),
+            b: "2746ba15cb4478a1a90bd512844cd0e57070357ff17ad90964b699f962f4f24817ce4dcc89d350df5d63ae7f05f0069272c3d352cb92237e682222e68d52da0f00551f58de3a3cac33d6af2fb052e4ff4d42008b5f33b310756a5e7017919087284dc00b9753a3891872ee599467348976ec2d72703d46949a9b8093a97718eb".to_string(),
+            c: "1832b7d8607c041bd1437f43fe1d207ad64bea58f346cc91d0c72d9c02bbc4031decf433ecafc3874f4bcedbfae591caaf87834ad6867c7d342b96b6299ddd0a".to_string(),
+        };
+
+        // ── First call: wrong proof must fail ──────────────────────────────────
+        let err = contract
+            .process_deactivate_message(
+                &mut app,
+                owner(),
+                size,
+                commitment,
+                root,
+                wrong_proof,
+            )
+            .unwrap_err();
+
+        assert_eq!(
+            ContractError::InvalidProof {
+                step: "ProcessDeactivate".to_string()
+            },
+            err.downcast().unwrap(),
+            "ProcessDeactivate with wrong proof must return InvalidProof"
+        );
+
+        // ── Verify execution halted: processed_dmsg_count was NOT incremented ────
+        // Because CosmWasm reverts the entire transaction on error, DNODES.save()
+        // and the processed_dmsg_count update (which happen *before* and *after*
+        // run_groth16_verify respectively) must both be rolled back.
+        //
+        // Observable signal: a second call with the SAME wrong proof still returns
+        // `InvalidProof`, NOT `AllDeactivateMessagesProcessed`.  If the count had
+        // been incremented to 1 (matching dmsg_chain_length=1), the contract would
+        // have returned `AllDeactivateMessagesProcessed` instead.
+        let wrong_proof_2 = Groth16ProofType {
+            a: "053eb9bf62de01898e5d7049bfeaee4611b78b54f516ff4b0fd93ffcdc491d8b170e2c3de370f8eeec93ebb57e49279adc68fb137f4aafe1b4206d7186592673".to_string(),
+            b: "2746ba15cb4478a1a90bd512844cd0e57070357ff17ad90964b699f962f4f24817ce4dcc89d350df5d63ae7f05f0069272c3d352cb92237e682222e68d52da0f00551f58de3a3cac33d6af2fb052e4ff4d42008b5f33b310756a5e7017919087284dc00b9753a3891872ee599467348976ec2d72703d46949a9b8093a97718eb".to_string(),
+            c: "1832b7d8607c041bd1437f43fe1d207ad64bea58f346cc91d0c72d9c02bbc4031decf433ecafc3874f4bcedbfae591caaf87834ad6867c7d342b96b6299ddd0a".to_string(),
+        };
+        let err2 = contract
+            .process_deactivate_message(
+                &mut app,
+                owner(),
+                size,
+                commitment,
+                root,
+                wrong_proof_2,
+            )
+            .unwrap_err();
+
+        // Must still be InvalidProof, not AllDeactivateMessagesProcessed.
+        // This proves that processed_dmsg_count was properly rolled back after the
+        // first failed call.
+        assert_eq!(
+            ContractError::InvalidProof {
+                step: "ProcessDeactivate".to_string()
+            },
+            err2.downcast().unwrap(),
+            "Second call must also return InvalidProof (not AllDeactivateMessagesProcessed), \
+             confirming that processed_dmsg_count was rolled back by the first failure"
+        );
+    }
+
+    /// Verify that PreAddNewKey with a mismatched proof returns
+    /// `ContractError::InvalidProof { step: "PreAddNewKey" }` and that
+    /// `num_sign_ups` is NOT incremented.
+    ///
+    /// `state_enqueue` / `NUMSIGNUPS.save` happen *after* `run_groth16_verify`, so
+    /// a proof failure must leave the sign-up count unchanged.
+    ///
+    /// Setup uses `PrePopulated` registration mode so that `PRE_DEACTIVATE_ROOT` and
+    /// `PRE_DEACTIVATE_COORDINATOR_HASH` are both in storage, allowing `add_key_internal`
+    /// to reach `run_groth16_verify` without requiring a prior ProcessDeactivate.
+    #[test]
+    fn test_add_new_key_mismatched_proof_returns_error_and_does_not_increment_signups() {
+        let (mut app, contract) = setup_contract_for_pre_add_key();
+
+        let num_before = contract.num_sign_up(&app).unwrap();
+
+        // Use the deactivate proof bytes as a wrong proof for PreAddNewKey.
+        // This proof was computed for the deactivate circuit; its (A, B, C) points
+        // cannot satisfy the newkey vkey verification equation.
+        let wrong_proof = Groth16ProofType {
+            a: "132a36c4e9653de9ebe2f131e3452319fc4b0f19339083ce52c6dbd5d1d583190f79d3cf25dbf173a959631330f358a334f3977ae2fcfe2e93fb5c5e86dc6ef4".to_string(),
+            b: "17c61aea44885cf09a35b41fed13916e8a712cfdc2da041a0c29578d102c559f1bd5a1ae12404f47f8fe3f9cba289f9f9fcdf6e60fb64fe17335a65f00f82eda2a5f55a8181bc191a242a60cb27d7c303059895065219d7e436d95e1dbedec182ffa368e7e99494c75e230452fee2a6b2136444b91bf7cfe7581fea055805dbd".to_string(),
+            c: "138d241e6ca289a65ac398af0c1b68b455184a3735e68dd0d5966d8c5ed9629415cab9376a35f9e33a1be5957e8b696e4a3b43363c8df9a460ff70831b63f69b".to_string(),
+        };
+
+        let new_key = test_pubkey2();
+        let nullifier = Uint256::from_u128(999_888_777u128);
+        let d = [
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(2u128),
+            Uint256::from_u128(3u128),
+            Uint256::from_u128(4u128),
+        ];
+
+        let err = contract
+            .pre_add_key(&mut app, owner(), new_key, nullifier, d, wrong_proof)
+            .unwrap_err();
+
+        assert_eq!(
+            ContractError::InvalidProof {
+                step: "PreAddNewKey".to_string()
+            },
+            err.downcast().unwrap(),
+            "PreAddNewKey with wrong proof must return InvalidProof"
+        );
+
+        // num_sign_ups must be unchanged: NUMSIGNUPS.save is after run_groth16_verify
+        // so it is never reached on proof failure.
+        let num_after = contract.num_sign_up(&app).unwrap();
+        assert_eq!(
+            num_before, num_after,
+            "num_sign_ups must not change when PreAddNewKey proof verification fails"
+        );
+    }
+
+    /// Verify that a failed PreAddNewKey call does NOT permanently consume the nullifier.
+    ///
+    /// Inside `add_key_internal`, `NULLIFIERS.save()` is called *before*
+    /// `run_groth16_verify()`.  If CosmWasm's transactional rollback works correctly,
+    /// a proof failure reverts NULLIFIERS.save and the same nullifier can be submitted
+    /// again in a subsequent call.
+    ///
+    /// Test strategy:
+    ///   1. Call PreAddNewKey with nullifier N and a wrong proof → `InvalidProof`
+    ///   2. Call PreAddNewKey with the SAME nullifier N and a wrong proof again → STILL `InvalidProof`
+    ///      (NOT `NewKeyExist`, which would indicate the nullifier was not reverted)
+    #[test]
+    fn test_add_new_key_wrong_proof_does_not_permanently_consume_nullifier() {
+        let (mut app, contract) = setup_contract_for_pre_add_key();
+
+        let wrong_proof = Groth16ProofType {
+            a: "132a36c4e9653de9ebe2f131e3452319fc4b0f19339083ce52c6dbd5d1d583190f79d3cf25dbf173a959631330f358a334f3977ae2fcfe2e93fb5c5e86dc6ef4".to_string(),
+            b: "17c61aea44885cf09a35b41fed13916e8a712cfdc2da041a0c29578d102c559f1bd5a1ae12404f47f8fe3f9cba289f9f9fcdf6e60fb64fe17335a65f00f82eda2a5f55a8181bc191a242a60cb27d7c303059895065219d7e436d95e1dbedec182ffa368e7e99494c75e230452fee2a6b2136444b91bf7cfe7581fea055805dbd".to_string(),
+            c: "138d241e6ca289a65ac398af0c1b68b455184a3735e68dd0d5966d8c5ed9629415cab9376a35f9e33a1be5957e8b696e4a3b43363c8df9a460ff70831b63f69b".to_string(),
+        };
+
+        let new_key = test_pubkey2();
+        let nullifier = Uint256::from_u128(42_000_000u128);
+        let d = [
+            Uint256::from_u128(10u128),
+            Uint256::from_u128(20u128),
+            Uint256::from_u128(30u128),
+            Uint256::from_u128(40u128),
+        ];
+
+        // First attempt — must fail with InvalidProof.
+        let err1 = contract
+            .pre_add_key(
+                &mut app,
+                owner(),
+                new_key.clone(),
+                nullifier,
+                d,
+                wrong_proof.clone(),
+            )
+            .unwrap_err();
+
+        assert_eq!(
+            ContractError::InvalidProof {
+                step: "PreAddNewKey".to_string()
+            },
+            err1.downcast().unwrap(),
+            "First PreAddNewKey with wrong proof must return InvalidProof"
+        );
+
+        // Second attempt with the SAME nullifier and the SAME wrong proof.
+        // If the nullifier had NOT been reverted after the first failure, this call
+        // would fail with `ContractError::NewKeyExist` instead of `InvalidProof`.
+        let err2 = contract
+            .pre_add_key(&mut app, owner(), new_key, nullifier, d, wrong_proof)
+            .unwrap_err();
+
+        assert_eq!(
+            ContractError::InvalidProof {
+                step: "PreAddNewKey".to_string()
+            },
+            err2.downcast().unwrap(),
+            "Second PreAddNewKey with same nullifier and wrong proof must still return \
+             InvalidProof, not NewKeyExist — confirms the nullifier was rolled back"
         );
     }
 }
