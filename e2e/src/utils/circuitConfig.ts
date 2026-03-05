@@ -1,6 +1,6 @@
 import path from 'path';
 
-export type AmaciCircuitSize = '2-1-1-5' | '4-2-2-25';
+export type AmaciCircuitSize = '2-1-1-5' | '4-2-2-25' | '6-3-3-125' | '9-4-3-125';
 
 export interface AmaciCircuitConfig {
   id: AmaciCircuitSize;
@@ -31,6 +31,22 @@ const AMACI_CIRCUIT_CONFIGS: Record<AmaciCircuitSize, Omit<AmaciCircuitConfig, '
     voteOptionTreeDepth: 2,
     batchSize: 25,
     maxVoteOptions: 25
+  },
+  '6-3-3-125': {
+    circuitDirName: 'amaci-6-3-3-125',
+    stateTreeDepth: 6,
+    intStateTreeDepth: 3,
+    voteOptionTreeDepth: 3,
+    batchSize: 125,
+    maxVoteOptions: 125
+  },
+  '9-4-3-125': {
+    circuitDirName: 'amaci-9-4-3-125',
+    stateTreeDepth: 9,
+    intStateTreeDepth: 4,
+    voteOptionTreeDepth: 3,
+    batchSize: 125,
+    maxVoteOptions: 125
   }
 };
 
@@ -50,4 +66,3 @@ export function getAmaciCircuitConfig(size = process.env.AMACI_CIRCUIT_SIZE): Am
     circuitDir: path.join(__dirname, '..', '..', 'circuits', config.circuitDirName)
   };
 }
-

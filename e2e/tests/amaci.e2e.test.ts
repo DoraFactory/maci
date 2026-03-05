@@ -18,6 +18,7 @@ import {
 } from '../src';
 
 const amaciCircuit = getAmaciCircuitConfig();
+const AMACI_E2E_TIMEOUT_MS = amaciCircuit.batchSize >= 125 ? 1_800_000 : 600_000;
 
 function buildVoteOptionMap(count: number, prefix = 'Option'): string[] {
   return Array.from({ length: count }, (_, index) => `${prefix} ${index}`);
@@ -39,7 +40,7 @@ function buildVoteOptionMap(count: number, prefix = 'Option'): string[] {
  */
 
 describe('AMACI End-to-End Test', function () {
-  this.timeout(600000); // 10 minutes for the entire test suite
+  this.timeout(AMACI_E2E_TIMEOUT_MS);
 
   let client: SimulateCosmWasmClient;
   let operator: OperatorClient;
@@ -476,7 +477,7 @@ describe('AMACI End-to-End Test', function () {
 });
 
 describe('AMACI Dynamic Voice Credit E2E Test', function () {
-  this.timeout(600000);
+  this.timeout(AMACI_E2E_TIMEOUT_MS);
 
   let client: SimulateCosmWasmClient;
   let operator: OperatorClient;
