@@ -14,11 +14,14 @@ import {
   assertBigIntEqual,
   advanceTime,
   queryPollId,
-  getAmaciCircuitConfig
+  getAmaciCircuitConfig,
+  generateCertificateFromBigInt,
+  getBackendPublicKey
 } from '../src';
 
 const amaciCircuit = getAmaciCircuitConfig();
 const AMACI_E2E_TIMEOUT_MS = amaciCircuit.batchSize >= 125 ? 1_800_000 : 600_000;
+const useOracleRegistration = amaciCircuit.stateTreeDepth > 4;
 
 function buildVoteOptionMap(count: number, prefix = 'Option'): string[] {
   return Array.from({ length: count }, (_, index) => `${prefix} ${index}`);
@@ -179,20 +182,26 @@ describe('AMACI End-to-End Test', function () {
       voice_credit_mode: {
         unified: { amount: '100' }
       },
-      registration_mode: {
-        sign_up_with_static_whitelist: {
-          whitelist: {
-            users: [
-              { addr: adminAddress, voice_credit_amount: null },
-              { addr: operatorAddress, voice_credit_amount: null },
-              { addr: feeRecipient, voice_credit_amount: null },
-              { addr: voter1Address, voice_credit_amount: null },
-              { addr: voter2Address, voice_credit_amount: null },
-              { addr: voter1NewAddress, voice_credit_amount: null }
-            ]
+      registration_mode: useOracleRegistration
+        ? {
+            sign_up_with_oracle: {
+              oracle_pubkey: getBackendPublicKey()
+            }
           }
-        }
-      },
+        : {
+            sign_up_with_static_whitelist: {
+              whitelist: {
+                users: [
+                  { addr: adminAddress, voice_credit_amount: null },
+                  { addr: operatorAddress, voice_credit_amount: null },
+                  { addr: feeRecipient, voice_credit_amount: null },
+                  { addr: voter1Address, voice_credit_amount: null },
+                  { addr: voter2Address, voice_credit_amount: null },
+                  { addr: voter1NewAddress, voice_credit_amount: null }
+                ]
+              }
+            }
+          },
       vote_option_map: buildVoteOptionMap(maxVoteOptions),
       round_info: {
         title: 'AMACI E2E Test Round',
@@ -242,8 +251,11 @@ describe('AMACI End-to-End Test', function () {
     log(`User 1 public key: [${user1PubKey[0]}, ${user1PubKey[1]}]`);
 
     amaciContract.setSender(voter1Address);
+    const user1Certificate = useOracleRegistration
+      ? generateCertificateFromBigInt(amaciContract.getContractAddress(), user1PubKey, '100')
+      : undefined;
     await assertExecuteSuccess(
-      () => amaciContract.signUp(formatPubKeyForContract(user1PubKey)),
+      () => amaciContract.signUp(formatPubKeyForContract(user1PubKey), user1Certificate),
       'User 1 sign up failed'
     );
 
@@ -255,8 +267,11 @@ describe('AMACI End-to-End Test', function () {
     log(`User 2 public key: [${user2PubKey[0]}, ${user2PubKey[1]}]`);
 
     amaciContract.setSender(voter2Address);
+    const user2Certificate = useOracleRegistration
+      ? generateCertificateFromBigInt(amaciContract.getContractAddress(), user2PubKey, '100')
+      : undefined;
     await assertExecuteSuccess(
-      () => amaciContract.signUp(formatPubKeyForContract(user2PubKey)),
+      () => amaciContract.signUp(formatPubKeyForContract(user2PubKey), user2Certificate),
       'User 2 sign up failed'
     );
 
@@ -269,8 +284,11 @@ describe('AMACI End-to-End Test', function () {
 
     // Register new key on chain
     amaciContract.setSender(voter1NewAddress);
+    const user1aCertificate = useOracleRegistration
+      ? generateCertificateFromBigInt(amaciContract.getContractAddress(), user1aPubKey, '100')
+      : undefined;
     await assertExecuteSuccess(
-      () => amaciContract.signUp(formatPubKeyForContract(user1aPubKey)),
+      () => amaciContract.signUp(formatPubKeyForContract(user1aPubKey), user1aCertificate),
       'User 1 new key sign up failed'
     );
 
@@ -595,17 +613,23 @@ describe('AMACI Dynamic Voice Credit E2E Test', function () {
       //   unified: { amount: '100' }
       // },
       voice_credit_mode: 'dynamic',
-      registration_mode: {
-        sign_up_with_static_whitelist: {
-          whitelist: {
-            users: [
-              { addr: lowPowerUser, voice_credit_amount: '50' }, // ⭐ Different credits
-              { addr: mediumPowerUser, voice_credit_amount: '100' },
-              { addr: highPowerUser, voice_credit_amount: '200' }
-            ]
+      registration_mode: useOracleRegistration
+        ? {
+            sign_up_with_oracle: {
+              oracle_pubkey: getBackendPublicKey()
+            }
           }
-        }
-      },
+        : {
+            sign_up_with_static_whitelist: {
+              whitelist: {
+                users: [
+                  { addr: lowPowerUser, voice_credit_amount: '50' }, // ⭐ Different credits
+                  { addr: mediumPowerUser, voice_credit_amount: '100' },
+                  { addr: highPowerUser, voice_credit_amount: '200' }
+                ]
+              }
+            }
+          },
       vote_option_map: buildVoteOptionMap(maxVoteOptions, 'Dynamic Option'),
       round_info: {
         title: 'AMACI Dynamic VC Test',
@@ -650,8 +674,12 @@ describe('AMACI Dynamic Voice Credit E2E Test', function () {
       const pubKey = voter.getPubkey().toPoints();
 
       amaciContract.setSender(addr);
+      const certificate = useOracleRegistration
+        ? generateCertificateFromBigInt(amaciContract.getContractAddress(), pubKey, credits.toString())
+        : undefined;
+      const oracleAmount = useOracleRegistration ? credits.toString() : undefined;
       await assertExecuteSuccess(
-        () => amaciContract.signUp(formatPubKeyForContract(pubKey)),
+        () => amaciContract.signUp(formatPubKeyForContract(pubKey), certificate, oracleAmount),
         `User ${i + 1} signup failed`
       );
 

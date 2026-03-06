@@ -10,6 +10,10 @@ interface CircuitConfig {
   configName: string;
   circuitPath: string;
   outputFile: string;
+  processZkeyFile?: string;
+  tallyZkeyFile?: string;
+  deactivateZkeyFile?: string;
+  addNewKeyZkeyFile?: string;
   description: {
     state_tree_depth: number;
     int_state_tree_depth: number;
@@ -65,6 +69,22 @@ const CIRCUIT_CONFIGS: CircuitConfig[] = [
       message_batch_size: 25,
       max_voters: 625,
       max_options: 25
+    },
+    hasDeactivate: true,
+    hasAddNewKey: true
+  },
+  {
+    name: 'AMACI',
+    configName: 'amaci-6-3-3-125',
+    circuitPath: path.join(CIRCUITS_DIR, 'amaci-6-3-3-125'),
+    outputFile: path.join(CIRCUITS_DIR, 'vkeys-amaci-6-3-3-125.json'),
+    description: {
+      state_tree_depth: 6,
+      int_state_tree_depth: 3,
+      vote_option_tree_depth: 3,
+      message_batch_size: 125,
+      max_voters: 15625,
+      max_options: 125
     },
     hasDeactivate: true,
     hasAddNewKey: true
@@ -127,8 +147,8 @@ function convertVkeyToContractFormat(vkey: SnarkjsVKey): Groth16VKeyType {
 async function extractConfigVkeys(config: CircuitConfig): Promise<void> {
   console.log(`\n📦 Processing ${config.name}`);
 
-  const processZkeyPath = path.join(config.circuitPath, 'processMessages.zkey');
-  const tallyZkeyPath = path.join(config.circuitPath, 'tallyVotes.zkey');
+  const processZkeyPath = path.join(config.circuitPath, config.processZkeyFile || 'processMessages.zkey');
+  const tallyZkeyPath = path.join(config.circuitPath, config.tallyZkeyFile || 'tallyVotes.zkey');
 
   // Check if zkey files exist
   if (!fs.existsSync(processZkeyPath)) {
@@ -161,7 +181,7 @@ async function extractConfigVkeys(config: CircuitConfig): Promise<void> {
 
   // Extract AMACI-specific vkeys if configured
   if (config.hasDeactivate) {
-    const deactivateZkeyPath = path.join(config.circuitPath, 'deactivate.zkey');
+    const deactivateZkeyPath = path.join(config.circuitPath, config.deactivateZkeyFile || 'deactivate.zkey');
     if (fs.existsSync(deactivateZkeyPath)) {
       console.log(`   📄 Reading deactivate.zkey...`);
       const deactivateVkey = (await snarkjs.zKey.exportVerificationKey(
@@ -181,7 +201,7 @@ async function extractConfigVkeys(config: CircuitConfig): Promise<void> {
   }
 
   if (config.hasAddNewKey) {
-    const addNewKeyZkeyPath = path.join(config.circuitPath, 'addNewKey.zkey');
+    const addNewKeyZkeyPath = path.join(config.circuitPath, config.addNewKeyZkeyFile || 'addNewKey.zkey');
     if (fs.existsSync(addNewKeyZkeyPath)) {
       console.log(`   📄 Reading addNewKey.zkey...`);
       const addNewKeyVkey = (await snarkjs.zKey.exportVerificationKey(
