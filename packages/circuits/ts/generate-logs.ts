@@ -1,41 +1,123 @@
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { groth16 } from 'snarkjs';
 import { OperatorClient, VoterClient, stringizing, adaptToUncompressed } from '@dorafactory/maci-sdk';
 
 // Build paths configuration
 const BUILD_DIR = path.join(__dirname, '../build');
 
-// Deactivate circuit paths
-const DEACTIVATE_WASM = path.join(
-  BUILD_DIR,
-  'ProcessDeactivateMessages_amaci_2-5/ProcessDeactivateMessages_amaci_2-5_js/ProcessDeactivateMessages_amaci_2-5.wasm'
-);
-const DEACTIVATE_ZKEY = path.join(
-  BUILD_DIR,
-  'ProcessDeactivateMessages_amaci_2-5/ProcessDeactivateMessages_amaci_2-5.0.zkey'
-);
+// v4 zkey/wasm artifacts (amaci_2-1-1-5)
+const ZKEYS_V4_BASE = path.join(BUILD_DIR, 'amaci_2-1-1-5_v4');
+const ZKEYS_V4_URLS = {
+  addNewKeyWasm: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v4.wasm',
+  addNewKeyZkey: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v4.zkey',
+  amaciZkeysTar: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v4_zkeys.tar.gz'
+};
 
-// AddKey circuit paths
-const ADDKEY_WASM = path.join(
-  BUILD_DIR,
-  'AddNewKey_amaci_2/AddNewKey_amaci_2_js/AddNewKey_amaci_2.wasm'
-);
-const ADDKEY_ZKEY = path.join(BUILD_DIR, 'AddNewKey_amaci_2/AddNewKey_amaci_2.0.zkey');
+// Deactivate circuit paths (from extracted amaci_2-1-1-5_v4_zkeys.tar.gz: flat deactivate.wasm/zkey)
+const DEACTIVATE_WASM = path.join(ZKEYS_V4_BASE, 'deactivate.wasm');
+const DEACTIVATE_ZKEY = path.join(ZKEYS_V4_BASE, 'deactivate.zkey');
 
-// ProcessMessages circuit paths
-const MSG_WASM = path.join(
-  BUILD_DIR,
-  'ProcessMessages_amaci_2-1-5/ProcessMessages_amaci_2-1-5_js/ProcessMessages_amaci_2-1-5.wasm'
-);
-const MSG_ZKEY = path.join(BUILD_DIR, 'ProcessMessages_amaci_2-1-5/ProcessMessages_amaci_2-1-5.0.zkey');
+// AddKey circuit paths (v4: add-new-key_2-1-1-5_v4)
+const ADDKEY_WASM = path.join(ZKEYS_V4_BASE, 'add-new-key_2-1-1-5_v4.wasm');
+const ADDKEY_ZKEY = path.join(ZKEYS_V4_BASE, 'add-new-key_2-1-1-5_v4.zkey');
 
-// TallyVotes circuit paths
-const TALLY_WASM = path.join(
-  BUILD_DIR,
-  'TallyVotes_amaci_2-1-1/TallyVotes_amaci_2-1-1_js/TallyVotes_amaci_2-1-1.wasm'
-);
-const TALLY_ZKEY = path.join(BUILD_DIR, 'TallyVotes_amaci_2-1-1/TallyVotes_amaci_2-1-1.0.zkey');
+// ProcessMessages circuit paths (from extracted tar: processMessages.wasm/zkey)
+const MSG_WASM = path.join(ZKEYS_V4_BASE, 'processMessages.wasm');
+const MSG_ZKEY = path.join(ZKEYS_V4_BASE, 'processMessages.zkey');
+
+// TallyVotes circuit paths (from extracted tar: tallyVotes.wasm/zkey)
+const TALLY_WASM = path.join(ZKEYS_V4_BASE, 'tallyVotes.wasm');
+const TALLY_ZKEY = path.join(ZKEYS_V4_BASE, 'tallyVotes.zkey');
+
+async function downloadFile(url: string, destPath: string): Promise<void> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to download ${url}: ${res.status}`);
+  const buf = await res.arrayBuffer();
+  fs.mkdirSync(path.dirname(destPath), { recursive: true });
+  fs.writeFileSync(destPath, Buffer.from(buf));
+}
+
+const REQUIRED_ARTIFACTS = [
+  { name: 'AddNewKey wasm', p: ADDKEY_WASM },
+  { name: 'AddNewKey zkey', p: ADDKEY_ZKEY },
+  { name: 'ProcessDeactivateMessages wasm', p: DEACTIVATE_WASM },
+  { name: 'ProcessDeactivateMessages zkey', p: DEACTIVATE_ZKEY },
+  { name: 'ProcessMessages wasm', p: MSG_WASM },
+  { name: 'ProcessMessages zkey', p: MSG_ZKEY },
+  { name: 'TallyVotes wasm', p: TALLY_WASM },
+  { name: 'TallyVotes zkey', p: TALLY_ZKEY }
+];
+
+function ensureZkeysV4(): void {
+  const missing = REQUIRED_ARTIFACTS.filter((a) => !fs.existsSync(a.p));
+  if (missing.length === 0) {
+    console.log('v4 zkey/wasm present at', ZKEYS_V4_BASE);
+    return;
+  }
+  throw new Error(
+    `Missing v4 artifacts at ${ZKEYS_V4_BASE}: ${missing.map((a) => a.name).join(', ')}.\n` +
+      `Download and extract:\n` +
+      `  1. ${ZKEYS_V4_URLS.addNewKeyWasm}\n` +
+      `  2. ${ZKEYS_V4_URLS.addNewKeyZkey}\n` +
+      `  3. ${ZKEYS_V4_URLS.amaciZkeysTar}\n` +
+      `Place (1)(2) in ${ZKEYS_V4_BASE} and extract (3) into ${ZKEYS_V4_BASE}.`
+  );
+}
+
+async function ensureZkeysV4WithDownload(): Promise<void> {
+  const hasAddKey = fs.existsSync(ADDKEY_WASM) && fs.existsSync(ADDKEY_ZKEY);
+  const hasMsg = fs.existsSync(MSG_WASM) && fs.existsSync(MSG_ZKEY);
+
+  if (hasAddKey && hasMsg && fs.existsSync(DEACTIVATE_WASM) && fs.existsSync(TALLY_WASM)) {
+    console.log('v4 zkey/wasm already present at', ZKEYS_V4_BASE);
+    ensureZkeysV4();
+    return;
+  }
+
+  console.log('Downloading v4 zkey/wasm to', ZKEYS_V4_BASE);
+  fs.mkdirSync(ZKEYS_V4_BASE, { recursive: true });
+
+  if (!hasAddKey) {
+    await downloadFile(ZKEYS_V4_URLS.addNewKeyWasm, ADDKEY_WASM);
+    console.log('Downloaded add-new-key wasm');
+    await downloadFile(ZKEYS_V4_URLS.addNewKeyZkey, ADDKEY_ZKEY);
+    console.log('Downloaded add-new-key zkey');
+  }
+
+  if (!hasMsg || !fs.existsSync(DEACTIVATE_WASM) || !fs.existsSync(TALLY_WASM)) {
+    const tarPath = path.join(BUILD_DIR, 'amaci_2-1-1-5_v4_zkeys.tar.gz');
+    await downloadFile(ZKEYS_V4_URLS.amaciZkeysTar, tarPath);
+    console.log('Downloaded amaci zkeys tar, extracting...');
+    execSync(`tar -xzf "${tarPath}" -C "${BUILD_DIR}"`, { stdio: 'inherit' });
+    // Tar extracts to amaci_2-1-1-5_v4_zkeys/ with flat files: deactivate.wasm/zkey, processMessages.wasm/zkey, tallyVotes.wasm/zkey
+    const extractedDir = path.join(BUILD_DIR, 'amaci_2-1-1-5_v4_zkeys');
+    if (fs.existsSync(extractedDir)) {
+      const entries = fs.readdirSync(extractedDir);
+      for (const e of entries) {
+        const src = path.join(extractedDir, e);
+        const dest = path.join(ZKEYS_V4_BASE, e);
+        if (fs.existsSync(src) && !fs.existsSync(dest)) {
+          fs.renameSync(src, dest);
+        }
+      }
+      try {
+        fs.rmSync(extractedDir, { recursive: true });
+      } catch {
+        // ignore
+      }
+    }
+    try {
+      fs.unlinkSync(tarPath);
+    } catch {
+      // ignore
+    }
+  }
+
+  ensureZkeysV4();
+  console.log('v4 zkey/wasm ready.');
+}
 
 // Output directory configuration
 const outputPath = path.join(__dirname, '../build/inputs');
@@ -47,6 +129,8 @@ if (!fs.existsSync(outputPath)) {
 const maxVoteOptions = 5;
 
 const main = async () => {
+  await ensureZkeysV4WithDownload();
+
   const USER_1 = 0; // state leaf idx
   const USER_2 = 1; // state leaf idx
   const USER_1A = 2; // state leaf idx
