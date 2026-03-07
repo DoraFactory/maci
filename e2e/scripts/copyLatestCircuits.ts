@@ -10,8 +10,6 @@
  * Target: e2e/circuits/{config}/
  * 
  * Mappings:
- * - ProcessMessages_maci_2-1-5 -> maci-2-1-1-5/processMessages.*
- * - TallyVotes_maci_2-1-1 -> maci-2-1-1-5/tallyVotes.*
  * - ProcessMessages_amaci_2-1-5 -> amaci-2-1-1-5/processMessages.*
  * - TallyVotes_amaci_2-1-1 -> amaci-2-1-1-5/tallyVotes.*
  * - ProcessDeactivateMessages_amaci_2-5 -> amaci-2-1-1-5/deactivate.*
@@ -34,22 +32,6 @@ const E2E_CIRCUITS_DIR = path.join(__dirname, '../circuits');
 
 // Define circuit mappings
 const CIRCUIT_MAPPINGS: CircuitMapping[] = [
-  // MACI 2-1-1-5
-  {
-    sourceDir: 'ProcessMessages_maci_2-1-5',
-    sourceBaseName: 'ProcessMessages_maci_2-1-5',
-    targetDir: 'maci-2-1-1-5',
-    targetBaseName: 'processMessages',
-    description: 'MACI ProcessMessages (2-1-1-5)'
-  },
-  {
-    sourceDir: 'TallyVotes_maci_2-1-1',
-    sourceBaseName: 'TallyVotes_maci_2-1-1',
-    targetDir: 'maci-2-1-1-5',
-    targetBaseName: 'tallyVotes',
-    description: 'MACI TallyVotes (2-1-1-5)'
-  },
-
   // AMACI 2-1-1-5
   {
     sourceDir: 'ProcessMessages_amaci_2-1-5',

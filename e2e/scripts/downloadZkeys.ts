@@ -23,44 +23,46 @@ const CIRCUITS_DIR = path.join(__dirname, '../circuits');
 
 const CIRCUIT_CONFIGS: CircuitConfig[] = [
   {
-    name: 'MACI 1P1V (2-1-1-5)',
-    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/maci_2-1-1-5_v3_zkeys.tar.gz',
-    targetDir: path.join(CIRCUITS_DIR, 'maci-2-1-1-5'),
-    description: 'MACI 1P1V (state:2, int:1, vote:1, batch:5)',
-    fileMapping: {
-      processMessagesWasm: ['zkey', '2-1-1-5_v3', 'msg.wasm'],
-      processMessagesZkey: ['zkey', '2-1-1-5_v3', 'msg.zkey'],
-      tallyVotesWasm: ['zkey', '2-1-1-5_v3', 'tally.wasm'],
-      tallyVotesZkey: ['zkey', '2-1-1-5_v3', 'tally.zkey']
-    }
-  },
-  {
-    name: 'MACI 1P1V (4-2-2-25)',
-    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/maci_4-2-2-25_v3_zkeys.tar.gz',
-    targetDir: path.join(CIRCUITS_DIR, 'maci-4-2-2-25'),
-    description: 'MACI 1P1V (state:4, int:2, vote:2, batch:25)',
-    fileMapping: {
-      processMessagesWasm: ['zkey', '4-2-2-25_v3', 'msg.wasm'],
-      processMessagesZkey: ['zkey', '4-2-2-25_v3', 'msg.zkey'],
-      tallyVotesWasm: ['zkey', '4-2-2-25_v3', 'tally.wasm'],
-      tallyVotesZkey: ['zkey', '4-2-2-25_v3', 'tally.zkey']
-    }
-  },
-  {
     name: 'AMACI',
-    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v3_zkeys.tar.gz',
+    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v4_zkeys.tar.gz',
     targetDir: path.join(CIRCUITS_DIR, 'amaci-2-1-1-5'),
     description: 'AMACI (state:2, int:1, vote:1, batch:5)',
     fileMapping: {
-      processMessagesWasm: ['zkey', '2-1-1-5_v3', 'msg.wasm'],
-      processMessagesZkey: ['zkey', '2-1-1-5_v3', 'msg.zkey'],
-      tallyVotesWasm: ['zkey', '2-1-1-5_v3', 'tally.wasm'],
-      tallyVotesZkey: ['zkey', '2-1-1-5_v3', 'tally.zkey'],
-      deactivateWasm: ['zkey', '2-1-1-5_v3', 'deactivate.wasm'],
-      deactivateZkey: ['zkey', '2-1-1-5_v3', 'deactivate.zkey']
+      processMessagesWasm: ['zkey', '2-1-1-5_v4', 'msg.wasm'],
+      processMessagesZkey: ['zkey', '2-1-1-5_v4', 'msg.zkey'],
+      tallyVotesWasm: ['zkey', '2-1-1-5_v4', 'tally.wasm'],
+      tallyVotesZkey: ['zkey', '2-1-1-5_v4', 'tally.zkey'],
+      deactivateWasm: ['zkey', '2-1-1-5_v4', 'deactivate.wasm'],
+      deactivateZkey: ['zkey', '2-1-1-5_v4', 'deactivate.zkey']
     }
   }
 ];
+
+// Skip these when scanning for extracted zkey dir (our target dirs or known non-zkey dirs)
+const SKIP_DIRS = new Set(['amaci-2-1-1-5', 'amaci-4-2-2-25', 'maci-2-1-1-5', 'maci-4-2-2-25']);
+
+/**
+ * Recursively find the directory that contains circuit artifacts.
+ * Tarballs may use msg.wasm/msg.zkey (v3) or processMessages.wasm/processMessages.zkey (v4).
+ * Returns path segments from baseDir to that folder, or null.
+ */
+function findExtractedZkeyDir(baseDir: string, segments: string[] = []): string[] | null {
+  if (!fs.existsSync(baseDir)) return null;
+  const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  for (const e of entries) {
+    if (!e.isDirectory() || SKIP_DIRS.has(e.name)) continue;
+    const dirPath = path.join(baseDir, e.name);
+    const hasArtifacts =
+      fs.existsSync(path.join(dirPath, 'msg.wasm')) ||
+      fs.existsSync(path.join(dirPath, 'msg.zkey')) ||
+      fs.existsSync(path.join(dirPath, 'processMessages.wasm')) ||
+      fs.existsSync(path.join(dirPath, 'processMessages.zkey'));
+    if (hasArtifacts) return [...segments, e.name];
+    const found = findExtractedZkeyDir(dirPath, [...segments, e.name]);
+    if (found) return found;
+  }
+  return null;
+}
 
 /**
  * Download and extract zkey files for a specific circuit configuration
@@ -90,8 +92,8 @@ async function downloadCircuitConfig(config: CircuitConfig): Promise<void> {
   console.log(`   📥 Downloading from S3...`);
   console.log(`   URL: ${config.url}`);
 
-  // Download the tar.gz file
-  await downloadFile(config.url, tarFilePath);
+  // Download the tar.gz file (with retry on socket hang up / network errors)
+  await downloadFileWithRetry(config.url, tarFilePath);
 
   console.log(`   📦 Extracting files...`);
 
@@ -103,27 +105,49 @@ async function downloadCircuitConfig(config: CircuitConfig): Promise<void> {
 
   console.log(`   📁 Organizing files...`);
 
+  // Detect actual extracted dir (AMACI v4 uses amaci_2-1-1-5_v4_zkeys/ with processMessages.* names)
+  const extractedPrefix = findExtractedZkeyDir(CIRCUITS_DIR);
+  const pathPrefix = extractedPrefix ?? config.fileMapping.processMessagesWasm.slice(0, -1);
+  if (extractedPrefix) {
+    console.log(`   📂 Found files in: ${extractedPrefix.join('/')}`);
+  }
+
+  // v4 tarball uses processMessages.wasm / tallyVotes.wasm; v3 uses msg.wasm / tally.wasm
+  const sourceNameAlternatives: Record<string, string[]> = {
+    'processMessages.wasm': ['processMessages.wasm', 'msg.wasm'],
+    'processMessages.zkey': ['processMessages.zkey', 'msg.zkey'],
+    'tallyVotes.wasm': ['tallyVotes.wasm', 'tally.wasm'],
+    'tallyVotes.zkey': ['tallyVotes.zkey', 'tally.zkey']
+  };
+
   // Create target directory
   if (!fs.existsSync(config.targetDir)) {
     fs.mkdirSync(config.targetDir, { recursive: true });
   }
 
-  // Helper function to copy file using path array
+  // Helper: copy from path (v4 tarball uses processMessages.*/tallyVotes.*, v3 uses msg.*/tally.*)
   const copyFile = (srcPathArray: string[], dstFilename: string, label: string): boolean => {
-    const srcPath = path.join(CIRCUITS_DIR, ...srcPathArray);
     const dstPath = path.join(config.targetDir, dstFilename);
-
-    if (fs.existsSync(srcPath)) {
-      fs.copyFileSync(srcPath, dstPath);
+    const namesToTry = sourceNameAlternatives[dstFilename] ?? [srcPathArray[srcPathArray.length - 1]];
+    for (const name of namesToTry) {
+      const srcPath = path.join(CIRCUITS_DIR, ...pathPrefix, name);
+      if (fs.existsSync(srcPath)) {
+        fs.copyFileSync(srcPath, dstPath);
+        console.log(`   ✓ Copied ${label}`);
+        return true;
+      }
+    }
+    const fallbackPath = path.join(CIRCUITS_DIR, ...srcPathArray);
+    if (fs.existsSync(fallbackPath)) {
+      fs.copyFileSync(fallbackPath, dstPath);
       console.log(`   ✓ Copied ${label}`);
       return true;
-    } else {
-      console.warn(`   ⚠️  Source not found: ${srcPathArray.join('/')}`);
-      return false;
     }
+    console.warn(`   ⚠️  Source not found: ${pathPrefix.join('/')}/{${namesToTry.join('|')}}`);
+    return false;
   };
 
-  // Copy files using config mapping
+  // Copy files using config mapping (filenames: msg -> processMessages, tally -> tallyVotes)
   copyFile(config.fileMapping.processMessagesWasm, 'processMessages.wasm', 'processMessages.wasm');
   copyFile(config.fileMapping.processMessagesZkey, 'processMessages.zkey', 'processMessages.zkey');
   copyFile(config.fileMapping.tallyVotesWasm, 'tallyVotes.wasm', 'tallyVotes.wasm');
@@ -142,9 +166,10 @@ async function downloadCircuitConfig(config: CircuitConfig): Promise<void> {
     fs.unlinkSync(tarFilePath);
   }
 
-  // Find and remove all extracted directories (zkeys, zkey, etc.)
-  const extractedDirs = ['zkeys', 'zkey', 'r1cs'];
-  for (const dir of extractedDirs) {
+  // Remove extracted dirs (zkeys, zkey, r1cs, or detected top-level)
+  const extractedDirs = ['zkeys', 'zkey', 'r1cs', ...(extractedPrefix ? [extractedPrefix[0]] : [])];
+  const toRemove = new Set(extractedDirs);
+  for (const dir of toRemove) {
     const dirPath = path.join(CIRCUITS_DIR, dir);
     if (fs.existsSync(dirPath)) {
       fs.rmSync(dirPath, { recursive: true, force: true });
@@ -165,6 +190,34 @@ async function downloadCircuitConfig(config: CircuitConfig): Promise<void> {
   }
 
   console.log(`   ✅ ${config.name} setup complete`);
+}
+
+const DOWNLOAD_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Download a file from a URL with retries (handles socket hang up / transient network errors)
+ */
+async function downloadFileWithRetry(url: string, outputPath: string): Promise<void> {
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= DOWNLOAD_RETRIES; attempt++) {
+    try {
+      await downloadFile(url, outputPath);
+      return;
+    } catch (err: any) {
+      lastError = err;
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+      if (attempt < DOWNLOAD_RETRIES) {
+        console.log(`\n      ⚠️  Attempt ${attempt} failed: ${err.message}. Retrying in ${RETRY_DELAY_MS / 1000}s...`);
+        await sleep(RETRY_DELAY_MS);
+      }
+    }
+  }
+  throw lastError;
 }
 
 /**
@@ -244,7 +297,7 @@ function removeAppleDoubleFiles(dir: string) {
  * Main function to download all circuit configurations
  */
 async function downloadAllZkeys(): Promise<void> {
-  console.log('🔍 MACI/AMACI Circuit Setup');
+  console.log('🔍 AMACI Circuit Setup');
   console.log('━'.repeat(60));
 
   // Create circuits directory if it doesn't exist
@@ -274,15 +327,15 @@ async function downloadAllZkeys(): Promise<void> {
   if (fs.existsSync(addNewKeyWasm) && fs.existsSync(addNewKeyZkey)) {
     console.log('   ✅ AddNewKey files already exist, skipping download');
   } else {
-    console.log('   📥 Downloading addNewKey.wasm...');
-    await downloadFile(
-      'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5.wasm',
+    console.log('   📥 Downloading addNewKey.wasm (v4)...');
+    await downloadFileWithRetry(
+      'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v4.wasm',
       addNewKeyWasm
     );
 
-    console.log('   📥 Downloading addNewKey.zkey...');
-    await downloadFile(
-      'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5.zkey',
+    console.log('   📥 Downloading addNewKey.zkey (v4)...');
+    await downloadFileWithRetry(
+      'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v4.zkey',
       addNewKeyZkey
     );
 

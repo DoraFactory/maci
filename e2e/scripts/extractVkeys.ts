@@ -28,20 +28,6 @@ interface CircuitConfig {
 
 const CIRCUIT_CONFIGS: CircuitConfig[] = [
   {
-    name: 'MACI 1P1V',
-    configName: 'maci-2-1-1-5',
-    circuitPath: path.join(CIRCUITS_DIR, 'maci-2-1-1-5'),
-    outputFile: path.join(CIRCUITS_DIR, 'vkeys-maci-2-1-1-5.json'),
-    description: {
-      state_tree_depth: 2,
-      int_state_tree_depth: 1,
-      vote_option_tree_depth: 1,
-      message_batch_size: 5,
-      max_voters: 25,
-      max_options: 5
-    }
-  },
-  {
     name: 'AMACI',
     configName: 'amaci-2-1-1-5',
     circuitPath: path.join(CIRCUITS_DIR, 'amaci-2-1-1-5'),
@@ -283,7 +269,7 @@ async function extractAllVkeys(): Promise<void> {
   console.log(`✨ Extraction complete!`);
   console.log(`   ✓ Successful: ${successCount}`);
   if (skipCount > 0) {
-    console.log(`   ⚠️  Skipped: ${skipCount}`);
+    console.log(`   ⚠️  Skipped: ${skipCount} (no zkey files — only amaci-2-1-1-5 is downloaded by default)`);
   }
 }
 
