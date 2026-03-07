@@ -57,11 +57,12 @@ export class AmaciContractClient extends BaseContractClient {
   /**
    * Sign up a user
    */
-  async signUp(pubkey: { x: string; y: string }, certificate?: string): Promise<any> {
+  async signUp(pubkey: { x: string; y: string }, certificate?: string, amount?: string): Promise<any> {
     return await this.execute({
       sign_up: {
         pubkey,
-        certificate
+        certificate,
+        amount
       }
     });
   }
