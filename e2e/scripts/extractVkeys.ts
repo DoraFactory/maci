@@ -88,6 +88,22 @@ const CIRCUIT_CONFIGS: CircuitConfig[] = [
     },
     hasDeactivate: true,
     hasAddNewKey: true
+  },
+  {
+    name: 'AMACI',
+    configName: 'amaci-9-4-3-125',
+    circuitPath: path.join(CIRCUITS_DIR, 'amaci-9-4-3-125'),
+    outputFile: path.join(CIRCUITS_DIR, 'vkeys-amaci-9-4-3-125.json'),
+    description: {
+      state_tree_depth: 9,
+      int_state_tree_depth: 4,
+      vote_option_tree_depth: 3,
+      message_batch_size: 125,
+      max_voters: 1953125,
+      max_options: 125
+    },
+    hasDeactivate: true,
+    hasAddNewKey: true
   }
 ];
 
