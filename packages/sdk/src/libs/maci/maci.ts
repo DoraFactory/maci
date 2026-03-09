@@ -667,6 +667,20 @@ export class MACI {
         address = (await signer.getAccounts())[0].address;
       }
 
+      const msgLength = payload[0]?.msg.length ?? 0;
+
+      if (msgLength === 7) {
+        return await this.publishMessageBatchLegacy({
+          signer,
+          address,
+          payload,
+          contractAddress,
+          gasStation,
+          granter,
+          fee
+        });
+      }
+
       return await this.publishMessageBatch({
         signer,
         address,
@@ -856,6 +870,81 @@ export class MACI {
     }
 
     return amaciClient.publishMessage({ encPubKeys, messages }, fee, undefined, batchFunds);
+  }
+
+  async publishMessageBatchLegacy({
+    signer,
+    address,
+    payload,
+    contractAddress,
+    gasStation,
+    granter,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    address?: string;
+    payload: {
+      msg: bigint[];
+      encPubkeys: PubKey;
+    }[];
+    contractAddress: string;
+    gasStation?: boolean;
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
+
+    const client = await this.contract.contractClient({ signer });
+
+    const messages = payload.map((p) => ({
+      data: p.msg
+    }));
+
+    const encPubKeys = payload.map((p) => ({
+      x: p.encPubkeys[0],
+      y: p.encPubkeys[1]
+    }));
+
+    const msg: MsgExecuteContractEncodeObject = {
+      typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+      value: MsgExecuteContract.fromPartial({
+        sender: address,
+        contract: contractAddress,
+        msg: new TextEncoder().encode(
+          JSON.stringify(
+            stringizing({
+              publish_message_batch: {
+                enc_pub_keys: encPubKeys,
+                messages
+              }
+            })
+          )
+        )
+      })
+    };
+
+    if (gasStation && typeof fee !== 'object') {
+      const gasEstimation = await client.simulate(address, [msg], '');
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: granter || contractAddress
+      };
+      return client.signAndBroadcast(address, [msg], grantFee);
+    } else if (gasStation && typeof fee === 'object') {
+      const grantFee: StdFee = {
+        ...fee,
+        granter: granter || contractAddress
+      };
+      return client.signAndBroadcast(address, [msg], grantFee);
+    }
+
+    return client.signAndBroadcast(address, [msg], fee);
   }
 
   async deactivate({
