@@ -186,12 +186,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      # Bump key (e.g. to -v2) when circuit artifacts or their interface change (e.g. expectedPollId, batchSize)
       - name: Cache circuit files
         id: cache-circuits
         uses: actions/cache@v4
         with:
           path: e2e/circuits
-          key: ${{ runner.os }}-circuits-v1
+          key: ${{ runner.os }}-circuits-v2
           restore-keys: |
             ${{ runner.os }}-circuits-
 

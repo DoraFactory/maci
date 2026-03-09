@@ -173,7 +173,7 @@ async function main() {
     // saasApiEndpoint: API_BASE_URL
   });
 
-  const circuitPower = 'old_2-1-1-5';
+  const circuitPower = 'new_2-1-1-5';
   const stateTreeDepth = 2;
 
   console.log('Executing Pre-Add-New-Key (with auto payload generation)...');
