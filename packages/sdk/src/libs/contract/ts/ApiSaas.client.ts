@@ -21,6 +21,8 @@ import {
   PubKey,
   RoundInfo,
   VotingTime,
+  EncPubKeyParam,
+  MessageDataParam,
   QueryMsg,
   Config,
   Boolean,
@@ -189,6 +191,34 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
+  publishMessage: (
+    {
+      contractAddr,
+      encPubKeys,
+      messages
+    }: {
+      contractAddr: string;
+      encPubKeys: EncPubKeyParam[];
+      messages: MessageDataParam[];
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
+  publishDeactivateMessage: (
+    {
+      contractAddr,
+      encPubKey,
+      message
+    }: {
+      contractAddr: string;
+      encPubKey: EncPubKeyParam;
+      message: MessageDataParam;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
 }
 export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterface {
   client: SigningCosmWasmClient;
@@ -208,6 +238,8 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
     this.createAmaciRound = this.createAmaciRound.bind(this);
     this.setRoundInfo = this.setRoundInfo.bind(this);
     this.setVoteOptionsMap = this.setVoteOptionsMap.bind(this);
+    this.publishMessage = this.publishMessage.bind(this);
+    this.publishDeactivateMessage = this.publishDeactivateMessage.bind(this);
   }
   updateConfig = async (
     {
@@ -441,6 +473,64 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
         set_vote_options_map: {
           contract_addr: contractAddr,
           vote_option_map: voteOptionMap
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  publishMessage = async (
+    {
+      contractAddr,
+      encPubKeys,
+      messages
+    }: {
+      contractAddr: string;
+      encPubKeys: EncPubKeyParam[];
+      messages: MessageDataParam[];
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        publish_message: {
+          contract_addr: contractAddr,
+          enc_pub_keys: encPubKeys,
+          messages
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  publishDeactivateMessage = async (
+    {
+      contractAddr,
+      encPubKey,
+      message
+    }: {
+      contractAddr: string;
+      encPubKey: EncPubKeyParam;
+      message: MessageDataParam;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        publish_deactivate_message: {
+          contract_addr: contractAddr,
+          enc_pub_key: encPubKey,
+          message
         }
       },
       fee,

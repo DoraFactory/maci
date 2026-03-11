@@ -16,14 +16,15 @@ use prost::Message;
 
 // External contract types with aliases to avoid path conflicts
 use cw_amaci::msg::RegistrationModeConfig;
-use cw_amaci::state::{RoundInfo, VoiceCreditMode, VotingTime};
+use cw_amaci::state::{RoundInfo, VoiceCreditMode, VotingTime, DEACTIVATE_FEE, FEE_DENOM, MESSAGE_FEE};
 
 // use cw_maci::state::VotingPowerMode; // Unused after Unified MACI refactoring
 
 use cosmos_sdk_proto::traits::TypeUrl;
 // Local contract types
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, QueryMsg};
+use crate::msg::{EncPubKeyParam, ExecuteMsg, InstantiateMsg, InstantiationData, MessageDataParam, MigrateMsg, QueryMsg};
+
 use crate::state::{
     Config, OperatorInfo, CONFIG, OPERATORS, REGISTRY_CONTRACT_ADDR, TOTAL_BALANCE,
     TREASURY_MANAGER,
@@ -94,6 +95,16 @@ pub fn execute(
             contract_addr,
             vote_option_map,
         } => execute_set_vote_options_map(deps, env, info, contract_addr, vote_option_map),
+        ExecuteMsg::PublishMessage {
+            contract_addr,
+            enc_pub_keys,
+            messages,
+        } => execute_publish_message(deps, info, contract_addr, enc_pub_keys, messages),
+        ExecuteMsg::PublishDeactivateMessage {
+            contract_addr,
+            enc_pub_key,
+            message,
+        } => execute_publish_deactivate_message(deps, info, contract_addr, enc_pub_key, message),
         ExecuteMsg::CreateAmaciRound {
             operator,
             max_voter,
@@ -428,6 +439,109 @@ pub fn execute_set_vote_options_map(
             "vote_option_map",
             serde_json::to_string(&vote_option_map).unwrap_or_else(|_| "[]".to_string()),
         ))
+}
+
+/// Proxy publish_message to amaci contract, paying message fees from SAAS balance
+pub fn execute_publish_message(
+    deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: String,
+    enc_pub_keys: Vec<EncPubKeyParam>,
+    messages: Vec<MessageDataParam>,
+) -> Result<Response, ContractError> {
+    if !OPERATORS.has(deps.storage, &info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let target_addr = deps.api.addr_validate(&contract_addr)?;
+
+    let message_count = messages.len() as u128;
+    let required = MESSAGE_FEE
+        .checked_mul(Uint128::from(message_count))
+        .map_err(|e| ContractError::Std(cosmwasm_std::StdError::generic_err(e.to_string())))?;
+
+    let mut total_balance = TOTAL_BALANCE.load(deps.storage)?;
+    if total_balance < required {
+        return Err(ContractError::InsufficientBalance {
+            required,
+            available: total_balance,
+        });
+    }
+    total_balance -= required;
+    TOTAL_BALANCE.save(deps.storage, &total_balance)?;
+
+    let amaci_msg = serde_json::json!({
+        "publish_message": {
+            "enc_pub_keys": enc_pub_keys,
+            "messages": messages
+        }
+    });
+
+    let execute_msg = WasmMsg::Execute {
+        contract_addr: target_addr.to_string(),
+        msg: to_json_binary(&amaci_msg)?,
+        funds: vec![Coin {
+            denom: FEE_DENOM.to_string(),
+            amount: required,
+        }],
+    };
+
+    Ok(Response::new()
+        .add_message(execute_msg)
+        .add_attribute("action", "saas_publish_message")
+        .add_attribute("operator", info.sender.to_string())
+        .add_attribute("target_contract", contract_addr)
+        .add_attribute("message_count", message_count.to_string())
+        .add_attribute("fee_paid", required.to_string()))
+}
+
+/// Proxy publish_deactivate_message to amaci contract, paying deactivate fee from SAAS balance
+pub fn execute_publish_deactivate_message(
+    deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: String,
+    enc_pub_key: EncPubKeyParam,
+    message: MessageDataParam,
+) -> Result<Response, ContractError> {
+    if !OPERATORS.has(deps.storage, &info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let target_addr = deps.api.addr_validate(&contract_addr)?;
+
+    let required = DEACTIVATE_FEE;
+    let mut total_balance = TOTAL_BALANCE.load(deps.storage)?;
+    if total_balance < required {
+        return Err(ContractError::InsufficientBalance {
+            required,
+            available: total_balance,
+        });
+    }
+    total_balance -= required;
+    TOTAL_BALANCE.save(deps.storage, &total_balance)?;
+
+    let amaci_msg = serde_json::json!({
+        "publish_deactivate_message": {
+            "enc_pub_key": enc_pub_key,
+            "message": message
+        }
+    });
+
+    let execute_msg = WasmMsg::Execute {
+        contract_addr: target_addr.to_string(),
+        msg: to_json_binary(&amaci_msg)?,
+        funds: vec![Coin {
+            denom: FEE_DENOM.to_string(),
+            amount: required,
+        }],
+    };
+
+    Ok(Response::new()
+        .add_message(execute_msg)
+        .add_attribute("action", "saas_publish_deactivate_message")
+        .add_attribute("operator", info.sender.to_string())
+        .add_attribute("target_contract", contract_addr)
+        .add_attribute("fee_paid", required.to_string()))
 }
 
 /// Create AMACI round via registry using Unified MACI API

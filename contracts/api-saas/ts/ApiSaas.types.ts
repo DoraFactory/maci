@@ -58,6 +58,18 @@ export type ExecuteMsg = {
     contract_addr: string;
     vote_option_map: string[];
   };
+} | {
+  publish_message: {
+    contract_addr: string;
+    enc_pub_keys: EncPubKeyParam[];
+    messages: MessageDataParam[];
+  };
+} | {
+  publish_deactivate_message: {
+    contract_addr: string;
+    enc_pub_key: EncPubKeyParam;
+    message: MessageDataParam;
+  };
 };
 export type Uint128 = string;
 export type Uint256 = string;
@@ -101,6 +113,13 @@ export interface RoundInfo {
 export interface VotingTime {
   end_time: Timestamp;
   start_time: Timestamp;
+}
+export interface EncPubKeyParam {
+  x: string;
+  y: string;
+}
+export interface MessageDataParam {
+  data: string[];
 }
 export type QueryMsg = {
   config: {};

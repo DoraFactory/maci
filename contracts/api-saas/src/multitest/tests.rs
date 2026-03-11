@@ -1,13 +1,14 @@
-use cosmwasm_std::{coins, Addr, DepsMut, Env, Reply, Response, StdResult, Uint128, Uint256};
+use cosmwasm_std::{coins, Addr, DepsMut, Env, Reply, Response, StdResult, Timestamp, Uint128, Uint256};
 use cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor, StargateAccepting};
 
 use crate::error::ContractError;
-use crate::msg::ExecuteMsg;
+use crate::msg::{EncPubKeyParam, ExecuteMsg, MessageDataParam};
 use crate::multitest::{
     admin, create_app, creator, mock_registry_contract, operator1, operator2, treasury_manager,
     test_round_info, test_voting_time, user1, user2, SaasCodeId, DORA_DEMON,
 };
-use cw_amaci::multitest::{test_pubkey1, uint256_from_decimal_string};
+use cw_amaci::multitest::{test_pubkey1, test_pubkey2, test_pubkey3, uint256_from_decimal_string};
+use cw_amaci::state::{DEACTIVATE_FEE, MESSAGE_FEE};
 use cw_maci;
 use cw_maci::state::RoundInfo as OracleMaciRoundInfo;
 
@@ -1520,6 +1521,385 @@ fn test_create_amaci_round_unauthorized_real() {
     let error = result.unwrap_err();
     assert_eq!(
         error.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+}
+
+// ========= PublishMessage / PublishDeactivateMessage via SAAS Tests =========
+
+/// dora operator address used across publish-message integration tests
+fn dora_operator() -> Addr {
+    Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug")
+}
+
+/// Shared test environment for publish-message tests.
+struct PublishTestEnv {
+    app: crate::multitest::App,
+    saas: crate::multitest::SaasContract,
+    /// Address of the created AMACI round contract
+    amaci_addr: String,
+}
+
+/// Build a complete SAAS + Registry + AMACI environment.
+///
+/// - `initial_deposit`: how many peaka to deposit into the SAAS contract upfront.
+/// - `deactivate_enabled`: whether the created AMACI round has deactivation enabled.
+///
+/// After the setup the block time is set to within `test_voting_time`.
+fn setup_publish_env(initial_deposit: u128, deactivate_enabled: bool) -> PublishTestEnv {
+    // 200 DORA gives every participant more than enough balance.
+    let initial_balance = 200_000_000_000_000_000_000u128;
+
+    let mut app = AppBuilder::default()
+        .with_stargate(StargateAccepting)
+        .build(|router, _api, storage| {
+            for addr in [user1(), operator1(), admin(), treasury_manager(), dora_operator()] {
+                router
+                    .bank
+                    .init_balance(storage, &addr, coins(initial_balance, DORA_DEMON))
+                    .unwrap();
+            }
+        });
+
+    let _oracle_maci_code_id = app.store_code(oracle_maci_contract());
+    let amaci_code_id = app.store_code(real_amaci_contract());
+    let registry_code_id = app.store_code(real_registry_contract());
+    let saas_code_id = SaasCodeId::store_code(&mut app);
+
+    // Instantiate registry
+    let registry_addr = app
+        .instantiate_contract(
+            registry_code_id,
+            admin(),
+            &cw_amaci_registry::msg::InstantiateMsg {
+                admin: admin(),
+                operator: admin(),
+                amaci_code_id,
+            },
+            &[],
+            "Real Registry",
+            None,
+        )
+        .unwrap();
+
+    // Set validators & MACI operator
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetValidators {
+            addresses: cw_amaci_registry::state::ValidatorSet {
+                addresses: vec![admin()],
+            },
+        },
+        &[],
+    )
+    .unwrap();
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperator {
+            operator: dora_operator(),
+        },
+        &[],
+    )
+    .unwrap();
+    app.execute_contract(
+        dora_operator(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperatorPubkey {
+            pubkey: test_pubkey1(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Instantiate SAAS
+    let saas = saas_code_id
+        .instantiate(
+            &mut app,
+            creator(),
+            admin(),
+            treasury_manager(),
+            registry_addr,
+            DORA_DEMON.to_string(),
+            "SaaS Contract",
+        )
+        .unwrap();
+
+    // Register operator1 in SAAS
+    saas.add_operator(&mut app, admin(), operator1()).unwrap();
+
+    // Deposit initial funds into SAAS
+    if initial_deposit > 0 {
+        saas.deposit(&mut app, user1(), &coins(initial_deposit, DORA_DEMON))
+            .unwrap();
+    }
+
+    // Create AMACI round via SAAS (requires ~20 DORA from SAAS balance)
+    let result = saas
+        .create_amaci_round(
+            &mut app,
+            operator1(),
+            dora_operator(),
+            Uint256::from(25u128),
+            cw_amaci::state::VoiceCreditMode::Unified {
+                amount: Uint256::from(100u128),
+            },
+            vec![
+                "A".to_string(),
+                "B".to_string(),
+                "C".to_string(),
+                "D".to_string(),
+                "E".to_string(),
+            ],
+            test_round_info(),
+            test_voting_time(),
+            cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: cw_amaci::msg::WhitelistBase { users: vec![] },
+            },
+            Uint256::zero(),
+            Uint256::zero(),
+            deactivate_enabled,
+            &[],
+        )
+        .unwrap();
+
+    // Extract the AMACI contract address from events
+    let amaci_addr = result
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "round_addr")
+        .expect("round_addr not found in events")
+        .value
+        .clone();
+
+    // Advance block time into the voting period (2022-01-01 00:00:00 < t < 2022-01-02 00:00:00)
+    app.update_block(|block| {
+        block.time = Timestamp::from_seconds(1641000000);
+    });
+
+    PublishTestEnv { app, saas, amaci_addr }
+}
+
+/// Query `GetMsgChainLength` from the AMACI contract.
+fn query_msg_chain_length(app: &crate::multitest::App, amaci_addr: &str) -> Uint256 {
+    app.wrap()
+        .query_wasm_smart(amaci_addr, &cw_amaci::msg::QueryMsg::GetMsgChainLength {})
+        .unwrap()
+}
+
+/// Query `GetDMsgChainLength` from the AMACI contract.
+fn query_dmsg_chain_length(app: &crate::multitest::App, amaci_addr: &str) -> Uint256 {
+    app.wrap()
+        .query_wasm_smart(amaci_addr, &cw_amaci::msg::QueryMsg::GetDMsgChainLength {})
+        .unwrap()
+}
+
+// ─── publish_message tests ────────────────────────────────────────────────────
+
+/// Operator calls SAAS `publish_message`; SAAS pays the fee from its balance and
+/// forwards the call to the AMACI contract.
+/// Verify msg_chain_length increments and SAAS balance decreases by exactly MESSAGE_FEE.
+#[test]
+fn test_saas_publish_message_success() {
+    // 100 DORA deposited; round creation costs ~20 DORA, leaving ~80 DORA.
+    let PublishTestEnv { mut app, saas, amaci_addr } =
+        setup_publish_env(100_000_000_000_000_000_000, false);
+
+    let balance_before = saas.query_balance(&app).unwrap();
+    assert_eq!(query_msg_chain_length(&app, &amaci_addr), Uint256::zero());
+
+    let pubkey = test_pubkey1();
+    let result = saas.publish_message(
+        &mut app,
+        operator1(),
+        amaci_addr.clone(),
+        vec![EncPubKeyParam {
+            x: pubkey.x.to_string(),
+            y: pubkey.y.to_string(),
+        }],
+        vec![MessageDataParam {
+            data: vec!["1".to_string(); 10],
+        }],
+    );
+    assert!(result.is_ok(), "publish_message via SAAS should succeed: {:?}", result.err());
+
+    // msg_chain_length must have increased to 1
+    assert_eq!(query_msg_chain_length(&app, &amaci_addr), Uint256::from_u128(1));
+
+    // SAAS balance must have decreased by exactly MESSAGE_FEE
+    let balance_after = saas.query_balance(&app).unwrap();
+    assert_eq!(balance_after, balance_before - MESSAGE_FEE);
+}
+
+/// Operator sends a batch of 3 messages in a single call.
+/// Verify chain length becomes 3 and SAAS balance decreases by MESSAGE_FEE * 3.
+#[test]
+fn test_saas_publish_message_batch_success() {
+    let PublishTestEnv { mut app, saas, amaci_addr } =
+        setup_publish_env(100_000_000_000_000_000_000, false);
+
+    let balance_before = saas.query_balance(&app).unwrap();
+
+    // Three distinct enc_pub_keys are required (each key may only be used once per round)
+    let pubkeys = [test_pubkey1(), test_pubkey2(), test_pubkey3()];
+    let enc_pub_keys: Vec<_> = pubkeys
+        .iter()
+        .map(|p| EncPubKeyParam {
+            x: p.x.to_string(),
+            y: p.y.to_string(),
+        })
+        .collect();
+    let messages: Vec<_> = (0..3)
+        .map(|_| MessageDataParam {
+            data: vec!["1".to_string(); 10],
+        })
+        .collect();
+
+    let result =
+        saas.publish_message(&mut app, operator1(), amaci_addr.clone(), enc_pub_keys, messages);
+    assert!(result.is_ok(), "batch publish via SAAS should succeed: {:?}", result.err());
+
+    // Chain length must be 3
+    assert_eq!(query_msg_chain_length(&app, &amaci_addr), Uint256::from_u128(3));
+
+    // Balance decreased by MESSAGE_FEE * 3
+    let balance_after = saas.query_balance(&app).unwrap();
+    let expected_fee = MESSAGE_FEE.checked_mul(Uint128::from(3u128)).unwrap();
+    assert_eq!(balance_after, balance_before - expected_fee);
+}
+
+/// A non-operator address must not be allowed to call `publish_message`.
+#[test]
+fn test_saas_publish_message_unauthorized() {
+    let PublishTestEnv { mut app, saas, amaci_addr } =
+        setup_publish_env(100_000_000_000_000_000_000, false);
+
+    let pubkey = test_pubkey1();
+    let err = saas
+        .publish_message(
+            &mut app,
+            user1(), // user1 is NOT an operator in SAAS
+            amaci_addr.clone(),
+            vec![EncPubKeyParam {
+                x: pubkey.x.to_string(),
+                y: pubkey.y.to_string(),
+            }],
+            vec![MessageDataParam {
+                data: vec!["1".to_string(); 10],
+            }],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+}
+
+/// When the SAAS contract balance is lower than MESSAGE_FEE, the call must be
+/// rejected with InsufficientBalance before any interaction with the AMACI contract.
+#[test]
+fn test_saas_publish_message_insufficient_balance() {
+    // Deposit 21 DORA. Round creation costs ~20 DORA, leaving ~1 DORA which is
+    // less than MESSAGE_FEE (10 DORA).
+    let PublishTestEnv { mut app, saas, amaci_addr } =
+        setup_publish_env(21_000_000_000_000_000_000, false);
+
+    let available = saas.query_balance(&app).unwrap();
+    assert!(available < MESSAGE_FEE, "pre-condition: SAAS balance must be < MESSAGE_FEE");
+
+    let pubkey = test_pubkey1();
+    let err = saas
+        .publish_message(
+            &mut app,
+            operator1(),
+            amaci_addr.clone(),
+            vec![EncPubKeyParam {
+                x: pubkey.x.to_string(),
+                y: pubkey.y.to_string(),
+            }],
+            vec![MessageDataParam {
+                data: vec!["1".to_string(); 10],
+            }],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InsufficientBalance {
+            required: MESSAGE_FEE,
+            available,
+        }
+    );
+}
+
+// ─── publish_deactivate_message tests ────────────────────────────────────────
+
+/// Operator calls SAAS `publish_deactivate_message`; SAAS pays DEACTIVATE_FEE
+/// from its balance and forwards to the AMACI contract.
+/// Verify dmsg_chain_length increments and SAAS balance decreases by DEACTIVATE_FEE.
+#[test]
+fn test_saas_publish_deactivate_message_success() {
+    // deactivate_enabled = true is mandatory for the AMACI contract to accept the call.
+    let PublishTestEnv { mut app, saas, amaci_addr } =
+        setup_publish_env(100_000_000_000_000_000_000, true);
+
+    let balance_before = saas.query_balance(&app).unwrap();
+    assert_eq!(query_dmsg_chain_length(&app, &amaci_addr), Uint256::zero());
+
+    let pubkey = test_pubkey1();
+    let result = saas.publish_deactivate_message(
+        &mut app,
+        operator1(),
+        amaci_addr.clone(),
+        EncPubKeyParam {
+            x: pubkey.x.to_string(),
+            y: pubkey.y.to_string(),
+        },
+        MessageDataParam {
+            data: vec!["1".to_string(); 10],
+        },
+    );
+    assert!(
+        result.is_ok(),
+        "publish_deactivate_message via SAAS should succeed: {:?}",
+        result.err()
+    );
+
+    // dmsg_chain_length must have increased to 1
+    assert_eq!(query_dmsg_chain_length(&app, &amaci_addr), Uint256::from_u128(1));
+
+    // SAAS balance must have decreased by exactly DEACTIVATE_FEE
+    let balance_after = saas.query_balance(&app).unwrap();
+    assert_eq!(balance_after, balance_before - DEACTIVATE_FEE);
+}
+
+/// A non-operator address must not be allowed to call `publish_deactivate_message`.
+#[test]
+fn test_saas_publish_deactivate_message_unauthorized() {
+    let PublishTestEnv { mut app, saas, amaci_addr } =
+        setup_publish_env(100_000_000_000_000_000_000, true);
+
+    let pubkey = test_pubkey1();
+    let err = saas
+        .publish_deactivate_message(
+            &mut app,
+            user1(), // user1 is NOT an operator in SAAS
+            amaci_addr.clone(),
+            EncPubKeyParam {
+                x: pubkey.x.to_string(),
+                y: pubkey.y.to_string(),
+            },
+            MessageDataParam {
+                data: vec!["1".to_string(); 10],
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
         ContractError::Unauthorized {}
     );
 }

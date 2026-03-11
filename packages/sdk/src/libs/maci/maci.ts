@@ -811,46 +811,33 @@ export class MACI {
     const totalFee = (BigInt(MESSAGE_FEE) * BigInt(payload.length)).toString();
     const batchFunds = [{ denom: FEE_DENOM, amount: totalFee }];
 
-    if (gasStation && typeof fee !== 'object') {
-      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+    if (gasStation && granter === this.contract.apiSaasAddress) {
+      // SAAS path: the SAAS contract covers message fees from its own balance;
+      // the operator's gas is covered by feegrant from the SAAS contract.
+      return this.contract.publishMessageViaSaas({
+        signer,
+        contractAddress,
+        encPubKeys,
+        messages,
+        granter,
+        fee
+      });
+    } else if (gasStation && typeof fee !== 'object') {
+      // Standard feegrant path: granter covers the operator's gas via feegrant,
+      // but the caller's account still pays batchFunds directly.
       const client = await this.contract.contractClient({ signer });
-      const encPubKeysBigInt = payload.map((p) => ({
-        x: p.encPubkeys[0],
-        y: p.encPubkeys[1]
-      }));
-      const messagesBigInt = payload.map((p) => ({
-        data: p.msg as [
-          bigint,
-          bigint,
-          bigint,
-          bigint,
-          bigint,
-          bigint,
-          bigint,
-          bigint,
-          bigint,
-          bigint
-        ]
-      }));
-      const msg: MsgExecuteContractEncodeObject = {
+      const msgForSimulate: MsgExecuteContractEncodeObject = {
         typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
         value: MsgExecuteContract.fromPartial({
           sender: address,
           contract: contractAddress,
           msg: new TextEncoder().encode(
-            JSON.stringify(
-              stringizing({
-                publish_message: {
-                  enc_pub_keys: encPubKeysBigInt,
-                  messages: messagesBigInt
-                }
-              })
-            )
+            JSON.stringify({ publish_message: { enc_pub_keys: encPubKeys, messages } })
           ),
           funds: batchFunds
         })
       };
-      const gasEstimation = await client.simulate(address, [msg], '');
+      const gasEstimation = await client.simulate(address, [msgForSimulate], '');
       const multiplier = typeof fee === 'number' ? fee : 1.8;
       const gasPrice = GasPrice.fromString('10000000000peaka');
       const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
@@ -861,7 +848,7 @@ export class MACI {
       };
       return amaciClient.publishMessage({ encPubKeys, messages }, grantFee, undefined, batchFunds);
     } else if (gasStation && typeof fee === 'object') {
-      // When gasStation is true and fee is StdFee, add granter
+      // Standard feegrant path with pre-built StdFee.
       const grantFee: StdFee = {
         ...fee,
         granter: granter || contractAddress
@@ -1076,21 +1063,27 @@ export class MACI {
     try {
       address = address || (await signer.getAccounts())[0].address;
 
-      const client = await this.contract.contractClient({
-        signer
-      });
-
-      // const payload = batchGenMessage(
-      //   Number(stateIdx),
-      //   maciKeypair,
-      //   [
-      //     BigInt(operatorCoordPubKey.coordinatorPubkeyX),
-      //     BigInt(operatorCoordPubKey.coordinatorPubkeyY),
-      //   ],
-      //   [[0, 0]]
-      // );
-
       const { msg, encPubkeys } = payload;
+
+      if (gasStation === true && granter === this.contract.apiSaasAddress) {
+        // SAAS path: the SAAS contract covers the deactivate fee from its own balance;
+        // the operator's gas is covered by feegrant from the SAAS contract.
+        return this.contract.publishDeactivateMessageViaSaas({
+          signer,
+          contractAddress,
+          encPubKey: {
+            x: encPubkeys[0].toString(),
+            y: encPubkeys[1].toString()
+          },
+          message: {
+            data: msg.map((m) => m.toString())
+          },
+          granter,
+          fee
+        });
+      }
+
+      const client = await this.contract.contractClient({ signer });
 
       const deactivateMsg = stringizing({
         publish_deactivate_message: {
@@ -1107,7 +1100,8 @@ export class MACI {
       const deactivateFunds = [{ denom: FEE_DENOM, amount: DEACTIVATE_FEE }];
 
       if (gasStation === true && typeof fee !== 'object') {
-        // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
+        // Standard feegrant path: granter covers the operator's gas via feegrant,
+        // but the caller's account still pays deactivateFunds directly.
         const gasEstimation = await client.simulate(
           address,
           [
@@ -1133,7 +1127,7 @@ export class MACI {
         };
         return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
       } else if (gasStation === true && typeof fee === 'object') {
-        // When gasStation is true and fee is StdFee, add granter
+        // Standard feegrant path with pre-built StdFee.
         const grantFee: StdFee = {
           ...fee,
           granter: granter || contractAddress

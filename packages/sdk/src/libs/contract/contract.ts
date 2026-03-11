@@ -620,4 +620,140 @@ export class Contract {
       contractAddress
     };
   }
+
+  async publishMessageViaSaas({
+    signer,
+    contractAddress,
+    encPubKeys,
+    messages,
+    granter,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    encPubKeys: { x: string; y: string }[];
+    messages: { data: string[] }[];
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.apiSaasAddress
+    });
+
+    const saasGranter = granter || this.apiSaasAddress;
+
+    if (typeof fee !== 'object') {
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        publish_message: {
+          contract_addr: contractAddress,
+          enc_pub_keys: encPubKeys,
+          messages
+        }
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.apiSaasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: saasGranter
+      };
+      return client.publishMessage({ contractAddr: contractAddress, encPubKeys, messages }, grantFee);
+    } else {
+      const grantFee: StdFee = {
+        ...fee,
+        granter: saasGranter
+      };
+      return client.publishMessage({ contractAddr: contractAddress, encPubKeys, messages }, grantFee);
+    }
+  }
+
+  async publishDeactivateMessageViaSaas({
+    signer,
+    contractAddress,
+    encPubKey,
+    message,
+    granter,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    encPubKey: { x: string; y: string };
+    message: { data: string[] };
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.apiSaasAddress
+    });
+
+    const saasGranter = granter || this.apiSaasAddress;
+
+    if (typeof fee !== 'object') {
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        publish_deactivate_message: {
+          contract_addr: contractAddress,
+          enc_pub_key: encPubKey,
+          message
+        }
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.apiSaasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: saasGranter
+      };
+      return client.publishDeactivateMessage(
+        { contractAddr: contractAddress, encPubKey, message },
+        grantFee
+      );
+    } else {
+      const grantFee: StdFee = {
+        ...fee,
+        granter: saasGranter
+      };
+      return client.publishDeactivateMessage(
+        { contractAddr: contractAddress, encPubKey, message },
+        grantFee
+      );
+    }
+  }
 }

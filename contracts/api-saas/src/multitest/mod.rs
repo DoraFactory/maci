@@ -279,6 +279,48 @@ impl SaasContract {
     }
 
     // Note: Feegrant query functions removed as they're handled by Oracle MACI contract
+
+    #[track_caller]
+    pub fn publish_message(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        contract_addr: String,
+        enc_pub_keys: Vec<EncPubKeyParam>,
+        messages: Vec<MessageDataParam>,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                contract_addr,
+                enc_pub_keys,
+                messages,
+            },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn publish_deactivate_message(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        contract_addr: String,
+        enc_pub_key: EncPubKeyParam,
+        message: MessageDataParam,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishDeactivateMessage {
+                contract_addr,
+                enc_pub_key,
+                message,
+            },
+            &[],
+        )
+    }
 }
 
 impl From<Addr> for SaasContract {

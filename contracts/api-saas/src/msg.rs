@@ -6,6 +6,17 @@ use cw_amaci::state::{RoundInfo, VoiceCreditMode, VotingTime};
 use crate::state::{Config, OperatorInfo};
 
 #[cw_serde]
+pub struct EncPubKeyParam {
+    pub x: String,
+    pub y: String,
+}
+
+#[cw_serde]
+pub struct MessageDataParam {
+    pub data: Vec<String>,
+}
+
+#[cw_serde]
 pub struct InstantiateMsg {
     pub admin: Addr,
     pub treasury_manager: Addr,
@@ -78,6 +89,18 @@ pub enum ExecuteMsg {
     SetVoteOptionsMap {
         contract_addr: String,
         vote_option_map: Vec<String>,
+    },
+
+    // Proxy vote/deactivate on behalf of users (SAAS contract covers message fees from its balance)
+    PublishMessage {
+        contract_addr: String,
+        enc_pub_keys: Vec<EncPubKeyParam>,
+        messages: Vec<MessageDataParam>,
+    },
+    PublishDeactivateMessage {
+        contract_addr: String,
+        enc_pub_key: EncPubKeyParam,
+        message: MessageDataParam,
     },
 }
 
