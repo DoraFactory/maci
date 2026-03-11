@@ -65,7 +65,6 @@ export async function createApiSaasClientBy({
 }
 
 export async function createContractClientByWallet(rpcEndpoint: string, wallet: OfflineSigner) {
-  console.log('rpcEndpoint', rpcEndpoint);
   const client = await SigningCosmWasmClient.connectWithSigner(rpcEndpoint, wallet, {
     ...defaultSigningClientOptions
   });
