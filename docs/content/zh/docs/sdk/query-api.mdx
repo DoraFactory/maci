@@ -37,13 +37,14 @@ rounds.forEach(round => {
 ### 按状态查询
 
 ```typescript
-const activeRounds = await client.indexer.getRoundsByStatus(
-  'Voting',
+const processingRounds = await client.indexer.getRoundsByStatus(
+  'Processing',
   'first',
   10
 );
 
-// 可用状态：'Created', 'Voting', 'Processing', 'Tallied'
+// 可用状态：'Pending', 'Processing', 'Tallying', 'Ended'
+// 注意：'Voting' 状态已移除。用户签到和投票在时间窗口内的 'Pending' 状态中进行。
 ```
 
 ### 按 Operator 查询
@@ -175,6 +176,72 @@ console.log('Proof info:', {
 });
 ```
 
+## AMACI 专项查询
+
+### 获取 Poll ID
+
+每个 AMACI 合约由 Registry 分配唯一的 Poll ID：
+
+```typescript
+const pollId = await client.getPollId({ contractAddress: amaciAddress });
+console.log('Poll ID:', pollId);  // 例如：42
+```
+
+### 注册状态查询（取代 isWhitelisted / queryWhitelistBalanceOf）
+
+适配所有注册模式的统一查询接口：
+
+```typescript
+// SignUpWithStaticWhitelist 模式
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciAddress,
+  address: userAddress
+});
+
+// SignUpWithOracle 模式（携带证书）
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciAddress,
+  pubkey: { x: pubkeyX, y: pubkeyY },
+  certificate: oracleCertificate,
+  amount: '150'  // Dynamic VC 模式时必填
+});
+
+console.log('can_sign_up:', status.can_sign_up);   // 是否可以注册
+console.log('is_register:', status.is_register);   // 是否已注册
+console.log('balance:', status.balance);           // 已注册时的投票权重
+```
+
+### 状态索引和投票权重
+
+```typescript
+// 获取用户的状态索引
+const stateIdx = await client.getStateIdxInc({ contractAddress: amaciAddress, address: userAddress });
+
+// 通过状态索引获取投票权重余额
+const balance = await client.getVoiceCreditBalance({ contractAddress: amaciAddress, index: stateIdx.toString() });
+```
+
+### 注册配置查询
+
+```typescript
+// 获取轮次的注册和权重配置
+const config = await client.getRegistrationConfig({ contractAddress: amaciAddress });
+console.log('deactivate_enabled:', config.deactivate_enabled);
+console.log('voice_credit_mode:', config.voice_credit_mode);
+console.log('registration_mode:', config.registration_mode);
+
+// 查询是否开启 deactivate 功能
+const deactivateEnabled = await client.getDeactivateEnabled({ contractAddress: amaciAddress });
+```
+
+### 统计结果查询
+
+```typescript
+// 一次获取所有选项的统计结果
+const results = await client.getAllResults({ contractAddress: amaciAddress });
+console.log('各选项票数:', results);  // Vec<Uint256>
+```
+
 ## 余额查询
 
 ### 查询账户余额
@@ -212,12 +279,14 @@ const page0 = await client.getRounds('before', 10, page1[0].id);
 async function findActiveQVRounds(client: MaciClient) {
   const qvRounds = await client.indexer.getRoundsByCircuitName('amaci-qv', 'first', 100);
   
+  // 投票在 'Pending' 状态的时间窗口内进行，不存在单独的 'Voting' 状态。
+  // 需同时判断状态和时间窗口。
   const activeRounds = qvRounds.filter(round => {
     const now = Date.now() / 1000;
     return (
+      round.status === 'Pending' &&
       round.votingTime.startTime <= now &&
-      round.votingTime.endTime >= now &&
-      round.status === 'Voting'
+      round.votingTime.endTime >= now
     );
   });
   

@@ -45,6 +45,20 @@ await client.signup({
 });
 ```
 
+### Check Registration Eligibility
+
+```typescript
+// Unified query replacing the old isWhitelisted / queryWhitelistBalanceOf
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciContractAddress,
+  address: userAddress  // for SignUpWithStaticWhitelist mode
+});
+
+console.log('Can sign up:', status.can_sign_up);
+console.log('Already registered:', status.is_register);
+console.log('Voice credits:', status.balance);
+```
+
 ### Vote
 
 ```typescript

@@ -1,6 +1,6 @@
 # Create Voting Round
 
-Use SDK to create MACI voting rounds.
+Use the SDK to create AMACI voting rounds through the Registry contract.
 
 ## Minimal Example
 
@@ -17,20 +17,32 @@ const operator = operators.find(op => op.status === 'Active');
 const round = await client.createAMaciRound({
   signer: wallet,
   operator: operator.address,
-  
+
   startVoting: new Date(),
   endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),  // 7 days later
-  
+
   title: 'Community Proposal Vote',
   voteOptionMap: ['Option A', 'Option B', 'Option C'],
-  
-  circuitType: MaciCircuitType.QV,  // Quadratic voting
+
+  circuitType: MaciCircuitType.QV,
   maxVoter: 100,
-  voiceCreditAmount: '100',
-  
-  whitelist: {
-    addresses: ['dora1...', 'dora1...']  // Whitelist addresses
-  }
+
+  // Voice credit allocation: everyone gets 100 credits
+  voiceCreditMode: { unified: { amount: '100' } },
+
+  // Registration: static whitelist
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: 'dora1...' },
+          { addr: 'dora1...' }
+        ]
+      }
+    }
+  },
+
+  deactivateEnabled: false
 });
 
 console.log('Contract address:', round.contractAddress);
@@ -40,50 +52,187 @@ console.log('Contract address:', round.contractAddress);
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `signer` | Wallet | Signing wallet (creator) |
+| `signer` | Wallet | Signing wallet (round creator) |
 | `operator` | string | Operator address |
 | `startVoting` | Date | Voting start time |
 | `endVoting` | Date | Voting end time |
 | `title` | string | Vote title |
-| `voteOptionMap` | string[] | Voting options list |
-| `circuitType` | MaciCircuitType | QV or 1P1V |
+| `voteOptionMap` | string[] | Voting option labels |
+| `circuitType` | MaciCircuitType | `QV` (quadratic) or `IP1V` (one person one vote) |
 | `maxVoter` | number | Maximum voter count |
-| `voiceCreditAmount` | string | Voting weight per person |
-| `whitelist` | object | Whitelist configuration |
+| `voiceCreditMode` | VoiceCreditMode | How voting power is allocated (see below) |
+| `registrationMode` | RegistrationModeConfig | Registration method and access control (see below) |
+| `deactivateEnabled` | boolean | Enable the deactivate → AddNewKey flow (default `false`) |
 
-## Whitelist Configuration
+## VoiceCreditMode
 
-### Address List Mode
+Defines how voting power (voice credits) is allocated to participants:
 
-Specify specific address list:
+### Unified Mode
+
+All users receive the same fixed amount of voice credits:
 
 ```typescript
-whitelist: {
-  addresses: [
-    'dora1abc...',
-    'dora1def...',
-    'dora1ghi...'
-  ]
+voiceCreditMode: { unified: { amount: '100' } }
+```
+
+### Dynamic Mode
+
+Each user's voice credits equal the amount embedded in their oracle-signed certificate. Used together with `SignUpWithOracle` registration mode:
+
+```typescript
+voiceCreditMode: 'dynamic'
+```
+
+## RegistrationModeConfig
+
+A unified enum that controls who can register and how. This replaces the old separate `whitelist`, `voiceCreditAmount`, `oracle_whitelist_pubkey`, `preDeactivateRoot`, and `preDeactivateCoordinator` fields.
+
+### SignUpWithStaticWhitelist
+
+Users call `SignUp` directly; only addresses in the pre-defined list are accepted:
+
+```typescript
+registrationMode: {
+  sign_up_with_static_whitelist: {
+    whitelist: {
+      users: [
+        { addr: 'dora1abc...' },
+        { addr: 'dora1def...' },
+        { addr: 'dora1ghi...' }
+      ]
+    }
+  }
 }
 ```
+
+Each entry in `users` also accepts an optional `voice_credit_amount` field, which overrides the global `voiceCreditMode` for that specific user. This allows per-user differentiated voting power within a static whitelist:
+
+```typescript
+registrationMode: {
+  sign_up_with_static_whitelist: {
+    whitelist: {
+      users: [
+        { addr: 'dora1abc...', voice_credit_amount: '200' },  // 200 credits
+        { addr: 'dora1def...', voice_credit_amount: '100' },  // 100 credits
+        { addr: 'dora1ghi...' }                               // falls back to voiceCreditMode
+      ]
+    }
+  }
+}
+```
+
+### SignUpWithOracle
+
+Users call `SignUp` with a backend-signed certificate. No fixed address list needed:
+
+```typescript
+registrationMode: {
+  sign_up_with_oracle: {
+    oracle_pubkey: 'ORACLE_PUBLIC_KEY_HEX'
+  }
+}
+
+// Users sign up with certificate:
+await client.signup({
+  signer: wallet,
+  contractAddress: amaciAddress,
+  maciKeypair,
+  certificate: oracleCertificate,
+  amount: '150'  // required when voiceCreditMode is Dynamic
+});
+```
+
+### PrePopulated
+
+Users must register via `PreAddNewKey` using a ZK proof. Direct `SignUp` is disabled. Used for fully anonymous voting where participants receive pre-generated keypairs:
+
+```typescript
+registrationMode: {
+  pre_populated: {
+    pre_deactivate_root: preDeactivateData.root,
+    pre_deactivate_coordinator: {
+      x: platformCoordPubkey[0].toString(),
+      y: platformCoordPubkey[1].toString()
+    }
+  }
+}
+```
+
+## Round Type Matrix
+
+The three parameters — `registrationMode`, `voiceCreditMode`, and `deactivateEnabled` — are independent switches that combine to define the complete behavior of an AMACI round. Understanding how they interact lets you choose the right configuration for your use case.
+
+### Configuration Reference Table
+
+| Round Type | `registrationMode` | `voiceCreditMode` | `deactivateEnabled` | Typical Use Case |
+|---|---|---|---|---|
+| Standard Whitelist | `SignUpWithStaticWhitelist` | `Unified` | `false` | DAO / token-gated vote with a fixed member list and equal voting power |
+| Whitelist + Key Rotation | `SignUpWithStaticWhitelist` | `Unified` | `true` | Whitelist round where members can later anonymize their identity via AddNewKey |
+| Oracle-Gated, Equal Credits | `SignUpWithOracle` | `Unified` | `false` | Open registration verified by backend; all voters get the same credits |
+| Oracle-Gated, Variable Credits | `SignUpWithOracle` | `Dynamic` | `false` | Token/stake-weighted voting; each voter's credits come from the oracle certificate |
+| Pre-keyed Anonymous | `PrePopulated` | `Unified` | `false` | Fully anonymous; platform pre-generates and distributes keypairs, users register with ZK proof |
+
+### How `deactivateEnabled` Works
+
+`deactivateEnabled` is an **optional privacy upgrade** that can be combined with `SignUpWithStaticWhitelist` or `SignUpWithOracle`. It unlocks a two-step key-rotation flow:
+
+```
+User signs up (visible on-chain)
+  → User submits DeactivateMessage (10 DORA fee)
+  → Operator processes deactivate batch
+  → User calls AddNewKey with ZK proof (new identity, unlinked from original)
+```
+
+With this flow the operator sees the new identity registered but **cannot link it back to the original address**, providing on-chain anonymity even for whitelist-registered users.
+
+```typescript
+// Round where members can later switch to an anonymous identity
+await client.createAMaciRound({
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: members.map(addr => ({ addr })) }
+    }
+  },
+  voiceCreditMode: { unified: { amount: '100' } },
+  deactivateEnabled: true,  // enables the deactivate → AddNewKey flow
+  // ...
+});
+```
+
+> **`PrePopulated` vs `deactivateEnabled: true`**
+>
+> Both achieve identity anonymization, but at different times:
+> - `PrePopulated` — anonymization happens *before* the round starts: the platform pre-builds a deactivate tree and distributes keypairs, so users register anonymously from day one.
+> - `deactivateEnabled: true` — anonymization happens *during* the round: users first sign up (identity visible), then rotate to a new keypair using a ZK proof.
+>
+> Combining `PrePopulated` with `deactivateEnabled: true` is technically possible but rarely needed.
+
+### Valid Parameter Combinations
+
+| `registrationMode` | `voiceCreditMode: 'dynamic'` allowed? | `deactivateEnabled: true` useful? |
+|---|---|---|
+| `SignUpWithStaticWhitelist` | No (credits are fixed per user in whitelist) | Yes |
+| `SignUpWithOracle` | Yes (credits embedded in certificate) | Yes |
+| `PrePopulated` | No (ZK-based entry, no oracle) | Rarely needed |
 
 ## Voting Modes
 
 ### Quadratic Voting (QV)
 
-Square of votes is consumption amount, encourages distributed voting:
+Votes squared equals credit cost, encouraging distributed voting power:
 
 ```typescript
 circuitType: MaciCircuitType.QV
 
 // User has 100 voice credits
 // 10 votes costs 100 credits (10²)
-// 5 votes costs 25 credits (5²)
+// 5 votes for option A + 5 for option B = 50 credits
 ```
 
 ### One Person One Vote (1P1V)
 
-Votes directly equal consumption amount:
+Votes directly equal credit consumption:
 
 ```typescript
 circuitType: MaciCircuitType.IP1V
@@ -92,40 +241,52 @@ circuitType: MaciCircuitType.IP1V
 // 100 votes costs 100 credits
 ```
 
-## Pre-add-new-key Mode
+## PrePopulated (Anonymous) Mode
 
-Create fully anonymous voting (requires pre-generating keypairs):
+Create a fully anonymous round by pre-generating keypairs and distributing them to users:
 
 ```typescript
-import { OperatorClient } from '@dorafactory/maci-sdk';
+import { OperatorClient, genKeypair } from '@dorafactory/maci-sdk';
 
 const operatorClient = new OperatorClient({ network: 'testnet' });
 
-// 1. Generate pre-configured keypairs
+// 1. Generate keypairs for all participants
 const keypairs = Array.from({ length: 100 }, () => genKeypair());
 
-// 2. Process deactivate and get tree data
-const preDeactivateData = await operatorClient.genPreDeactivates({
-  stateTreeDepth: 10,
-  coordinatorKeypair,
-  deactivates: keypairs.map(kp => ({
-    key: kp,
-    // ... deactivate data
-  })),
-  wasmFile,
-  zkeyFile
+// 2. Build the pre-deactivate tree
+const preDeactivateData = await operatorClient.buildPreDeactivateTree({
+  coordinatorKeypair: platformCoordinatorKeypair,
+  userKeypairs: keypairs
 });
 
-// 3. Create round (with pre-deactivate root)
+// 3. Create round in PrePopulated mode
 const round = await client.createAMaciRound({
-  // ... other parameters
-  preDeactivateRoot: preDeactivateData.root
+  signer: wallet,
+  operator: selectedOperator.address,
+  title: 'Anonymous Vote',
+  voteOptionMap: ['Option A', 'Option B'],
+  circuitType: MaciCircuitType.QV,
+  maxVoter: 100,
+  voiceCreditMode: { unified: { amount: '100' } },
+  registrationMode: {
+    pre_populated: {
+      pre_deactivate_root: preDeactivateData.root,
+      pre_deactivate_coordinator: {
+        x: platformCoordinatorKeypair.pubKey[0].toString(),
+        y: platformCoordinatorKeypair.pubKey[1].toString()
+      }
+    }
+  },
+  deactivateEnabled: false,
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 });
 
-// 4. Distribute keys to users (secure channel)
+// 4. Distribute keypairs to users via a secure channel
+// Each user receives: { privateKey, publicKey, preDeactivateData }
 ```
 
-Users can immediately register anonymously using pre-add-new-key.
+Users then register anonymously without revealing their real identity.
 
 ## Query Operators
 
@@ -146,78 +307,134 @@ Operator list can also be viewed at https://vota.dorafactory.org/operators.
 
 ## Fees
 
-Creating voting rounds requires paying operator service fees. Fees include:
-- Processing deactivate messages (if any)
-- Processing voting messages
-- Generating zero-knowledge proofs
-- Submitting proofs on-chain
+AMACI rounds involve three distinct fee types with different payers:
 
-Fees are automatically calculated based on voting scale (maxVoter) and complexity.
+### 1. Round Creation Fee — paid by the round creator
+
+A one-time fee paid when calling `createAMaciRound`. It covers the operator's full processing cost for the entire round (message processing, ZK proof generation, tally, and gas). The amount is automatically calculated based on `maxVoter` and circuit type.
+
+```typescript
+// Query the fee before creating
+const fee = await client.queryAMaciChargeFee({ maxVoter: 1000, maxOption: 10 });
+console.log('Creation fee:', fee);
+
+// Fee is automatically included when creating the round
+const round = await client.createAMaciRound({ signer: wallet, /* ... */ });
+```
+
+### 2. Vote Message Fee — paid by each voter
+
+Every voter pays **10 DORA** per `PublishMessage` call. Since AMACI batches multiple vote messages into a single call, this is a per-call fee (not per-message).
+
+```typescript
+// The SDK handles this fee automatically when calling vote()
+await client.vote({
+  signer: wallet,
+  contractAddress,
+  selectedOptions: [{ idx: 0, vc: 8 }],
+  // ...
+});
+// 10 DORA deducted from voter's wallet
+```
+
+### 3. Deactivate Message Fee — paid by the user, only when `deactivateEnabled: true`
+
+When a user submits a `PublishDeactivateMessage` to rotate their identity, they pay **10 DORA** per call. This fee only applies to rounds created with `deactivateEnabled: true`.
+
+```typescript
+// Only relevant when deactivateEnabled: true
+await client.deactivate({
+  signer: wallet,
+  contractAddress,
+  maciKeypair
+});
+// 10 DORA deducted from user's wallet
+```
+
+### Fee Summary
+
+| Fee | Amount | Paid by | When |
+|-----|--------|---------|------|
+| Round creation | Varies (based on `maxVoter` + circuit) | Round creator | At `createAMaciRound` |
+| Vote message | 10 DORA / `PublishMessage` call | Voter | Each time `vote()` is called |
+| Deactivate message | 10 DORA / `PublishDeactivateMessage` call | User | Each time `deactivate()` is called (only if `deactivateEnabled: true`) |
 
 ## Use Case Examples
 
 ### DAO Governance Voting
 
 ```typescript
-{
+await client.createAMaciRound({
   title: 'Protocol Upgrade Proposal #42',
   voteOptionMap: ['For', 'Against', 'Abstain'],
   circuitType: MaciCircuitType.IP1V,
-  whitelist: {
-    ecosystem: 'doravota',
-    votingPowerArgs: { mode: 'constant' }  // One person one vote
-  }
-}
+  maxVoter: 500,
+  voiceCreditMode: { unified: { amount: '1' } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: daoMembers.map(addr => ({ addr })) }
+    }
+  },
+  deactivateEnabled: false,
+  // ...other params
+});
 ```
 
 ### Quadratic Funding
 
 ```typescript
-{
-  title: 'Q1 2024 Public Goods Funding',
+await client.createAMaciRound({
+  title: 'Q1 2025 Public Goods Funding',
   voteOptionMap: [
     'Project A: Open Source Tools',
     'Project B: Educational Content',
     'Project C: Community Events'
   ],
-  circuitType: MaciCircuitType.QV,  // Quadratic voting
-  voiceCreditAmount: '1000',
-  whitelist: {
-    ecosystem: 'cosmoshub',
-    votingPowerArgs: {
-      mode: 'slope',
-      slope: '1000000'  // 1 ATOM = 1 credit
+  circuitType: MaciCircuitType.QV,
+  maxVoter: 1000,
+  voiceCreditMode: { unified: { amount: '1000' } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: eligibleVoters.map(addr => ({ addr })) }
     }
-  }
-}
+  },
+  deactivateEnabled: false,
+  // ...other params
+});
 ```
 
-### Anonymous Poll
+### Anonymous Oracle-Gated Vote
 
 ```typescript
-{
+await client.createAMaciRound({
   title: 'Product Feature Priority Survey',
   voteOptionMap: ['Feature A', 'Feature B', 'Feature C', 'Feature D'],
   circuitType: MaciCircuitType.QV,
   maxVoter: 1000,
-  voiceCreditAmount: '100',
-  preDeactivateRoot: '0x...'  // Use pre-add-new-key anonymous mode
-}
+  voiceCreditMode: 'dynamic',  // Voice credits come from oracle certificate
+  registrationMode: {
+    sign_up_with_oracle: {
+      oracle_pubkey: ORACLE_PUBKEY_HEX
+    }
+  },
+  deactivateEnabled: false,
+  // ...other params
+});
 ```
 
 ## FAQ
 
 ### How to modify voting configuration?
 
-Once created, configuration cannot be modified. If changes needed, must create new voting round.
+Once created, configuration cannot be modified. Before voting starts and while `num_signups == 0`, you can call `UpdateRegistrationConfig` to update `voiceCreditMode`, `registrationMode`, or `deactivateEnabled`. After that, create a new round if changes are needed.
 
 ### Can I add more whitelist addresses?
 
-No. Whitelist is fixed at creation and cannot be added or modified during voting period.
+No. The whitelist is fixed at creation via `SignUpWithStaticWhitelist`. Use `SignUpWithOracle` instead if you need flexible access control.
 
 ### Can voting period be extended?
 
-No. Voting start and end times are determined at creation, cannot be changed.
+No. Voting start and end times are set at creation and cannot be changed.
 
 ### Where to get Operator address?
 

@@ -216,17 +216,9 @@ console.log("Hash:", hash);
 **1. Message Hashing**
 
 ```typescript
-// Calculate command hash for signing
-function hashCommand(command: Command): bigint {
-  return poseidon([
-    command.nonce,
-    command.stateIndex,
-    command.voteOptionIndex,
-    command.newVoteWeight,
-    command.newPubKey[0],
-    command.newPubKey[1],
-    command.salt
-  ]);
+// Hash the packed command element together with the new public key
+function hashCommand(packaged: bigint, newPubKey: Point): bigint {
+  return poseidon([packaged, newPubKey[0], newPubKey[1]]);
 }
 ```
 
@@ -411,116 +403,124 @@ function decryptMessage(
 
 ### Message Packing
 
-For efficiency, multiple fields are packed into one large integer:
+For efficiency and ZK-circuit compatibility, multiple command fields are packed into a single
+256-bit integer using fixed-width bit fields:
 
 ```typescript
-function packCommandFields(command: Command): bigint {
-  // Pack multiple small fields into one large integer
-  // nonce (8 bits) | stateIdx (24 bits) | voIdx (8 bits) | 
-  // newVotes (24 bits) | salt (remaining bits)
-  
-  let packed = BigInt(0);
-  packed |= (command.nonce & 0xFF);
-  packed |= (command.stateIndex & 0xFFFFFF) << 8;
-  packed |= (command.voteOptionIndex & 0xFF) << 32;
-  packed |= (command.newVoteWeight & 0xFFFFFF) << 40;
-  packed |= command.salt << 64;
-  
-  return packed;
+/**
+ * Pack command fields into a single bigint.
+ * Bit layout (little-endian, 256 bits total):
+ *
+ *  bits   0 –  31 :  nonce      (32 bits)
+ *  bits  32 –  63 :  stateIdx   (32 bits)
+ *  bits  64 –  95 :  voIdx      (32 bits)
+ *  bits  96 – 191 :  newVotes   (96 bits)
+ *  bits 192 – 223 :  pollId     (32 bits)
+ *  bits 224 – 255 :  (unused)
+ */
+function packElement({
+  nonce, stateIdx, voIdx, newVotes, pollId
+}: {
+  nonce: number | bigint;
+  stateIdx: number | bigint;
+  voIdx: number | bigint;
+  newVotes: number | bigint;
+  pollId: number | bigint;
+}): bigint {
+  return (
+    BigInt(nonce) +
+    (BigInt(stateIdx) << 32n) +
+    (BigInt(voIdx)   << 64n) +
+    (BigInt(newVotes) << 96n) +
+    (BigInt(pollId)  << 192n)
+  );
 }
 
-function unpackCommandFields(packed: bigint): {
+function unpackElement(packaged: bigint): {
   nonce: bigint;
-  stateIndex: bigint;
-  voteOptionIndex: bigint;
-  newVoteWeight: bigint;
-  salt: bigint;
+  stateIdx: bigint;
+  voIdx: bigint;
+  newVotes: bigint;
+  pollId: bigint;
 } {
+  const UINT32 = (1n << 32n);
+  const UINT96 = (1n << 96n);
   return {
-    nonce: packed & BigInt(0xFF),
-    stateIndex: (packed >> BigInt(8)) & BigInt(0xFFFFFF),
-    voteOptionIndex: (packed >> BigInt(32)) & BigInt(0xFF),
-    newVoteWeight: (packed >> BigInt(40)) & BigInt(0xFFFFFF),
-    salt: packed >> BigInt(64)
+    nonce:    packaged % UINT32,
+    stateIdx: (packaged >> 32n) % UINT32,
+    voIdx:    (packaged >> 64n) % UINT32,
+    newVotes: (packaged >> 96n) % UINT96,
+    pollId:   (packaged >> 192n) % UINT32,
   };
 }
 ```
 
+> **Note:** `salt` (a random 56-bit value) is part of the command but lives as a separate
+> element at position [3] in the plaintext command array — it is **not** packed inside `packElement`.
+
 ## Complete Vote Message Flow
 
-Integrating all cryptographic components:
+Integrating all cryptographic components. The SDK handles this end-to-end automatically:
 
 ```typescript
-// Voter side: Create and encrypt vote message
+// Voter side: Create and encrypt vote message (simplified — SDK does this internally)
 async function createVoteMessage(
-  voterKeypair: Keypair,
-  coordinatorPubKey: Point,
-  voteOptions: { idx: number; weight: number }[]
-): Promise<Message> {
-  // 1. Create command
-  const command: Command = {
-    nonce: getCurrentNonce(),
-    stateIndex: getStateIndex(),
-    voteOptionIndex: voteOptions[0].idx,
-    newVoteWeight: voteOptions[0].weight,
-    newPubKey: voterKeypair.publicKey,
-    salt: genRandomSalt()
-  };
-  
-  // 2. Calculate command hash
-  const commandHash = hashCommand(command);
-  
+  voterPrivKey: bigint,
+  operatorPubKey: Point,
+  contractAddress: string,
+  stateIdx: number,
+  nonce: number,
+  voIdx: number,
+  newVotes: number,
+  newPubKey: Point,
+): Promise<{ messageData: bigint[]; encPubKey: Point }> {
+  // 1. Query pollId from the contract
+  const pollId = await client.getPollId({ contractAddress });
+
+  // 2. Pack all command fields
+  const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
+
   // 3. Sign
-  const signature = sign(voterKeypair.privateKey, commandHash);
-  command.signature = signature;
-  
-  // 4. Encrypt
-  const encryptedData = encryptCommand(
-    command,
-    voterKeypair.privateKey,
-    coordinatorPubKey
-  );
-  
-  // 5. Construct message
-  return {
-    msgType: BigInt(1),  // Vote message
-    data: encryptedData
-  };
+  const hash = poseidon([packaged, newPubKey[0], newPubKey[1]]);
+  const signature = eddsa.sign(voterPrivKey, hash);
+
+  // 4. Build 7-element command array
+  //    [packaged, newPubKey.x, newPubKey.y, salt, sig.R8.x, sig.R8.y, sig.S]
+  const salt = genRandomSalt();
+  const command = [packaged, newPubKey[0], newPubKey[1], salt, ...signature.R8, signature.S];
+
+  // 5. Generate ephemeral key-pair for ECDH
+  const encPrivKey = genRandomPrivKey();
+  const encPubKey  = genPubKey(encPrivKey);
+
+  // 6. Poseidon-encrypt the command
+  const sharedKey    = genEcdhSharedKey(encPrivKey, operatorPubKey);
+  const messageData  = poseidonEncrypt(command, sharedKey, 0n);
+
+  return { messageData, encPubKey };
 }
 
 // Coordinator side: Decrypt and verify message
-async function processMessage(
-  message: Message,
-  coordinatorPrivKey: bigint
-): Promise<Command | null> {
-  // 1. Extract voter public key from message (query from state tree)
-  const voterPubKey = getVoterPublicKey(message);
-  
-  // 2. Decrypt
-  const command = decryptMessage(
-    message.data,
-    coordinatorPrivKey,
-    voterPubKey
-  );
-  
-  // 3. Verify signature
-  const commandHash = hashCommand(command);
-  const isValid = verifySignature(commandHash, command.signature, voterPubKey);
-  
-  if (!isValid) {
-    console.log("Signature verification failed");
-    return null;
-  }
-  
-  // 4. Verify Nonce
-  const currentNonce = getCurrentNonce(command.stateIndex);
-  if (command.nonce !== currentNonce) {
-    console.log("Nonce mismatch");
-    return null;
-  }
-  
-  // 5. Return valid command
-  return command;
+async function processVoteMessage(
+  messageData: bigint[],
+  encPubKey: Point,
+  coordPrivKey: bigint
+): Promise<{ voIdx: number; newVotes: number; pollId: number } | null> {
+  // 1. Derive ECDH shared key
+  const sharedKey = genEcdhSharedKey(coordPrivKey, encPubKey);
+
+  // 2. Decrypt to recover the 7-element command array
+  const command = poseidonDecrypt(messageData, sharedKey, 0n);
+  const [packaged, pubKeyX, pubKeyY, salt, sigR8x, sigR8y, sigS] = command;
+
+  // 3. Verify EdDSA signature
+  const hash = poseidon([packaged, pubKeyX, pubKeyY]);
+  const isValid = eddsa.verify(hash, { R8: [sigR8x, sigR8y], S: sigS }, [pubKeyX, pubKeyY]);
+  if (!isValid) return null;
+
+  // 4. Unpack command fields
+  const { nonce, stateIdx, voIdx, newVotes, pollId } = unpackElement(packaged);
+  return { voIdx: Number(voIdx), newVotes: Number(newVotes), pollId: Number(pollId) };
 }
 ```
 

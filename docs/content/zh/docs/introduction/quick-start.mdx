@@ -49,14 +49,26 @@ async function createVote() {
     
     circuitType: MaciCircuitType.QV,
     maxVoter: 100,
-    voiceCreditAmount: '100',
-    
-    whitelist: {
-      addresses: ['dora1...', 'dora1...']  // 白名单地址
-    }
+
+    // 投票权分配：每位投票者获得 100 积分
+    voiceCreditMode: { unified: { amount: '100' } },
+
+    // 注册模式：仅白名单地址可注册
+    registrationMode: {
+      sign_up_with_static_whitelist: {
+        whitelist: {
+          users: [
+            { addr: 'dora1...' },
+            { addr: 'dora1...' }
+          ]
+        }
+      }
+    },
+    deactivateEnabled: false
   });
   
   console.log('投票已创建:', round.contractAddress);
+  console.log('Poll ID:', await client.getPollId({ contractAddress: round.contractAddress }));
   return round.contractAddress;
 }
 
@@ -95,17 +107,16 @@ async function castVote() {
     maciKeypair
   });
   
-  // Get operator public key
+  // 获取轮次信息和 Operator 公钥
   const roundInfo = await client.getRoundInfo({ contractAddress });
   
-  // Cast vote
   await client.vote({
     signer: wallet,
     address: account.address,
     contractAddress,
     selectedOptions: [
-      { idx: 0, vc: 8 },  // Proposal A: 8 votes (costs 64 credits in QV)
-      { idx: 2, vc: 6 }   // Proposal C: 6 votes (costs 36 credits in QV)
+      { idx: 0, vc: 8 },  // 提案 A：8 票（QV 模式消耗 64 积分）
+      { idx: 2, vc: 6 }   // 提案 C：6 票（QV 模式消耗 36 积分）
     ],
     operatorCoordPubKey: [
       BigInt(roundInfo.coordinatorPubkeyX),
@@ -190,9 +201,9 @@ if (round.results) {
 
 ### "Not in whitelist" 错误
 
-你的地址不在白名单中。检查：
-- 创建投票时是否正确配置白名单
-- 使用的地址是否在白名单列表里
+你的地址不在 `SignUpWithStaticWhitelist` 中。检查：
+- 创建轮次时是否将该地址加入 `registrationMode.sign_up_with_static_whitelist.whitelist.users`
+- 签名使用的地址是否与白名单中的地址一致
 
 ### "Insufficient voice credits" 错误
 

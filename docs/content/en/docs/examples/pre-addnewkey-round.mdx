@@ -89,16 +89,20 @@ async function platformPrepareRound() {
     ],
     
     circuitType: MaciCircuitType.QV,
-    
     maxVoter: 100,
-    voiceCreditAmount: '100',
+    voiceCreditMode: { unified: { amount: '100' } },
     
-    // Pre-add-new-key configuration
-    preDeactivateRoot: preDeactivateTree.root,
-    preDeactivateCoordinator: [
-      platformCoordKeypair.publicKey[0],
-      platformCoordKeypair.publicKey[1]
-    ]
+    // PrePopulated registration mode (replaces preDeactivateRoot + preDeactivateCoordinator)
+    registrationMode: {
+      pre_populated: {
+        pre_deactivate_root: preDeactivateTree.root,
+        pre_deactivate_coordinator: {
+          x: platformCoordKeypair.publicKey[0].toString(16),
+          y: platformCoordKeypair.publicKey[1].toString(16)
+        }
+      }
+    },
+    deactivateEnabled: false
   });
   
   console.log(' Round created successfully!');
@@ -284,7 +288,8 @@ multipleUsersVote().catch(console.error);
 4. **Create Round**
    - Use `createAMaciRound` API
    - Configure `operator` address
-   - Configure `preDeactivateRoot` and `preDeactivateCoordinator`
+   - Configure `registrationMode` as `pre_populated` with `pre_deactivate_root` and `pre_deactivate_coordinator`
+   - Configure `voiceCreditMode` (e.g., `unified` with fixed amount)
    - Round is immediately available after creation
 
 5. **Distribute Keys**

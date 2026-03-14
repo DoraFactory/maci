@@ -60,8 +60,7 @@ console.log('Pubkey:', bestOperator.pubkey);
 
 ```typescript
 const roundParams = {
-  // Operator public key (for encryption)
-  operatorPubkey: operatorKeypair.publicKey,
+  operator: bestOperator.address,
   
   // Voting time
   startVoting: new Date('2024-02-01T00:00:00Z'),
@@ -82,15 +81,23 @@ const roundParams = {
   
   // Voting type (Quadratic Voting)
   circuitType: MaciCircuitType.QV,
+  maxVoter: 500,
   
-  // Whitelist configuration
-  whitelistEcosystem: 'cosmoshub',
-  whitelistSnapshotHeight: '23342001',
-  whitelistVotingPowerArgs: {
-    mode: 'slope',
-    slope: '1000000',  // 1 ATOM = 1 voice credit
-    threshold: '0',
+  // Voice credit mode: all users get 100 credits
+  voiceCreditMode: { unified: { amount: '100' } },
+  
+  // Registration mode: static whitelist
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: 'dora1abc...' },
+          { addr: 'dora1def...' },
+        ]
+      }
+    }
   },
+  deactivateEnabled: false
 };
 ```
 
@@ -103,32 +110,13 @@ const client = new MaciClient({ network: 'mainnet' });
 
 const round = await client.createAMaciRound({
   signer: creatorWallet,
-  operator: bestOperator.address,  // Use selected Operator
-  
-  startVoting: new Date('2024-03-01T00:00:00Z'),
-  endVoting: new Date('2024-03-07T23:59:59Z'),
-  
-  title: 'Community Fund Allocation Vote',
-  description: 'Vote on community fund allocation',
-  link: 'https://forum.example.com/proposal',
-  
-  voteOptionMap: [
-    'Project A: DeFi Development Tools',
-    'Project B: Developer Education',
-    'Project C: Marketing',
-    'Project D: Community Infrastructure'
-  ],
-  
-  circuitType: MaciCircuitType.QV,
-  
-  whitelist: {
-    addresses: ['dora1...', 'dora1...']  // Whitelist addresses
-  }
+  ...roundParams
 });
 
 console.log('Round created successfully!');
 console.log('AMACI contract address:', round.contractAddress);
 console.log('Transaction hash:', round.transactionHash);
+console.log('Poll ID:', await client.getPollId({ contractAddress: round.contractAddress }));
 console.log('Operator will auto-monitor this Round');
 ```
 

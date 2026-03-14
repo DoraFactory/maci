@@ -22,6 +22,65 @@ graph TD
     E --> E2[发布结果]
 ```
 
+## 注册配置
+
+创建 AMACI 轮次时，必须提供两个配置枚举：
+
+### VoiceCreditMode（投票权重模式）
+
+定义如何为用户分配投票权重：
+
+| 模式 | 说明 | 适用场景 |
+|------|------|---------|
+| `Unified { amount }` | 所有用户获得相同的固定投票权重 | 标准 AMACI 轮次 |
+| `Dynamic` | 每个用户的投票权重等于 Oracle 证书中包含的金额 | 支持可变权重的 Oracle 认证轮次 |
+
+```typescript
+// Unified 模式：所有人获得 100 票权重
+voiceCreditMode: { unified: { amount: "100" } }
+
+// Dynamic 模式：票权重来自 Oracle 证书
+voiceCreditMode: "dynamic"
+```
+
+### RegistrationModeConfig（注册模式）
+
+定义用户如何注册及访问控制方式。此单一枚举取代了原来的 `whitelist`、`oracle_whitelist_pubkey`、`pre_deactivate_root` 和 `pre_deactivate_coordinator` 字段：
+
+| 模式 | 访问控制 | 说明 |
+|------|---------|------|
+| `SignUpWithStaticWhitelist { whitelist }` | 预定义地址列表 | 用户直接调用 `SignUp`；仅白名单地址可注册 |
+| `SignUpWithOracle { oracle_pubkey }` | 后端签名认证 | 用户调用 `SignUp` 时须提供 Oracle 签发的证书 |
+| `PrePopulated { pre_deactivate_root, pre_deactivate_coordinator }` | ZK 证明 | 用户必须使用 `PreAddNewKey`；直接 `SignUp` 不可用 |
+
+### deactivate_enabled（去活化开关）
+
+可选布尔标志（默认 `false`），用于开启轮次内的动态密钥轮换功能（deactivate → `AddNewKey` 流程）。为 `false` 时，仅 `Signup` 和 `PrePopulated` 模式下的 `PreAddNewKey` 可用。
+
+```typescript
+// 创建轮次时配置
+await client.createAMaciRound({
+  operator: selectedOperator,
+  maxVoter: 100,
+  voteOptionMap: ["选项 A", "选项 B", "选项 C"],
+  voiceCreditMode: { unified: { amount: "100" } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: "dora1abc..." },
+          { addr: "dora1def..." },
+        ]
+      }
+    }
+  },
+  deactivateEnabled: false,
+  // ...其他参数
+});
+```
+
+---
+
 ## 用户注册方式
 
 AMACI 支持三种注册方式，用户可根据隐私需求选择。
@@ -34,8 +93,9 @@ AMACI 支持三种注册方式，用户可根据隐私需求选择。
 
 ```rust
 ExecuteMsg::Signup {
-    pubkey: PubKey,                    // 用户公钥
-    data: Option<SignupDataDora>,      // 额外数据
+    pubkey: PubKey,              // 用户 MACI 公钥
+    certificate: Option<String>, // Oracle 证书（SignUpWithOracle 模式下必填）
+    amount: Option<Uint256>,     // 投票权重金额（Dynamic VC 模式 + SignUpWithOracle 下必填）
 }
 ```
 
@@ -79,25 +139,31 @@ await client.signup({
 });
 ```
 
-**白名单验证：**
+**注册模式决定 Signup 行为：**
 
-合约会验证发送者地址是否在白名单中：
-- 创建 Round 时配置白名单地址列表
-- 只有白名单地址可以 signup
-- 所有白名单用户获得相同投票权重
+`SignUp` 的行为取决于轮次的 `RegistrationModeConfig`：
+
+- **`SignUpWithStaticWhitelist`**：仅预设地址可注册，无需 `certificate` 或 `amount`。
+- **`SignUpWithOracle`**：任意地址均可尝试注册，但须提供后端签发的 `certificate`。在 `Dynamic` 投票权重模式下，还须提供 `amount`（包含在证书签名内容中）。
+- **`PrePopulated`**：`SignUp` 不可用，用户必须使用 `PreAddNewKey`。
 
 ```typescript
-// 创建 Round 时配置白名单
-await client.createAMaciRound({
-  // ...
-  whitelist: {
-    addresses: [
-      'dora1abc...',
-      'dora1def...',
-      'dora1ghi...'
-    ]
-  },
-  voiceCreditAmount: '100'  // 每个用户的投票额度
+// SignUpWithStaticWhitelist 模式：直接注册
+await client.signup({
+  signer: wallet,
+  address: userAddress,
+  contractAddress: amaciAddress,
+  maciKeypair
+});
+
+// SignUpWithOracle + Dynamic VC 模式：提供证书和金额
+await client.signup({
+  signer: wallet,
+  address: userAddress,
+  contractAddress: amaciAddress,
+  maciKeypair,
+  certificate: oracleCertificate,  // base64 编码的 Oracle 签名
+  amount: "150"                     // 投票权重（包含在签名内容中）
 });
 ```
 
@@ -376,23 +442,27 @@ input[1] = PRE_DEACTIVATE_COORDINATOR_HASH.load(...)?;  // 可能不同
 ### 使用场景
 
 **适合场景：**
-- Round 创建时已知需要匿名投票
+- Round 创建时已知需要匿名投票（如平台提前为用户分发密钥对）
 - 预先准备好一组 deactivate 数据
-- 希望用户立即可以匿名参与
+- 希望用户立即可以匿名参与，无需等待
 
-**Round 配置示例：**
+**Round 配置示例（使用 PrePopulated 模式）：**
 
 ```typescript
 // 创建 Round 时配置
 await client.createAMaciRound({
   // ... 其他参数
-  
-  // 配置 pre-deactivate
-  preDeactivateRoot: preDeactivateData.root,
-  preDeactivateCoordinator: {
-    x: preCoordPubkey[0],
-    y: preCoordPubkey[1]
-  }
+  registrationMode: {
+    pre_populated: {
+      pre_deactivate_root: preDeactivateData.root,
+      pre_deactivate_coordinator: {
+        x: preCoordPubkey[0].toString(),
+        y: preCoordPubkey[1].toString()
+      }
+    }
+  },
+  voiceCreditMode: { unified: { amount: "100" } },
+  deactivateEnabled: false  // PrePopulated 模式无需开启实时去活化
 });
 ```
 
@@ -600,34 +670,43 @@ pub fn execute_process_deactivate(
 
 ### PublishMessage 消息
 
+`PublishMessage` 支持**批量**提交——单次调用可发送一条或多条加密投票消息：
+
 ```rust
 ExecuteMsg::PublishMessage {
-    message: MessageData,
+    messages: Vec<MessageData>,      // 批量加密投票消息
+    enc_pub_keys: Vec<PubKey>,       // 对应的临时加密公钥
 }
 
 pub struct MessageData {
-    pub data: Vec<Uint256>,  // 10 个加密字段
+    pub data: [Uint256; 10],  // 10 个加密字段
 }
 ```
 
+每条 `messages[i]` 须有对应的 `enc_pub_keys[i]`。每条消息需支付 **10 DORA** 的固定费用。
+
 ### 消息格式
 
-加密消息包含 10 个字段：
+每条加密消息包含精确的 **10 个** `Uint256` 字段：
 
 ```typescript
 interface EncryptedMessage {
   data: [
-    bigint,  // [0] packaged (nonce + stateIdx + voIdx + newVotes + salt)
+    bigint,  // [0] packaged: nonce(32b)|stateIdx(32b)|voIdx(32b)|newVotes(96b)|pollId(32b)
     bigint,  // [1] newPubKey.x
     bigint,  // [2] newPubKey.y
-    bigint,  // [3] signature.R8.x
-    bigint,  // [4] signature.R8.y
-    bigint,  // [5] signature.S
-    bigint,  // [6] encryption IV
-    bigint,  // [7-9] 保留/填充
+    bigint,  // [3] salt
+    bigint,  // [4] signature.R8.x
+    bigint,  // [5] signature.R8.y
+    bigint,  // [6] signature.S
+    bigint,  // [7] Poseidon 加密输出[0]
+    bigint,  // [8] Poseidon 加密输出[1]
+    bigint,  // [9] Poseidon 加密输出[2]
   ];
 }
 ```
+
+> **命令数组结构：** [0]–[6] 是明文命令元素。[0] 的 `packaged` 字段用固定位宽编码了五个子字段（位布局详见[消息打包](/docs/protocol/cryptography#消息打包)）。[7]–[9] 是 Poseidon 密文输出。每条消息提交时附带一个临时公钥 `enc_pub_key`。
 
 ### 投票流程
 
@@ -656,10 +735,9 @@ sequenceDiagram
 ### 投票示例
 
 ```typescript
-// 获取 Operator 公钥
+// 获取轮次信息（包含 coordinator 公钥）
 const roundInfo = await client.getRoundInfo({ contractAddress: amaciAddress });
 
-// 投票
 await client.vote({
   signer: wallet,
   address: userAddress,
@@ -884,68 +962,93 @@ fn process_tally(
 
 ```rust
 QueryMsg::GetRoundInfo {}
+QueryMsg::GetPeriod {}
+QueryMsg::GetNumSignUp {}
+QueryMsg::GetVotingTime {}
 ```
 
-返回：
+### Poll ID 查询
+
+每个 AMACI 实例在创建时由 Registry 分配唯一的 `poll_id`：
 
 ```rust
-pub struct RoundInfoResponse {
-    pub round_info: RoundInfo,
-    pub status: RoundStatus,
-    pub coordinator_pubkey: PubKey,
-    pub num_signups: u64,
-    pub max_voters: Uint256,
-    // ... 其他信息
+QueryMsg::GetPollId {}
+// 返回：u64
+```
+
+### 注册配置查询
+
+```rust
+// 获取当前注册和投票权重配置
+QueryMsg::GetRegistrationConfig {}
+// 返回：RegistrationConfigInfo {
+//   deactivate_enabled: bool,
+//   voice_credit_mode: VoiceCreditMode,
+//   registration_mode: RegistrationMode,
+// }
+
+// 获取去活化功能是否开启
+QueryMsg::GetDeactivateEnabled {}
+// 返回：bool
+```
+
+### 注册状态查询（取代 IsWhiteList / WhiteBalanceOf）
+
+统一查询接口，返回注册资格和投票权重余额，自动适配当前注册模式：
+
+```rust
+QueryMsg::QueryRegistrationStatus {
+    sender: Option<Addr>,        // SignUpWithStaticWhitelist 模式使用
+    pubkey: Option<PubKey>,      // SignUpWithOracle / PrePopulated 模式使用
+    certificate: Option<String>, // SignUpWithOracle 模式使用
+    amount: Option<Uint256>,     // SignUpWithOracle + Dynamic VC 模式使用
 }
+// 返回：RegistrationStatus {
+//   can_sign_up: bool,
+//   is_register: bool,
+//   balance: Uint256,
+// }
+```
+
+```typescript
+// 查询注册资格（白名单模式）
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciAddress,
+  address: userAddress
+});
+
+// 查询注册资格（Oracle 模式 + Dynamic VC）
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciAddress,
+  pubkey: { x: pubkeyX, y: pubkeyY },
+  certificate: oracleCert,
+  amount: "150"
+});
+
+console.log(status.can_sign_up);  // 是否可以注册
+console.log(status.is_register);  // 是否已注册
+console.log(status.balance);      // 已注册时的投票权重
 ```
 
 ### 消息查询
 
 ```rust
-// 获取单条消息
-QueryMsg::GetMessage { index: u64 }
-
-// 获取所有消息
-QueryMsg::GetMessages {}
-
-// 获取消息数量
-QueryMsg::GetNumMessages {}
+QueryMsg::GetMsgChainLength {}    // 投票消息总数
+QueryMsg::GetAllResult {}         // 单个选项的最终统计结果
+QueryMsg::GetAllResults {}        // 所有选项的最终统计结果（Vec<Uint256>）
 ```
 
 ### 状态查询
 
 ```rust
-// 获取状态根
-QueryMsg::GetStateRoot {}
-
-// 获取统计结果
-QueryMsg::GetTallyResult {}
-
-// 获取签到数量
-QueryMsg::GetNumSignups {}
-```
-
-## 匿名性增强
-
-### 去活化检测
-
-AMACI 支持去活化检测来增强匿名性：
-
-```rust
-// 初始化时配置
-pre_deactivate_root: Uint256,  // 去活化 Merkle 根
-pre_deactivate_coordinator: Option<PubKey>,  // 去活化协调者
-```
-
-### 工作原理
-
-```mermaid
-graph TD
-    A[用户公钥] --> B{在去活化树中?}
-    B -->|是| C[标记为去活化]
-    B -->|否| D[正常处理]
-    C --> E[特殊处理或排除]
-    D --> F[正常统计投票]
+QueryMsg::GetCurrentStateCommitment {}
+QueryMsg::GetCurrentDeactivateCommitment {}
+QueryMsg::Signuped { pubkey: PubKey }  // 已注册时返回状态索引
+QueryMsg::GetStateIdxInc { address: Addr }
+QueryMsg::GetVoiceCreditBalance { index: String }
+QueryMsg::MaxVoteOptions {}
+QueryMsg::QueryCircuitType {}
+QueryMsg::QueryOracleWhitelistConfig {}
 ```
 
 ## 轮次状态
@@ -953,25 +1056,43 @@ graph TD
 AMACI 合约有以下状态：
 
 ```rust
-pub enum RoundStatus {
-    Created = 0,      // 已创建
-    Voting = 1,       // 投票中
-    Processing = 2,   // 处理中
-    Tallied = 3,      // 已统计
+pub enum PeriodStatus {
+    Pending,     // 合约已实例化，等待投票开始时间
+    Processing,  // 投票期结束，Operator 正在处理消息
+    Tallying,    // 消息处理完毕，Operator 正在统计投票
+    Ended,       // 统计结果已提交并验证，轮次完成
 }
 ```
+
+> **注意：** `Voting` 状态已被移除。合约通过将当前区块时间与配置的 `start_time` 和 `end_time` 进行比较来判断投票窗口是否开放，不再有显式的"投票中"状态转换。
 
 ### 状态转换
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Created: 合约实例化
-    Created --> Voting: 到达开始时间
-    Voting --> Processing: 投票期结束
-    Processing --> Processing: ProcessMessages 多次调用
-    Processing --> Tallied: ProcessTally 成功
-    Tallied --> [*]: 轮次结束
+    [*] --> Pending: 合约实例化
+    Pending --> Processing: Operator 调用 StartProcessPeriod
+    Processing --> Processing: ProcessMessages 多批次调用
+    Processing --> Tallying: 所有消息处理完毕
+    Tallying --> Ended: ProcessTally 成功
+    Ended --> [*]: 轮次完成
 ```
+
+### UpdateRegistrationConfig
+
+在轮次创建后、投票开始前，组织者可以更新注册配置：
+
+```rust
+ExecuteMsg::UpdateRegistrationConfig {
+    config: RegistrationConfigUpdate {
+        deactivate_enabled: Option<bool>,           // 切换去活化功能
+        voice_credit_mode: Option<VoiceCreditMode>,  // 仅在 num_signups == 0 时可修改
+        registration_mode: Option<RegistrationModeConfig>, // 仅在 num_signups == 0 时可修改
+    }
+}
+```
+
+此方法取代了原来的 `SetWhitelists` 消息。
 
 ## 安全特性
 

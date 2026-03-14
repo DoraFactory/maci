@@ -45,6 +45,20 @@ await client.signup({
 });
 ```
 
+### 查询注册资格
+
+```typescript
+// 统一查询接口，替代原来的 isWhitelisted / queryWhitelistBalanceOf
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciContractAddress,
+  address: userAddress  // SignUpWithStaticWhitelist 模式下使用
+});
+
+console.log('可以注册:', status.can_sign_up);
+console.log('是否已注册:', status.is_register);
+console.log('投票权重:', status.balance);
+```
+
 ### 投票
 
 ```typescript
@@ -254,7 +268,7 @@ async function whitelistVoting(
     
     return true;
   } catch (error) {
-    console.error('Voting failed:', error);
+    console.error('投票失败:', error);
     return false;
   }
 }

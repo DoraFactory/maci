@@ -49,14 +49,26 @@ async function createVote() {
     
     circuitType: MaciCircuitType.QV,
     maxVoter: 100,
-    voiceCreditAmount: '100',
-    
-    whitelist: {
-      addresses: ['dora1...', 'dora1...']  // Whitelist addresses
-    }
+
+    // Voice credit allocation: every voter gets 100 credits
+    voiceCreditMode: { unified: { amount: '100' } },
+
+    // Registration: only these addresses can sign up
+    registrationMode: {
+      sign_up_with_static_whitelist: {
+        whitelist: {
+          users: [
+            { addr: 'dora1...' },
+            { addr: 'dora1...' }
+          ]
+        }
+      }
+    },
+    deactivateEnabled: false
   });
   
   console.log('Vote created:', round.contractAddress);
+  console.log('Poll ID:', await client.getPollId({ contractAddress: round.contractAddress }));
   return round.contractAddress;
 }
 
@@ -95,10 +107,9 @@ async function castVote() {
     maciKeypair
   });
   
-  // Get operator public key
+  // Get round info and operator public key
   const roundInfo = await client.getRoundInfo({ contractAddress });
   
-  // Cast vote
   await client.vote({
     signer: wallet,
     address: account.address,
@@ -190,9 +201,9 @@ if (round.results) {
 
 ### "Not in whitelist" Error
 
-Your address is not whitelisted. Check:
-- Did you configure the whitelist correctly when creating the vote?
-- Is the address you're using in the whitelist?
+Your address is not in the `SignUpWithStaticWhitelist`. Check:
+- Did you include your address in `registrationMode.sign_up_with_static_whitelist.whitelist.users` when creating the round?
+- Are you signing with the same address that was whitelisted?
 
 ### "Insufficient voice credits" Error
 

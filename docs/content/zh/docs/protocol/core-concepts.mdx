@@ -2,30 +2,31 @@
 
 AMACI 的核心组件、数据结构和关键机制。
 
-## 三种注册方式
+## 注册模式配置
 
-AMACI 提供三种注册方式，平衡隐私和便利性：
+AMACI 使用统一的 `RegistrationModeConfig` 枚举控制用户注册方式，取代了原来分散的白名单、Oracle 和 pre-deactivate 字段。
 
-### Signup（标准注册）
+### SignUpWithStaticWhitelist（标准注册）
 
-最快捷的方式。直接用钱包地址注册，合约分配 state index。
+最快捷的方式。预定义地址直接调用 `SignUp`，合约分配 state index。
 
 ```typescript
-const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
+// 创建轮次时配置静态白名单
+registrationMode: {
+  sign_up_with_static_whitelist: {
+    whitelist: { users: [{ addr: 'dora1abc...' }] }
+  }
+}
 
-await client.signup({
-  signer: wallet,
-  address,
-  contractAddress,
-  maciKeypair
-});
+// 用户注册
+await client.signup({ signer: wallet, address, contractAddress, maciKeypair });
 ```
 
 **隐私级别：低。** Operator 可以通过链上 signup 交易关联：地址 `dora1abc...` → state index 5 → 投了什么票。
 
 **适用场景：** 不关心隐私的公开投票，或内部可信环境。
 
-### Add-new-key（动态匿名）
+### Add-new-key（动态匿名，需 deactivateEnabled: true）
 
 通过零知识证明创建新身份，完全断开与原地址的关联。
 
@@ -41,14 +42,14 @@ await client.deactivate({ signer: oldWallet, ... });
 const voterClient = new VoterClient({ secretKey: oldPrivateKey });
 const payload = await voterClient.buildAddNewKeyPayload({
   operatorPubkey,
-  deactivates,  // deactivate tree leaves
+  deactivates,
   wasmFile,
   zkeyFile
 });
 
 // 4. 用新钱包提交 add-new-key
 await client.addNewKey({
-  signer: newWallet,  // 不同的地址
+  signer: newWallet,
   d: payload.d,
   proof: payload.proof,
   nullifier: payload.nullifier,
@@ -58,16 +59,25 @@ await client.addNewKey({
 
 **隐私级别：高。** Operator 只知道"有人用 add-new-key 注册了"，但无法确定是 deactivate tree 中的哪个用户。匿名集大小 = deactivate 消息数量。
 
+**要求：** 轮次必须以 `deactivateEnabled: true` 创建。
+
 **权衡：** 需要等待 operator 处理 deactivate（通常几小时）。
 
-### Pre-add-new-key（预配置匿名）
+### PrePopulated（预配置匿名）
 
-兼具匿名性和速度。投票创建时预先配置 deactivate tree，用户可以立即匿名注册。
+用户必须使用 `PreAddNewKey`，直接 `SignUp` 不可用。Deactivate tree 在轮次创建时预先配置。
 
 ```typescript
-// 平台预先生成密钥对并构建 deactivate tree
-// 用户收到分发的密钥后，本地生成证明
+// 创建轮次时配置 PrePopulated 模式
+registrationMode: {
+  pre_populated: {
+    pre_deactivate_root: preDeactivateData.root,
+    pre_deactivate_coordinator: { x: '...', y: '...' }
+  }
+}
 
+// 平台预先生成密钥对并分发给用户
+// 用户生成 ZK 证明后可从任意地址注册
 const payload = await voterClient.buildPreAddNewKeyPayload({
   coordinatorPubkey,
   deactivates: preConfiguredLeaves,
@@ -75,7 +85,6 @@ const payload = await voterClient.buildPreAddNewKeyPayload({
   zkeyFile
 });
 
-// 用任意地址发送交易
 await client.rawPreAddNewKey({
   signer: anyWallet,
   d: payload.d,
@@ -88,6 +97,47 @@ await client.rawPreAddNewKey({
 **隐私级别：高。** 与 add-new-key 相同，但无需等待。
 
 **权衡：** 需要投票组织者预先配置，且需要安全分发密钥。
+
+### SignUpWithOracle（Oracle 认证注册）
+
+任意地址可以注册，但必须提供后端签发的证书。适用于由链下 Oracle 而非固定地址列表控制访问权限的场景。
+
+```typescript
+// 创建轮次时配置 Oracle 模式
+registrationMode: {
+  sign_up_with_oracle: { oracle_pubkey: ORACLE_PUBKEY_HEX }
+}
+voiceCreditMode: 'dynamic'  // 证书中包含投票权重
+
+// 用户携带 Oracle 证书注册
+await client.signup({
+  signer: wallet, address, contractAddress, maciKeypair,
+  certificate: oracleCertificate,
+  amount: '150'  // 包含在证书签名内容中
+});
+```
+
+## 投票权重模式（VoiceCreditMode）
+
+与注册模式配合，`VoiceCreditMode` 定义投票权重的分配方式：
+
+- **`Unified { amount }`**：所有用户获得相同的固定投票权重。
+- **`Dynamic`**：每个用户的投票权重来自 Oracle 证书，与 `SignUpWithOracle` 配合使用。
+
+## Poll ID（轮次唯一标识）
+
+每个 AMACI 合约由 Registry 合约分配唯一的、顺序递增的 **Poll ID**。
+`pollId` 作为打包命令元素的组成部分嵌入到每条投票消息中，ZK 电路会以此验证消息的完整性。
+可通过 `getPollId()` 单独查询。
+
+```typescript
+const pollId = await client.getPollId({ contractAddress });
+console.log('Poll ID:', pollId);
+
+await client.vote({
+  // ... 其他参数
+});
+```
 
 ## 参与角色
 
@@ -238,13 +288,14 @@ vote = [
 ]
 ```
 
-## 白名单模式
+## 注册与访问控制汇总
 
-投票可以限制参与者：
-
-**地址列表模式** - 指定具体地址，只有列表中的地址可以 signup。所有白名单用户获得相同的投票权重。
-
-使用 add-new-key 时，白名单检查发生在 deactivate 阶段（老身份需要在白名单中），新身份无需再次检查。
+| 模式 | 谁能注册 | 投票权重 | 匿名性 |
+|------|---------|---------|--------|
+| `SignUpWithStaticWhitelist` | 仅预设地址 | 固定 (Unified) | 低 |
+| `SignUpWithOracle` | 任意地址（需有效证书） | 固定或 Oracle 定义 (Dynamic) | 低 |
+| `PrePopulated` | 持有预生成密钥 + ZK 证明的任意地址 | 固定 (Unified) | 高 |
+| `deactivateEnabled + AddNewKey` | 之前已 deactivate 的任意地址 | 继承原账户 | 高 |
 
 ## 下一步
 

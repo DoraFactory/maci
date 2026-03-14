@@ -1,6 +1,6 @@
 # 创建投票
 
-使用 SDK 创建 MACI 投票轮次。
+使用 SDK 通过 Registry 合约创建 AMACI 投票轮次。
 
 ## 最小示例
 
@@ -17,20 +17,32 @@ const operator = operators.find(op => op.status === 'Active');
 const round = await client.createAMaciRound({
   signer: wallet,
   operator: operator.address,
-  
+
   startVoting: new Date(),
-  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),  // 7天后
-  
+  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),  // 7 天后
+
   title: '社区提案投票',
   voteOptionMap: ['选项 A', '选项 B', '选项 C'],
-  
+
   circuitType: MaciCircuitType.QV,  // 二次方投票
   maxVoter: 100,
-  voiceCreditAmount: '100',
-  
-  whitelist: {
-    addresses: ['dora1...', 'dora1...']  // 白名单地址
-  }
+
+  // 投票权重分配：所有人获得 100 权重
+  voiceCreditMode: { unified: { amount: '100' } },
+
+  // 注册模式：静态白名单
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: 'dora1...' },
+          { addr: 'dora1...' }
+        ]
+      }
+    }
+  },
+
+  deactivateEnabled: false
 });
 
 console.log('合约地址:', round.contractAddress);
@@ -40,45 +52,182 @@ console.log('合约地址:', round.contractAddress);
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `signer` | Wallet | 签名钱包（创建者） |
+| `signer` | Wallet | 签名钱包（轮次创建者） |
 | `operator` | string | Operator 地址 |
 | `startVoting` | Date | 投票开始时间 |
 | `endVoting` | Date | 投票结束时间 |
 | `title` | string | 投票标题 |
-| `voteOptionMap` | string[] | 投票选项列表 |
-| `circuitType` | MaciCircuitType | QV 或 1P1V |
+| `voteOptionMap` | string[] | 投票选项标签列表 |
+| `circuitType` | MaciCircuitType | `QV`（二次方）或 `IP1V`（一人一票） |
 | `maxVoter` | number | 最大投票人数 |
-| `voiceCreditAmount` | string | 每人投票权重 |
-| `whitelist` | object | 白名单配置 |
+| `voiceCreditMode` | VoiceCreditMode | 投票权重分配方式（见下文） |
+| `registrationMode` | RegistrationModeConfig | 注册方式与访问控制（见下文） |
+| `deactivateEnabled` | boolean | 开启 deactivate → AddNewKey 流程（默认 `false`） |
 
-## 白名单配置
+## VoiceCreditMode（投票权重模式）
 
-### 地址列表模式
+定义如何为参与者分配投票权重（voice credits）：
 
-指定具体地址列表：
+### Unified 模式
+
+所有用户获得相同的固定投票权重：
 
 ```typescript
-whitelist: {
-  addresses: [
-    'dora1abc...',
-    'dora1def...',
-    'dora1ghi...'
-  ]
+voiceCreditMode: { unified: { amount: '100' } }
+```
+
+### Dynamic 模式
+
+每个用户的投票权重等于其 Oracle 签名证书中包含的金额。需与 `SignUpWithOracle` 注册模式配合使用：
+
+```typescript
+voiceCreditMode: 'dynamic'
+```
+
+## RegistrationModeConfig（注册模式）
+
+统一枚举，控制谁可以注册以及如何注册。此字段取代了原来分散的 `whitelist`、`voiceCreditAmount`、`oracle_whitelist_pubkey`、`preDeactivateRoot` 和 `preDeactivateCoordinator` 字段。
+
+### SignUpWithStaticWhitelist（静态白名单）
+
+用户直接调用 `SignUp`，仅预定义列表中的地址可注册：
+
+```typescript
+registrationMode: {
+  sign_up_with_static_whitelist: {
+    whitelist: {
+      users: [
+        { addr: 'dora1abc...' },
+        { addr: 'dora1def...' },
+        { addr: 'dora1ghi...' }
+      ]
+    }
+  }
 }
 ```
+
+`users` 中每条记录还支持可选的 `voice_credit_amount` 字段，可覆盖全局 `voiceCreditMode`，实现白名单内各用户差异化投票权：
+
+```typescript
+registrationMode: {
+  sign_up_with_static_whitelist: {
+    whitelist: {
+      users: [
+        { addr: 'dora1abc...', voice_credit_amount: '200' },  // 分配 200 积分
+        { addr: 'dora1def...', voice_credit_amount: '100' },  // 分配 100 积分
+        { addr: 'dora1ghi...' }                               // 回退到 voiceCreditMode 全局配置
+      ]
+    }
+  }
+}
+```
+
+### SignUpWithOracle（Oracle 认证）
+
+用户调用 `SignUp` 时须提供后端签发的证书，无需固定地址列表：
+
+```typescript
+registrationMode: {
+  sign_up_with_oracle: {
+    oracle_pubkey: 'ORACLE_PUBLIC_KEY_HEX'
+  }
+}
+
+// 用户注册时须提供证书：
+await client.signup({
+  signer: wallet,
+  contractAddress: amaciAddress,
+  maciKeypair,
+  certificate: oracleCertificate,
+  amount: '150'  // Dynamic voiceCreditMode 时必填
+});
+```
+
+### PrePopulated（预填充匿名）
+
+用户必须通过 `PreAddNewKey` 使用 ZK 证明注册，直接 `SignUp` 不可用。适用于参与者提前收到预生成密钥对的完全匿名场景：
+
+```typescript
+registrationMode: {
+  pre_populated: {
+    pre_deactivate_root: preDeactivateData.root,
+    pre_deactivate_coordinator: {
+      x: platformCoordPubkey[0].toString(),
+      y: platformCoordPubkey[1].toString()
+    }
+  }
+}
+```
+
+## Round 类型矩阵
+
+`registrationMode`、`voiceCreditMode` 和 `deactivateEnabled` 三个参数相互独立，组合后决定 AMACI Round 的完整行为。理解它们的交互关系，才能为具体场景选择合适的配置。
+
+### 配置速查表
+
+| Round 类型 | `registrationMode` | `voiceCreditMode` | `deactivateEnabled` | 典型场景 |
+|---|---|---|---|---|
+| 标准白名单投票 | `SignUpWithStaticWhitelist` | `Unified` | `false` | DAO / 代币门控投票，固定成员列表，投票权相等 |
+| 白名单 + 密钥轮换 | `SignUpWithStaticWhitelist` | `Unified` | `true` | 白名单成员注册后可通过 AddNewKey 匿名化身份 |
+| Oracle 认证 + 固定积分 | `SignUpWithOracle` | `Unified` | `false` | 后端验证开放注册，所有投票者获得相同积分 |
+| Oracle 认证 + 动态积分 | `SignUpWithOracle` | `Dynamic` | `false` | 代币/质押权重投票，每人积分由 Oracle 证书决定 |
+| 预置密钥匿名投票 | `PrePopulated` | `Unified` | `false` | 完全匿名，平台预生成并分发密钥对，用户通过 ZK 证明注册 |
+
+### `deactivateEnabled` 的工作原理
+
+`deactivateEnabled` 是一个**可选的隐私升级开关**，可与 `SignUpWithStaticWhitelist` 或 `SignUpWithOracle` 组合使用，解锁两步式密钥轮换流程：
+
+```
+用户注册（链上可见）
+  → 用户提交 DeactivateMessage（需支付 10 DORA）
+  → Operator 处理 deactivate 批次
+  → 用户使用 ZK 证明调用 AddNewKey（新身份，与原地址完全解绑）
+```
+
+经过此流程，Operator 能看到有新身份注册，但**无法将其追溯到原始地址**，为白名单注册用户提供链上匿名性。
+
+```typescript
+// 允许成员后续切换为匿名身份的 Round
+await client.createAMaciRound({
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: members.map(addr => ({ addr })) }
+    }
+  },
+  voiceCreditMode: { unified: { amount: '100' } },
+  deactivateEnabled: true,  // 开启 deactivate → AddNewKey 流程
+  // ...
+});
+```
+
+> **`PrePopulated` 与 `deactivateEnabled: true` 的区别**
+>
+> 两者都能实现身份匿名化，但发生时间不同：
+> - `PrePopulated` — 匿名化发生在 Round **启动前**：平台预先构建 deactivate 树并分发密钥，用户从第一天起就以匿名方式注册。
+> - `deactivateEnabled: true` — 匿名化发生在 Round **进行中**：用户先公开注册（身份可见），再通过 ZK 证明轮换到新密钥。
+>
+> 将 `PrePopulated` 与 `deactivateEnabled: true` 同时使用在技术上可行，但通常不必要。
+
+### 参数组合有效性说明
+
+| `registrationMode` | 可用 `voiceCreditMode: 'dynamic'`？ | `deactivateEnabled: true` 有意义？ |
+|---|---|---|
+| `SignUpWithStaticWhitelist` | 否（白名单中已可为每人单独设置积分） | 是 |
+| `SignUpWithOracle` | 是（积分嵌入证书中） | 是 |
+| `PrePopulated` | 否（基于 ZK 的注册，无 Oracle） | 通常不需要 |
 
 ## 投票模式
 
 ### 二次方投票 (QV)
 
-票数的平方是消耗量，鼓励分散投票：
+票数的平方为消耗量，鼓励分散投票权：
 
 ```typescript
 circuitType: MaciCircuitType.QV
 
 // 用户有 100 voice credits
 // 投 10 票消耗 100 credits (10²)
-// 投 5 票消耗 25 credits (5²)
+// 选项 A 投 5 票 + 选项 B 投 5 票 = 共消耗 50 credits
 ```
 
 ### 一人一票 (1P1V)
@@ -92,40 +241,52 @@ circuitType: MaciCircuitType.IP1V
 // 投 100 票消耗 100 credits
 ```
 
-## Pre-add-new-key 模式
+## PrePopulated（匿名）模式
 
-创建完全匿名的投票（需要预先生成密钥对）：
+通过预先生成密钥对并分发给用户，创建完全匿名的投票轮次：
 
 ```typescript
-import { OperatorClient } from '@dorafactory/maci-sdk';
+import { OperatorClient, genKeypair } from '@dorafactory/maci-sdk';
 
 const operatorClient = new OperatorClient({ network: 'testnet' });
 
-// 1. 生成预配置密钥对
+// 1. 为所有参与者生成密钥对
 const keypairs = Array.from({ length: 100 }, () => genKeypair());
 
-// 2. 处理 deactivate 并获取 tree data
-const preDeactivateData = await operatorClient.genPreDeactivates({
-  stateTreeDepth: 10,
-  coordinatorKeypair,
-  deactivates: keypairs.map(kp => ({
-    key: kp,
-    // ... deactivate 数据
-  })),
-  wasmFile,
-  zkeyFile
+// 2. 构建 pre-deactivate 树
+const preDeactivateData = await operatorClient.buildPreDeactivateTree({
+  coordinatorKeypair: platformCoordinatorKeypair,
+  userKeypairs: keypairs
 });
 
-// 3. 创建 round（附带 pre-deactivate root）
+// 3. 以 PrePopulated 模式创建轮次
 const round = await client.createAMaciRound({
-  // ... 其他参数
-  preDeactivateRoot: preDeactivateData.root
+  signer: wallet,
+  operator: selectedOperator.address,
+  title: '匿名投票',
+  voteOptionMap: ['选项 A', '选项 B'],
+  circuitType: MaciCircuitType.QV,
+  maxVoter: 100,
+  voiceCreditMode: { unified: { amount: '100' } },
+  registrationMode: {
+    pre_populated: {
+      pre_deactivate_root: preDeactivateData.root,
+      pre_deactivate_coordinator: {
+        x: platformCoordinatorKeypair.pubKey[0].toString(),
+        y: platformCoordinatorKeypair.pubKey[1].toString()
+      }
+    }
+  },
+  deactivateEnabled: false,
+  startVoting: new Date(),
+  endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 });
 
-// 4. 分发密钥给用户（安全渠道）
+// 4. 通过安全渠道将密钥对分发给用户
+// 每个用户收到：{ privateKey, publicKey, preDeactivateData }
 ```
 
-用户可以立即使用 pre-add-new-key 匿名注册。
+用户收到密钥后可立即匿名注册，无需暴露真实身份。
 
 ## 查询 Operator
 
@@ -146,74 +307,130 @@ Operator 列表也可以在 https://vota.dorafactory.org/operators 查看。
 
 ## 费用
 
-创建投票需要支付 operator 服务费。费用包含：
-- 处理 deactivate 消息（如果有）
-- 处理投票消息
-- 生成零知识证明
-- 提交证明到链上
+AMACI Round 涉及三种不同的费用，**付款主体各不相同**：
 
-费用根据投票规模（maxVoter）和复杂度自动计算。
+### 1. Round 创建费——由 Round 创建者支付
+
+调用 `createAMaciRound` 时一次性支付，涵盖 Operator 处理整个 Round 的全部成本（消息处理、ZK 证明生成、计票及 gas）。金额根据 `maxVoter` 和电路类型自动计算。
+
+```typescript
+// 创建前可预先查询费用
+const fee = await client.queryAMaciChargeFee({ maxVoter: 1000, maxOption: 10 });
+console.log('创建费用:', fee);
+
+// 创建 Round 时费用自动包含在交易中
+const round = await client.createAMaciRound({ signer: wallet, /* ... */ });
+```
+
+### 2. 投票消息费——由每位投票者支付
+
+每位投票者每次调用 `PublishMessage` 支付 **10 DORA**。由于 AMACI 将多条投票消息打包到单次调用中，这是**按调用次数计费**，而非按单条消息计费。
+
+```typescript
+// SDK 在调用 vote() 时自动处理此费用
+await client.vote({
+  signer: wallet,
+  contractAddress,
+  selectedOptions: [{ idx: 0, vc: 8 }],
+  // ...
+});
+// 从投票者钱包扣除 10 DORA
+```
+
+### 3. Deactivate 消息费——由用户支付，仅在 `deactivateEnabled: true` 时适用
+
+用户提交 `PublishDeactivateMessage` 以轮换身份时，每次调用支付 **10 DORA**。此费用仅在创建 Round 时设置了 `deactivateEnabled: true` 的情况下才会产生。
+
+```typescript
+// 仅在 deactivateEnabled: true 时适用
+await client.deactivate({
+  signer: wallet,
+  contractAddress,
+  maciKeypair
+});
+// 从用户钱包扣除 10 DORA
+```
+
+### 费用汇总
+
+| 费用类型 | 金额 | 付款方 | 发生时机 |
+|--------|------|--------|---------|
+| Round 创建费 | 按 `maxVoter` + 电路类型计算 | Round 创建者 | 调用 `createAMaciRound` 时 |
+| 投票消息费 | 10 DORA / 次 `PublishMessage` 调用 | 投票者 | 每次调用 `vote()` 时 |
+| Deactivate 消息费 | 10 DORA / 次 `PublishDeactivateMessage` 调用 | 用户 | 每次调用 `deactivate()` 时（仅 `deactivateEnabled: true`） |
 
 ## 使用场景示例
 
 ### DAO 治理投票
 
 ```typescript
-{
+await client.createAMaciRound({
   title: '协议升级提案 #42',
   voteOptionMap: ['赞成', '反对', '弃权'],
   circuitType: MaciCircuitType.IP1V,
-  whitelist: {
-    ecosystem: 'doravota',
-    votingPowerArgs: { mode: 'constant' }  // 一人一票
-  }
-}
+  maxVoter: 500,
+  voiceCreditMode: { unified: { amount: '1' } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: daoMembers.map(addr => ({ addr })) }
+    }
+  },
+  deactivateEnabled: false,
+  // ...其他参数
+});
 ```
 
 ### 二次方融资
 
 ```typescript
-{
-  title: 'Q1 2024 公共物品资助',
+await client.createAMaciRound({
+  title: 'Q1 2025 公共物品资助',
   voteOptionMap: [
     '项目 A: 开源工具',
     '项目 B: 教育内容',
     '项目 C: 社区活动'
   ],
-  circuitType: MaciCircuitType.QV,  // 二次方投票
-  voiceCreditAmount: '1000',
-  whitelist: {
-    ecosystem: 'cosmoshub',
-    votingPowerArgs: {
-      mode: 'slope',
-      slope: '1000000'  // 1 ATOM = 1 credit
+  circuitType: MaciCircuitType.QV,
+  maxVoter: 1000,
+  voiceCreditMode: { unified: { amount: '1000' } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: eligibleVoters.map(addr => ({ addr })) }
     }
-  }
-}
+  },
+  deactivateEnabled: false,
+  // ...其他参数
+});
 ```
 
-### 匿名民意调查
+### 匿名 Oracle 认证投票
 
 ```typescript
-{
+await client.createAMaciRound({
   title: '产品功能优先级调查',
   voteOptionMap: ['功能 A', '功能 B', '功能 C', '功能 D'],
   circuitType: MaciCircuitType.QV,
   maxVoter: 1000,
-  voiceCreditAmount: '100',
-  preDeactivateRoot: '0x...'  // 使用 pre-add-new-key 匿名模式
-}
+  voiceCreditMode: 'dynamic',  // 投票权重来自 Oracle 证书
+  registrationMode: {
+    sign_up_with_oracle: {
+      oracle_pubkey: ORACLE_PUBKEY_HEX
+    }
+  },
+  deactivateEnabled: false,
+  // ...其他参数
+});
 ```
 
 ## 常见问题
 
 ### 如何修改投票配置？
 
-投票一旦创建，配置无法修改。如需更改，需要创建新的投票轮次。
+投票创建后，在投票开始前且 `num_signups == 0` 时，可以调用 `UpdateRegistrationConfig` 更新 `voiceCreditMode`、`registrationMode` 或 `deactivateEnabled`。若需更大范围的修改，则需创建新的投票轮次。
 
 ### 可以添加更多白名单地址吗？
 
-不可以。白名单在创建时固定，无法在投票期间添加或修改。
+不可以。使用 `SignUpWithStaticWhitelist` 时，白名单在创建时固定。如需灵活的访问控制，请改用 `SignUpWithOracle`。
 
 ### 投票期可以延长吗？
 
@@ -227,6 +444,6 @@ Operator 列表也可以在 https://vota.dorafactory.org/operators 查看。
 
 **投票流程** - 查看[投票指南](/docs/sdk/voting-guide)了解用户如何投票。
 
-**查询数据** - 参考 [Query API](/docs/sdk/query-api)学习如何查询投票信息。
+**查询数据** - 参考 [Query API](/docs/sdk/query-api) 学习如何查询投票信息。
 
 **完整示例** - 查看[基础示例](/docs/examples/basic-voting)了解端到端流程。
