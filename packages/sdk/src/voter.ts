@@ -440,18 +440,22 @@ export class VoterClient {
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(coordinatorPubkey);
     // const stateTreeDepth = Number(circuitPower.split('-')[0]);
+    const genPreAddKeyInputStart = Date.now();
     const addKeyInput = await this.genPreAddKeyInput(stateTreeDepth + 2, {
       coordPubKey: [coordPubkeyX, coordPubkeyY],
       deactivates: deactivates.map((d: any) => d.map(BigInt)),
       derivePathParams
     });
+    console.log(`[genPreAddKeyInput] elapsed: ${Date.now() - genPreAddKeyInputStart}ms`);
 
     if (addKeyInput === null) {
       throw Error('genPreAddKeyInput failed, cannot find deactivate idx');
     }
 
     // 1. generate proof
+    const fullProveStart = Date.now();
     const { proof } = await groth16.fullProve(addKeyInput, wasmFile, zkeyFile);
+    console.log(`[fullProve] elapsed: ${Date.now() - fullProveStart}ms`);
 
     // 2. compress proof to vote proof
     const proofHex = await adaptToUncompressed(proof);
