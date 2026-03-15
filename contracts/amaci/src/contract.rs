@@ -1332,7 +1332,10 @@ pub fn execute_sign_up(
     Ok(Response::new()
         .add_attribute("action", "sign_up")
         .add_attribute("state_idx", state_index.to_string())
-        .add_attribute("pubkey", format!("{},{}", pubkey.x, pubkey.y))
+        .add_attribute(
+            "pubkey",
+            format!("{:?},{:?}", pubkey.x.to_string(), pubkey.y.to_string()),
+        )
         .add_attribute("balance", voice_credit_balance.to_string())
         .add_attribute("registration_mode", format!("{:?}", registration_mode))
         .add_attribute("vc_mode", format!("{:?}", vc_mode)))

@@ -552,15 +552,20 @@ export class VoterClient {
       derivePathParams?: DerivePathParams;
     }
   ) {
+    let t0 = Date.now();
+
     const signer = this.getSigner(derivePathParams);
+    console.log(`[genPreAddKeyInput] getSigner: ${Date.now() - t0}ms`); t0 = Date.now();
 
     const sharedKeyHash = poseidon(signer.genEcdhSharedKey(coordPubKey));
+    console.log(`[genPreAddKeyInput] genEcdhSharedKey + poseidon: ${Date.now() - t0}ms`); t0 = Date.now();
 
     const randomVal = genRandomSalt();
     const deactivateIdx = deactivates.findIndex((d) => d[4] === sharedKeyHash);
     if (deactivateIdx < 0) {
       return null;
     }
+    console.log(`[genPreAddKeyInput] genRandomSalt + findDeactivateIdx: ${Date.now() - t0}ms`); t0 = Date.now();
 
     const deactivateLeaf = deactivates[deactivateIdx];
 
@@ -568,15 +573,19 @@ export class VoterClient {
     const c2: [bigint, bigint] = [deactivateLeaf[2], deactivateLeaf[3]];
 
     const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
+    console.log(`[genPreAddKeyInput] rerandomize: ${Date.now() - t0}ms`); t0 = Date.now();
 
     const nullifier = poseidon([signer.getFormatedPrivKey(), 1444992409218394441042n]);
+    console.log(`[genPreAddKeyInput] nullifier (poseidon): ${Date.now() - t0}ms`); t0 = Date.now();
 
     const tree = new Tree(5, depth, 0n);
     const leaves = deactivates.map((d) => poseidon(d));
     tree.initLeaves(leaves);
+    console.log(`[genPreAddKeyInput] build tree + initLeaves: ${Date.now() - t0}ms`); t0 = Date.now();
 
     const deactivateRoot = tree.root;
     const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
+    console.log(`[genPreAddKeyInput] tree.root + pathElementOf: ${Date.now() - t0}ms`); t0 = Date.now();
 
     const inputHash = computeInputHash([
       deactivateRoot,
@@ -587,6 +596,7 @@ export class VoterClient {
       d2[0],
       d2[1]
     ]);
+    console.log(`[genPreAddKeyInput] computeInputHash: ${Date.now() - t0}ms`); t0 = Date.now();
 
     const input = {
       inputHash,
