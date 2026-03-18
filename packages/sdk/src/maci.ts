@@ -536,13 +536,16 @@ export class MaciClient {
 
   async genAddKeyInput({
     contractAddress,
-    maciKeypair
+    maciKeypair,
+    newMaciKeypair
   }: {
     contractAddress: string;
     maciKeypair?: Keypair;
+    newMaciKeypair: Keypair;
   }) {
     return await this.maci.genAddKeyInput({
       maciKeypair: maciKeypair || this.maciKeypair,
+      newMaciKeypair,
       contractAddress
     });
   }

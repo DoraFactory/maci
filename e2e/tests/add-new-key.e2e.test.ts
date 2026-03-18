@@ -540,10 +540,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Use buildAddNewKeyPayload to generate proof in one step
     log('Calling buildAddNewKeyPayload...');
+    const newPubKey = voter1NewKey.getPubkey().toPoints();
     const addKeyResult = await voter1.buildAddNewKeyPayload({
       stateTreeDepth,
       operatorPubkey: coordPubKey,
       deactivates: deactivatesForProof,
+      newPubkey: newPubKey as [bigint, bigint],
+      pollId: BigInt(pollId),
       wasmFile: addNewKeyWasm,
       zkeyFile: addNewKeyZkey
     });
@@ -555,7 +558,6 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Step 7: Submit AddNewKey to chain
     log('Submitting AddNewKey...');
-    const newPubKey = voter1NewKey.getPubkey().toPoints();
 
     await assertExecuteSuccess(
       () =>
@@ -816,10 +818,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Try to generate AddNewKey proof - should fail because attacker's sharedKey doesn't match
     try {
+      const attackerNewPubkey = attackerVoter.getPubkey().toPoints() as [bigint, bigint];
       await attackerVoter.buildAddNewKeyPayload({
         stateTreeDepth,
         operatorPubkey: coordPubKey,
         deactivates: deactivatesForProof,
+        newPubkey: attackerNewPubkey,
+        pollId: BigInt(pollId),
         wasmFile: addNewKeyWasm,
         zkeyFile: addNewKeyZkey
       });
@@ -1075,15 +1080,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const testDeactivatesForProof = testDeactivateResult.newDeactivate as bigint[][];
 
+    const voter1NewPubKey = testVoter1New.getPubkey().toPoints();
     const testAddKeyResult = await testVoter1Old.buildAddNewKeyPayload({
       stateTreeDepth,
       operatorPubkey: coordPubKey,
       deactivates: testDeactivatesForProof,
+      newPubkey: voter1NewPubKey as [bigint, bigint],
+      pollId: BigInt(testPollId),
       wasmFile: addNewKeyWasm,
       zkeyFile: addNewKeyZkey
     });
-
-    const voter1NewPubKey = testVoter1New.getPubkey().toPoints();
 
     await assertExecuteSuccess(
       () =>
@@ -1614,15 +1620,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const concurrentDeactivatesForProof = concurrentDeactivateResult.newDeactivate as bigint[][];
 
+    const user1NewPubKey = user1New.getPubkey().toPoints();
     const concurrentAddKeyResult = await user1Old.buildAddNewKeyPayload({
       stateTreeDepth,
       operatorPubkey: coordPubKey,
       deactivates: concurrentDeactivatesForProof,
+      newPubkey: user1NewPubKey as [bigint, bigint],
+      pollId: BigInt(concurrentPollId),
       wasmFile: addNewKeyWasm,
       zkeyFile: addNewKeyZkey
     });
-
-    const user1NewPubKey = user1New.getPubkey().toPoints();
 
     await assertExecuteSuccess(
       () =>
@@ -2207,19 +2214,20 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       const deactivatesForProof = deactivateResult.newDeactivate as bigint[][];
 
       // Try to addNewKey
-      const addKeyResult = await firstVoter.buildAddNewKeyPayload({
-        stateTreeDepth,
-        operatorPubkey: coordPubKey,
-        deactivates: deactivatesForProof,
-        wasmFile: addNewKeyWasm,
-        zkeyFile: addNewKeyZkey
-      });
-
       const newVoter = new VoterClient({
         network: 'testnet',
         secretKey: 40000n
       });
       const newPubKey = newVoter.getPubkey().toPoints();
+      const addKeyResult = await firstVoter.buildAddNewKeyPayload({
+        stateTreeDepth,
+        operatorPubkey: coordPubKey,
+        deactivates: deactivatesForProof,
+        newPubkey: newPubKey as [bigint, bigint],
+        pollId: BigInt(boundaryPollId),
+        wasmFile: addNewKeyWasm,
+        zkeyFile: addNewKeyZkey
+      });
 
       await boundaryContract.addNewKey(
         formatPubKeyForContract(newPubKey),

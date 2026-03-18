@@ -486,6 +486,8 @@ export class OperatorClient {
     stateTreeDepth,
     operatorPubkey,
     deactivates,
+    newPubkey,
+    pollId,
     wasmFile,
     zkeyFile,
     derivePathParams
@@ -493,6 +495,8 @@ export class OperatorClient {
     stateTreeDepth: number;
     operatorPubkey: bigint | string | PubKey;
     deactivates: DeactivateMessage[] | bigint[][] | string[][];
+    newPubkey: PubKey;
+    pollId: bigint;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -506,10 +510,11 @@ export class OperatorClient {
     nullifier: string;
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(operatorPubkey);
-    // const stateTreeDepth = Number(circuitPower.split('-')[0]);
     const addKeyInput = await this.genAddKeyInput(stateTreeDepth + 2, {
       coordPubKey: [coordPubkeyX, coordPubkeyY],
       deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      newPubKey: newPubkey,
+      pollId,
       derivePathParams
     });
 
@@ -540,6 +545,8 @@ export class OperatorClient {
     stateTreeDepth,
     coordinatorPubkey,
     deactivates,
+    newPubkey,
+    pollId,
     wasmFile,
     zkeyFile,
     derivePathParams
@@ -547,6 +554,8 @@ export class OperatorClient {
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
     deactivates: bigint[][] | string[][];
+    newPubkey: PubKey;
+    pollId: bigint;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -560,10 +569,11 @@ export class OperatorClient {
     nullifier: string;
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(coordinatorPubkey);
-    // const stateTreeDepth = Number(circuitPower.split('-')[0]);
     const addKeyInput = await this.genPreAddKeyInput(stateTreeDepth + 2, {
       coordPubKey: [coordPubkeyX, coordPubkeyY],
       deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      newPubKey: newPubkey,
+      pollId,
       derivePathParams
     });
 
@@ -595,10 +605,14 @@ export class OperatorClient {
     {
       coordPubKey,
       deactivates,
+      newPubKey,
+      pollId,
       derivePathParams
     }: {
       coordPubKey: PubKey;
       deactivates: bigint[][];
+      newPubKey: PubKey;
+      pollId: bigint;
       derivePathParams?: DerivePathParams;
     }
   ) {
@@ -619,7 +633,8 @@ export class OperatorClient {
 
     const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
-    const nullifier = poseidon([signer.getFormatedPrivKey(), 1444992409218394441042n]);
+    // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+    const nullifier = poseidon([signer.getFormatedPrivKey(), pollId]);
 
     const tree = new Tree(5, depth, 0n);
     const leaves = deactivates.map((d) => poseidon(d));
@@ -635,7 +650,9 @@ export class OperatorClient {
       d1[0],
       d1[1],
       d2[0],
-      d2[1]
+      d2[1],
+      poseidon(newPubKey),
+      pollId
     ]);
 
     const input = {
@@ -651,7 +668,9 @@ export class OperatorClient {
       d2,
       deactivateLeafPathElements,
       nullifier,
-      oldPrivateKey: signer.getFormatedPrivKey()
+      oldPrivateKey: signer.getFormatedPrivKey(),
+      newPubKey,
+      pollId
     };
 
     return input;
@@ -662,10 +681,14 @@ export class OperatorClient {
     {
       coordPubKey,
       deactivates,
+      newPubKey,
+      pollId,
       derivePathParams
     }: {
       coordPubKey: PubKey;
       deactivates: bigint[][];
+      newPubKey: PubKey;
+      pollId: bigint;
       derivePathParams?: DerivePathParams;
     }
   ) {
@@ -686,7 +709,8 @@ export class OperatorClient {
 
     const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
-    const nullifier = poseidon([signer.getFormatedPrivKey(), 1444992409218394441042n]);
+    // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+    const nullifier = poseidon([signer.getFormatedPrivKey(), pollId]);
 
     const tree = new Tree(5, depth, 0n);
     const leaves = deactivates.map((d) => poseidon(d));
@@ -702,7 +726,9 @@ export class OperatorClient {
       d1[0],
       d1[1],
       d2[0],
-      d2[1]
+      d2[1],
+      poseidon(newPubKey),
+      pollId
     ]);
 
     const input = {
@@ -718,7 +744,9 @@ export class OperatorClient {
       d2,
       deactivateLeafPathElements,
       nullifier,
-      oldPrivateKey: signer.getFormatedPrivKey()
+      oldPrivateKey: signer.getFormatedPrivKey(),
+      newPubKey,
+      pollId
     };
 
     return input;
@@ -744,7 +772,13 @@ export class OperatorClient {
     pollId: number;
     derivePathParams?: DerivePathParams;
   }) {
-    const payload = this.batchGenMessage(stateIdx, operatorPubkey, [[0, 0]], pollId, derivePathParams);
+    const payload = this.batchGenMessage(
+      stateIdx,
+      operatorPubkey,
+      [[0, 0]],
+      pollId,
+      derivePathParams
+    );
     return stringizing(payload[0]) as {
       msg: string[];
       encPubkeys: string[];
@@ -884,10 +918,10 @@ export class OperatorClient {
 
   /**
    * Decrypt message to command
-   * 
+   *
    * Message structure after decryption (7 elements):
    * [packed_data, newPubKey_x, newPubKey_y, salt, sig_R8_x, sig_R8_y, sig_S]
-   * 
+   *
    * Packed data contains (from low to high bits):
    * - nonce (bits 0-31)
    * - stateIdx (bits 32-63)
@@ -906,7 +940,7 @@ export class OperatorClient {
     try {
       // Decrypt message to get command (7 elements)
       const plaintext = poseidonDecrypt(ciphertext, sharedKey, 0n, 7);
-      
+
       // plaintext[0] = packed_data (COMMAND_STATE_INDEX)
       // plaintext[1] = new_pubkey_x (COMMAND_PUBLIC_KEY_X)
       // plaintext[2] = new_pubkey_y (COMMAND_PUBLIC_KEY_Y)
@@ -914,7 +948,7 @@ export class OperatorClient {
       // plaintext[4] = sig_R8_x (SIGNATURE_POINT_X)
       // plaintext[5] = sig_R8_y (SIGNATURE_POINT_Y)
       // plaintext[6] = sig_S (SIGNATURE_SCALAR)
-      
+
       const packaged = plaintext[0];
 
       // Unpack the packed data to extract all fields including pollId
@@ -1327,12 +1361,12 @@ export class OperatorClient {
     if (cmd.stateIdx >= BigInt(subStateTreeLength)) {
       return 'state leaf index overflow';
     }
-    
+
     // Check poll ID match
     if (this.pollId !== undefined && cmd.pollId !== BigInt(this.pollId)) {
       return 'poll id mismatch';
     }
-    
+
     const stateIdx = Number(cmd.stateIdx);
     const s = this.stateLeaves.get(stateIdx) || this.emptyState();
 
@@ -1630,12 +1664,12 @@ export class OperatorClient {
     if (cmd.voIdx > BigInt(this.maxVoteOptions!)) {
       return 'vote option index overflow';
     }
-    
+
     // Check poll ID match
     if (this.pollId !== undefined && cmd.pollId !== BigInt(this.pollId)) {
       return 'poll id mismatch';
     }
-    
+
     const stateIdx = Number(cmd.stateIdx);
     const voIdx = Number(cmd.voIdx);
     const s = this.stateLeaves.get(stateIdx) || this.emptyState();

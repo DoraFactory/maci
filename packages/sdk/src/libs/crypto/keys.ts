@@ -220,11 +220,15 @@ export const genAddKeyInput = (
   {
     coordPubKey,
     oldKey,
-    deactivates
+    deactivates,
+    newPubKey,
+    pollId
   }: {
     coordPubKey: PubKey;
     oldKey: Keypair;
     deactivates: bigint[][];
+    newPubKey: PubKey;
+    pollId: bigint;
   }
 ) => {
   const sharedKeyHash = poseidon(genEcdhSharedKey(oldKey.privKey, coordPubKey));
@@ -242,7 +246,8 @@ export const genAddKeyInput = (
 
   const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
-  const nullifier = poseidon([BigInt(oldKey.formatedPrivKey), 1444992409218394441042n]);
+  // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+  const nullifier = poseidon([BigInt(oldKey.formatedPrivKey), pollId]);
 
   const tree = new Tree(5, depth, 0n);
   const leaves = deactivates.map((d) => poseidon(d));
@@ -258,7 +263,9 @@ export const genAddKeyInput = (
     d1[0],
     d1[1],
     d2[0],
-    d2[1]
+    d2[1],
+    poseidon(newPubKey),
+    pollId
   ]);
 
   const input = {
@@ -274,7 +281,9 @@ export const genAddKeyInput = (
     d2,
     deactivateLeafPathElements,
     nullifier,
-    oldPrivateKey: oldKey.formatedPrivKey
+    oldPrivateKey: oldKey.formatedPrivKey,
+    newPubKey,
+    pollId
   };
 
   return input;

@@ -1584,11 +1584,7 @@ pub fn execute_process_deactivate_message(
         return Err(ContractError::BatchSizeOverflow {});
     }
 
-    DNODES.save(
-        deps.storage,
-        Uint256::from_u128(0u128).to_be_bytes().to_vec(),
-        &new_deactivate_root,
-    )?;
+    // --- Checks ---
     let mut input: [Uint256; 8] = [Uint256::zero(); 8];
     input[0] = new_deactivate_root;
     input[1] = COORDINATORHASH.load(deps.storage)?;
@@ -1616,6 +1612,12 @@ pub fn execute_process_deactivate_message(
         "ProcessDeactivate",
     )?;
 
+    // --- Effects (all state mutations after proof verification) ---
+    DNODES.save(
+        deps.storage,
+        Uint256::from_u128(0u128).to_be_bytes().to_vec(),
+        &new_deactivate_root,
+    )?;
     CURRENT_DEACTIVATE_COMMITMENT.save(deps.storage, &new_deactivate_commitment)?;
     PROCESSED_DMSG_COUNT.save(
         deps.storage,
@@ -1686,10 +1688,10 @@ fn add_key_internal(
     let voting_time = VOTINGTIME.load(deps.storage)?;
     check_voting_time(env, voting_time)?;
 
+    // --- Checks (all validations before any state mutation) ---
     if NULLIFIERS.has(deps.storage, nullifier.to_be_bytes().to_vec()) {
         return Err(ContractError::NewKeyExist {});
     }
-    NULLIFIERS.save(deps.storage, nullifier.to_be_bytes().to_vec(), &true)?;
 
     let mut num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
     let max_leaves_count = MAX_LEAVES_COUNT.load(deps.storage)?;
@@ -1701,7 +1703,11 @@ fn add_key_internal(
         return Err(ContractError::InvalidPubKey {});
     }
 
-    let mut input: [Uint256; 7] = [Uint256::zero(); 7];
+    if SIGNUPED.has(deps.storage, &pubkey_key(&pubkey)) {
+        return Err(ContractError::AlreadySignedUp {});
+    }
+
+    let mut input: [Uint256; 9] = [Uint256::zero(); 9];
     if is_pre_populated {
         input[0] = PRE_DEACTIVATE_ROOT.load(deps.storage)?;
         // PreAddNewKey MUST use pre_deactivate_coordinator hash
@@ -1718,6 +1724,8 @@ fn add_key_internal(
     input[4] = d[1];
     input[5] = d[2];
     input[6] = d[3];
+    input[7] = hash2([pubkey.x, pubkey.y]); // fix: front-running (bind newPubKey to proof)
+    input[8] = Uint256::from(POLL_ID.load(deps.storage)?); // fix: replay attack prevention
 
     let input_hash = compute_input_hash(&input);
     let process_vkeys_str = GROTH16_NEWKEY_VKEYS.load(deps.storage)?;
@@ -1726,7 +1734,11 @@ fn add_key_internal(
     } else {
         "AddNewKey"
     };
+    // ZK proof verification is the most expensive check — placed last to fail fast on cheaper checks first
     run_groth16_verify(process_vkeys_str, &groth16_proof, input_hash, proof_step)?;
+
+    // --- Effects (state mutations only after all checks pass) ---
+    NULLIFIERS.save(deps.storage, nullifier.to_be_bytes().to_vec(), &true)?;
 
     let voice_credit_amount = if is_pre_populated {
         let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;

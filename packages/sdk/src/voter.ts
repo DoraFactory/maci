@@ -365,6 +365,8 @@ export class VoterClient {
     stateTreeDepth,
     operatorPubkey,
     deactivates,
+    newPubkey,
+    pollId,
     wasmFile,
     zkeyFile,
     derivePathParams
@@ -372,6 +374,8 @@ export class VoterClient {
     stateTreeDepth: number;
     operatorPubkey: bigint | string | PubKey;
     deactivates: DeactivateMessage[] | bigint[][] | string[][];
+    newPubkey: PubKey;
+    pollId: bigint;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -385,10 +389,11 @@ export class VoterClient {
     nullifier: string;
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(operatorPubkey);
-    // const stateTreeDepth = Number(circuitPower.split('-')[0]);
     const addKeyInput = await this.genAddKeyInput(stateTreeDepth + 2, {
       coordPubKey: [coordPubkeyX, coordPubkeyY],
       deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      newPubKey: newPubkey,
+      pollId,
       derivePathParams
     });
 
@@ -419,6 +424,8 @@ export class VoterClient {
     stateTreeDepth,
     coordinatorPubkey,
     deactivates,
+    newPubkey,
+    pollId,
     wasmFile,
     zkeyFile,
     derivePathParams
@@ -426,6 +433,8 @@ export class VoterClient {
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
     deactivates: bigint[][] | string[][];
+    newPubkey: PubKey;
+    pollId: bigint;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -439,11 +448,12 @@ export class VoterClient {
     nullifier: string;
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(coordinatorPubkey);
-    // const stateTreeDepth = Number(circuitPower.split('-')[0]);
     const genPreAddKeyInputStart = Date.now();
     const addKeyInput = await this.genPreAddKeyInput(stateTreeDepth + 2, {
       coordPubKey: [coordPubkeyX, coordPubkeyY],
       deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      newPubKey: newPubkey,
+      pollId,
       derivePathParams
     });
     console.log(`[genPreAddKeyInput] elapsed: ${Date.now() - genPreAddKeyInputStart}ms`);
@@ -478,10 +488,14 @@ export class VoterClient {
     {
       coordPubKey,
       deactivates,
+      newPubKey,
+      pollId,
       derivePathParams
     }: {
       coordPubKey: PubKey;
       deactivates: bigint[][];
+      newPubKey: PubKey;
+      pollId: bigint;
       derivePathParams?: DerivePathParams;
     }
   ) {
@@ -502,7 +516,8 @@ export class VoterClient {
 
     const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
-    const nullifier = poseidon([signer.getFormatedPrivKey(), 1444992409218394441042n]);
+    // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+    const nullifier = poseidon([signer.getFormatedPrivKey(), pollId]);
 
     const tree = new Tree(5, depth, 0n);
     const leaves = deactivates.map((d) => poseidon(d));
@@ -518,7 +533,9 @@ export class VoterClient {
       d1[0],
       d1[1],
       d2[0],
-      d2[1]
+      d2[1],
+      poseidon(newPubKey),
+      pollId
     ]);
 
     const input = {
@@ -534,7 +551,9 @@ export class VoterClient {
       d2,
       deactivateLeafPathElements,
       nullifier,
-      oldPrivateKey: signer.getFormatedPrivKey()
+      oldPrivateKey: signer.getFormatedPrivKey(),
+      newPubKey,
+      pollId
     };
 
     return input;
@@ -545,10 +564,14 @@ export class VoterClient {
     {
       coordPubKey,
       deactivates,
+      newPubKey,
+      pollId,
       derivePathParams
     }: {
       coordPubKey: PubKey;
       deactivates: bigint[][];
+      newPubKey: PubKey;
+      pollId: bigint;
       derivePathParams?: DerivePathParams;
     }
   ) {
@@ -575,7 +598,8 @@ export class VoterClient {
     const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
     console.log(`[genPreAddKeyInput] rerandomize: ${Date.now() - t0}ms`); t0 = Date.now();
 
-    const nullifier = poseidon([signer.getFormatedPrivKey(), 1444992409218394441042n]);
+    // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+    const nullifier = poseidon([signer.getFormatedPrivKey(), pollId]);
     console.log(`[genPreAddKeyInput] nullifier (poseidon): ${Date.now() - t0}ms`); t0 = Date.now();
 
     const tree = new Tree(5, depth, 0n);
@@ -594,7 +618,9 @@ export class VoterClient {
       d1[0],
       d1[1],
       d2[0],
-      d2[1]
+      d2[1],
+      poseidon(newPubKey),
+      pollId
     ]);
     console.log(`[genPreAddKeyInput] computeInputHash: ${Date.now() - t0}ms`); t0 = Date.now();
 
@@ -611,7 +637,9 @@ export class VoterClient {
       d2,
       deactivateLeafPathElements,
       nullifier,
-      oldPrivateKey: signer.getFormatedPrivKey()
+      oldPrivateKey: signer.getFormatedPrivKey(),
+      newPubKey,
+      pollId
     };
 
     return input;
@@ -771,6 +799,7 @@ export class VoterClient {
     stateTreeDepth,
     coordinatorPubkey,
     deactivates,
+    pollId,
     wasmFile,
     zkeyFile,
     ticket,
@@ -780,20 +809,12 @@ export class VoterClient {
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
     deactivates: bigint[][] | string[][];
+    pollId: bigint;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     ticket: string;
     derivePathParams?: DerivePathParams;
   }) {
-    const addNewKeyPayload = await this.buildPreAddNewKeyPayload({
-      stateTreeDepth,
-      coordinatorPubkey,
-      deactivates,
-      wasmFile,
-      zkeyFile,
-      derivePathParams
-    });
-
     const newVoterClient = new VoterClient({
       network: this.network,
       restEndpoint: this.restEndpoint,
@@ -802,15 +823,25 @@ export class VoterClient {
       registryAddress: this.registryAddress
     });
 
+    const newPubkey = newVoterClient.getPubkey().toPoints() as [bigint, bigint];
+
+    const addNewKeyPayload = await this.buildPreAddNewKeyPayload({
+      stateTreeDepth,
+      coordinatorPubkey,
+      deactivates,
+      newPubkey,
+      pollId,
+      wasmFile,
+      zkeyFile,
+      derivePathParams
+    });
+
     const addNewKeyResult = await newVoterClient.saasSubmitPreAddNewKey({
       contractAddress: contractAddress,
       proof: addNewKeyPayload.proof,
       d: addNewKeyPayload.d,
       nullifier: addNewKeyPayload.nullifier,
-      newPubkey: newVoterClient
-        .getPubkey()
-        .toPoints()
-        .map((p) => p.toString()),
+      newPubkey: newPubkey.map((p) => p.toString()),
       ticket
     });
 

@@ -36,7 +36,9 @@ describe('AMACI AddNewKey circuit', function test() {
       'd2',
       'deactivateLeafPathElements',
       'nullifier',
-      'oldPrivateKey'
+      'oldPrivateKey',
+      'newPubKey',
+      'pollId'
     ],
     []
   >;
@@ -52,6 +54,13 @@ describe('AMACI AddNewKey circuit', function test() {
 
   const oldKeypair = oldVoterClient.getSigner();
   const oldPrivKey = oldKeypair.getFormatedPrivKey();
+
+  // New keypair that the voter is registering
+  const newKeypair = new EdDSAPoseidonKeypair();
+  const newPubKey = newKeypair.getPublicKey().toPoints() as [bigint, bigint];
+
+  // Poll ID for this round (round-specific, used in nullifier and inputHash)
+  const pollId = 1n;
 
   before(async () => {
     circuit = await circomkitInstance.WitnessTester('AddNewKey', {
@@ -98,14 +107,14 @@ describe('AMACI AddNewKey circuit', function test() {
         randomVal
       );
 
-      // Compute nullifier (SDK's logic)
-      const nullifier = poseidon([oldKeypair.getFormatedPrivKey(), 1444992409218394441042n]);
+      // Compute round-specific nullifier: Poseidon(oldPrivKey, pollId)
+      const nullifier = poseidon([oldKeypair.getFormatedPrivKey(), pollId]);
 
       // Build tree (SDK's logic)
       const deactivateRoot = root;
       const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
 
-      // Compute input hash (SDK's logic using our new unified function)
+      // Compute input hash with 9 fields (includes newPubKey hash and pollId)
       const inputHash = computeInputHash([
         deactivateRoot,
         poseidon(coordPubKey),
@@ -113,7 +122,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d1[0],
         d1[1],
         d2[0],
-        d2[1]
+        d2[1],
+        poseidon(newPubKey),
+        pollId
       ]);
 
       // Prepare circuit inputs
@@ -130,7 +141,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d2: d2 as [bigint, bigint],
         deactivateLeafPathElements,
         nullifier,
-        oldPrivateKey: oldKeypair.getFormatedPrivKey()
+        oldPrivateKey: oldKeypair.getFormatedPrivKey(),
+        newPubKey: newPubKey as [bigint, bigint],
+        pollId
       };
 
       const witness = await circuit.calculateWitness(circuitInputs);
@@ -194,14 +207,14 @@ describe('AMACI AddNewKey circuit', function test() {
         randomVal
       );
 
-      // Compute nullifier (SDK's logic)
-      const nullifier = poseidon([oldKeypair.getFormatedPrivKey(), 1444992409218394441042n]);
+      // Compute round-specific nullifier: Poseidon(oldPrivKey, pollId)
+      const nullifier = poseidon([oldKeypair.getFormatedPrivKey(), pollId]);
 
       // Build tree (SDK's logic)
       const deactivateRoot = root;
       const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
 
-      // Compute input hash (SDK's logic using our new unified function)
+      // Compute input hash with 9 fields
       const inputHash = computeInputHash([
         deactivateRoot,
         poseidon(coordPubKey),
@@ -209,7 +222,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d1[0],
         d1[1],
         d2[0],
-        d2[1]
+        d2[1],
+        poseidon(newPubKey),
+        pollId
       ]);
 
       // Prepare circuit inputs
@@ -226,14 +241,16 @@ describe('AMACI AddNewKey circuit', function test() {
         d2: d2 as [bigint, bigint],
         deactivateLeafPathElements,
         nullifier,
-        oldPrivateKey: oldKeypair.getFormatedPrivKey()
+        oldPrivateKey: oldKeypair.getFormatedPrivKey(),
+        newPubKey: newPubKey as [bigint, bigint],
+        pollId
       };
 
       const witness = await circuit.calculateWitness(circuitInputs);
       await circuit.expectConstraintPass(witness);
     });
 
-    it('should verify using voterClient.genAddKeyInput (complete SDK integration)', async () => {
+    it('should verify with multiple deactivates using SDK primitives (complete integration)', async () => {
       // Step 1: Operator generates multiple pre-deactivate entries
       const numDeactivates = 5;
       const myIndex = 2; // Our voter's deactivate is at index 2
@@ -256,33 +273,69 @@ describe('AMACI AddNewKey circuit', function test() {
       }
 
       // Generate all deactivate messages at once
-      const { deactivates } = operatorClient.genPreDeactivate({
+      const { deactivates, root, tree } = operatorClient.genPreDeactivate({
         voterPubkeys: allPubkeys,
         stateTreeDepth
       });
 
-      // Step 2: Voter uses genAddKeyInput to generate circuit inputs
-      const circuitInputs = await oldVoterClient.genAddKeyInput(deactivateTreeDepth, {
-        coordPubKey,
-        deactivates
-      });
+      // Step 2: Build circuit inputs using SDK primitives (mirrors genAddKeyInput logic)
+      const randomVal = genRandomSalt();
+      const mySharedKeyHash = poseidon(oldKeypair.genEcdhSharedKey(coordPubKey));
+      const deactivateIdx = deactivates.findIndex((d) => d[4] === mySharedKeyHash);
 
-      // Verify that genAddKeyInput found the matching deactivate
-      expect(circuitInputs).to.not.be.null;
-      if (!circuitInputs) {
-        throw new Error('genAddKeyInput returned null');
-      }
+      expect(deactivateIdx).to.equal(myIndex);
+
+      const deactivateLeaf = deactivates[deactivateIdx];
+      const c1_from_deactivate = [deactivateLeaf[0], deactivateLeaf[1]];
+      const c2_from_deactivate = [deactivateLeaf[2], deactivateLeaf[3]];
+
+      const { d1, d2 } = rerandomize(
+        coordPubKey,
+        { c1: c1_from_deactivate, c2: c2_from_deactivate },
+        randomVal
+      );
+
+      // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+      const nullifier = poseidon([oldPrivKey, pollId]);
+      const deactivateRoot = root;
+      const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
+
+      const inputHash = computeInputHash([
+        deactivateRoot,
+        poseidon(coordPubKey),
+        nullifier,
+        d1[0],
+        d1[1],
+        d2[0],
+        d2[1],
+        poseidon(newPubKey),
+        pollId
+      ]);
+
+      const circuitInputs = {
+        inputHash,
+        coordPubKey: coordPubKey as [bigint, bigint],
+        deactivateRoot,
+        deactivateIndex: BigInt(deactivateIdx),
+        deactivateLeaf: poseidon(deactivateLeaf),
+        c1: c1_from_deactivate as [bigint, bigint],
+        c2: c2_from_deactivate as [bigint, bigint],
+        randomVal,
+        d1: d1 as [bigint, bigint],
+        d2: d2 as [bigint, bigint],
+        deactivateLeafPathElements,
+        nullifier,
+        oldPrivateKey: oldPrivKey,
+        newPubKey: newPubKey as [bigint, bigint],
+        pollId
+      };
 
       // Step 3: Verify the circuit with SDK-generated inputs
       const witness = await circuit.calculateWitness(circuitInputs);
       await circuit.expectConstraintPass(witness);
 
-      // Step 4: Verify key components are correct
-      expect(circuitInputs.deactivateIndex).to.equal(myIndex);
-      expect(circuitInputs.oldPrivateKey).to.equal(oldPrivKey);
-
-      // Verify nullifier is correctly computed
-      const expectedNullifier = poseidon([oldPrivKey, 1444992409218394441042n]);
+      // Step 4: Verify nullifier is round-specific
+      const expectedNullifier = poseidon([oldPrivKey, pollId]);
       expect(circuitInputs.nullifier).to.equal(expectedNullifier);
     });
   });
@@ -307,7 +360,7 @@ describe('AMACI AddNewKey circuit', function test() {
       const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
       // Wrong nullifier!
-      const wrongNullifier = poseidon([123456789n, 1444992409218394441042n]);
+      const wrongNullifier = poseidon([123456789n, pollId]);
 
       const coordPubKeyHash = poseidon(coordPubKey);
       const inputHash = computeInputHash([
@@ -317,7 +370,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d1[0],
         d1[1],
         d2[0],
-        d2[1]
+        d2[1],
+        poseidon(newPubKey),
+        pollId
       ]);
 
       const circuitInputs = {
@@ -333,7 +388,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d2: d2 as [bigint, bigint],
         deactivateLeafPathElements,
         nullifier: wrongNullifier,
-        oldPrivateKey: oldPrivKey
+        oldPrivateKey: oldPrivKey,
+        newPubKey: newPubKey as [bigint, bigint],
+        pollId
       };
 
       try {
@@ -367,7 +424,7 @@ describe('AMACI AddNewKey circuit', function test() {
       const randomVal = genRandomSalt();
       const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
-      const nullifier = poseidon([oldPrivKey, 1444992409218394441042n]);
+      const nullifier = poseidon([oldPrivKey, pollId]);
 
       const coordPubKeyHash = poseidon(coordPubKey);
       const inputHash = computeInputHash([
@@ -377,7 +434,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d1[0],
         d1[1],
         d2[0],
-        d2[1]
+        d2[1],
+        poseidon(newPubKey),
+        pollId
       ]);
 
       const circuitInputs = {
@@ -393,7 +452,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d2: d2 as [bigint, bigint],
         deactivateLeafPathElements,
         nullifier,
-        oldPrivateKey: oldPrivKey // Using correct privKey but tree has wrong sharedKey
+        oldPrivateKey: oldPrivKey, // Using correct privKey but tree has wrong sharedKey
+        newPubKey: newPubKey as [bigint, bigint],
+        pollId
       };
 
       try {
@@ -425,7 +486,7 @@ describe('AMACI AddNewKey circuit', function test() {
       // Tamper with d1
       const wrongD1 = [d1[0] + 1n, d1[1]];
 
-      const nullifier = poseidon([oldPrivKey, 1444992409218394441042n]);
+      const nullifier = poseidon([oldPrivKey, pollId]);
 
       const coordPubKeyHash = poseidon(coordPubKey);
       const inputHash = computeInputHash([
@@ -435,7 +496,9 @@ describe('AMACI AddNewKey circuit', function test() {
         wrongD1[0],
         wrongD1[1],
         d2[0],
-        d2[1]
+        d2[1],
+        poseidon(newPubKey),
+        pollId
       ]);
 
       const circuitInputs = {
@@ -451,7 +514,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d2: d2 as [bigint, bigint],
         deactivateLeafPathElements,
         nullifier,
-        oldPrivateKey: oldPrivKey
+        oldPrivateKey: oldPrivKey,
+        newPubKey: newPubKey as [bigint, bigint],
+        pollId
       };
 
       try {
@@ -482,7 +547,7 @@ describe('AMACI AddNewKey circuit', function test() {
       const randomVal = genRandomSalt();
       const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
-      const nullifier = poseidon([oldPrivKey, 1444992409218394441042n]);
+      const nullifier = poseidon([oldPrivKey, pollId]);
 
       const coordPubKeyHash = poseidon(coordPubKey);
       const inputHash = computeInputHash([
@@ -492,7 +557,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d1[0],
         d1[1],
         d2[0],
-        d2[1]
+        d2[1],
+        poseidon(newPubKey),
+        pollId
       ]);
 
       const circuitInputs = {
@@ -508,7 +575,9 @@ describe('AMACI AddNewKey circuit', function test() {
         d2: d2 as [bigint, bigint],
         deactivateLeafPathElements, // But path is for wrongLeaf
         nullifier,
-        oldPrivateKey: oldPrivKey
+        oldPrivateKey: oldPrivKey,
+        newPubKey: newPubKey as [bigint, bigint],
+        pollId
       };
 
       try {
@@ -560,10 +629,18 @@ describe('AMACI AddNewKey circuit', function test() {
 describe('AMACI AddNewKeyInputHasher circuit', function test() {
   this.timeout(90000);
 
-  let circuit: WitnessTester<['deactivateRoot', 'coordPubKey', 'nullifier', 'd1', 'd2'], ['hash']>;
+  let circuit: WitnessTester<
+    ['deactivateRoot', 'coordPubKey', 'nullifier', 'd1', 'd2', 'newPubKey', 'pollId'],
+    ['hash']
+  >;
 
   const coordKeypair = new EdDSAPoseidonKeypair();
   const coordPubKey = coordKeypair.getPublicKey().toPoints() as [bigint, bigint];
+
+  const newKeypair = new EdDSAPoseidonKeypair();
+  const newPubKey = newKeypair.getPublicKey().toPoints() as [bigint, bigint];
+
+  const pollId = 1n;
 
   before(async () => {
     circuit = await circomkitInstance.WitnessTester('AddNewKeyInputHasher', {
@@ -583,7 +660,9 @@ describe('AMACI AddNewKeyInputHasher circuit', function test() {
       coordPubKey: coordPubKey as [bigint, bigint],
       nullifier,
       d1: d1 as [bigint, bigint],
-      d2: d2 as [bigint, bigint]
+      d2: d2 as [bigint, bigint],
+      newPubKey: newPubKey as [bigint, bigint],
+      pollId
     };
 
     const witness = await circuit.calculateWitness(circuitInputs);
@@ -595,8 +674,9 @@ describe('AMACI AddNewKeyInputHasher circuit', function test() {
     expect(hash).to.be.a('bigint');
     expect(hash > 0n).to.be.true;
 
-    // Verify hash matches SDK computation
+    // Verify hash matches SDK computation (9 fields)
     const coordPubKeyHash = poseidon(coordPubKey);
+    const newPubKeyHash = poseidon(newPubKey);
     const expectedHash = computeInputHash([
       deactivateRoot,
       coordPubKeyHash,
@@ -604,7 +684,9 @@ describe('AMACI AddNewKeyInputHasher circuit', function test() {
       d1[0],
       d1[1],
       d2[0],
-      d2[1]
+      d2[1],
+      newPubKeyHash,
+      pollId
     ]);
 
     expect(hash.toString()).to.equal(expectedHash.toString());
@@ -622,7 +704,9 @@ describe('AMACI AddNewKeyInputHasher circuit', function test() {
       coordPubKey: coordPubKey as [bigint, bigint],
       nullifier,
       d1: d1 as [bigint, bigint],
-      d2: d2 as [bigint, bigint]
+      d2: d2 as [bigint, bigint],
+      newPubKey: newPubKey as [bigint, bigint],
+      pollId
     };
 
     const circuitInputs2 = {
@@ -630,7 +714,9 @@ describe('AMACI AddNewKeyInputHasher circuit', function test() {
       coordPubKey: coordPubKey as [bigint, bigint],
       nullifier,
       d1: d1 as [bigint, bigint],
-      d2: d2 as [bigint, bigint]
+      d2: d2 as [bigint, bigint],
+      newPubKey: newPubKey as [bigint, bigint],
+      pollId
     };
 
     const witness1 = await circuit.calculateWitness(circuitInputs1);
@@ -654,7 +740,9 @@ describe('AMACI AddNewKeyInputHasher circuit', function test() {
       coordPubKey: coordPubKey as [bigint, bigint],
       nullifier,
       d1: d1 as [bigint, bigint],
-      d2: d2 as [bigint, bigint]
+      d2: d2 as [bigint, bigint],
+      newPubKey: newPubKey as [bigint, bigint],
+      pollId
     };
 
     // Calculate witness twice

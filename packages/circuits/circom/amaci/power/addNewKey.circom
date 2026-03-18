@@ -48,10 +48,14 @@ template AddNewKey(
 
     signal input oldPrivateKey;
 
+    signal input newPubKey[2];
+
+    signal input pollId;
+
     // 1.
-    component nullifierHasher = HashLeftRight(); 
+    component nullifierHasher = HashLeftRight();
     nullifierHasher.left <== oldPrivateKey;
-    nullifierHasher.right <== 1444992409218394441042; // 'NULLIFIER'
+    nullifierHasher.right <== pollId; // round-specific nullifier: Poseidon(oldPrivKey, pollId)
     nullifierHasher.hash === nullifier;
 
     // 2.
@@ -98,7 +102,9 @@ template AddNewKey(
     rerandomize.pubKey[1] <== coordPubKey[1];
 
     rerandomize.d1[0] === d1[0];
+    rerandomize.d1[1] === d1[1];
     rerandomize.d2[0] === d2[0];
+    rerandomize.d2[1] === d2[1];
 
     // Verify "public" inputs and assign unpacked values
     component inputHasher = AddNewKeyInputHasher();
@@ -110,6 +116,9 @@ template AddNewKey(
     inputHasher.d1[1] <== d1[1];
     inputHasher.d2[0] <== d2[0];
     inputHasher.d2[1] <== d2[1];
+    inputHasher.newPubKey[0] <== newPubKey[0];
+    inputHasher.newPubKey[1] <== newPubKey[1];
+    inputHasher.pollId <== pollId;
 
     inputHasher.hash === inputHash;
 }
@@ -121,6 +130,8 @@ template AddNewKeyInputHasher() {
     signal input nullifier;
     signal input d1[2];
     signal input d2[2];
+    signal input newPubKey[2];
+    signal input pollId;
 
     signal output hash;
 
@@ -129,8 +140,13 @@ template AddNewKeyInputHasher() {
     pubKeyHasher.left <== coordPubKey[0];
     pubKeyHasher.right <== coordPubKey[1];
 
-    // 2. Hash the 7 inputs with SHA256
-    component hasher = Sha256Hasher(7);
+    // 2. Hash newPubKey
+    component newPubKeyHasher = HashLeftRight();
+    newPubKeyHasher.left <== newPubKey[0];
+    newPubKeyHasher.right <== newPubKey[1];
+
+    // 3. Hash the 9 inputs with SHA256
+    component hasher = Sha256Hasher(9);
     hasher.in[0] <== deactivateRoot;
     hasher.in[1] <== pubKeyHasher.hash;
     hasher.in[2] <== nullifier;
@@ -138,6 +154,8 @@ template AddNewKeyInputHasher() {
     hasher.in[4] <== d1[1];
     hasher.in[5] <== d2[0];
     hasher.in[6] <== d2[1];
+    hasher.in[7] <== newPubKeyHasher.hash;
+    hasher.in[8] <== pollId;
 
     hash <== hasher.hash;
 }

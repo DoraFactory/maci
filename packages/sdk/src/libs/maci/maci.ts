@@ -1148,9 +1148,11 @@ export class MACI {
 
   async genAddKeyInput({
     maciKeypair,
+    newMaciKeypair,
     contractAddress
   }: {
     maciKeypair: Keypair;
+    newMaciKeypair: Keypair;
     contractAddress: string;
   }) {
     const deactivates = await this.fetchAllDeactivateLogs({
@@ -1161,20 +1163,18 @@ export class MACI {
       contractAddress
     });
 
+    const pollId = await this.getPollId({ contractAddress });
+
     const circuitPower = roundInfo.circuitPower;
     const stateTreeDepth = Number(circuitPower.split('-')[0]);
     const inputObj = genAddKeyInput(stateTreeDepth + 2, {
       coordPubKey: [BigInt(roundInfo.coordinatorPubkeyX), BigInt(roundInfo.coordinatorPubkeyY)],
       oldKey: maciKeypair,
-      deactivates: deactivates.map((d: any) => d.map(BigInt))
+      deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      newPubKey: newMaciKeypair.pubKey,
+      pollId: BigInt(pollId)
     });
     return inputObj;
-
-    // 1. generate proof
-
-    // 2. compress proof to vote proof
-
-    // 3. send addNewKey tx
   }
 
   async addNewKey({
