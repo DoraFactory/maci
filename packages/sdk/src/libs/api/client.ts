@@ -448,4 +448,18 @@ export class MaciApiClient {
       method: 'GET'
     });
   }
+
+  /**
+   * Get K-anonymous Merkle proof packages for the specified leaf indices.
+   * The caller should mix the real leaf index with decoy indices to preserve privacy.
+   */
+  async getPreDeactivateProof(
+    contractAddress: string,
+    indices: string
+  ): Promise<ResponseBody<paths['/v1/pre-deactivate/{contractAddress}/proof']['get'], 200>> {
+    return this.fetch(
+      `/v1/pre-deactivate/${contractAddress}/proof?indices=${indices}`,
+      { method: 'GET' }
+    );
+  }
 }

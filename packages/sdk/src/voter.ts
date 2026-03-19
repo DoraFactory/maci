@@ -28,6 +28,33 @@ import { isErrorResponse } from './libs/maci/maci';
 import { Contract } from './libs/contract';
 
 /**
+ * Build a sorted, comma-separated string of K-anonymous leaf indices for a
+ * pre-deactivate proof request.
+ *
+ * The real `deactivateIdx` is mixed with up to `kMax - 1` random decoy
+ * indices drawn from `[0, voterScale)` so that the server cannot identify
+ * which leaf the caller actually owns.
+ *
+ * K-max is capped at `min(200, floor(voterScale * 0.1) || 1)` to stay within
+ * the API's per-request limit.
+ *
+ * When `voterScale` is not provided the function returns just the real index
+ * (K=1, no anonymity).
+ */
+function buildKAnonymousIndices(deactivateIdx: number, voterScale: number): string {
+  const kMax = Math.min(200, Math.floor(voterScale * 0.1) || 1);
+
+  // Fisher-Yates shuffle over all indices except the real one, then take kMax-1 decoys.
+  const pool = Array.from({ length: voterScale }, (_, i) => i).filter((i) => i !== deactivateIdx);
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  return [deactivateIdx, ...pool.slice(0, kMax - 1)].sort((a, b) => a - b).join(',');
+}
+
+/**
  * @class Maci Voter Client
  * @description This class is used to interact with Maci Voter Client.
  */
@@ -424,6 +451,9 @@ export class VoterClient {
     stateTreeDepth,
     coordinatorPubkey,
     deactivates,
+    contractAddress,
+    deactivateIdx,
+    voterScale,
     newPubkey,
     pollId,
     wasmFile,
@@ -432,7 +462,22 @@ export class VoterClient {
   }: {
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
-    deactivates: bigint[][] | string[][];
+    /** Raw deactivate leaf data for local Merkle tree construction. When omitted, `contractAddress` must be provided and the proof will be fetched from the SaaS API. */
+    deactivates?: bigint[][] | string[][];
+    /** Contract address used for the API proof path. Required when `deactivates` is not provided. */
+    contractAddress?: string;
+    /**
+     * Leaf index of this account in the deactivate tree, as returned by the API
+     * in `accounts[n].accountIndex` at signup time.  When provided the costly
+     * `sharedKeyHash` scan is skipped in both local and API paths.
+     */
+    deactivateIdx?: number;
+    /**
+     * Pre-deactivate tree capacity (i.e. `preDeactivateScale` from the create-round
+     * response).  Used to generate K-anonymous decoy indices when fetching the proof
+     * from the SaaS API.  When omitted only the real index is sent (K=1, no anonymity).
+     */
+    voterScale?: number;
     newPubkey: PubKey;
     pollId: bigint;
     wasmFile: ZKArtifact;
@@ -448,13 +493,67 @@ export class VoterClient {
     nullifier: string;
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(coordinatorPubkey);
+    const coordPubKey: PubKey = [coordPubkeyX, coordPubkeyY];
+
+    let resolvedDeactivates: bigint[][];
+    let preComputedTreeProof: { root: string; pathElements: string[][] } | undefined;
+    let preComputedLeaf: bigint[] | undefined;
+
+    if (deactivates && deactivates.length > 0) {
+      // Local path: caller supplied full deactivate data, build Merkle tree locally.
+      // deactivateIdx is optional — when omitted the sharedKeyHash search runs inside genPreAddKeyInput.
+      resolvedDeactivates = deactivates.map((d: any) => d.map(BigInt));
+    } else {
+      // API path: contractAddress + deactivateIdx must both be provided.
+      if (!contractAddress) {
+        throw new Error(
+          'buildPreAddNewKeyPayload: `contractAddress` is required when `deactivates` is not provided'
+        );
+      }
+      if (deactivateIdx === undefined) {
+        throw new Error(
+          'buildPreAddNewKeyPayload: `deactivateIdx` is required when `deactivates` is not provided'
+        );
+      }
+      if (voterScale === undefined) {
+        throw new Error(
+          'buildPreAddNewKeyPayload: `voterScale` is required when `deactivates` is not provided'
+        );
+      }
+
+      // Build K-anonymous indices: the real index mixed with random decoys drawn from [0, voterScale).
+      const indicesParam = buildKAnonymousIndices(deactivateIdx, voterScale);
+
+      const proofResp = await this.saasApiClient.getPreDeactivateProof(
+        contractAddress,
+        indicesParam
+      );
+
+      const pkg = proofResp.proofs.find((p) => p.leafIndex === deactivateIdx);
+      if (!pkg) {
+        throw new Error(
+          `buildPreAddNewKeyPayload: proof package for leafIndex ${deactivateIdx} not found in API response`
+        );
+      }
+
+      preComputedLeaf = pkg.deactivateLeaf.map(BigInt);
+      preComputedTreeProof = {
+        root: proofResp.root,
+        pathElements: pkg.pathElements
+      };
+      resolvedDeactivates = [];
+    }
+
     const genPreAddKeyInputStart = Date.now();
     const addKeyInput = await this.genPreAddKeyInput(stateTreeDepth + 2, {
-      coordPubKey: [coordPubkeyX, coordPubkeyY],
-      deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      coordPubKey,
+      deactivates: resolvedDeactivates,
       newPubKey: newPubkey,
       pollId,
-      derivePathParams
+      derivePathParams,
+      preComputedTreeProof,
+      preComputedLeaf,
+      deactivateIdx
     });
     console.log(`[genPreAddKeyInput] elapsed: ${Date.now() - genPreAddKeyInputStart}ms`);
 
@@ -566,13 +665,36 @@ export class VoterClient {
       deactivates,
       newPubKey,
       pollId,
-      derivePathParams
+      derivePathParams,
+      preComputedTreeProof,
+      preComputedLeaf,
+      deactivateIdx: providedDeactivateIdx
     }: {
       coordPubKey: PubKey;
       deactivates: bigint[][];
       newPubKey: PubKey;
       pollId: bigint;
       derivePathParams?: DerivePathParams;
+      /**
+       * When provided, skip local Merkle tree construction and use the API-supplied
+       * root and path elements instead.
+       */
+      preComputedTreeProof?: {
+        root: string;
+        pathElements: string[][];
+      };
+      /**
+       * Pre-fetched leaf data `[c1.x, c1.y, c2.x, c2.y, sharedKeyHash]` from the
+       * API proof response.  When provided together with `deactivateIdx`, the
+       * `deactivates` array is not accessed at all.
+       */
+      preComputedLeaf?: bigint[];
+      /**
+       * Leaf index of this account in the deactivate tree, as returned by the API
+       * in `accounts[n].accountIndex` at signup time.  When provided the costly
+       * `sharedKeyHash` search over `deactivates` is skipped.
+       */
+      deactivateIdx?: number;
     }
   ) {
     let t0 = Date.now();
@@ -580,17 +702,27 @@ export class VoterClient {
     const signer = this.getSigner(derivePathParams);
     console.log(`[genPreAddKeyInput] getSigner: ${Date.now() - t0}ms`); t0 = Date.now();
 
-    const sharedKeyHash = poseidon(signer.genEcdhSharedKey(coordPubKey));
-    console.log(`[genPreAddKeyInput] genEcdhSharedKey + poseidon: ${Date.now() - t0}ms`); t0 = Date.now();
-
     const randomVal = genRandomSalt();
-    const deactivateIdx = deactivates.findIndex((d) => d[4] === sharedKeyHash);
-    if (deactivateIdx < 0) {
+    let deactivateIdx: number;
+
+    if (providedDeactivateIdx !== undefined) {
+      deactivateIdx = providedDeactivateIdx;
+      console.log(`[genPreAddKeyInput] using provided deactivateIdx=${deactivateIdx} (skip search)`);
+    } else {
+      const sharedKeyHash = poseidon(signer.genEcdhSharedKey(coordPubKey));
+      console.log(`[genPreAddKeyInput] genEcdhSharedKey + poseidon: ${Date.now() - t0}ms`); t0 = Date.now();
+
+      deactivateIdx = deactivates.findIndex((d) => d[4] === sharedKeyHash);
+      if (deactivateIdx < 0) {
+        return null;
+      }
+      console.log(`[genPreAddKeyInput] genRandomSalt + findDeactivateIdx: ${Date.now() - t0}ms`); t0 = Date.now();
+    }
+
+    const deactivateLeaf = preComputedLeaf ?? deactivates[deactivateIdx];
+    if (!deactivateLeaf) {
       return null;
     }
-    console.log(`[genPreAddKeyInput] genRandomSalt + findDeactivateIdx: ${Date.now() - t0}ms`); t0 = Date.now();
-
-    const deactivateLeaf = deactivates[deactivateIdx];
 
     const c1: [bigint, bigint] = [deactivateLeaf[0], deactivateLeaf[1]];
     const c2: [bigint, bigint] = [deactivateLeaf[2], deactivateLeaf[3]];
@@ -602,14 +734,26 @@ export class VoterClient {
     const nullifier = poseidon([signer.getFormatedPrivKey(), pollId]);
     console.log(`[genPreAddKeyInput] nullifier (poseidon): ${Date.now() - t0}ms`); t0 = Date.now();
 
-    const tree = new Tree(5, depth, 0n);
-    const leaves = deactivates.map((d) => poseidon(d));
-    tree.initLeaves(leaves);
-    console.log(`[genPreAddKeyInput] build tree + initLeaves: ${Date.now() - t0}ms`); t0 = Date.now();
+    let deactivateRoot: bigint;
+    let deactivateLeafPathElements: bigint[][];
 
-    const deactivateRoot = tree.root;
-    const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
-    console.log(`[genPreAddKeyInput] tree.root + pathElementOf: ${Date.now() - t0}ms`); t0 = Date.now();
+    if (preComputedTreeProof) {
+      // Use API-supplied Merkle root and path elements — skip local tree construction.
+      deactivateRoot = BigInt(preComputedTreeProof.root);
+      deactivateLeafPathElements = preComputedTreeProof.pathElements.map((level) =>
+        level.map(BigInt)
+      );
+      console.log(`[genPreAddKeyInput] using preComputedTreeProof (API path)`);
+    } else {
+      const tree = new Tree(5, depth, 0n);
+      const leaves = deactivates.map((d) => poseidon(d));
+      tree.initLeaves(leaves);
+      console.log(`[genPreAddKeyInput] build tree + initLeaves: ${Date.now() - t0}ms`); t0 = Date.now();
+
+      deactivateRoot = tree.root;
+      deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
+      console.log(`[genPreAddKeyInput] tree.root + pathElementOf: ${Date.now() - t0}ms`); t0 = Date.now();
+    }
 
     const inputHash = computeInputHash([
       deactivateRoot,
@@ -790,8 +934,14 @@ export class VoterClient {
 
   // ==================== Maci Voter Methods ====================
   /**
-   * Pre-create a new account for AMACI voting (pre-deactivate mode)
-   * @param params - Parameters including contract address, deactivates, circuit files, and ticket
+   * Pre-create a new account for AMACI voting (pre-deactivate mode).
+   *
+   * Two modes are supported:
+   * - **Local mode**: pass `deactivates` to build the Merkle tree locally (original behaviour).
+   * - **API mode**: omit `deactivates` and the proof will be fetched from the SaaS API using
+   *   `contractAddress` (K-anonymous request).
+   *
+   * @param params - Parameters including contract address, optional deactivates, circuit files, and ticket
    * @returns Result with transaction details and new voter account
    */
   async saasPreCreateNewAccount({
@@ -799,6 +949,8 @@ export class VoterClient {
     stateTreeDepth,
     coordinatorPubkey,
     deactivates,
+    deactivateIdx,
+    voterScale,
     pollId,
     wasmFile,
     zkeyFile,
@@ -808,7 +960,20 @@ export class VoterClient {
     contractAddress: string;
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
-    deactivates: bigint[][] | string[][];
+    /** Raw deactivate leaf data for local Merkle tree construction. Omit to fetch the proof from the SaaS API automatically. */
+    deactivates?: bigint[][] | string[][];
+    /**
+     * Leaf index of this account in the deactivate tree, as returned by the API
+     * in `accounts[n].accountIndex` at signup time.  When provided the costly
+     * `sharedKeyHash` scan is skipped.
+     */
+    deactivateIdx?: number;
+    /**
+     * Pre-deactivate tree capacity (`preDeactivateScale` from the create-round response).
+     * Used to generate K-anonymous decoy indices for the API proof request.
+     * When omitted only the real index is sent (K=1, no anonymity).
+     */
+    voterScale?: number;
     pollId: bigint;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
@@ -829,6 +994,9 @@ export class VoterClient {
       stateTreeDepth,
       coordinatorPubkey,
       deactivates,
+      contractAddress,
+      deactivateIdx,
+      voterScale,
       newPubkey,
       pollId,
       wasmFile,

@@ -4,9 +4,9 @@
  * This script demonstrates the complete AMACI Pre-Deactivate workflow:
  * 1. Create Tenant and API Key
  * 2. Create AMACI Round (automatic Pre-Deactivate mode)
- * 3. Query Pre-Deactivate data
- * 4. Test Pre-Add-New-Key
- * 5. Test voting
+ *    - accountIndex and preDeactivateScale are returned directly in the response
+ * 3. Test Pre-Add-New-Key (API proof path: no local deactivate data needed)
+ * 4. Test voting
  */
 
 import { MaciClient } from '../src/maci';
@@ -128,35 +128,26 @@ async function main() {
   console.log('\nWaiting 6 seconds to ensure transaction confirmation...');
   await new Promise((resolve) => setTimeout(resolve, 6000));
 
-  // Display first 3 accounts
+  // Verify preDeactivateScale is returned
+  const voterScale = createRoundData.preDeactivateScale;
+  if (!voterScale) {
+    throw new Error('preDeactivateScale not returned in response');
+  }
+  console.log('  Voter Scale (preDeactivateScale):', voterScale);
+
+  // Display first 3 accounts with their accountIndex
   if (accountsData.length > 0) {
     console.log('\nFirst 3 accounts returned:');
     accountsData.slice(0, 3).forEach((account, index) => {
       console.log(`\n  Account ${index + 1}:`);
       console.log(`    Pubkey: ${account.pubkey}`);
+      console.log(`    AccountIndex: ${account.accountIndex}`);
       console.log(`    Secret Key: ${account.secretKey.substring(0, 20)}...`);
     });
   }
 
-  // ==================== 3. Query Pre-Deactivate Data ====================
-  console.log('\n[3/5] Querying Pre-Deactivate data from dedicated API');
-
-  // Use public API (no API key required) - create a temporary VoterClient
-  const publicVoterClient = new VoterClient({
-    network: network,
-    saasApiEndpoint: API_BASE_URL
-  });
-
-  const deactivateData = await publicVoterClient.saasGetPreDeactivate(contractAddress);
-
-  console.log('✓ Deactivate data queried successfully!');
-  console.log('  Root:', deactivateData.root);
-  console.log('  Coordinator:', deactivateData.coordinator);
-  console.log('  Leaves count:', deactivateData.leaves.length);
-  console.log('  Deactivates count:', deactivateData.deactivates.length);
-
-  // ==================== 4. Test Pre-Add-New-Key ====================
-  console.log('\n[4/5] Testing Pre-Add-New-Key');
+  // ==================== 3. Test Pre-Add-New-Key ====================
+  console.log('\n[3/4] Testing Pre-Add-New-Key (API proof path)');
 
   // Use the first auto-generated account for Pre-Add-New-Key
   if (accountsData.length === 0) {
@@ -165,6 +156,7 @@ async function main() {
 
   const testAccount = accountsData[0];
   console.log('Using first account:', testAccount.pubkey);
+  console.log('  accountIndex:', testAccount.accountIndex);
 
   // Create voter client using account's secretKey
   const voterClient = new VoterClient({
@@ -176,27 +168,34 @@ async function main() {
   const circuitPower = 'new_2-1-1-5';
   const stateTreeDepth = 2;
 
-  console.log('Executing Pre-Add-New-Key (with auto payload generation)...');
+  // In AMACI, operator IS the coordinator
+  const coordinatorPubkey = operatorPubkey;
 
-  // Get coordinator pubkey from deactivateData
-  const coordinatorPubkey = BigInt(deactivateData.coordinator);
+  // Query pollId from the contract
+  const pollId = BigInt(await voterClient.getPollId(contractAddress));
+  console.log('  pollId:', pollId);
+
+  console.log('Executing Pre-Add-New-Key (API proof path, no local deactivate data)...');
+  console.log('  stateTreeDepth:', stateTreeDepth);
+  console.log('  deactivateIdx:', testAccount.accountIndex);
+  console.log('  voterScale:', voterScale);
+  console.log('  addKey wasm:', `add-new-key_v3/${circuitPower}/addKey.wasm`);
+  console.log('  addKey zkey:', `add-new-key_v3/${circuitPower}/addKey.zkey`);
 
   try {
-    // Use saasPreCreateNewAccount: builds payload + submits pre-add-new-key
-    // const derivePathParams = { accountIndex: 2 };
-    console.log('stateTreeDepth', stateTreeDepth);
-    console.log('deactivates.length', deactivateData.deactivates.length);
-    console.log('addKey file name', `add-new-key_v3/${circuitPower}/addKey.wasm`);
-    console.log('addKey file name', `add-new-key_v3/${circuitPower}/addKey.zkey`);
+    // Use saasPreCreateNewAccount with API proof path:
+    // - deactivates is omitted → contractAddress + deactivateIdx + voterScale are used instead
+    // - The SDK fetches K-anonymous Merkle proof from the SaaS API automatically
     const { account, result } = await voterClient.saasPreCreateNewAccount({
       contractAddress: contractAddress,
       stateTreeDepth: stateTreeDepth,
       coordinatorPubkey: coordinatorPubkey,
-      deactivates: deactivateData.deactivates,
+      deactivateIdx: testAccount.accountIndex,
+      voterScale: voterScale,
+      pollId: pollId,
       wasmFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.wasm`),
       zkeyFile: path.join(process.cwd(), `add-new-key_v3/${circuitPower}/addKey.zkey`),
       ticket: ticket
-      //   derivePathParams
     });
     console.log('accountinfo:', account.getSigner().getPrivateKey());
     console.log('accountinfo:', account.getPubkey().toPackedData());
@@ -219,8 +218,8 @@ async function main() {
       console.log('userIdx', userIdx);
     }
 
-    // ==================== 5. Test Voting ====================
-    console.log('\n[5/5] Testing Voting (with auto payload generation)');
+    // ==================== 4. Test Voting ====================
+    console.log('\n[4/4] Testing Voting (with auto payload generation)');
 
     const voteResult = await account.saasVote({
       contractAddress,
@@ -260,20 +259,20 @@ async function main() {
   console.log('\nSummary:');
   console.log('✓ Successfully created Tenant and API Key');
   console.log('✓ Successfully created AMACI Round (Auto Pre-Deactivate Mode)');
-  console.log('✓ Accounts returned directly in create round response');
-  console.log('✓ Pre-Deactivate data queried from dedicated API');
-  console.log('✓ Completed Pre-Add-New-Key using auto-generated account');
+  console.log('✓ accountIndex and preDeactivateScale returned in create round response');
+  console.log('✓ Completed Pre-Add-New-Key via API proof path (no local deactivate data)');
   console.log('✓ Tested voting functionality');
   console.log('\nContract Address:', contractAddress);
   console.log('Total Accounts Generated:', accountsData.length);
+  console.log('Voter Scale:', voterScale);
   console.log('\nClient Features Demonstrated:');
   console.log('  - MaciClient:');
   console.log('    • Admin API via getSaasApiClient(): createTenant, createApiKey');
   console.log('    • Round API via saasCreateAmaciRound()');
   console.log('  - VoterClient:');
-  console.log('    • Pre-Deactivate API via saasGetPreDeactivate()');
   console.log('    • Integrated Methods (auto payload + submit):');
-  console.log('      - saasPreCreateNewAccount(): builds payload + submits pre-add-new-key');
+  console.log('      - saasPreCreateNewAccount(): API proof path (deactivateIdx + voterScale)');
+  console.log('        fetches K-anonymous Merkle proof from SaaS API automatically');
   console.log('      - saasVote(): builds payload + submits vote');
 }
 

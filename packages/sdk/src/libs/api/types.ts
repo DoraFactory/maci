@@ -618,6 +618,113 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/pre-deactivate/pool/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Get pre-computed deactivate tree pool status per voter scale */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Coordinator public key prefix */
+              coordinator: string;
+              /** @description Tree pool status per voter scale */
+              scales: {
+                /** @description Voter scale (10 | 20 | 50 | 100) */
+                scale: number;
+                /** @description Number of ready trees */
+                ready: number;
+                /** @description Number of trees being generated */
+                pending: number;
+                /** @description Total trees for this scale */
+                total: number;
+              }[];
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/pre-deactivate/{contractAddress}/proof': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Return Merkle proof packages for the requested leaf indices (K-anonymous). The client sends K indices (true index mixed with K-1 decoys); the server cannot distinguish the true leaf, providing K-anonymity. */
+    get: {
+      parameters: {
+        query: {
+          /** @description Comma-separated leaf indices to retrieve proofs for (K-anonymous request) */
+          indices: string;
+        };
+        header?: never;
+        path: {
+          contractAddress: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Extended deactivate Merkle root */
+              root: string;
+              /** @description One proof package per requested leaf index */
+              proofs: {
+                /** @description Leaf index in the tree */
+                leafIndex: number;
+                /** @description Raw deactivate leaf: [c1.x, c1.y, c2.x, c2.y, sharedKeyHash] */
+                deactivateLeaf: string[];
+                /** @description Poseidon hash of deactivateLeaf */
+                deactivateLeafHash: string;
+                /** @description Sibling hashes per level (stateTreeDepth+2 levels × 4 siblings) */
+                pathElements: string[][];
+                /** @description Child position at each level (stateTreeDepth+2 values, each in [0,5)) */
+                pathIndices: number[];
+              }[];
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/pre-deactivate/{contractAddress}': {
     parameters: {
       query?: never;
@@ -644,7 +751,7 @@ export interface paths {
           };
           content: {
             'application/json': {
-              /** @description Snapshot ID */
+              /** @description Snapshot or tree ID */
               id: string;
               /** @description Contract address */
               contractAddress: string;
@@ -652,9 +759,11 @@ export interface paths {
               root: string;
               /** @description Coordinator public key */
               coordinator: string;
-              /** @description Array of leaves (pubkeys) */
+              /** @description Merkle tree depth used for proof generation (e.g. 2, 4, or 6) */
+              stateTreeDepth: number;
+              /** @description Array of leaf hashes (deactivateLeafHash) */
               leaves: string[];
-              /** @description Array of deactivate arrays */
+              /** @description Array of deactivate leaf data arrays */
               deactivates: string[][];
               /** @description Creation timestamp */
               createdAt: string;
@@ -737,7 +846,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
@@ -757,7 +872,7 @@ export interface operations {
           contractAddress: string;
           /** @description Array of vote messages */
           payload: {
-            /** @description Serialized MACI vote message (7 elements) */
+            /** @description Serialized MACI vote message (10 elements) */
             msg: string[];
             /** @description Encrypted public keys (2 elements) */
             encPubkeys: string[];
@@ -798,7 +913,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
@@ -826,9 +947,9 @@ export interface operations {
           endVoting: string;
           /** @description Operator public key */
           operatorPubkey: string;
-          /** @description Maximum number of voters */
+          /** @description Maximum number of voters (max: 15625) */
           maxVoter: number;
-          /** @description Array of voting options */
+          /** @description Array of voting options (max: 125 options) */
           voteOptionMap: string[];
           /** @description MACI circuit type */
           circuitType?: string;
@@ -872,7 +993,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
@@ -900,9 +1027,9 @@ export interface operations {
           endVoting: string;
           /** @description Operator address */
           operator: string;
-          /** @description Maximum number of voters */
+          /** @description Maximum number of voters (max: 15625) */
           maxVoter: number;
-          /** @description Array of voting options */
+          /** @description Array of voting options (max: 125 options) */
           voteOptionMap: string[];
           /** @description MACI circuit type */
           circuitType?: string;
@@ -944,7 +1071,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
@@ -1002,7 +1135,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
@@ -1056,7 +1195,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
@@ -1117,7 +1262,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
@@ -1186,7 +1337,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
@@ -1255,7 +1412,13 @@ export interface operations {
               pubkey: string;
               /** @description Account secret key */
               secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
             }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
           };
         };
       };
