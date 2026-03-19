@@ -25,8 +25,8 @@ function generateRandomString(length: number) {
 async function main() {
   const network = 'testnet';
   const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
-  const operatorPubkey =
-    10721319678265866063861912417916780787229942812531198850410477756757845824096n;
+  // const operatorPubkey =
+  //   10721319678265866063861912417916780787229942812531198850410477756757845824096n;
 
   console.log('='.repeat(80));
   console.log('Pre-Add-New-Key and Pre-Deactivate API Complete Test (MaciClient & VoterClient)');
@@ -135,6 +135,13 @@ async function main() {
   }
   console.log('  Voter Scale (preDeactivateScale):', voterScale);
 
+  // Verify preDeactivateCoordinator is returned
+  const preDeactivateCoordinator = createRoundData.preDeactivateCoordinator;
+  if (!preDeactivateCoordinator) {
+    throw new Error('preDeactivateCoordinator not returned in response');
+  }
+  console.log('  preDeactivateCoordinator:', preDeactivateCoordinator);
+
   // Display first 3 accounts with their accountIndex
   if (accountsData.length > 0) {
     console.log('\nFirst 3 accounts returned:');
@@ -165,11 +172,23 @@ async function main() {
     saasApiEndpoint: API_BASE_URL
   });
 
-  const circuitPower = 'new_2-1-1-5';
-  const stateTreeDepth = 2;
+  // Unpack the packed coordinator pubkey from the create-round response → [X, Y]
+  // preDeactivateCoordinator is the key the API used when building the pre-deactivate tree,
+  // so it must match what we pass to buildPreAddNewKeyPayload for the ECDH / sharedKeyHash to be consistent.
+  const preDeactivateCoordPubkey = voterClient.unpackMaciPubkey(preDeactivateCoordinator);
+  console.log('  preDeactivateCoordPubkey (unpacked):', preDeactivateCoordPubkey);
 
-  // In AMACI, operator IS the coordinator
-  const coordinatorPubkey = operatorPubkey;
+  // Fetch the round's on-chain coordinator pubkey for voting (may differ from the
+  // pre-deactivate coordinator key).
+  const roundInfo = await maciClient.getRoundInfo({ contractAddress });
+  const roundCoordPubkey: [bigint, bigint] = [
+    BigInt(roundInfo.coordinatorPubkeyX),
+    BigInt(roundInfo.coordinatorPubkeyY)
+  ];
+  console.log('  roundCoordPubkey:', roundCoordPubkey);
+
+  const circuitPower = '2-1-1-5';
+  const stateTreeDepth = 2;
 
   // Query pollId from the contract
   const pollId = BigInt(await voterClient.getPollId(contractAddress));
@@ -189,7 +208,7 @@ async function main() {
     const { account, result } = await voterClient.saasPreCreateNewAccount({
       contractAddress: contractAddress,
       stateTreeDepth: stateTreeDepth,
-      coordinatorPubkey: coordinatorPubkey,
+      coordinatorPubkey: preDeactivateCoordPubkey,
       deactivateIdx: testAccount.accountIndex,
       voterScale: voterScale,
       pollId: pollId,
@@ -223,7 +242,7 @@ async function main() {
 
     const voteResult = await account.saasVote({
       contractAddress,
-      operatorPubkey,
+      operatorPubkey: roundCoordPubkey,
       selectedOptions: [
         { idx: 0, vc: 1 },
         { idx: 2, vc: 1 },

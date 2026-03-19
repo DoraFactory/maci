@@ -186,14 +186,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      # Exact key only (no restore-keys): so cache-miss really re-downloads from S3; bump key when circuit interface changes
-      - name: Cache circuit files
-        id: cache-circuits
-        uses: actions/cache@v4
-        with:
-          path: e2e/circuits
-          key: ${{ runner.os }}-circuits-v2
-
       - name: Install root dependencies
         run: pnpm install --frozen-lockfile
 
@@ -210,14 +202,8 @@ jobs:
         run: pnpm build
 
       - name: Download and setup circuits
-        if: steps.cache-circuits.outputs.cache-hit != 'true'
         working-directory: ./e2e
         run: pnpm setup-circuits
-
-      - name: Extract verification keys
-        if: steps.cache-circuits.outputs.cache-hit == 'true'
-        working-directory: ./e2e
-        run: pnpm extract-vkeys
 
       - name: Build Rust test vector generator
         working-directory: ./crates/maci-utils

@@ -853,6 +853,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
@@ -920,6 +922,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
@@ -1000,6 +1004,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
@@ -1078,6 +1084,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
@@ -1142,6 +1150,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
@@ -1202,6 +1212,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
@@ -1269,6 +1281,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
@@ -1344,6 +1358,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
@@ -1419,6 +1435,8 @@ export interface operations {
             preDeactivateRoot?: string;
             /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
             preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
           };
         };
       };
