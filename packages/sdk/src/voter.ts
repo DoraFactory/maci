@@ -234,7 +234,7 @@ export class VoterClient {
       idx: number;
       vc: number;
     }[];
-    pollId: number;
+    pollId: bigint | number;
     derivePathParams?: DerivePathParams;
   }) {
     const plan = this.normalizeVoteOptions(selectedOptions);
@@ -260,7 +260,7 @@ export class VoterClient {
   batchGenMessage(
     stateIdx: number,
     operatorPubkey: bigint | string | PubKey,
-    pollId: number,
+    pollId: bigint | number,
     plan: [number, number][],
     derivePathParams?: DerivePathParams
   ) {
@@ -294,7 +294,7 @@ export class VoterClient {
   genMessageFactory(
     stateIdx: number,
     operatorPubkey: bigint | string | PubKey,
-    pollId: number,
+    pollId: bigint | number,
     derivePathParams?: DerivePathParams
   ) {
     return (
@@ -984,7 +984,7 @@ export class VoterClient {
      * When omitted only the real index is sent (K=1, no anonymity).
      */
     voterScale?: number;
-    pollId: bigint;
+    pollId: bigint | number;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     ticket: string;
@@ -999,7 +999,7 @@ export class VoterClient {
     });
 
     const newPubkey = newVoterClient.getPubkey().toPoints() as [bigint, bigint];
-
+    // proof?id=1,3,9,10,12
     const addNewKeyPayload = await this.buildPreAddNewKeyPayload({
       stateTreeDepth,
       coordinatorPubkey,
@@ -1008,7 +1008,7 @@ export class VoterClient {
       deactivateIdx,
       voterScale,
       newPubkey,
-      pollId,
+      pollId: BigInt(pollId),
       wasmFile,
       zkeyFile,
       derivePathParams
@@ -1039,6 +1039,8 @@ export class VoterClient {
     operatorPubkey,
     selectedOptions,
     ticket,
+    pollId,
+    stateIdx,
     derivePathParams
   }: {
     contractAddress: string;
@@ -1048,25 +1050,24 @@ export class VoterClient {
       vc: number;
     }[];
     ticket: string;
+    pollId: bigint | number;
+    stateIdx?: number;
     derivePathParams?: DerivePathParams;
   }) {
-    const stateIdx = await this.getStateIdx({
-      contractAddress,
-      derivePathParams
-    });
+    const resolvedStateIdx =
+      stateIdx !== undefined
+        ? stateIdx
+        : await this.getStateIdx({ contractAddress, derivePathParams });
 
-    if (stateIdx === -1) {
+    if (resolvedStateIdx === -1) {
       throw new Error('State index is not set, Please signup or addNewKey first');
     }
 
-    // Query pollId at the outermost layer
-    const pollId = await this.getPollId(contractAddress);
-
     const payload = this.buildVotePayload({
-      stateIdx,
+      stateIdx: resolvedStateIdx,
       operatorPubkey,
       selectedOptions,
-      pollId, // Pass pollId instead of contractAddress
+      pollId,
       derivePathParams
     });
 

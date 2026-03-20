@@ -84,7 +84,7 @@ async function main() {
 
   const startVoting = new Date();
   const endVoting = new Date(startVoting.getTime() + 11 * 60 * 1000); // 11 minutes later
-  const maxVoter = 5;
+  const maxVoter = 20000;
 
   const createRoundData = await maciClient.saasCreateAmaciRound({
     title: 'Pre-Add-New-Key Test Round',
@@ -128,20 +128,6 @@ async function main() {
   console.log('\nWaiting 6 seconds to ensure transaction confirmation...');
   await new Promise((resolve) => setTimeout(resolve, 6000));
 
-  // Verify preDeactivateScale is returned
-  const voterScale = createRoundData.preDeactivateScale;
-  if (!voterScale) {
-    throw new Error('preDeactivateScale not returned in response');
-  }
-  console.log('  Voter Scale (preDeactivateScale):', voterScale);
-
-  // Verify preDeactivateCoordinator is returned
-  const preDeactivateCoordinator = createRoundData.preDeactivateCoordinator;
-  if (!preDeactivateCoordinator) {
-    throw new Error('preDeactivateCoordinator not returned in response');
-  }
-  console.log('  preDeactivateCoordinator:', preDeactivateCoordinator);
-
   // Display first 3 accounts with their accountIndex
   if (accountsData.length > 0) {
     console.log('\nFirst 3 accounts returned:');
@@ -172,10 +158,19 @@ async function main() {
     saasApiEndpoint: API_BASE_URL
   });
 
-  // Unpack the packed coordinator pubkey from the create-round response → [X, Y]
-  // preDeactivateCoordinator is the key the API used when building the pre-deactivate tree,
-  // so it must match what we pass to buildPreAddNewKeyPayload for the ECDH / sharedKeyHash to be consistent.
-  const preDeactivateCoordPubkey = voterClient.unpackMaciPubkey(preDeactivateCoordinator);
+  // Query coordinator pubkey and voter scale from the pre-deactivate meta API.
+  // This is more flexible: any client can retrieve the circuit inputs without
+  // relying on the create-round response.
+  console.log('\nQuerying pre-deactivate meta from API...');
+  const preDeactivateMeta = await maciClient.getSaasApiClient().getPreDeactivateMeta({
+    contractAddress
+  });
+  const voterScale = preDeactivateMeta.scale;
+  console.log('  Voter Scale (from meta API):', voterScale);
+
+  // preDeactivateMeta.coordinator is the packed pubkey the API used when building
+  // the pre-deactivate tree; unpack it so it matches what buildPreAddNewKeyPayload expects.
+  const preDeactivateCoordPubkey = voterClient.unpackMaciPubkey(preDeactivateMeta.coordinator);
   console.log('  preDeactivateCoordPubkey (unpacked):', preDeactivateCoordPubkey);
 
   // Fetch the round's on-chain coordinator pubkey for voting (may differ from the
@@ -187,11 +182,11 @@ async function main() {
   ];
   console.log('  roundCoordPubkey:', roundCoordPubkey);
 
-  const circuitPower = '2-1-1-5';
-  const stateTreeDepth = 2;
+  const circuitPower = '9-4-3-125';
+  const stateTreeDepth = 9;
 
   // Query pollId from the contract
-  const pollId = BigInt(await voterClient.getPollId(contractAddress));
+  const pollId = await voterClient.getPollId(contractAddress);
   console.log('  pollId:', pollId);
 
   console.log('Executing Pre-Add-New-Key (API proof path, no local deactivate data)...');
@@ -248,7 +243,8 @@ async function main() {
         { idx: 2, vc: 1 },
         { idx: 3, vc: 1 }
       ],
-      ticket: ticket
+      ticket: ticket,
+      pollId
     });
 
     console.log('✓ Voting succeeded!', voteResult);

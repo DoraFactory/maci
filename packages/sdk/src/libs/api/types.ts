@@ -668,6 +668,51 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/pre-deactivate/{contractAddress}/meta': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Get coordinator public key, deactivate root, and voter scale for a round. Lighter alternative to the full data endpoint when only circuit inputs are needed. */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          contractAddress: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Coordinator public key */
+              coordinator: string;
+              /** @description Deactivate Merkle root */
+              root: string;
+              /** @description Voter scale (number of leaves in the tree) */
+              scale: number;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/pre-deactivate/{contractAddress}/proof': {
     parameters: {
       query?: never;
