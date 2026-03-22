@@ -35,6 +35,13 @@ async function main() {
   // API base configuration
   const API_BASE_URL = 'http://localhost:8080';
   // const API_BASE_URL = undefined;
+  // const maxVoter = 20000;
+  // const circuitPower = '9-4-3-125';
+  // const stateTreeDepth = 9;
+
+  const maxVoter = 10;
+  const circuitPower = '2-1-1-5';
+  const stateTreeDepth = 2;
 
   // Create temporary MaciClient (for admin operations, no API key required)
   const adminMaciClient = new MaciClient({
@@ -84,7 +91,6 @@ async function main() {
 
   const startVoting = new Date();
   const endVoting = new Date(startVoting.getTime() + 11 * 60 * 1000); // 11 minutes later
-  const maxVoter = 20000;
 
   const createRoundData = await maciClient.saasCreateAmaciRound({
     title: 'Pre-Add-New-Key Test Round',
@@ -181,9 +187,6 @@ async function main() {
     BigInt(roundInfo.coordinatorPubkeyY)
   ];
   console.log('  roundCoordPubkey:', roundCoordPubkey);
-
-  const circuitPower = '9-4-3-125';
-  const stateTreeDepth = 9;
 
   // Query pollId from the contract
   const pollId = await voterClient.getPollId(contractAddress);
