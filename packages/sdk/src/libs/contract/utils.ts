@@ -158,17 +158,17 @@ export function getAMaciRoundCircuitFee(
     amount: '0'
   };
   if (maxVoter <= 25 && maxOption <= 5) {
-    // state_tree_depth: 2
-    // vote_option_tree_depth: 1
-    requiredFee.amount = '20000000000000000000';
+    // state_tree_depth: 2, vote_option_tree_depth: 1
+    // benchmark $0.0202 × 1.1 / $0.005 = 4.44 → 5 DORA
+    requiredFee.amount = '5000000000000000000';
   } else if (maxVoter <= 625 && maxOption <= 25) {
-    // state_tree_depth: 4
-    // vote_option_tree_depth: 2
-    requiredFee.amount = '540000000000000000000';
+    // state_tree_depth: 4, vote_option_tree_depth: 2
+    // benchmark $0.1214 × 1.1 / $0.005 = 26.71 → 27 DORA
+    requiredFee.amount = '27000000000000000000';
   } else if (maxVoter <= 15625 && maxOption <= 125) {
-    // state_tree_depth: 6
-    // vote_option_tree_depth: 3
-    requiredFee.amount = '1080000000000000000000';
+    // state_tree_depth: 6, vote_option_tree_depth: 3
+    // benchmark $0.9413 × 1.1 / $0.005 = 207.08 → 208 DORA
+    requiredFee.amount = '208000000000000000000';
   } else {
     throw new Error('Number of voters or options is too large.');
   }
