@@ -468,7 +468,7 @@ fn create_round_with_reward_should_works() {
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
     let create_round_with_wrong_circuit_type = contract
         .create_round(
             &mut app,
@@ -663,7 +663,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     // Record balance before creating round
     let creator_balance_before = contract
@@ -1099,7 +1099,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 3600 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 189 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -1293,7 +1293,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     // Record balance before creating the round
     let creator_balance_before = contract
@@ -1724,7 +1724,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 3600 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 189 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -1916,7 +1916,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
     let user1_operator_pubkey = contract.get_operator_pubkey(&app, operator()).unwrap();
     assert_eq!(operator_pubkey1(), user1_operator_pubkey);
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     // Record balance before creating round
     let creator_balance_before = contract
@@ -2338,7 +2338,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 3600 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 189 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -2473,7 +2473,7 @@ fn test_create_round_event_data() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     // Create round and capture response
     let resp = contract
@@ -2600,7 +2600,7 @@ fn test_reply_created_round_event() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     let resp = contract
         .create_round_with_whitelist(
@@ -2766,7 +2766,7 @@ fn test_created_round_event_sign_up_with_static_whitelist() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let pay = 20000000000000000000u128; // 20 DORA
+    let pay = 5000000000000000000u128; // 5 DORA
     let resp = contract
         .create_round_with_whitelist(
             &mut app,
@@ -2843,7 +2843,7 @@ fn test_created_round_event_pre_populated() {
     let pre_deactivate_root = Uint256::from_u128(12345u128);
     let pre_deactivate_coordinator = test_pubkey2();
 
-    let pay = 20000000000000000000u128; // 20 DORA
+    let pay = 5000000000000000000u128; // 5 DORA
     let resp = contract
         .create_round_with_pre_populated(
             &mut app,
@@ -2924,7 +2924,7 @@ fn test_query_registration_status_static_whitelist() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let pay = 20000000000000000000u128; // 20 DORA
+    let pay = 5000000000000000000u128; // 5 DORA
     let resp = contract
         .create_round_with_whitelist(
             &mut app,
@@ -3059,7 +3059,7 @@ fn test_query_registration_status_oracle() {
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
     let oracle_pubkey = "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string();
-    let pay = 20000000000000000000u128; // 20 DORA
+    let pay = 5000000000000000000u128; // 5 DORA
     let resp = contract
         .create_round_with_oracle(
             &mut app,
@@ -3205,7 +3205,7 @@ fn test_query_registration_status_pre_populated() {
     let pre_deactivate_root = Uint256::from_u128(12345u128);
     let pre_deactivate_coordinator = test_pubkey2();
 
-    let pay = 20000000000000000000u128; // 20 DORA
+    let pay = 5000000000000000000u128; // 5 DORA
     let resp = contract
         .create_round_with_pre_populated(
             &mut app,
@@ -3287,7 +3287,7 @@ fn setup_whitelist_round() -> (cw_multi_test::App, MaciContract) {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let pay = 20000000000000000000u128;
+    let pay = 5000000000000000000u128; // 5 DORA
     let resp = contract
         .create_round_with_whitelist(
             &mut app,
@@ -3800,7 +3800,7 @@ fn setup_voting_round_with_user_balance() -> (App, MaciContract) {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let pay = 20_000_000_000_000_000_000u128; // 20 DORA
+    let pay = 5_000_000_000_000_000_000u128; // 5 DORA
     let resp = contract
         .create_round_with_whitelist(
             &mut app,
@@ -4108,9 +4108,9 @@ fn test_publish_message_batch_fee_paid() {
 // SignUpWithOracle or PrePopulated instead.
 //
 // Circuit mapping (via calculate_round_fee_and_params in registry/utils.rs):
-//   max_voter <=   25 → 2-1-1-5  (state_tree_depth=2, fee=20 DORA)  ✅ allowed
-//   max_voter <=  625 → 4-2-2-25 (state_tree_depth=4, fee=540 DORA) ✅ allowed
-//   max_voter <= 15625 → 6-3-3-125 (state_tree_depth=6, fee=1080 DORA) ❌ rejected
+//   max_voter <=   25 → 2-1-1-5  (state_tree_depth=2, fee=5 DORA)    ✅ allowed
+//   max_voter <=  625 → 4-2-2-25 (state_tree_depth=4, fee=27 DORA)   ✅ allowed
+//   max_voter <= 15625 → 6-3-3-125 (state_tree_depth=6, fee=208 DORA) ❌ rejected
 // ============================================================================
 
 /// Shared setup: creates an App funded for `creator`, stores both contract
@@ -4150,7 +4150,7 @@ fn setup_registry_for_scale_test(
 /// Test: 2-1-1-5 scale (max_voter=25) with SignUpWithStaticWhitelist should succeed.
 #[test]
 fn test_static_whitelist_small_scale_2_1_1_5_allowed() {
-    let fee = 20_000_000_000_000_000_000u128; // 20 DORA
+    let fee = 5_000_000_000_000_000_000u128; // 5 DORA
     let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
 
     let whitelist = WhitelistBase {
@@ -4192,7 +4192,7 @@ fn test_static_whitelist_small_scale_2_1_1_5_allowed() {
 /// Test: 4-2-2-25 scale (max_voter=625) with SignUpWithStaticWhitelist should succeed.
 #[test]
 fn test_static_whitelist_medium_scale_4_2_2_25_allowed() {
-    let fee = 540_000_000_000_000_000_000u128; // 540 DORA
+    let fee = 27_000_000_000_000_000_000u128; // 27 DORA
     let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
 
     let whitelist = WhitelistBase {
@@ -4236,7 +4236,7 @@ fn test_static_whitelist_medium_scale_4_2_2_25_allowed() {
 /// limit of 625 voters. Callers must use SignUpWithOracle or PrePopulated instead.
 #[test]
 fn test_static_whitelist_large_scale_6_3_3_125_rejected() {
-    let fee = 1_080_000_000_000_000_000_000u128; // 1080 DORA
+    let fee = 208_000_000_000_000_000_000u128; // 208 DORA
     let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
 
     let whitelist = WhitelistBase {

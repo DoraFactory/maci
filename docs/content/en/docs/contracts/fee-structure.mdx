@@ -1,0 +1,96 @@
+# Fee Structure
+
+The MACI protocol uses a two-tier fee model: a one-time **Base Fee** when creating a round, and a per-vote **Vote Fee** charged on each ballot. All fees are denominated in DORA tokens (1 DORA = 10¹⁸ peaka).
+
+> **Pricing basis:** DORA = $0.005 USD, protocol takes a 10% service fee
+
+---
+
+## Base Fee (Round Creation Fee)
+
+The Base Fee is paid once when calling `CreateRound` on the Registry contract. The amount depends on the chosen circuit tier.
+
+| Circuit | Max Voters | Max Options | Benchmark Cost | +10% Protocol Fee | Base Fee |
+|---------|-----------|------------|--------------|------------------|---------|
+| **2-1-1-5** | ≤ 25 | ≤ 5 | $0.0202 | $0.0222 | **5 DORA** |
+| **4-2-2-25** | ≤ 625 | ≤ 25 | $0.1214 | $0.1335 | **27 DORA** |
+| **6-3-3-125** | ≤ 15,625 | ≤ 125 | $0.9413 | $1.0354 | **208 DORA** |
+| **9-4-3-125** | ≤ 1,953,125 | ≤ 125 | *(benchmark in progress)* | — | **TBD** |
+
+### Base Fee Calculation
+
+```
+Base Fee (DORA) = ⌈ benchmark_cost × 1.1 ÷ $0.005 ⌉
+
+Example (4-2-2-25):
+  $0.1213993 × 1.1 ÷ $0.005 = 26.71 → round up = 27 DORA
+```
+
+### Benchmark Breakdown
+
+Benchmark costs are derived from on-chain ZK proof verification gas fees:
+
+```
+Benchmark = (instantiate_gas + process_gas) × ETH_price + storage_cost × DORA_price
+```
+
+| Circuit | Calculation |
+|---------|------------|
+| 2-1-1-5 | (0.00095228 + 0.00105665) × $10 + 0.02 × $0.005 = $0.0202 |
+| 4-2-2-25 | (0.01064518 + 0.00142975) × $10 + 0.13 × $0.005 = $0.1214 |
+| 6-3-3-125 | (0.09211125 + 0.00138915) × $10 + 1.25 × $0.005 = $0.9413 |
+
+---
+
+## Vote Fee (Per-Ballot Fee)
+
+Each time a user calls `PublishMessage` on the AMACI contract, a unified Vote Fee is charged.
+
+| Pricing Basis | Amount |
+|--------------|--------|
+| Standard cost (4-2-2-25 / 6-3-3-125) | ~$0.00018 USD |
+| With 10% protocol fee | ~$0.0002 USD |
+| **Actual price** | **$0.0003 USD = 0.06 DORA** |
+
+**A flat rate of 0.06 DORA per vote applies to all circuit tiers** (= 6 × 10¹⁶ peaka)
+
+### Vote Fee Rationale
+
+```
+Vote Fee = $0.0003 ÷ $0.005 per DORA = 0.06 DORA
+
+4-2-2-25 vote benchmark:
+  0.00001771 × 1 × $10 + 0.0002016 × 1 × $0.005 = $0.000178 USD
+
+6-3-3-125 vote benchmark:
+  0.00001602 × 1 × $10 + 0.00008 × 1 × $0.005 = $0.000161 USD
+
+Standard vote cost ≈ $0.00018, +10% ≈ $0.0002, priced at $0.0003 (with premium)
+```
+
+---
+
+## Fee Summary
+
+| Fee Type | Trigger | Payer | Amount |
+|---------|---------|-------|--------|
+| Base Fee | `CreateRound` | Round creator | 5 / 27 / 208 / TBD DORA (by circuit) |
+| Vote Fee | `PublishMessage` | Voter | 0.06 DORA / vote (flat) |
+| Deactivate Fee | `PublishDeactivateMessage` | User | 10 DORA / message |
+
+---
+
+## Fee Distribution
+
+```
+Create Round
+  └── Base Fee ──→ AMACI contract (locked)
+                      ├── 10% → fee_recipient (protocol revenue)
+                      ├── operator_reward (minus delay penalty)
+                      └── remainder → admin
+
+Voting
+  └── Vote Fee ──→ AMACI contract (pooled with Base Fee, distributed together)
+```
+
+> The protocol extracts revenue via a 10% `fee_rate` applied to the total contract balance. Vote Fees and Deactivate Fees are pooled with the Base Fee and distributed at the same ratio.

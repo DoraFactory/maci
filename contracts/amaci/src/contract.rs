@@ -19,9 +19,11 @@ use crate::state::{
     MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE,
     PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT,
     PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB, REGISTRATION_MODE, RESULT, ROUNDINFO,
-    SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_DELAY_MAX_HOURS, TALLY_TIMEOUT, TOTAL_RESULT,
-    USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE, VOTEOPTIONMAP,
-    VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
+    SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_BASE_DELAY_2_1_1_5, TALLY_BASE_DELAY_4_2_2_25,
+    TALLY_BASE_DELAY_6_3_3_125, TALLY_BASE_DELAY_9_4_3_125, TALLY_DELAY_MAX_HOURS,
+    TALLY_DELAY_MULTIPLIER, TALLY_PER_VOTE_DELAY, TALLY_TIMEOUT, TALLY_TIMEOUT_EXTRA_SECONDS,
+    TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE,
+    VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
 };
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
@@ -2229,9 +2231,11 @@ fn execute_claim(deps: DepsMut, env: Env, _info: MessageInfo) -> Result<Response
         return Err(ContractError::AllFundsClaimed {});
     }
 
-    let tally_timeout: Timestamp = TALLY_TIMEOUT.load(deps.storage)?;
+    // Compute dynamic timeout: delay_allowed + 2 days
+    let actual_delay = calculate_tally_delay(deps.as_ref())?;
+    let tally_timeout_secs = actual_delay.delay_seconds + TALLY_TIMEOUT_EXTRA_SECONDS;
     // If exceeding the timeout, return all funds to admin
-    if current_time > voting_time.end_time.plus_seconds(tally_timeout.seconds()) {
+    if current_time > voting_time.end_time.plus_seconds(tally_timeout_secs) {
         let message = BankMsg::Send {
             to_address: admin.to_string(),
             amount: coins(contract_balance_amount, denom),
@@ -2805,26 +2809,37 @@ pub fn calculate_tally_delay(deps: Deps) -> Result<TallyDelayInfo, ContractError
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
     let msg_chain_length = MSG_CHAIN_LENGTH.load(deps.storage)?;
 
-    // Calculate total workload (signup and message have same weight)
     let total_work = num_sign_ups + msg_chain_length;
-
     let total_work_u128 = total_work
-        .try_into() // Uint256 -> Uint128
-        .map(|x: Uint128| x.u128()) // Uint128 -> u128
+        .try_into()
+        .map(|x: Uint128| x.u128())
         .map_err(|_| ContractError::ValueTooLarge {})?;
 
-    // Calculate actual delay timeout (linear change between min hours to max hours)
+    let msg_count_u64: u64 = msg_chain_length
+        .try_into()
+        .map(|x: Uint128| x.u128() as u64)
+        .map_err(|_| ContractError::ValueTooLarge {})?;
+
     let parameter: MaciParameters = MACIPARAMETERS.load(deps.storage)?;
     let state_tree_depth = parameter.state_tree_depth;
-    let tally_delay_max_hours = TALLY_DELAY_MAX_HOURS.load(deps.storage)?;
 
-    let (delay_seconds, calculated_hours) = if state_tree_depth == Uint256::from_u128(2u128) {
-        // 2-1-1-5 default to 1 hours
-        (1 * 60 * 60, 1) // 1 hours, no calculated hours for this case
+    // Select base delay based on circuit tier
+    let base_delay = if state_tree_depth == Uint256::from_u128(2u128) {
+        TALLY_BASE_DELAY_2_1_1_5
+    } else if state_tree_depth == Uint256::from_u128(4u128) {
+        TALLY_BASE_DELAY_4_2_2_25
+    } else if state_tree_depth == Uint256::from_u128(6u128) {
+        TALLY_BASE_DELAY_6_3_3_125
+    } else if state_tree_depth == Uint256::from_u128(9u128) {
+        TALLY_BASE_DELAY_9_4_3_125 // TODO: update when benchmark is complete
     } else {
-        // other maci circuit params use base_work to calculate
-        (tally_delay_max_hours * 60 * 60, tally_delay_max_hours)
+        return Err(ContractError::ValueTooLarge {});
     };
+
+    // delay_allowed = (base_delay + msg_count * per_vote_delay) * multiplier
+    let delay_seconds =
+        (base_delay + msg_count_u64 * TALLY_PER_VOTE_DELAY) * TALLY_DELAY_MULTIPLIER;
+    let calculated_hours = delay_seconds / 3600;
 
     Ok(TallyDelayInfo {
         delay_seconds,

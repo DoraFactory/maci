@@ -1447,6 +1447,25 @@ export class OperatorClient {
     }
 
     const batchSize = this.batchSize;
+
+    if (this.msgEndIdx === 0) {
+      // No messages to process — transition directly to tallying state.
+      this.endProcessingPeriod();
+      const newStateRoot = this.stateTree.root;
+      const newStateCommitment = poseidon([newStateRoot, newStateSalt]);
+      this.stateCommitment = newStateCommitment;
+      return {
+        input: {
+          newStateCommitment,
+          packedVals:
+            BigInt(this.maxVoteOptions!) +
+            (BigInt(this.numSignUps!) << 32n) +
+            (this.isQuadraticCost ? 1n << 64n : 0n)
+        },
+        proof: null
+      } as any;
+    }
+
     const batchStartIdx = Math.floor((this.msgEndIdx - 1) / batchSize) * batchSize;
     const batchEndIdx = Math.min(batchStartIdx + batchSize, this.msgEndIdx);
 

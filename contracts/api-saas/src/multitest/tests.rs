@@ -1330,7 +1330,7 @@ fn test_create_amaci_round_success_real() {
         .unwrap();
 
     // Deposit funds to SaaS contract to pay for the round creation
-    let required_fee = 20000000000000000000u128; // 20 DORA
+    let required_fee = 5_000_000_000_000_000_000u128; // 5 DORA (2-1-1-5 circuit fee)
     contract
         .deposit(
             &mut app,
@@ -1635,7 +1635,7 @@ fn setup_publish_env(initial_deposit: u128, deactivate_enabled: bool) -> Publish
             .unwrap();
     }
 
-    // Create AMACI round via SAAS (requires ~20 DORA from SAAS balance)
+    // Create AMACI round via SAAS (requires ~5 DORA from SAAS balance)
     let result = saas
         .create_amaci_round(
             &mut app,
@@ -1703,7 +1703,7 @@ fn query_dmsg_chain_length(app: &crate::multitest::App, amaci_addr: &str) -> Uin
 /// Verify msg_chain_length increments and SAAS balance decreases by exactly MESSAGE_FEE.
 #[test]
 fn test_saas_publish_message_success() {
-    // 100 DORA deposited; round creation costs ~20 DORA, leaving ~80 DORA.
+    // 100 DORA deposited; round creation costs ~5 DORA, leaving ~95 DORA.
     let PublishTestEnv { mut app, saas, amaci_addr } =
         setup_publish_env(100_000_000_000_000_000_000, false);
 
@@ -1802,10 +1802,10 @@ fn test_saas_publish_message_unauthorized() {
 /// rejected with InsufficientBalance before any interaction with the AMACI contract.
 #[test]
 fn test_saas_publish_message_insufficient_balance() {
-    // Deposit 21 DORA. Round creation costs ~20 DORA, leaving ~1 DORA which is
-    // less than MESSAGE_FEE (10 DORA).
+    // Deposit 5.03 DORA. Round creation costs 5 DORA, leaving 0.03 DORA which is
+    // less than MESSAGE_FEE (0.06 DORA).
     let PublishTestEnv { mut app, saas, amaci_addr } =
-        setup_publish_env(21_000_000_000_000_000_000, false);
+        setup_publish_env(5_030_000_000_000_000_000, false);
 
     let available = saas.query_balance(&app).unwrap();
     assert!(available < MESSAGE_FEE, "pre-condition: SAAS balance must be < MESSAGE_FEE");

@@ -147,10 +147,10 @@ export class AmaciContractClient extends BaseContractClient {
 
   /**
    * Publish message (vote)
-   * NOTE: Requires 10 DORA fee (10 * 10^18 peaka) per message
+   * NOTE: Requires 0.06 DORA fee (6 * 10^16 peaka) per message
    */
   async publishMessage(message: string[], encPubKey: { x: string; y: string }): Promise<any> {
-    const messageFee = [{ denom: 'peaka', amount: '10000000000000000000' }];
+    const messageFee = [{ denom: 'peaka', amount: '60000000000000000' }];
     return await this.execute(
       {
         publish_message: {
@@ -164,7 +164,7 @@ export class AmaciContractClient extends BaseContractClient {
 
   /**
    * Publish multiple messages in one transaction (batch).
-   * NOTE: Requires 10 DORA fee per message (batch_size * 10 * 10^18 peaka total).
+   * NOTE: Requires 0.06 DORA fee per message (batch_size * 6 * 10^16 peaka total).
    * Uses the unified publish_message endpoint.
    */
   async publishMessageBatch(
@@ -172,7 +172,7 @@ export class AmaciContractClient extends BaseContractClient {
   ): Promise<any> {
     const formattedMessages = messages.map((m) => ({ data: m.message }));
     const encPubKeys = messages.map((m) => m.encPubKey);
-    const totalFee = BigInt('10000000000000000000') * BigInt(messages.length);
+    const totalFee = BigInt('60000000000000000') * BigInt(messages.length);
     const batchFee = [{ denom: 'peaka', amount: totalFee.toString() }];
     return await this.execute(
       {
