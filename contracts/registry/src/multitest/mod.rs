@@ -614,6 +614,30 @@ impl AmaciRegistryContract {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::GetMaciOperatorPubkey { address })
     }
+
+    #[track_caller]
+    pub fn set_maci_operator_identity(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        identity: String,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::SetMaciOperatorIdentity { identity },
+            &[],
+        )
+    }
+
+    pub fn get_maci_operator_identity(
+        &self,
+        app: &App,
+        address: Addr,
+    ) -> StdResult<String> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetMaciOperatorIdentity { address })
+    }
 }
 
 impl From<Addr> for AmaciRegistryContract {

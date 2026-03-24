@@ -107,4 +107,7 @@ pub enum ContractError {
     // Conversion and parsing errors
     #[error("Failed to parse numeric value: {value}, reason: {reason}")]
     ParseError { value: String, reason: String },
+
+    #[error("Invalid Keybase identity: must be exactly 16 uppercase hexadecimal characters (0-9, A-F)")]
+    InvalidIdentity {},
 }

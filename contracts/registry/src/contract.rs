@@ -322,6 +322,10 @@ pub fn execute_set_maci_operator_pubkey(
 }
 
 // validator operator
+fn is_valid_keybase_identity(identity: &str) -> bool {
+    identity.len() == 16 && identity.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase())
+}
+
 pub fn execute_set_maci_operator_identity(
     deps: DepsMut,
     _env: Env,
@@ -329,14 +333,16 @@ pub fn execute_set_maci_operator_identity(
     identity: String,
 ) -> Result<Response, ContractError> {
     if !is_operator_set(deps.as_ref(), &info.sender)? {
-        Err(ContractError::Unauthorized {})
-    } else {
-        MACI_OPERATOR_IDENTITY.save(deps.storage, &info.sender, &identity)?;
-        Ok(Response::new()
-            .add_attribute("action", "set_maci_operator_identity")
-            .add_attribute("maci_operator", &info.sender.to_string())
-            .add_attribute("identity", identity.to_string()))
+        return Err(ContractError::Unauthorized {});
     }
+    if !is_valid_keybase_identity(&identity) {
+        return Err(ContractError::InvalidIdentity {});
+    }
+    MACI_OPERATOR_IDENTITY.save(deps.storage, &info.sender, &identity)?;
+    Ok(Response::new()
+        .add_attribute("action", "set_maci_operator_identity")
+        .add_attribute("maci_operator", &info.sender.to_string())
+        .add_attribute("identity", identity.to_string()))
 }
 
 pub fn execute_set_validators(

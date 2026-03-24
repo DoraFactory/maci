@@ -429,8 +429,8 @@ pub const TALLY_BASE_DELAY_6_3_3_125: u64 = 1380; // 23 min (benchmark: 22.26 mi
 pub const TALLY_BASE_DELAY_9_4_3_125: u64 = 14400; // 240 min (placeholder)
 
 // Per-vote delay: unified across all circuits
-// Reference: 4-2-2-25 ≈ 0.2531s/vote, 6-3-3-125 ≈ 0.2289s/vote → rounded up to 1s
-pub const TALLY_PER_VOTE_DELAY: u64 = 1; // 1 second per vote
+// Reference: 4-2-2-25 ≈ 0.2531s/vote, 6-3-3-125 ≈ 0.2289s/vote → rounded up to 2s for safety margin
+pub const TALLY_PER_VOTE_DELAY: u64 = 2; // 2 seconds per vote
 
 // Multiplier applied to computed delay to give operator adaptation time
 pub const TALLY_DELAY_MULTIPLIER: u64 = 3;

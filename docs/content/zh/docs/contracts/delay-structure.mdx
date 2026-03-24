@@ -36,7 +36,7 @@ tally_timeout = delay_allowed + 2 天
 
 | 参数 | 值 | 依据 |
 |------|---|------|
-| `PER_VOTE_DELAY` | **1 秒/票** | 参考 4-2-2-25（0.2531s）和 6-3-3-125（0.2289s），取较大值保守向上取整 |
+| `PER_VOTE_DELAY` | **2 秒/票** | 参考 4-2-2-25（0.2531s）和 6-3-3-125（0.2289s），在 1s 基础上额外增加安全裕量 |
 
 ---
 
@@ -45,22 +45,22 @@ tally_timeout = delay_allowed + 2 天
 ### 2-1-1-5，10 票
 
 ```
-delay_allowed = (60 + 10 × 1) × 3 = 210s = 3.5 min
-tally_timeout = 210 + 172800 = 173010s ≈ 2 天 2 分
+delay_allowed = (60 + 10 × 2) × 3 = 240s = 4 min
+tally_timeout = 240 + 172800 = 173040s ≈ 2 天 4 分
 ```
 
 ### 4-2-2-25，500 票
 
 ```
-delay_allowed = (180 + 500 × 1) × 3 = 2040s = 34 min
-tally_timeout = 2040 + 172800 = 174840s ≈ 2 天 34 分
+delay_allowed = (180 + 500 × 2) × 3 = 3540s = 59 min
+tally_timeout = 3540 + 172800 = 176340s ≈ 2 天 59 分
 ```
 
 ### 6-3-3-125，10000 票
 
 ```
-delay_allowed = (1380 + 10000 × 1) × 3 = 34140s ≈ 9.5 小时
-tally_timeout = 34140 + 172800 = 206940s ≈ 2.4 天
+delay_allowed = (1380 + 10000 × 2) × 3 = 64140s ≈ 17.8 小时
+tally_timeout = 64140 + 172800 = 236940s ≈ 2.74 天
 ```
 
 ---
@@ -96,24 +96,29 @@ tally_timeout = 34140 + 172800 = 206940s ≈ 2.4 天
 
 ```mermaid
 flowchart TD
-    A[execute_claim 调用] --> B{当前时间 > 投票结束 + tally_timeout?}
-    B -->|是，已超时| C[全部资金退还 admin，operator 奖励为 0]
-    B -->|否| D{period == Ended?}
-    D -->|否| E[返回错误 PeriodError]
-    D -->|是| F[正常分配]
-    F --> G[10% → fee_recipient]
-    F --> H{是否有 TallyDelay 记录?}
-    H -->|有，每次扣 50%| I[减少 operator_reward]
-    H -->|无| J[operator 获得全额剩余]
-    I --> K[penalty_amount → admin]
-    J --> K
+    A["execute_claim 调用"] --> B{"当前时间 > voting_end + tally_timeout?"}
+    B -->|"是，已超时"| C["100% → admin\nfee_recipient 获得 0%"]
+    B -->|"否"| D{"period == Ended?"}
+    D -->|"否"| E["返回错误 PeriodError"]
+    D -->|"是"| F["10% → fee_recipient\n剩余 90% 待分配"]
+    F --> G["计算 penalty_rate"]
+    G --> H["TallyDelay：每条记录 +50%"]
+    G --> I["DeactivateDelay：每条超时消息 +5%\n上限 100%"]
+    H --> J["miss_rate = 100% - penalty_rate"]
+    I --> J
+    J --> K["operator_reward = 90% × miss_rate → operator"]
+    J --> L["penalty_amount = 90% × penalty_rate → admin"]
 ```
 
-| 情形 | operator 获得 | admin 获得 |
-|------|-------------|----------|
-| 无延迟，正常完成 | 90% 合约余额 | 10%（fee_recipient） |
-| 1 次 TallyDelay | 45%（-50%） | 55% |
-| 超过 tally_timeout | 0% | 100% |
+> **注意**：`fee_recipient`（由 registry 在创建轮次时指定）与 `admin`（round 的 admin）是不同地址。超时时 `fee_recipient` 拿不到任何资金。
+
+| 情形 | fee_recipient 获得 | operator 获得 | admin 获得 |
+|------|-------------------|-------------|----------|
+| 无延迟，正常完成 | 10% | 90% | 0% |
+| 1 次 TallyDelay | 10% | 45% | 45% |
+| 2 次 TallyDelay | 10% | 0% | 90% |
+| N 条 DeactivateDelay 消息 | 10% | 90% − N×4.5% | N×4.5% |
+| 超过 tally_timeout | **0%** | 0% | 100% |
 
 ---
 
@@ -126,4 +131,4 @@ flowchart TD
 | 依据 | max_voter（最大规模） | msg_chain_length（实际消息数） |
 | 时机 | 创建轮次时一次性收取 | 统计期结束时动态计算 |
 | 电路差异 | Base Fee 按电路不同 | Base Delay 按电路不同 |
-| 统一部分 | Vote Fee = 0.06 DORA/票（统一） | Per-Vote Delay = 1s/票（统一） |
+| 统一部分 | Vote Fee = 0.06 DORA/票（统一） | Per-Vote Delay = 2s/票（统一） |

@@ -1099,7 +1099,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 189 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 198 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -1724,7 +1724,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 189 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 198 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -2338,7 +2338,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 189 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 198 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -4278,6 +4278,132 @@ fn test_static_whitelist_large_scale_6_3_3_125_rejected() {
         err.downcast().unwrap()
     );
 }
+
+// ─── set_maci_operator_identity tests ────────────────────────────────────────
+
+fn setup_registry_with_operator() -> (cw_multi_test::App, super::AmaciRegistryContract) {
+    use cw_amaci::multitest::MaciCodeId;
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &admin(), coins(1_000_000_000_000_000_000_000u128, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Dora AMaci Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+
+    (app, contract)
+}
+
+#[test]
+fn set_maci_operator_identity_valid_should_work() {
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let valid_identity = "E6FDC1B9AD669B9B".to_string();
+    contract
+        .set_maci_operator_identity(&mut app, operator(), valid_identity.clone())
+        .unwrap();
+
+    let stored = contract
+        .get_maci_operator_identity(&app, operator())
+        .unwrap();
+    assert_eq!(valid_identity, stored);
+}
+
+#[test]
+fn set_maci_operator_identity_update_should_work() {
+    let (mut app, contract) = setup_registry_with_operator();
+
+    _ = contract.set_maci_operator_identity(&mut app, operator(), "E6FDC1B9AD669B9B".to_string());
+
+    let new_identity = "81D1AD803C0467F4".to_string();
+    contract
+        .set_maci_operator_identity(&mut app, operator(), new_identity.clone())
+        .unwrap();
+
+    let stored = contract
+        .get_maci_operator_identity(&app, operator())
+        .unwrap();
+    assert_eq!(new_identity, stored);
+}
+
+#[test]
+fn set_maci_operator_identity_unauthorized_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, user1(), "E6FDC1B9AD669B9B".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_too_short_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "E6FDC1B9AD66".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_too_long_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "E6FDC1B9AD669B9BFF".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_lowercase_hex_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    // lowercase hex is not accepted — must be uppercase
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "e6fdc1b9ad669b9b".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_non_hex_chars_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "E6FDC1B9AD66ZZZZ".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_empty_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+// ─── end of set_maci_operator_identity tests ─────────────────────────────────
 
 /// Test: publish_message_batch accumulates fees correctly across multiple batches.
 #[test]
