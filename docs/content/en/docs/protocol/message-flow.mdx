@@ -44,178 +44,105 @@ if (totalCost > voiceCredits) {
 }
 ```
 
-### Construct Command
+### Construct and Pack Command
+
+Vote commands are packed into a single `bigint` using fixed-width bit fields:
 
 ```typescript
-function createVoteCommand(
-  stateIndex: number,
-  nonce: number,
-  voteOption: { idx: number; vc: number },
-  currentPubKey: Point,
-  salt: bigint
-): Command {
-  return {
-    nonce: BigInt(nonce),
-    stateIndex: BigInt(stateIndex),
-    voteOptionIndex: BigInt(voteOption.idx),
-    newVoteWeight: BigInt(voteOption.vc),
-    newPubKey: currentPubKey,  // Usually unchanged
-    salt: salt
-  };
+/**
+ * Pack command fields into a single bigint.
+ * Bit layout (little-endian, 256 bits total):
+ *
+ *  bits   0 –  31 :  nonce      (32 bits)
+ *  bits  32 –  63 :  stateIdx   (32 bits)
+ *  bits  64 –  95 :  voIdx      (32 bits)
+ *  bits  96 – 191 :  newVotes   (96 bits)
+ *  bits 192 – 223 :  pollId     (32 bits)
+ *  bits 224 – 255 :  (unused)
+ */
+function packElement({
+  nonce, stateIdx, voIdx, newVotes, pollId
+}: {
+  nonce: number | bigint;
+  stateIdx: number | bigint;
+  voIdx: number | bigint;
+  newVotes: number | bigint;
+  pollId: number | bigint;
+}): bigint {
+  return (
+    BigInt(nonce) +
+    (BigInt(stateIdx) << 32n) +
+    (BigInt(voIdx)   << 64n) +
+    (BigInt(newVotes) << 96n) +
+    (BigInt(pollId)  << 192n)
+  );
 }
 ```
 
-### Pack and Hash
+### Sign and Encrypt
+
+After packing, the command array is signed and then Poseidon-encrypted using an ECDH shared key
+derived from an ephemeral private key and the operator's public key.
 
 ```typescript
-// Pack command fields
-function packCommand(command: Command): bigint {
-  // Pack 5 fields into one bigint
-  let packed = BigInt(0);
-  
-  // nonce (8 bits)
-  packed |= (command.nonce & BigInt(0xFF));
-  
-  // stateIndex (24 bits)
-  packed |= ((command.stateIndex & BigInt(0xFFFFFF)) << BigInt(8));
-  
-  // voteOptionIndex (8 bits)
-  packed |= ((command.voteOptionIndex & BigInt(0xFF)) << BigInt(32));
-  
-  // newVoteWeight (24 bits)
-  packed |= ((command.newVoteWeight & BigInt(0xFFFFFF)) << BigInt(40));
-  
-  // salt (remaining bits)
-  packed |= (command.salt << BigInt(64));
-  
-  return packed;
-}
+// 1. Query pollId from the contract
+const pollId = await client.getPollId({ contractAddress });
 
-// Calculate command hash
-function hashCommand(command: Command): bigint {
-  const packed = packCommand(command);
-  return poseidon([
-    packed,
-    command.newPubKey[0],
-    command.newPubKey[1]
-  ]);
-}
-```
+// 2. Pack all command fields
+const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
-### Sign
+// 3. Build command array (7 elements)
+//    [0] packaged
+//    [1] newPubKey.x
+//    [2] newPubKey.y
+//    [3] salt
+//    [4] sig.R8.x
+//    [5] sig.R8.y
+//    [6] sig.S
+const salt = genRandomSalt();
+const hash = poseidon([packaged, newPubKey.x, newPubKey.y]);
+const signature = eddsa.sign(voterPrivKey, hash);
 
-```typescript
-// Sign command hash with private key
-const commandHash = hashCommand(command);
-const signature = sign(voterPrivateKey, commandHash);
+const command = [packaged, newPubKey.x, newPubKey.y, salt, ...signature.R8, signature.S];
 
-// Signature structure
-// signature = {
-//   R8: [x, y],  // Point on curve
-//   S: bigint    // Scalar
-// }
-```
+// 4. Generate ephemeral key-pair
+const encPrivKey = genRandomPrivKey();
+const encPubKey  = genPubKey(encPrivKey);
 
-### Encrypt
+// 5. Encrypt
+const sharedKey    = genEcdhSharedKey(encPrivKey, operatorPubKey);
+const ciphertext   = poseidonEncrypt(command, sharedKey, 0n);
 
-```typescript
-// Generate ECDH shared key
-const sharedKey = genEcdhSharedKey(
-  voterPrivateKey,
-  coordinatorPublicKey
-);
-
-// Encrypt command
-const encryptedData = encrypt(
-  {
-    packed: packCommand(command),
-    newPubKeyX: command.newPubKey[0],
-    newPubKeyY: command.newPubKey[1],
-    signatureR8X: signature.R8[0],
-    signatureR8Y: signature.R8[1],
-    signatureS: signature.S
-  },
-  sharedKey
-);
-```
-
-### Submit On-chain
-
-```typescript
-// Construct message
-const message = {
-  msgType: 1,  // 1 = vote message
-  data: encryptedData  // 10 encrypted fields
-};
-
-// Submit to MACI contract
-await maciContract.publishMessage(message);
+// 6. Submit
+const messageData  = { data: ciphertext };
+await maciContract.publishMessage({
+  messages:    [messageData],
+  enc_pub_keys: [encPubKey],
+});
 ```
 
 ## Complete Vote Message Generation Example
 
 ```typescript
-async function generateAndSubmitVote(
-  voterAccount: {
-    privateKey: bigint;
-    publicKey: Point;
-    stateIndex: number;
-    nonce: number;
-  },
-  coordinatorPubKey: Point,
-  contractAddress: string,
-  voteOptions: { idx: number; vc: number }[]
-) {
-  // Generate one message per vote option
-  for (const option of voteOptions) {
-    // 1. Generate random salt
-    const salt = genRandomSalt();
-    
-    // 2. Create command
-    const command = {
-      nonce: BigInt(voterAccount.nonce),
-      stateIndex: BigInt(voterAccount.stateIndex),
-      voteOptionIndex: BigInt(option.idx),
-      newVoteWeight: BigInt(option.vc),
-      newPubKey: voterAccount.publicKey,
-      salt: salt
-    };
-    
-    // 3. Calculate hash
-    const commandHash = hashCommand(command);
-    
-    // 4. Sign
-    const signature = sign(voterAccount.privateKey, commandHash);
-    
-    // 5. ECDH shared key
-    const sharedKey = genEcdhSharedKey(
-      voterAccount.privateKey,
-      coordinatorPubKey
-    );
-    
-    // 6. Encrypt
-    const encryptedData = encrypt(
-      command,
-      signature,
-      sharedKey
-    );
-    
-    // 7. Construct message
-    const message = {
-      msgType: 1,
-      data: encryptedData
-    };
-    
-    // 8. Submit on-chain
-    const tx = await contract.publishMessage(message);
-    await tx.wait();
-    
-    console.log(`Message ${voterAccount.nonce} submitted`);
-    
-    // 9. Increment local nonce (Note: on-chain nonce only updates during processing)
-    voterAccount.nonce++;
-  }
-}
+// Using the SDK
+import { MaciClient } from '@doravote/sdk';
+
+const client = new MaciClient({ ... });
+
+await client.vote({
+  signer: wallet,
+  address: userAddress,
+  contractAddress,
+  selectedOptions: [
+    { idx: 0, vc: 5 },
+    { idx: 1, vc: 3 },
+  ],
+  operatorCoordPubKey: [
+    BigInt(roundInfo.coordinatorPubkeyX),
+    BigInt(roundInfo.coordinatorPubkeyY)
+  ],
+  maciKeypair,
+});
 ```
 
 ## Coordinator Side: Message Processing

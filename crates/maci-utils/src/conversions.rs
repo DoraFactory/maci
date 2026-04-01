@@ -103,8 +103,8 @@ mod tests {
         let hex = "0000000000000000000000000000000000000000000000000000000000000001";
         let result = hex_to_decimal(hex);
         assert_eq!(result[31], 1);
-        for i in 0..31 {
-            assert_eq!(result[i], 0);
+        for byte in result.iter().take(31) {
+            assert_eq!(*byte, 0);
         }
     }
 

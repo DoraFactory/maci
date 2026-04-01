@@ -11,6 +11,12 @@ include "../../../node_modules/circomlib/circuits/mux1.circom";
 
 /*
  * Proves the correctness of processing a batch of messages.
+ * This circuit ensures:
+ * 1. Messages are correctly decrypted and unpacked
+ * 2. Each message belongs to the correct poll (via pollId check in MessageValidator)
+ * 3. State transitions are valid
+ * 4. Signatures are valid
+ * 5. Vote weight updates are correct
  */
 template ProcessMessages(
     stateTreeDepth,
@@ -27,7 +33,7 @@ template ProcessMessages(
 
     var TREE_ARITY = 5;
 
-    var MSG_LENGTH = 7;
+    var MSG_LENGTH = 10;  // Ciphertext length for 7-element command
     var PACKED_CMD_LENGTH = 3;
 
     // var BALLOT_LENGTH = 2;
@@ -96,6 +102,9 @@ template ProcessMessages(
 
     signal input currentVoteWeights[batchSize];
     signal input currentVoteWeightsPathElements[batchSize][voteOptionTreeDepth][TREE_ARITY - 1];
+    
+    // Expected poll ID for replay attack prevention
+    signal input expectedPollId;
 
     // vote option tree zero root
     component calculateVOTreeZeroRoot = ZeroRoot(voteOptionTreeDepth);
@@ -117,6 +126,7 @@ template ProcessMessages(
     inputHasher.batchEndHash <== batchEndHash;
     inputHasher.currentStateCommitment <== currentStateCommitment;
     inputHasher.newStateCommitment <== newStateCommitment;
+    inputHasher.expectedPollId <== expectedPollId;  // NEW: Include expectedPollId in hash
 
     // The unpacked values from packedVals
     inputHasher.isQuadraticCost ==> isQuadraticCost;
@@ -247,12 +257,16 @@ template ProcessMessages(
         processors[i].cmdVoteOptionIndex <== commands[i].voteOptionIndex;
         processors[i].cmdNewVoteWeight <== commands[i].newVoteWeight;
         processors[i].cmdNonce <== commands[i].nonce;
+        processors[i].cmdPollId <== commands[i].pollId;
         processors[i].cmdSigR8[0] <== commands[i].sigR8[0];
         processors[i].cmdSigR8[1] <== commands[i].sigR8[1];
         processors[i].cmdSigS <== commands[i].sigS;
         for (var j = 0; j < PACKED_CMD_LENGTH; j ++) {
             processors[i].packedCmd[j] <== commands[i].packedCommandOut[j];
         }
+        
+        // Pass pollId validation parameter
+        processors[i].expectedPollId <== expectedPollId;
 
         stateRoots[i] <== processors[i].newStateRoot;
     }
@@ -271,7 +285,7 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
         verify(currentStateRoot, pathElements0, pathIndices0, currentStateLeaves0)
         qip(newStateLeaves0, pathElements0) -> newStateRoot0
     */
-    var MSG_LENGTH = 7;
+    var MSG_LENGTH = 10;  // Ciphertext length for 7-element command
     var PACKED_CMD_LENGTH = 3;
     var TREE_ARITY = 5;
 
@@ -309,9 +323,13 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
     signal input cmdVoteOptionIndex;
     signal input cmdNewVoteWeight;
     signal input cmdNonce;
+    signal input cmdPollId;
     signal input cmdSigR8[2];
     signal input cmdSigS;
     signal input packedCmd[PACKED_CMD_LENGTH];
+    
+    // For pollId validation
+    signal input expectedPollId;
 
     signal output newStateRoot;
 
@@ -323,6 +341,8 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
     transformer.isQuadraticCost                <== isQuadraticCost;
     transformer.numSignUps                     <== numSignUps;
     transformer.maxVoteOptions                 <== maxVoteOptions;
+    transformer.cmdPollId                      <== cmdPollId;
+    transformer.expectedPollId                 <== expectedPollId;
     transformer.slPubKey[STATE_LEAF_PUB_X_IDX] <== stateLeaf[STATE_LEAF_PUB_X_IDX];
     transformer.slPubKey[STATE_LEAF_PUB_Y_IDX] <== stateLeaf[STATE_LEAF_PUB_Y_IDX];
     transformer.slVoiceCreditBalance           <== stateLeaf[STATE_LEAF_VOICE_CREDIT_BALANCE_IDX];
@@ -465,7 +485,7 @@ template ProcessMessagesInputHasher() {
 
     // Other inputs that can't be compressed or packed:
     // - batchStartHash, batchEndHash, currentStateCommitment,
-    //   newStateCommitment
+    //   newStateCommitment, expectedPollId
 
     // Also ensure that packedVals is valid
 
@@ -475,6 +495,7 @@ template ProcessMessagesInputHasher() {
     signal input batchEndHash;
     signal input currentStateCommitment;
     signal input newStateCommitment;
+    signal input expectedPollId;  // NEW: Expected poll ID for replay attack prevention
 
     signal output isQuadraticCost;
     signal output maxVoteOptions;
@@ -494,14 +515,15 @@ template ProcessMessagesInputHasher() {
     pubKeyHasher.left <== coordPubKey[0];
     pubKeyHasher.right <== coordPubKey[1];
 
-    // 3. Hash the 6 inputs with SHA256
-    component hasher = Sha256Hasher6();
+    // 3. Hash the 7 inputs with SHA256 (added expectedPollId)
+    component hasher = Sha256Hasher(7);  // Changed from 6 to 7
     hasher.in[0] <== packedVals;
     hasher.in[1] <== pubKeyHasher.hash;
     hasher.in[2] <== batchStartHash;
     hasher.in[3] <== batchEndHash;
     hasher.in[4] <== currentStateCommitment;
     hasher.in[5] <== newStateCommitment;
+    hasher.in[6] <== expectedPollId;  // NEW: Include expectedPollId in hash
 
     hash <== hasher.hash;
 }

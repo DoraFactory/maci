@@ -47,6 +47,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -63,7 +64,8 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
       const wrongVoter = new VoterClient({ network: 'testnet', secretKey: 999999n }); // Different key
       const invalidPayload = await wrongVoter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: 1
       });
 
       const message = invalidPayload.msg.map((m: string) => BigInt(m));
@@ -117,6 +119,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -128,7 +131,8 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
       const wrongVoter = new VoterClient({ network: 'testnet', secretKey: 888888n });
       const invalidPayload = await wrongVoter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints()
+        operatorPubkey: operator.getPubkey().toPoints(),
+        pollId: 1
       });
 
       const message = invalidPayload.msg.map((m: string) => BigInt(m));
@@ -166,6 +170,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -205,10 +210,11 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
       // Try to vote
       console.log('Attempting to vote...');
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: coordPubKey,
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -241,6 +247,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -398,6 +405,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -488,6 +496,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -525,10 +534,11 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
 
       // Try to vote
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints(),
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: operator.getPubkey().toPoints(),
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));
@@ -559,6 +569,7 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true
       });
@@ -568,10 +579,11 @@ describe('AMACI ProcessMessages Edge Cases Tests', function () {
 
       // Submit only 1 real message (rest will be padded)
       const votePayload = voter.buildVotePayload({
-        stateIdx: 0,
-        operatorPubkey: operator.getPubkey().toPoints(),
-        selectedOptions: [{ idx: 0, vc: 10 }]
-      });
+          stateIdx: 0,
+          operatorPubkey: operator.getPubkey().toPoints(),
+          selectedOptions: [{ idx: 0, vc: 10 }],
+          pollId: 1
+        });
 
       votePayload.forEach((p) => {
         const message = p.msg.map((m) => BigInt(m));

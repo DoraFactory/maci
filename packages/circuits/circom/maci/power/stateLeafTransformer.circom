@@ -14,6 +14,10 @@ template StateLeafTransformer() {
     // For the MessageValidator
     signal input numSignUps;
     signal input maxVoteOptions;
+    
+    // For pollId validation in MessageValidator
+    signal input cmdPollId;
+    signal input expectedPollId;
 
     // State leaf
     signal input slPubKey[2];
@@ -53,6 +57,8 @@ template StateLeafTransformer() {
     messageValidator.maxVoteOptions <== maxVoteOptions;
     messageValidator.originalNonce <== slNonce;
     messageValidator.nonce <== cmdNonce;
+    messageValidator.cmdPollId <== cmdPollId;
+    messageValidator.expectedPollId <== expectedPollId;
     for (var i = 0; i < PACKED_CMD_LENGTH; i ++) {
         messageValidator.cmd[i] <== packedCommand[i];
     }

@@ -5,7 +5,6 @@
   "required": [
     "admin",
     "denom",
-    "maci_code_id",
     "registry_contract",
     "treasury_manager"
   ],
@@ -15,11 +14,6 @@
     },
     "denom": {
       "type": "string"
-    },
-    "maci_code_id": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
     },
     "registry_contract": {
       "$ref": "#/definitions/Addr"

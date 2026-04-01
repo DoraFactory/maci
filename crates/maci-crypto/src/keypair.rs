@@ -297,7 +297,7 @@ impl Keypair {
                     .expect("Failed to encrypt odevity");
 
                 // Hash the shared key using Poseidon
-                let shared_key_hash = poseidon(&vec![shared_key[0].clone(), shared_key[1].clone()]);
+                let shared_key_hash = poseidon(&[shared_key[0].clone(), shared_key[1].clone()]);
 
                 // Return deactivate entry: [c1.x, c1.y, c2.x, c2.y, poseidon(sharedKey)]
                 vec![
@@ -323,7 +323,7 @@ impl Keypair {
             .collect();
 
         // Convert leaves to tree nodes (String format)
-        let leaf_nodes: Vec<String> = leaves.iter().map(|l| biguint_to_node(l)).collect();
+        let leaf_nodes: Vec<String> = leaves.iter().map(biguint_to_node).collect();
         tree.init_leaves(&leaf_nodes);
 
         // Get the root as BigUint

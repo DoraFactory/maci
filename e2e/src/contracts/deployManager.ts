@@ -42,10 +42,10 @@ export class DeployManager {
   }
 
   /**
-   * Upload and instantiate API-MACI contract
+   * Upload and instantiate MACI contract
    */
-  async deployApiMaciContract(sender: string, initMsg: any): Promise<ContractInfo> {
-    const bytecode = await this.contractLoader.loadApiMaciContract();
+  async deployMaciContract(sender: string, initMsg: any): Promise<ContractInfo> {
+    const bytecode = await this.contractLoader.loadMaciContract();
     
     // Upload contract
     const { codeId } = await this.client.upload(sender, bytecode, 'auto');
@@ -55,12 +55,12 @@ export class DeployManager {
       sender,
       codeId,
       initMsg,
-      'API-MACI Contract',
+      'MACI Contract',
       'auto'
     );
 
     const contractInfo: ContractInfo = { codeId, contractAddress };
-    this.deployedContracts.apiMaci = contractInfo;
+    this.deployedContracts.maci = contractInfo;
 
     return contractInfo;
   }
@@ -116,15 +116,15 @@ export class DeployManager {
   /**
    * Upload contract code without instantiation
    */
-  async uploadContract(sender: string, contractType: 'amaci' | 'apiMaci' | 'registry' | 'apiSaas'): Promise<number> {
+  async uploadContract(sender: string, contractType: 'amaci' | 'maci' | 'registry' | 'apiSaas'): Promise<number> {
     let bytecode: Uint8Array;
 
     switch (contractType) {
       case 'amaci':
         bytecode = await this.contractLoader.loadAmaciContract();
         break;
-      case 'apiMaci':
-        bytecode = await this.contractLoader.loadApiMaciContract();
+      case 'maci':
+        bytecode = await this.contractLoader.loadMaciContract();
         break;
       case 'registry':
         bytecode = await this.contractLoader.loadRegistryContract();

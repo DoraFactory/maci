@@ -50,19 +50,24 @@ async function main() {
     
     circuitType: MaciCircuitType.QV,
     maxVoter: 100,
-    voiceCreditAmount: '100',
-    
-    whitelist: {
-      addresses: [
-        process.env.VOTER_A_ADDRESS!,
-        process.env.VOTER_B_ADDRESS!,
-        process.env.VOTER_C_ADDRESS!
-      ]
-    }
+    voiceCreditMode: { unified: { amount: '100' } },
+    registrationMode: {
+      sign_up_with_static_whitelist: {
+        whitelist: {
+          users: [
+            { addr: process.env.VOTER_A_ADDRESS! },
+            { addr: process.env.VOTER_B_ADDRESS! },
+            { addr: process.env.VOTER_C_ADDRESS! }
+          ]
+        }
+      }
+    },
+    deactivateEnabled: false
   });
   
   console.log('Round created:', round.contractAddress);
   console.log('Transaction hash:', round.transactionHash);
+  console.log('Poll ID:', await client.getPollId({ contractAddress: round.contractAddress }));
   
   const contractAddress = round.contractAddress;
   
@@ -245,7 +250,7 @@ User dora1voter... vote changed successfully
 
 Round info:
 - Title: Community Proposal Vote
-- Status: Voting
+- Status: Pending
 - Signups: 2
 - Messages: 3
 

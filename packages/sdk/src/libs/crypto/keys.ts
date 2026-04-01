@@ -90,8 +90,24 @@ export const genKeypair = (pkey?: PrivKey): Keypair => {
 export const genEcdhSharedKey = (privKey: PrivKey, pubKey: PubKey): EcdhSharedKey =>
   mulPointEscalar(pubKey as Point<bigint>, formatPrivKeyForBabyJub(privKey));
 
+/**
+ * Generate a message factory for creating encrypted vote messages
+ * This is a lower-level utility function used by the SDK
+ * @param stateIdx - The state index of the voter
+ * @param signPriKey - The signing private key
+ * @param signPubKey - The signing public key
+ * @param coordPubKey - The coordinator's public key
+ * @param pollId - The poll ID for this round (prevents replay attacks)
+ * @returns A function that generates encrypted messages
+ */
 export const genMessageFactory =
-  (stateIdx: number, signPriKey: PrivKey, signPubKey: PubKey, coordPubKey: PubKey) =>
+  (
+    stateIdx: number,
+    signPriKey: PrivKey,
+    signPubKey: PubKey,
+    coordPubKey: PubKey,
+    pollId: number
+  ) =>
   (
     encPriKey: PrivKey,
     nonce: number,
@@ -100,18 +116,11 @@ export const genMessageFactory =
     isLastCmd: boolean,
     salt?: bigint
   ): bigint[] => {
-    // if (!salt) {
-    //   // uint56
-    //   salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
-    // }
+    if (!salt) {
+      salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
+    }
 
-    // const packaged =
-    //   BigInt(nonce) +
-    //   (BigInt(stateIdx) << 32n) +
-    //   (BigInt(voIdx) << 64n) +
-    //   (BigInt(newVotes) << 96n) +
-    //   (BigInt(salt) << 192n);
-    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
     let newPubKey = [...signPubKey];
     if (isLastCmd) {
@@ -121,31 +130,37 @@ export const genMessageFactory =
     const hash = poseidon([packaged, ...newPubKey]);
     const signature = signMessage(bigInt2Buffer(signPriKey), hash);
 
-    const command = [packaged, ...newPubKey, ...signature.R8, signature.S];
+    const command = [packaged, BigInt(salt), ...newPubKey, ...signature.R8, signature.S];
 
     const message = poseidonEncrypt(command, genEcdhSharedKey(encPriKey, coordPubKey), 0n);
 
     return message;
   };
 
-// Batch generate encrypted commands.
-// output format just like (with commands 1 ~ N):
-// [
-//   [msg_N, msg_N-1, ... msg_3, msg_2, msg_1],
-//   [pubkey_N, pubkey_N-1, ... pubkey_3, pubkey_2, pubkey_1]
-// ]
-// and change the public key at command_N
+/**
+ * Batch generate encrypted commands
+ * Output format: array of { msg, encPubkeys } objects
+ * Messages are generated for commands 1 ~ N
+ * @param stateIdx - The state index of the voter
+ * @param keypair - The voter's keypair
+ * @param coordPubKey - The coordinator's public key
+ * @param plan - Array of [voteOptionIndex, voteCredit] tuples
+ * @param pollId - The poll ID for this round
+ * @returns Array of encrypted messages with their encryption public keys
+ */
 export const batchGenMessage = (
   stateIdx: number,
   keypair: Keypair,
   coordPubKey: PubKey,
-  plan: [number, number][]
+  plan: [number, number][],
+  pollId: number
 ) => {
   const genMessage = genMessageFactory(
     stateIdx,
     BigInt(keypair.privKey),
     keypair.pubKey,
-    coordPubKey
+    coordPubKey,
+    pollId
   );
 
   const payload = [];
@@ -205,11 +220,15 @@ export const genAddKeyInput = (
   {
     coordPubKey,
     oldKey,
-    deactivates
+    deactivates,
+    newPubKey,
+    pollId
   }: {
     coordPubKey: PubKey;
     oldKey: Keypair;
     deactivates: bigint[][];
+    newPubKey: PubKey;
+    pollId: bigint;
   }
 ) => {
   const sharedKeyHash = poseidon(genEcdhSharedKey(oldKey.privKey, coordPubKey));
@@ -227,7 +246,8 @@ export const genAddKeyInput = (
 
   const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
 
-  const nullifier = poseidon([BigInt(oldKey.formatedPrivKey), 1444992409218394441042n]);
+  // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+  const nullifier = poseidon([BigInt(oldKey.formatedPrivKey), pollId]);
 
   const tree = new Tree(5, depth, 0n);
   const leaves = deactivates.map((d) => poseidon(d));
@@ -243,7 +263,9 @@ export const genAddKeyInput = (
     d1[0],
     d1[1],
     d2[0],
-    d2[1]
+    d2[1],
+    poseidon(newPubKey),
+    pollId
   ]);
 
   const input = {
@@ -259,7 +281,9 @@ export const genAddKeyInput = (
     d2,
     deactivateLeafPathElements,
     nullifier,
-    oldPrivateKey: oldKey.formatedPrivKey
+    oldPrivateKey: oldKey.formatedPrivKey,
+    newPubKey,
+    pollId
   };
 
   return input;

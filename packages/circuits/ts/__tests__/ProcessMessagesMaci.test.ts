@@ -31,7 +31,6 @@ describe('ProcessMessages MACI Circuit Tests', function () {
   const voteOptionTreeDepth = 2;
   const batchSize = 5;
   const maxVoteOptions = 5;
-  const numSignUps = 3;
 
   before(async () => {
     console.log('Initializing ProcessMessages circuit...');
@@ -58,7 +57,7 @@ describe('ProcessMessages MACI Circuit Tests', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-      numSignUps,
+      pollId: 1,
       isQuadraticCost,
       isAmaci: false // MACI mode
     });
@@ -94,7 +93,8 @@ describe('ProcessMessages MACI Circuit Tests', function () {
       const votePayload = voter.buildVotePayload({
         stateIdx: voterIdx,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: optionIdx, vc: weight }]
+        selectedOptions: [{ idx: optionIdx, vc: weight }],
+        pollId: 1
       });
 
       // Push each message
@@ -368,7 +368,8 @@ describe('ProcessMessages MACI Circuit Tests', function () {
       const votePayload = wrongVoter.buildVotePayload({
         stateIdx: 0, // Trying to vote as voter 0
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 10 }]
+        selectedOptions: [{ idx: 1, vc: 10 }],
+        pollId: 1
       });
 
       // Push the invalid message
@@ -418,7 +419,8 @@ describe('ProcessMessages MACI Circuit Tests', function () {
       const votePayload = lowBalanceVoter.buildVotePayload({
         stateIdx: 3,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 5 }] // Cost: 5^2 = 25 > 10
+        selectedOptions: [{ idx: 1, vc: 5 }], // Cost: 5^2 = 25 > 10
+        pollId: 1
       });
 
       const initialBalance = operator.stateLeaves.get(3)?.balance || 0n;
@@ -714,7 +716,8 @@ describe('ProcessMessages MACI Circuit Tests', function () {
       const votePayload = voters[0].buildVotePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 5 }]
+        selectedOptions: [{ idx: 1, vc: 5 }],
+        pollId: 1
       });
 
       for (const payload of votePayload) {
@@ -798,7 +801,8 @@ describe('ProcessMessages MACI Circuit Tests', function () {
       const invalidVotePayload = wrongVoter.buildVotePayload({
         stateIdx: 1,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 10 }]
+        selectedOptions: [{ idx: 1, vc: 10 }],
+        pollId: 1
       });
 
       for (const payload of invalidVotePayload) {

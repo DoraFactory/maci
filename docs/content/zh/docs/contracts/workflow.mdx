@@ -60,8 +60,7 @@ console.log('公钥:', bestOperator.pubkey);
 
 ```typescript
 const roundParams = {
-  // Operator 公钥（用于加密）
-  operatorPubkey: operatorKeypair.publicKey,
+  operator: bestOperator.address,
   
   // 投票时间
   startVoting: new Date('2024-02-01T00:00:00Z'),
@@ -82,15 +81,23 @@ const roundParams = {
   
   // 投票类型（二次方投票）
   circuitType: MaciCircuitType.QV,
+  maxVoter: 500,
   
-  // 白名单配置
-  whitelistEcosystem: 'cosmoshub',
-  whitelistSnapshotHeight: '23342001',
-  whitelistVotingPowerArgs: {
-    mode: 'slope',
-    slope: '1000000',  // 每 1 ATOM = 1 voice credit
-    threshold: '0',
+  // 投票权重模式：所有人获得 100 权重
+  voiceCreditMode: { unified: { amount: '100' } },
+  
+  // 注册模式：静态白名单
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: 'dora1abc...' },
+          { addr: 'dora1def...' },
+        ]
+      }
+    }
   },
+  deactivateEnabled: false
 };
 ```
 
@@ -103,32 +110,13 @@ const client = new MaciClient({ network: 'mainnet' });
 
 const round = await client.createAMaciRound({
   signer: creatorWallet,
-  operator: bestOperator.address,  // 使用选择的 Operator
-  
-  startVoting: new Date('2024-03-01T00:00:00Z'),
-  endVoting: new Date('2024-03-07T23:59:59Z'),
-  
-  title: '社区资金分配投票',
-  description: '投票决定如何分配社区资金',
-  link: 'https://forum.example.com/proposal',
-  
-  voteOptionMap: [
-    '项目 A: DeFi 开发工具',
-    '项目 B: 开发者教育',
-    '项目 C: 市场推广',
-    '项目 D: 社区基础设施'
-  ],
-  
-  circuitType: MaciCircuitType.QV,
-  
-  whitelist: {
-    addresses: ['dora1...', 'dora1...']  // 白名单地址列表
-  }
+  ...roundParams
 });
 
 console.log('Round 创建成功！');
 console.log('AMACI 合约地址:', round.contractAddress);
 console.log('交易哈希:', round.transactionHash);
+console.log('Poll ID:', await client.getPollId({ contractAddress: round.contractAddress }));
 console.log('Operator 将自动监控此 Round');
 ```
 

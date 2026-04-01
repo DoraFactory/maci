@@ -581,7 +581,7 @@ dependencies = [
  "hex",
  "schemars",
  "serde",
- "serde-json-wasm",
+ "serde-json-wasm 0.5.2",
  "sha2 0.10.9",
  "static_assertions",
  "thiserror",
@@ -818,6 +818,7 @@ dependencies = [
  "pairing_ce",
  "secp256k1",
  "serde",
+ "serde-json-wasm 1.0.1",
  "serde_json",
  "sha2 0.9.9",
  "thiserror",
@@ -842,6 +843,7 @@ dependencies = [
  "cw4",
  "derivative",
  "hex",
+ "maci-utils",
  "num-bigint",
  "num-traits",
  "schemars",
@@ -849,32 +851,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "thiserror",
-]
-
-[[package]]
-name = "cw-api-maci"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "assert_matches",
- "base64",
- "bellman-ce-verifier",
- "bellman_ce",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "derivative",
- "ff_ce",
- "hex",
- "maci-utils",
- "num-bigint",
- "pairing_ce",
- "secp256k1",
- "serde",
- "serde_json",
- "sha2 0.9.9",
  "thiserror",
 ]
 
@@ -889,7 +865,6 @@ dependencies = [
  "cosmwasm-std",
  "cw-amaci",
  "cw-amaci-registry",
- "cw-api-maci",
  "cw-multi-test",
  "cw-storage-plus",
  "cw-utils",
@@ -914,6 +889,32 @@ dependencies = [
  "cw-utils",
  "schemars",
  "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "cw-maci"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "base64",
+ "bellman-ce-verifier",
+ "bellman_ce",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "derivative",
+ "ff_ce",
+ "hex",
+ "maci-utils",
+ "num-bigint",
+ "pairing_ce",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "sha2 0.9.9",
  "thiserror",
 ]
 
@@ -2110,6 +2111,15 @@ name = "serde-json-wasm"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e9213a07d53faa0b8dd81e767a54a8188a242fdb9be99ab75ec576a774bfdd7"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "serde-json-wasm"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f05da0d153dd4595bdffd5099dc0e9ce425b205ee648eb93437ff7302af8c9a5"
 dependencies = [
  "serde",
 ]

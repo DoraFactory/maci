@@ -168,36 +168,32 @@ AMACI 合约的每个投票轮次都遵循严格的状态转换规则：
 ```mermaid
 stateDiagram-v2
     [*] --> Pending: 创建 Round
-    Pending --> Voting: 开始投票时间
-    Voting --> Processing: 投票时间结束
-    Processing --> Tallying: 消息处理完成
+    Pending --> Processing: Operator 调用 StartProcessPeriod
+    Processing --> Tallying: 所有消息处理完成
     Tallying --> Ended: 计票完成
     Ended --> [*]
-    
+
     note right of Pending
         初始化状态
         配置参数
-        等待开始
+        投票窗口开放
+        用户签到和投票
     end note
-    
-    note right of Voting
-        用户签到
-        发布投票消息
-        无法修改配置
-    end note
-    
+
     note right of Processing
         Operator 处理消息
         验证和解密
         更新状态树
     end note
-    
+
     note right of Tallying
         Operator 计算结果
         生成证明
         链上验证
     end note
 ```
+
+> **注意：** `Voting` 状态已移除。合约通过比较当前区块时间与 `start_time` 和 `end_time` 来判断投票窗口是否开放。用户在合约处于 `Pending` 状态且时间窗口内完成签到和投票。
 
 ### 状态转换条件
 
@@ -426,63 +422,68 @@ sequenceDiagram
 ### Registry 状态
 
 ```rust
-// Registry 存储的状态
-pub struct RegistryState {
-    // 管理员
-    admin: Addr,
-    operator: Addr,
-    
-    // AMACI 合约 Code ID
-    amaci_code_id: u64,
-    
-    // Operator 集合
-    operator_set: Map<Addr, bool>,
-    operator_pubkey: Map<Addr, PubKey>,
-    operator_identity: Map<Addr, String>,
-    
-    // Validator 集合
-    validator_list: Vec<Addr>,
-    validator_operator: Map<Addr, Addr>,
-    
-    // 费用配置
-    circuit_charge_config: CircuitChargeConfig,
-}
+// Registry 合约关键存储项
+ADMIN: Item<Admin>                                // 管理员地址
+OPERATOR: Item<Addr>                              // Registry Operator 地址
+AMACI_CODE_ID: Item<u64>                          // 用于合约实例化的 AMACI Code ID
+
+// Operator 网络
+MACI_VALIDATOR_LIST: Item<ValidatorSet>
+MACI_VALIDATOR_OPERATOR_SET: Map<&Addr, Addr>
+MACI_OPERATOR_PUBKEY: Map<&Addr, PubKey>
+MACI_OPERATOR_IDENTITY: Map<&Addr, String>
+FEEGRANT_OPERATOR: Map<&Addr, bool>
+
+// 费用配置
+CIRCUIT_CHARGE_CONFIG: Item<CircuitChargeConfig>
+
+// Poll ID 管理（新增）
+NEXT_POLL_ID: Item<u64>               // 自动递增计数器
+POLL_ID_TO_ADDRESS: Map<u64, Addr>    // poll_id → 合约地址
+ADDRESS_TO_POLL_ID: Map<&Addr, u64>   // 合约地址 → poll_id
 ```
 
 ### AMACI 状态
 
 ```rust
-// AMACI 合约存储的状态
-pub struct AMACIState {
-    // 轮次信息
-    round_info: RoundInfo,
-    voting_time: VotingTime,
-    
-    // Coordinator 公钥
-    coordinator_pub_key: PubKey,
-    
-    // 用户数据
-    num_sign_ups: u64,
-    voice_credit_amount: Uint256,
-    
-    // 消息队列
-    messages: Vec<Message>,
-    
-    // 状态树
-    state_tree_depth: u8,
-    state_tree_root: Uint256,
-    
-    // 投票配置
-    max_vote_options: Uint256,
-    vote_option_map: Vec<String>,
-    
-    // 电路配置
-    circuit_type: Uint256,
-    certification_system: Uint256,
-    
-    // 白名单
-    whitelist: Option<WhitelistBase>,
-}
+// AMACI 合约关键存储项
+POLL_ID: Item<u64>                    // Registry 分配的唯一 Poll ID
+PERIOD: Item<Period>                  // 当前轮次状态（Pending/Processing/Tallying/Ended）
+MACIPARAMETERS: Item<MaciParameters>  // ZK 电路参数
+
+// 统一配置（新增）
+VOICE_CREDIT_MODE: Item<VoiceCreditMode>      // Unified { amount } 或 Dynamic
+REGISTRATION_MODE: Item<RegistrationMode>     // SignUpWithStaticWhitelist / SignUpWithOracle / PrePopulated
+DEACTIVATE_ENABLED: Item<bool>               // 是否开启 deactivate→AddNewKey 流程
+
+// 用户数据
+NUMSIGNUPS: Item<Uint256>
+WHITELIST: Item<Whitelist>           // SignUpWithStaticWhitelist 模式使用
+ORACLE_WHITELIST: Map<...>           // SignUpWithOracle 模式使用
+
+// 消息存储
+MSG_CHAIN_LENGTH: Item<Uint256>      // 投票消息总数
+DMSG_CHAIN_LENGTH: Item<Uint256>     // Deactivate 消息总数
+
+// Merkle 树状态
+CURRENT_STATE_COMMITMENT: Item<Uint256>
+CURRENT_TALLY_COMMITMENT: Item<Uint256>
+CURRENT_DEACTIVATE_COMMITMENT: Item<Uint256>
+
+// 轮次配置
+ROUNDINFO: Item<RoundInfo>
+VOTINGTIME: Item<VotingTime>
+COORDINATORHASH: Item<Uint256>
+
+// 投票配置
+MAX_VOTE_OPTIONS: Item<Uint256>
+VOTEOPTIONMAP: Item<Vec<String>>
+CIRCUITTYPE: Item<Uint256>
+CERTSYSTEM: Item<Uint256>
+
+// 结果
+RESULT: Map<Vec<u8>, Uint256>
+TOTAL_RESULT: Item<Uint256>
 ```
 
 ### 状态树机制

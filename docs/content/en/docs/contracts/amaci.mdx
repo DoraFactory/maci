@@ -22,6 +22,65 @@ graph TD
     E --> E2[Publish Results]
 ```
 
+## Registration Configuration
+
+When creating an AMACI round, two configuration enums must be provided:
+
+### VoiceCreditMode
+
+Defines how voting power is allocated to users:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `Unified { amount }` | All users receive the same fixed amount of voice credits | Standard AMACI rounds |
+| `Dynamic` | Each user's voice credits equal the amount provided in their signed certificate | Oracle-gated rounds with variable weights |
+
+```typescript
+// Unified mode: everyone gets 100 voice credits
+voiceCreditMode: { unified: { amount: "100" } }
+
+// Dynamic mode: voice credits come from oracle certificate
+voiceCreditMode: "dynamic"
+```
+
+### RegistrationModeConfig
+
+Defines how users register and how access is controlled. This single enum replaces the old `whitelist`, `oracle_whitelist_pubkey`, `pre_deactivate_root`, and `pre_deactivate_coordinator` fields:
+
+| Mode | Access Control | Description |
+|------|---------------|-------------|
+| `SignUpWithStaticWhitelist { whitelist }` | Pre-defined address list | Users call `SignUp` directly; only whitelisted addresses are allowed |
+| `SignUpWithOracle { oracle_pubkey }` | Backend signature | Users call `SignUp` with an oracle-signed certificate |
+| `PrePopulated { pre_deactivate_root, pre_deactivate_coordinator }` | ZK proof | Users must use `PreAddNewKey`; direct `SignUp` is disabled |
+
+### deactivate_enabled
+
+An optional boolean flag (`default: false`) that enables the deactivate → `AddNewKey` flow for dynamic key rotation within the round. When `false`, only `Signup` and `PreAddNewKey` (in `PrePopulated` mode) are available.
+
+```typescript
+// Create round with configuration
+await client.createAMaciRound({
+  operator: selectedOperator,
+  maxVoter: 100,
+  voteOptionMap: ["Option A", "Option B", "Option C"],
+  voiceCreditMode: { unified: { amount: "100" } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: "dora1abc..." },
+          { addr: "dora1def..." },
+        ]
+      }
+    }
+  },
+  deactivateEnabled: false,
+  // ...other params
+});
+```
+
+---
+
 ## User Registration Methods
 
 AMACI supports three registration methods, allowing users to choose based on privacy needs.
@@ -34,8 +93,9 @@ The simplest and fastest registration method, suitable for scenarios where you d
 
 ```rust
 ExecuteMsg::Signup {
-    pubkey: PubKey,                    // User public key
-    data: Option<SignupDataDora>,      // Additional data
+    pubkey: PubKey,              // User's MACI public key
+    certificate: Option<String>, // Oracle certificate (required for SignUpWithOracle mode)
+    amount: Option<Uint256>,     // Voice credit amount (required for Dynamic VC mode with SignUpWithOracle)
 }
 ```
 
@@ -79,23 +139,31 @@ await client.signup({
 });
 ```
 
-**Whitelist Verification:**
+**Registration Mode Determines Signup Behavior:**
 
-The contract verifies if the sender address is in the whitelist:
-- Configure whitelist address list when creating Round
-- Only whitelist addresses can signup
-- Voting weight can be fixed or calculated based on on-chain data
+The behavior of `SignUp` depends on the round's `RegistrationModeConfig`:
+
+- **`SignUpWithStaticWhitelist`**: Only pre-listed addresses can signup. No `certificate` or `amount` needed.
+- **`SignUpWithOracle`**: Any address can attempt signup but must provide a backend-signed `certificate`. With `Dynamic` voice credit mode, `amount` must also be provided (it is included in the certificate's signature).
+- **`PrePopulated`**: `SignUp` is disabled — users must use `PreAddNewKey` instead.
 
 ```typescript
-// Configure whitelist when creating Round
-await client.createMaciRound({
-  // ...
-  whitelist: [
-    'dora1abc...',
-    'dora1def...',
-    'dora1ghi...'
-  ],
-  voiceCreditsPerUser: 100  // Fixed weight mode
+// SignUpWithStaticWhitelist mode: simple signup
+await client.signup({
+  signer: wallet,
+  address: userAddress,
+  contractAddress: amaciAddress,
+  maciKeypair
+});
+
+// SignUpWithOracle + Dynamic VC mode: provide certificate and amount
+await client.signup({
+  signer: wallet,
+  address: userAddress,
+  contractAddress: amaciAddress,
+  maciKeypair,
+  certificate: oracleCertificate,  // base64-encoded oracle signature
+  amount: "150"                     // voice credits (included in the signed payload)
 });
 ```
 
@@ -374,23 +442,27 @@ input[1] = PRE_DEACTIVATE_COORDINATOR_HASH.load(...)?;  // May be different
 ### Use Cases
 
 **Suitable For:**
-- Round creation already knows anonymous voting needed
-- Pre-prepared set of deactivate data
-- Want users to anonymously participate immediately
+- Round creation already knows anonymous voting is needed
+- Pre-prepared set of deactivate data (e.g., platform distributes keys to users)
+- Want users to anonymously participate immediately without waiting
 
 **Round Configuration Example:**
 
 ```typescript
-// Configure when creating Round
+// Configure when creating Round using PrePopulated mode
 await client.createAMaciRound({
   // ... other parameters
-  
-  // Configure pre-deactivate
-  preDeactivateRoot: preDeactivateData.root,
-  preDeactivateCoordinator: {
-    x: preCoordPubkey[0],
-    y: preCoordPubkey[1]
-  }
+  registrationMode: {
+    pre_populated: {
+      pre_deactivate_root: preDeactivateData.root,
+      pre_deactivate_coordinator: {
+        x: preCoordPubkey[0].toString(),
+        y: preCoordPubkey[1].toString()
+      }
+    }
+  },
+  voiceCreditMode: { unified: { amount: "100" } },
+  deactivateEnabled: false  // PrePopulated mode does not need live deactivation
 });
 ```
 
@@ -598,34 +670,46 @@ After registration (regardless of method), users can submit encrypted voting mes
 
 ### PublishMessage Message
 
+`PublishMessage` accepts messages in **batch** — a single call can submit one or more encrypted votes:
+
 ```rust
 ExecuteMsg::PublishMessage {
-    message: MessageData,
+    messages: Vec<MessageData>,      // Batch of encrypted vote messages
+    enc_pub_keys: Vec<PubKey>,       // Corresponding ephemeral encryption public keys
 }
 
 pub struct MessageData {
-    pub data: Vec<Uint256>,  // 10 encrypted fields
+    pub data: [Uint256; 10],  // 10 encrypted fields
 }
 ```
 
+Each `messages[i]` must have a corresponding `enc_pub_keys[i]`. A per-message fee of **10 DORA** is charged for each message submitted.
+
 ### Message Format
 
-Encrypted messages contain 10 fields:
+Each encrypted message contains exactly **10** `Uint256` fields:
 
 ```typescript
 interface EncryptedMessage {
   data: [
-    bigint,  // [0] packaged (nonce + stateIdx + voIdx + newVotes + salt)
+    bigint,  // [0] packaged: nonce(32b)|stateIdx(32b)|voIdx(32b)|newVotes(96b)|pollId(32b)
     bigint,  // [1] newPubKey.x
     bigint,  // [2] newPubKey.y
-    bigint,  // [3] signature.R8.x
-    bigint,  // [4] signature.R8.y
-    bigint,  // [5] signature.S
-    bigint,  // [6] encryption IV
-    bigint,  // [7-9] reserved/padding
+    bigint,  // [3] salt
+    bigint,  // [4] signature.R8.x
+    bigint,  // [5] signature.R8.y
+    bigint,  // [6] signature.S
+    bigint,  // [7] Poseidon encryption output[0]
+    bigint,  // [8] Poseidon encryption output[1]
+    bigint,  // [9] Poseidon encryption output[2]
   ];
 }
 ```
+
+> **Command array layout:** Fields [0]–[6] are the plaintext command elements. The `packaged` field
+> at [0] encodes five sub-fields using fixed-width bit positions (see bit layout in
+> [Message Packing](/docs/protocol/cryptography#message-packing)). Fields [7]–[9] are the
+> Poseidon ciphertext output. Each message is submitted together with its ephemeral `enc_pub_key`.
 
 ### Voting Flow
 
@@ -654,10 +738,9 @@ sequenceDiagram
 ### Voting Example
 
 ```typescript
-// Get Operator public key
+// Get round info (includes coordinator pubkey)
 const roundInfo = await client.getRoundInfo({ contractAddress: amaciAddress });
 
-// Vote
 await client.vote({
   signer: wallet,
   address: userAddress,
@@ -882,68 +965,93 @@ fn process_tally(
 
 ```rust
 QueryMsg::GetRoundInfo {}
+QueryMsg::GetPeriod {}
+QueryMsg::GetNumSignUp {}
+QueryMsg::GetVotingTime {}
 ```
 
-Returns:
+### Poll ID
+
+Each AMACI instance is assigned a unique `poll_id` by the Registry at creation time:
 
 ```rust
-pub struct RoundInfoResponse {
-    pub round_info: RoundInfo,
-    pub status: RoundStatus,
-    pub coordinator_pubkey: PubKey,
-    pub num_signups: u64,
-    pub max_voters: Uint256,
-    // ... other info
+QueryMsg::GetPollId {}
+// Returns: u64
+```
+
+### Registration Configuration
+
+```rust
+// Get the current registration and voice credit configuration
+QueryMsg::GetRegistrationConfig {}
+// Returns: RegistrationConfigInfo {
+//   deactivate_enabled: bool,
+//   voice_credit_mode: VoiceCreditMode,
+//   registration_mode: RegistrationMode,
+// }
+
+// Get whether deactivate feature is enabled
+QueryMsg::GetDeactivateEnabled {}
+// Returns: bool
+```
+
+### Registration Status (replaces IsWhiteList / WhiteBalanceOf)
+
+A unified query that returns registration eligibility and voice credit balance, adapting to the active registration mode:
+
+```rust
+QueryMsg::QueryRegistrationStatus {
+    sender: Option<Addr>,       // For SignUpWithStaticWhitelist mode
+    pubkey: Option<PubKey>,     // For SignUpWithOracle / PrePopulated mode
+    certificate: Option<String>,// For SignUpWithOracle mode
+    amount: Option<Uint256>,    // For SignUpWithOracle + Dynamic VC mode
 }
+// Returns: RegistrationStatus {
+//   can_sign_up: bool,
+//   is_register: bool,
+//   balance: Uint256,
+// }
+```
+
+```typescript
+// Check registration eligibility (whitelist mode)
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciAddress,
+  address: userAddress
+});
+
+// Check registration eligibility (oracle mode with dynamic VC)
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciAddress,
+  pubkey: { x: pubkeyX, y: pubkeyY },
+  certificate: oracleCert,
+  amount: "150"
+});
+
+console.log(status.can_sign_up);  // Whether user can register
+console.log(status.is_register);  // Whether already registered
+console.log(status.balance);      // Voice credits if registered
 ```
 
 ### Message Queries
 
 ```rust
-// Get single message
-QueryMsg::GetMessage { index: u64 }
-
-// Get all messages
-QueryMsg::GetMessages {}
-
-// Get message count
-QueryMsg::GetNumMessages {}
+QueryMsg::GetMsgChainLength {}    // Total number of vote messages
+QueryMsg::GetAllResult {}         // Final tally for a single option index
+QueryMsg::GetAllResults {}        // Final tally results for all options (Vec<Uint256>)
 ```
 
 ### State Queries
 
 ```rust
-// Get state root
-QueryMsg::GetStateRoot {}
-
-// Get tally result
-QueryMsg::GetTallyResult {}
-
-// Get signup count
-QueryMsg::GetNumSignups {}
-```
-
-## Anonymity Enhancement
-
-### Deactivation Detection
-
-AMACI supports deactivation detection to enhance anonymity:
-
-```rust
-// Configure during initialization
-pre_deactivate_root: Uint256,  // Deactivation Merkle root
-pre_deactivate_coordinator: Option<PubKey>,  // Deactivation coordinator
-```
-
-### How It Works
-
-```mermaid
-graph TD
-    A[User Pubkey] --> B{In Deactivation Tree?}
-    B -->|Yes| C[Mark as Deactivated]
-    B -->|No| D[Process Normally]
-    C --> E[Special Handling or Exclude]
-    D --> F[Normal Vote Tallying]
+QueryMsg::GetCurrentStateCommitment {}
+QueryMsg::GetCurrentDeactivateCommitment {}
+QueryMsg::Signuped { pubkey: PubKey }  // Returns state index if registered
+QueryMsg::GetStateIdxInc { address: Addr }
+QueryMsg::GetVoiceCreditBalance { index: String }
+QueryMsg::MaxVoteOptions {}
+QueryMsg::QueryCircuitType {}
+QueryMsg::QueryOracleWhitelistConfig {}
 ```
 
 ## Round Status
@@ -951,25 +1059,43 @@ graph TD
 AMACI contract has the following states:
 
 ```rust
-pub enum RoundStatus {
-    Created = 0,      // Created
-    Voting = 1,       // Voting
-    Processing = 2,   // Processing
-    Tallied = 3,      // Tallied
+pub enum PeriodStatus {
+    Pending,     // Contract instantiated, waiting for voting start time
+    Processing,  // Voting period ended; operator is processing messages
+    Tallying,    // Message processing complete; operator is tallying votes
+    Ended,       // Tally submitted and verified; round is complete
 }
 ```
+
+> **Note:** The `Voting` state was removed. The contract determines whether the voting window is open by comparing the current block time against the configured `start_time` and `end_time`. There is no explicit state transition into "Voting".
 
 ### State Transitions
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Created: Contract instantiation
-    Created --> Voting: Start time reached
-    Voting --> Processing: Voting period ended
-    Processing --> Processing: ProcessMessages called multiple times
-    Processing --> Tallied: ProcessTally succeeded
-    Tallied --> [*]: Round ended
+    [*] --> Pending: Contract instantiated
+    Pending --> Processing: Operator calls StartProcessPeriod
+    Processing --> Processing: ProcessMessages called (batches)
+    Processing --> Tallying: All messages processed
+    Tallying --> Ended: ProcessTally succeeded
+    Ended --> [*]: Round complete
 ```
+
+### UpdateRegistrationConfig
+
+After a round is created but before voting starts, the organizer can update registration settings:
+
+```rust
+ExecuteMsg::UpdateRegistrationConfig {
+    config: RegistrationConfigUpdate {
+        deactivate_enabled: Option<bool>,          // Toggle deactivate feature
+        voice_credit_mode: Option<VoiceCreditMode>, // Only changeable when num_signups == 0
+        registration_mode: Option<RegistrationModeConfig>, // Only changeable when num_signups == 0
+    }
+}
+```
+
+This replaces the old `SetWhitelists` message.
 
 ## Security Features
 

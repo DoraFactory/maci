@@ -12,7 +12,8 @@ import {
   assertExecuteSuccess,
   log,
   assertBigIntEqual,
-  advanceTime
+  advanceTime,
+  queryPollId
 } from '../src';
 
 /**
@@ -168,13 +169,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
   this.timeout(900000); // 15 minutes for the entire test suite
 
   // Shared constants (addresses and test parameters)
-  const adminAddress = 'dora1admin000000000000000000000000000000';
-  const operatorAddress = 'dora1operator000000000000000000000000';
-  const feeRecipient = 'dora1feerecipient0000000000000000000';
+  const adminAddress = 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug';
+  const operatorAddress = 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan';
+  const feeRecipient = 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78';
 
-  const voter1Address = 'dora1voter1000000000000000000000000000000';
-  const voter2Address = 'dora1voter2000000000000000000000000000000';
-  const voter1NewAddress = 'dora1voter1new000000000000000000000000';
+  const voter1Address = 'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf';
+  const voter2Address = 'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg';
+  const voter1NewAddress = 'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2';
 
   // Test parameters (must match zkey configuration: 2-1-1-5)
   const stateTreeDepth = 2; // 5^2 = 25 max voters
@@ -213,6 +214,33 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const client = env.client;
     log('✓ Test environment created');
 
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' } // 100,000 DORA in peaka
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(feeRecipient, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter2Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1NewAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('✓ Test address balances initialized');
+
     // Initialize INDEPENDENT SDK clients
     const operator = new OperatorClient({
       network: 'testnet',
@@ -236,20 +264,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     log('✓ SDK clients initialized');
 
-    // Initialize operator AMACI round
-    operator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true
-    });
-
-    log('✓ Operator AMACI round initialized');
-
-    // Deploy AMACI contract
+    // Deploy AMACI contract (need contract to get pollId)
     const contractLoader = new ContractLoader();
     const deployManager = new DeployManager(client, contractLoader);
 
@@ -281,7 +296,23 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              { addr: adminAddress, voice_credit_amount: null },
+              { addr: operatorAddress, voice_credit_amount: null },
+              { addr: feeRecipient, voice_credit_amount: null },
+              { addr: voter1Address, voice_credit_amount: null },
+              { addr: voter2Address, voice_credit_amount: null },
+              { addr: voter1NewAddress, voice_credit_amount: null }
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'AMACI AddNewKey Test 1',
@@ -292,21 +323,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         start_time: startTime.toString(),
         end_time: votingEndTime.toString()
       },
-      whitelist: {
-        users: [
-          { addr: adminAddress },
-          { addr: operatorAddress },
-          { addr: feeRecipient },
-          { addr: voter1Address },
-          { addr: voter2Address },
-          { addr: voter1NewAddress }
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '1',
       certification_system: '0',
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
+      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -316,6 +336,24 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       operatorAddress
     );
     log(`✓ AMACI contract deployed at: ${contractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const pollId = await queryPollId(amaciContract);
+    log(`✓ Poll ID retrieved from contract: ${pollId}`);
+
+    // Initialize operator AMACI round with pollId (must be after contract deployment)
+    operator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId // From contract query
+    });
+
+    log('✓ Operator AMACI round initialized with pollId');
     log('Test environment setup complete\n');
 
     // Store deactivate data for AddNewKey proof
@@ -323,6 +361,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // ========== Original test logic starts here ==========
     log('\n=== Phase 1: Initial registration and voting ===');
+    log(`Using poll ID ${pollId} for vote and deactivate payloads`);
 
     // Step 1: Register voters (including old key for voter1)
     log('Registering voter1 with old key...');
@@ -358,7 +397,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       selectedOptions: [
         { idx: 0, vc: 5 }, // 5 votes to option 0 (cost: 25)
         { idx: 1, vc: 3 } // 3 votes to option 1 (cost: 9)
-      ]
+      ],
+      pollId
     });
 
     // Reverse payload because buildVotePayload returns messages in reverse nonce order
@@ -387,7 +427,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       selectedOptions: [
         { idx: 1, vc: 4 }, // 4 votes to option 1 (cost: 16)
         { idx: 2, vc: 2 } // 2 votes to option 2 (cost: 4)
-      ]
+      ],
+      pollId
     });
 
     // Reverse payload because buildVotePayload returns messages in reverse nonce order
@@ -414,7 +455,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     log('Voter1 deactivating old key...');
     const deactivatePayload = await voter1.buildDeactivatePayload({
       stateIdx: USER_1_OLD,
-      operatorPubkey: coordPubKey
+      operatorPubkey: coordPubKey,
+      pollId
     });
 
     const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));
@@ -498,10 +540,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Use buildAddNewKeyPayload to generate proof in one step
     log('Calling buildAddNewKeyPayload...');
+    const newPubKey = voter1NewKey.getPubkey().toPoints();
     const addKeyResult = await voter1.buildAddNewKeyPayload({
       stateTreeDepth,
       operatorPubkey: coordPubKey,
       deactivates: deactivatesForProof,
+      newPubkey: newPubKey as [bigint, bigint],
+      pollId: BigInt(pollId),
       wasmFile: addNewKeyWasm,
       zkeyFile: addNewKeyZkey
     });
@@ -513,7 +558,6 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Step 7: Submit AddNewKey to chain
     log('Submitting AddNewKey...');
-    const newPubKey = voter1NewKey.getPubkey().toPoints();
 
     await assertExecuteSuccess(
       () =>
@@ -555,7 +599,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       selectedOptions: [
         { idx: 2, vc: 6 }, // 6 votes to option 2 (cost: 36)
         { idx: 3, vc: 5 } // 5 votes to option 3 (cost: 25)
-      ]
+      ],
+      pollId
     });
 
     log(`Generated ${voter1NewVote.length} vote messages`);
@@ -773,10 +818,13 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     // Try to generate AddNewKey proof - should fail because attacker's sharedKey doesn't match
     try {
+      const attackerNewPubkey = attackerVoter.getPubkey().toPoints() as [bigint, bigint];
       await attackerVoter.buildAddNewKeyPayload({
         stateTreeDepth,
         operatorPubkey: coordPubKey,
         deactivates: deactivatesForProof,
+        newPubkey: attackerNewPubkey,
+        pollId: BigInt(pollId),
         wasmFile: addNewKeyWasm,
         zkeyFile: addNewKeyZkey
       });
@@ -804,20 +852,33 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const client = env.client;
     log('✓ Test environment created');
 
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter2Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1NewAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('✓ Test address balances initialized');
+
     // Deploy a fresh contract for this test
     const testOperator = new OperatorClient({
       network: 'testnet',
       secretKey: 123456n
-    });
-
-    testOperator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true
     });
 
     const testVoter1Old = new VoterClient({ network: 'testnet', secretKey: 111222n });
@@ -853,7 +914,22 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              { addr: adminAddress, voice_credit_amount: null },
+              { addr: operatorAddress, voice_credit_amount: null },
+              { addr: voter1Address, voice_credit_amount: null },
+              { addr: voter2Address, voice_credit_amount: null },
+              { addr: voter1NewAddress, voice_credit_amount: null }
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'Old Voter Rejection Test',
@@ -864,20 +940,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         start_time: startTime.toString(),
         end_time: endTime.toString()
       },
-      whitelist: {
-        users: [
-          { addr: adminAddress },
-          { addr: operatorAddress },
-          { addr: voter1Address },
-          { addr: voter2Address },
-          { addr: voter1NewAddress }
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '1',
       certification_system: '0',
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      poll_id: 2, // Poll ID for this test round (using different ID to avoid conflicts)
+      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
 
     const testContractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -888,6 +954,24 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     );
 
     log(`Test contract deployed at: ${testContractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const testPollId = await queryPollId(testContract);
+    log(`Poll ID retrieved from test contract: ${testPollId}`);
+
+    // Initialize testOperator with pollId (must be after contract deployment)
+    testOperator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId: testPollId // From contract query
+    });
+
+    log('Test operator initialized with pollId');
 
     // Phase 1: Register voter1 with old key and voter2
     log('\n--- Phase 1: User Registration ---');
@@ -919,7 +1003,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter1FirstVote = testVoter1Old.buildVotePayload({
       stateIdx: USER_1_OLD,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 0, vc: 5 }] // Cost: 25 credits
+      selectedOptions: [{ idx: 0, vc: 5 }], // Cost: 25 credits
+      pollId: testPollId
     });
 
     for (const payload of voter1FirstVote.reverse()) {
@@ -944,7 +1029,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const deactivatePayload = await testVoter1Old.buildDeactivatePayload({
       stateIdx: USER_1_OLD,
-      operatorPubkey: coordPubKey
+      operatorPubkey: coordPubKey,
+      pollId: testPollId
     });
 
     const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));
@@ -994,15 +1080,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const testDeactivatesForProof = testDeactivateResult.newDeactivate as bigint[][];
 
+    const voter1NewPubKey = testVoter1New.getPubkey().toPoints();
     const testAddKeyResult = await testVoter1Old.buildAddNewKeyPayload({
       stateTreeDepth,
       operatorPubkey: coordPubKey,
       deactivates: testDeactivatesForProof,
+      newPubkey: voter1NewPubKey as [bigint, bigint],
+      pollId: BigInt(testPollId),
       wasmFile: addNewKeyWasm,
       zkeyFile: addNewKeyZkey
     });
-
-    const voter1NewPubKey = testVoter1New.getPubkey().toPoints();
 
     await assertExecuteSuccess(
       () =>
@@ -1039,7 +1126,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter1OldSecondVote = testVoter1Old.buildVotePayload({
       stateIdx: USER_1_OLD,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 3 }] // Trying 3 votes to option 1
+      selectedOptions: [{ idx: 1, vc: 3 }], // Trying 3 votes to option 1
+      pollId: testPollId
     });
 
     for (const payload of voter1OldSecondVote.reverse()) {
@@ -1065,7 +1153,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter1NewVote = testVoter1New.buildVotePayload({
       stateIdx: USER_1_NEW,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 6 }] // 6 votes to option 2, cost: 36
+      selectedOptions: [{ idx: 2, vc: 6 }], // 6 votes to option 2, cost: 36
+      pollId: testPollId
     });
 
     for (const payload of voter1NewVote.reverse()) {
@@ -1091,7 +1180,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const voter2Vote = testVoter2.buildVotePayload({
       stateIdx: USER_2,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 3, vc: 4 }] // 4 votes to option 3, cost: 16
+      selectedOptions: [{ idx: 3, vc: 4 }], // 4 votes to option 3, cost: 16
+      pollId: testPollId
     });
 
     for (const payload of voter2Vote.reverse()) {
@@ -1337,20 +1427,33 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const client = env.client;
     log('✓ Test environment created');
 
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter2Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1NewAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('✓ Test address balances initialized');
+
     // Setup - Deploy a fresh contract
     const concurrentOperator = new OperatorClient({
       network: 'testnet',
       secretKey: 234567n
-    });
-
-    concurrentOperator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true
     });
 
     const user1Old = new VoterClient({ network: 'testnet', secretKey: 345678n });
@@ -1386,7 +1489,22 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              { addr: adminAddress, voice_credit_amount: null },
+              { addr: operatorAddress, voice_credit_amount: null },
+              { addr: voter1Address, voice_credit_amount: null },
+              { addr: voter2Address, voice_credit_amount: null },
+              { addr: voter1NewAddress, voice_credit_amount: null }
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'Concurrent Voter Test',
@@ -1397,20 +1515,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         start_time: startTime.toString(),
         end_time: endTime.toString()
       },
-      whitelist: {
-        users: [
-          { addr: adminAddress },
-          { addr: operatorAddress },
-          { addr: voter1Address },
-          { addr: voter2Address },
-          { addr: voter1NewAddress }
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '1',
       certification_system: '0',
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      poll_id: 3, // Poll ID for this test round (using different ID to avoid conflicts)
+      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
 
     const concurrentContractInfo = await deployManager.deployAmaciContract(
@@ -1424,6 +1532,24 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     );
 
     log(`Contract deployed at: ${concurrentContractInfo.contractAddress}`);
+
+    // Query pollId from deployed contract
+    const concurrentPollId = await queryPollId(concurrentContract);
+    log(`Poll ID retrieved from concurrent test contract: ${concurrentPollId}`);
+
+    // Initialize concurrentOperator with pollId (must be after contract deployment)
+    concurrentOperator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId: concurrentPollId // From contract query
+    });
+
+    log('Concurrent test operator initialized with pollId');
 
     // Phase 1: Register users (user1 with old key, user2)
     log('\n--- Phase 1: Register users ---');
@@ -1451,7 +1577,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const deactivatePayload = await user1Old.buildDeactivatePayload({
       stateIdx: USER_1_OLD,
-      operatorPubkey: coordPubKey
+      operatorPubkey: coordPubKey,
+      pollId: concurrentPollId
     });
 
     const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));
@@ -1493,15 +1620,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
     const concurrentDeactivatesForProof = concurrentDeactivateResult.newDeactivate as bigint[][];
 
+    const user1NewPubKey = user1New.getPubkey().toPoints();
     const concurrentAddKeyResult = await user1Old.buildAddNewKeyPayload({
       stateTreeDepth,
       operatorPubkey: coordPubKey,
       deactivates: concurrentDeactivatesForProof,
+      newPubkey: user1NewPubKey as [bigint, bigint],
+      pollId: BigInt(concurrentPollId),
       wasmFile: addNewKeyWasm,
       zkeyFile: addNewKeyZkey
     });
-
-    const user1NewPubKey = user1New.getPubkey().toPoints();
 
     await assertExecuteSuccess(
       () =>
@@ -1530,7 +1658,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const user1OldVote = user1Old.buildVotePayload({
       stateIdx: USER_1_OLD,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 0, vc: 5 }]
+      selectedOptions: [{ idx: 0, vc: 5 }],
+      pollId: concurrentPollId
     });
 
     for (const payload of user1OldVote.reverse()) {
@@ -1556,7 +1685,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const user1NewVote = user1New.buildVotePayload({
       stateIdx: USER_1_NEW,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 7 }]
+      selectedOptions: [{ idx: 1, vc: 7 }],
+      pollId: concurrentPollId
     });
 
     for (const payload of user1NewVote.reverse()) {
@@ -1582,7 +1712,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const user2Vote = user2.buildVotePayload({
       stateIdx: USER_2,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 6 }]
+      selectedOptions: [{ idx: 2, vc: 6 }],
+      pollId: concurrentPollId
     });
 
     for (const payload of user2Vote.reverse()) {
@@ -1793,23 +1924,74 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     const client = env.client;
     log('✓ Test environment created');
 
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter2Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1NewAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('✓ Test address balances initialized');
+
+    // 25 boundary test users - must match whitelist addresses
+    const boundaryTestUsers = [
+      'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug',
+      'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf',
+      'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78',
+      'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2',
+      'dora12c8lpjqrpjzlawx8g4xe873umy4e6vr5atqzhn',
+      'dora1l8ptlxavtum53gcdhzl3sju5k9m5xxszx2f8ht',
+      'dora1m2fz72pckpjem5htc0mjjrxgstd6cjzy5yclqu',
+      'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan',
+      'dora1lz8ptxkzx0q72rn4zg5gzgkay7qmk5l8n8y2r8',
+      'dora1wryzhskahzuft4jw6lla603ue2xpv0pmp83c69',
+      'dora1cqmk6jyz6xhsa3dwtwd8k0pmfmpr059mujf78p',
+      'dora1d5wgt2n4uenvvu3spafcspa376mp3u27jcz0eq',
+      'dora1j4576y9zw4r0037xdmg8l2ahv7rjctr52cshwg',
+      'dora1y6z5qfgkas2qlt9gavs3kld0dhkcklerjlrvl9',
+      'dora15yfyalf872yut8cecy8p2j7rer9dd98rlg3xtq',
+      'dora1dlllxss27zzru95hk0h6qdtr8v4qp2w8aanyg3',
+      'dora1grelez57np8x586qn6k7pm7qvm5k9cqj2uq3n5',
+      'dora1r8w3ej5dpjc9n9nazt4x8luc9n8klxnk97zrht',
+      'dora1guarph0djs8xrykwruprwvvr30w5k0xu24ut72',
+      'dora18yad4hpyljv79x62svf0hmelhqupld5ulzv7fm',
+      'dora1ednrqjyqzfrpnv2nc355n9q6ul9vnt245rrsy6',
+      'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg',
+      'dora1rflsx5r2knxtr3agjtc2882pw6las5d9ad3exm',
+      'dora1s225ptu25swauxkylugqdqyq48rkuz4536glxm',
+      'dora1glj6aqhx2zpwfax6wy64w44egh9nz3yq39wc7u'
+    ];
+
+    // Initialize balances for 25 boundary test users
+    for (let i = 0; i < boundaryTestUsers.length; i++) {
+      await client.app.bank.setBalance(boundaryTestUsers[i], [
+        { denom: 'dora', amount: '1000000000000' },
+        { denom: 'peaka', amount: '100000000000000000000000' }
+      ]);
+    }
+    log('✓ Boundary test user balances initialized (25 users)');
+
     // Create a new operator for this test
     const boundaryOperator = new OperatorClient({
       network: 'testnet',
       secretKey: 888888n
     });
 
-    boundaryOperator.initRound({
-      stateTreeDepth,
-      intStateTreeDepth,
-      voteOptionTreeDepth,
-      batchSize,
-      maxVoteOptions,
-      isQuadraticCost: true,
-      isAmaci: true
-    });
-
-    log('✓ Boundary test operator initialized');
+    log('✓ Boundary test operator created');
 
     // Deploy new contract
     const contractLoader = new ContractLoader();
@@ -1841,7 +2023,43 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       admin: adminAddress,
       fee_recipient: feeRecipient,
       operator: operatorAddress,
-      voice_credit_amount: '100',
+      voice_credit_mode: {
+        unified: { amount: '100' }
+      },
+      registration_mode: {
+        sign_up_with_static_whitelist: {
+          whitelist: {
+            users: [
+              // 25 user addresses for filling the state tree
+              { addr: 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug', voice_credit_amount: null },
+              { addr: 'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf', voice_credit_amount: null },
+              { addr: 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78', voice_credit_amount: null },
+              { addr: 'dora1qnqdcxxk385pztkyz8dphzmtknq7qe7y22l6d2', voice_credit_amount: null },
+              { addr: 'dora12c8lpjqrpjzlawx8g4xe873umy4e6vr5atqzhn', voice_credit_amount: null },
+              { addr: 'dora1l8ptlxavtum53gcdhzl3sju5k9m5xxszx2f8ht', voice_credit_amount: null },
+              { addr: 'dora1m2fz72pckpjem5htc0mjjrxgstd6cjzy5yclqu', voice_credit_amount: null },
+              { addr: 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan', voice_credit_amount: null },
+              { addr: 'dora1lz8ptxkzx0q72rn4zg5gzgkay7qmk5l8n8y2r8', voice_credit_amount: null },
+              { addr: 'dora1wryzhskahzuft4jw6lla603ue2xpv0pmp83c69', voice_credit_amount: null },
+              { addr: 'dora1cqmk6jyz6xhsa3dwtwd8k0pmfmpr059mujf78p', voice_credit_amount: null },
+              { addr: 'dora1d5wgt2n4uenvvu3spafcspa376mp3u27jcz0eq', voice_credit_amount: null },
+              { addr: 'dora1j4576y9zw4r0037xdmg8l2ahv7rjctr52cshwg', voice_credit_amount: null },
+              { addr: 'dora1y6z5qfgkas2qlt9gavs3kld0dhkcklerjlrvl9', voice_credit_amount: null },
+              { addr: 'dora15yfyalf872yut8cecy8p2j7rer9dd98rlg3xtq', voice_credit_amount: null },
+              { addr: 'dora1dlllxss27zzru95hk0h6qdtr8v4qp2w8aanyg3', voice_credit_amount: null },
+              { addr: 'dora1grelez57np8x586qn6k7pm7qvm5k9cqj2uq3n5', voice_credit_amount: null },
+              { addr: 'dora1r8w3ej5dpjc9n9nazt4x8luc9n8klxnk97zrht', voice_credit_amount: null },
+              { addr: 'dora1guarph0djs8xrykwruprwvvr30w5k0xu24ut72', voice_credit_amount: null },
+              { addr: 'dora18yad4hpyljv79x62svf0hmelhqupld5ulzv7fm', voice_credit_amount: null },
+              { addr: 'dora1ednrqjyqzfrpnv2nc355n9q6ul9vnt245rrsy6', voice_credit_amount: null },
+              { addr: 'dora17k09vurx6vr90llefe4ujxxux7hjau3y86dvyg', voice_credit_amount: null },
+              { addr: 'dora1rflsx5r2knxtr3agjtc2882pw6las5d9ad3exm', voice_credit_amount: null },
+              { addr: 'dora1s225ptu25swauxkylugqdqyq48rkuz4536glxm', voice_credit_amount: null },
+              { addr: 'dora1glj6aqhx2zpwfax6wy64w44egh9nz3yq39wc7u', voice_credit_amount: null }
+            ]
+          }
+        }
+      },
       vote_option_map: ['Option 0', 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
       round_info: {
         title: 'AMACI Boundary Test',
@@ -1852,19 +2070,10 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         start_time: boundaryStartTime.toString(),
         end_time: boundaryEndTime.toString()
       },
-      whitelist: {
-        users: [
-          // 25 user addresses for filling the state tree
-          ...Array.from({ length: 25 }, (_, i) => ({
-            addr: `dora1user${i.toString().padStart(32, '0')}`
-          }))
-        ]
-      },
-      pre_deactivate_root: '0',
       circuit_type: '1', // QV
       certification_system: '0', // Groth16
-      oracle_whitelist_pubkey: null,
-      pre_deactivate_coordinator: null
+      poll_id: 5, // Poll ID for boundary test (using different ID to avoid conflicts)
+      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
     };
 
     const boundaryContractInfo = await deployManager.deployAmaciContract(
@@ -1878,21 +2087,32 @@ describe('AMACI AddNewKey End-to-End Test', function () {
     );
     log(`Boundary test contract deployed at: ${boundaryContractInfo.contractAddress}`);
 
+    // Query pollId from deployed contract
+    const boundaryPollId = await queryPollId(boundaryContract);
+    log(`Poll ID retrieved from boundary test contract: ${boundaryPollId}`);
+
+    // Initialize boundaryOperator with pollId (must be after contract deployment)
+    boundaryOperator.initRound({
+      stateTreeDepth,
+      intStateTreeDepth,
+      voteOptionTreeDepth,
+      batchSize,
+      maxVoteOptions,
+      isQuadraticCost: true,
+      isAmaci: true,
+      pollId: boundaryPollId // From contract query
+    });
+
+    log('✓ Boundary test operator initialized with pollId');
+
     // Phase 1: Fill the state tree with 1 signup + 24 addNewKey operations
     log('\n=== Phase 1: Filling state tree (25 positions) ===');
 
     const coordPubKey = boundaryOperator.getPubkey().toPoints();
-    const heavyUserAddress = 'dora1heavyuser000000000000000000000';
-
-    // Create initial user and signup
-    let currentVoter = new VoterClient({
-      network: 'testnet',
-      secretKey: 10000n
-    });
 
     log('Step 1: Signup 25 users to fill all positions');
 
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < boundaryTestUsers.length; i++) {
       const voter = new VoterClient({
         network: 'testnet',
         secretKey: 10000n + BigInt(i)
@@ -1900,9 +2120,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
       const pubKey = voter.getPubkey().toPoints();
 
-      // Use a unique address for each user
-      const userAddress = `dora1user${i.toString().padStart(32, '0')}`;
-      boundaryContract.setSender(userAddress);
+      // Use the real address from whitelist
+      boundaryContract.setSender(boundaryTestUsers[i]);
 
       await assertExecuteSuccess(
         () => boundaryContract.signUp(formatPubKeyForContract(pubKey)),
@@ -1934,7 +2153,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       // Reuse the first user's address (which is already in whitelist)
       // but with a different pubkey - this should fail due to "User already registered"
       // Actually, let's try with user 24 (last user in the loop)
-      const reuseAddress = 'dora1user00000000000000000000000000000024';
+      const reuseAddress = 'dora1rflsx5r2knxtr3agjtc2882pw6las5d9ad3exm';
       boundaryContract.setSender(reuseAddress);
       await boundaryContract.signUp(formatPubKeyForContract(signupPubKey));
 
@@ -1960,7 +2179,8 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       // Deactivate the first user
       const deactivatePayload = await firstVoter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId: boundaryPollId
       });
 
       const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));
@@ -1969,13 +2189,9 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         bigint
       ];
 
-      await assertExecuteSuccess(
-        () =>
-          boundaryContract.publishDeactivateMessage(
-            formatMessageForContract(deactivateMessage),
-            formatPubKeyForContract(deactivateEncPubKey)
-          ),
-        'Publish deactivate for addNewKey test failed'
+      await boundaryContract.publishDeactivateMessage(
+        formatMessageForContract(deactivateMessage),
+        formatPubKeyForContract(deactivateEncPubKey)
       );
 
       boundaryOperator.pushDeactivateMessage(deactivateMessage, deactivateEncPubKey);
@@ -1988,33 +2204,30 @@ describe('AMACI AddNewKey End-to-End Test', function () {
         zkeyFile: processDeactivateZkey
       });
 
-      await assertExecuteSuccess(
-        () =>
-          boundaryContract.processDeactivateMessage(
-            batchSize.toString(),
-            deactivateResult.input.newDeactivateCommitment.toString(),
-            deactivateResult.input.newDeactivateRoot.toString(),
-            deactivateResult.proof!
-          ),
-        'Process deactivate for addNewKey test failed'
+      await boundaryContract.processDeactivateMessage(
+        batchSize.toString(),
+        deactivateResult.input.newDeactivateCommitment.toString(),
+        deactivateResult.input.newDeactivateRoot.toString(),
+        deactivateResult.proof!
       );
 
       const deactivatesForProof = deactivateResult.newDeactivate as bigint[][];
 
       // Try to addNewKey
-      const addKeyResult = await firstVoter.buildAddNewKeyPayload({
-        stateTreeDepth,
-        operatorPubkey: coordPubKey,
-        deactivates: deactivatesForProof,
-        wasmFile: addNewKeyWasm,
-        zkeyFile: addNewKeyZkey
-      });
-
       const newVoter = new VoterClient({
         network: 'testnet',
         secretKey: 40000n
       });
       const newPubKey = newVoter.getPubkey().toPoints();
+      const addKeyResult = await firstVoter.buildAddNewKeyPayload({
+        stateTreeDepth,
+        operatorPubkey: coordPubKey,
+        deactivates: deactivatesForProof,
+        newPubkey: newPubKey as [bigint, bigint],
+        pollId: BigInt(boundaryPollId),
+        wasmFile: addNewKeyWasm,
+        zkeyFile: addNewKeyZkey
+      });
 
       await boundaryContract.addNewKey(
         formatPubKeyForContract(newPubKey),
@@ -2025,7 +2238,7 @@ describe('AMACI AddNewKey End-to-End Test', function () {
 
       expect.fail('Should have rejected addNewKey when tree is full');
     } catch (error: any) {
-      console.log(error.message);
+      log(`Caught error: ${error.message}`);
       expect(error.message).to.include('full');
       log('✅ Correctly rejected addNewKey with "full" error');
     }

@@ -90,7 +90,7 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: true,
       isAmaci: true // AMACI mode with anonymous keys (d1, d2)
     });
@@ -116,12 +116,14 @@ describe('AMACI Integration Test', function () {
     // Generate deactivate messages
     const dmessage1Payload = await voter1.buildDeactivatePayload({
       stateIdx: USER_1,
-      operatorPubkey: coordPubKey
+      operatorPubkey: coordPubKey,
+      pollId: 1
     });
 
     const dmessage2Payload = await voter2.buildDeactivatePayload({
       stateIdx: USER_2,
-      operatorPubkey: coordPubKey
+      operatorPubkey: coordPubKey,
+      pollId: 1
     });
 
     // Convert string arrays to bigint arrays
@@ -189,7 +191,8 @@ describe('AMACI Integration Test', function () {
     const vote1Payload = voter1.buildVotePayload({
       stateIdx: USER_1,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 8 }]
+      selectedOptions: [{ idx: 1, vc: 8 }],
+      pollId: 1
     });
 
     // Publish all messages in vote1Payload
@@ -203,7 +206,8 @@ describe('AMACI Integration Test', function () {
     const vote2Payload = voter2.buildVotePayload({
       stateIdx: USER_2,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 12 }]
+      selectedOptions: [{ idx: 2, vc: 12 }],
+      pollId: 1
     });
 
     // Publish all messages in vote2Payload
@@ -224,7 +228,8 @@ describe('AMACI Integration Test', function () {
         { idx: 0, vc: 1 },
         { idx: 1, vc: 2 },
         { idx: 2, vc: 3 }
-      ]
+      ],
+      pollId: 1
     });
 
     // Publish all messages in vote3Payload
@@ -337,7 +342,7 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: true // AMACI mode
     });
@@ -363,7 +368,7 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: true // AMACI mode
     });
@@ -389,7 +394,7 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: true // AMACI mode
     });
@@ -424,7 +429,7 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: false, // Use linear cost for easier calculation
       isAmaci: true
     });
@@ -444,7 +449,8 @@ describe('AMACI Integration Test', function () {
       selectedOptions: [
         { idx: 1, vc: 5 },
         { idx: 2, vc: 3 }
-      ]
+      ],
+      pollId: 1
     });
 
     console.log('First vote messages count:', firstVotePayload.length);
@@ -490,7 +496,7 @@ describe('AMACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: true
     });
@@ -509,7 +515,8 @@ describe('AMACI Integration Test', function () {
     const secondVotePayload = testVoter.buildVotePayload({
       stateIdx: USER_IDX,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 10 }]
+      selectedOptions: [{ idx: 1, vc: 10 }],
+      pollId: 1
     });
 
     console.log('Second vote messages count:', secondVotePayload.length);

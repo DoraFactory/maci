@@ -74,9 +74,14 @@ Users don't need to manually deploy AMACI contracts:
 ExecuteMsg::CreateRound {
     operator,
     max_voter,
-    voice_credit_amount,
     vote_option_map,
-    // ... other parameters
+    round_info,
+    voting_time,
+    circuit_type,
+    certification_system,
+    deactivate_enabled,          // New: enable/disable deactivate feature
+    voice_credit_mode,           // New: Unified { amount } or Dynamic
+    registration_mode,           // New: combined access control enum
 }
 
 // Registry automatically:
@@ -168,36 +173,32 @@ Each voting round in AMACI contracts follows strict state transition rules:
 ```mermaid
 stateDiagram-v2
     [*] --> Pending: Create Round
-    Pending --> Voting: Voting starts
-    Voting --> Processing: Voting ends
-    Processing --> Tallying: Messages processed
+    Pending --> Processing: Operator calls StartProcessPeriod
+    Processing --> Tallying: All messages processed
     Tallying --> Ended: Tallying complete
     Ended --> [*]
-    
+
     note right of Pending
         Initialization
         Parameter setup
-        Waiting to start
+        Voting window open
+        User signup and voting
     end note
-    
-    note right of Voting
-        User signup
-        Publish messages
-        Config locked
-    end note
-    
+
     note right of Processing
         Operator processes
-        Verify & decrypt
+        Verify and decrypt
         Update state tree
     end note
-    
+
     note right of Tallying
         Calculate results
         Generate proofs
         On-chain verify
     end note
 ```
+
+> **Note:** The `Voting` state was removed. The contract determines whether the voting window is open by comparing block time against `start_time` and `end_time`. Users signup and vote while the contract is in `Pending` state and within the time window.
 
 ### State Transition Conditions
 
@@ -426,63 +427,68 @@ The circuit ensures the following constraints:
 ### Registry State
 
 ```rust
-// State stored in Registry
-pub struct RegistryState {
-    // Administrators
-    admin: Addr,
-    operator: Addr,
-    
-    // AMACI Contract Code ID
-    amaci_code_id: u64,
-    
-    // Operator set
-    operator_set: Map<Addr, bool>,
-    operator_pubkey: Map<Addr, PubKey>,
-    operator_identity: Map<Addr, String>,
-    
-    // Validator set
-    validator_list: Vec<Addr>,
-    validator_operator: Map<Addr, Addr>,
-    
-    // Fee configuration
-    circuit_charge_config: CircuitChargeConfig,
-}
+// Key storage items in Registry contract
+ADMIN: Item<Admin>                                // Admin address
+OPERATOR: Item<Addr>                              // Registry operator address
+AMACI_CODE_ID: Item<u64>                          // AMACI code ID for contract instantiation
+
+// Operator network
+MACI_VALIDATOR_LIST: Item<ValidatorSet>
+MACI_VALIDATOR_OPERATOR_SET: Map<&Addr, Addr>
+MACI_OPERATOR_PUBKEY: Map<&Addr, PubKey>
+MACI_OPERATOR_IDENTITY: Map<&Addr, String>
+FEEGRANT_OPERATOR: Map<&Addr, bool>
+
+// Fee configuration
+CIRCUIT_CHARGE_CONFIG: Item<CircuitChargeConfig>
+
+// Poll ID management (new)
+NEXT_POLL_ID: Item<u64>               // Auto-incrementing counter
+POLL_ID_TO_ADDRESS: Map<u64, Addr>    // poll_id → contract address
+ADDRESS_TO_POLL_ID: Map<&Addr, u64>   // contract address → poll_id
 ```
 
 ### AMACI State
 
 ```rust
-// State stored in AMACI contract
-pub struct AMACIState {
-    // Round information
-    round_info: RoundInfo,
-    voting_time: VotingTime,
-    
-    // Coordinator public key
-    coordinator_pub_key: PubKey,
-    
-    // User data
-    num_sign_ups: u64,
-    voice_credit_amount: Uint256,
-    
-    // Message queue
-    messages: Vec<Message>,
-    
-    // State tree
-    state_tree_depth: u8,
-    state_tree_root: Uint256,
-    
-    // Voting configuration
-    max_vote_options: Uint256,
-    vote_option_map: Vec<String>,
-    
-    // Circuit configuration
-    circuit_type: Uint256,
-    certification_system: Uint256,
-    
-    // Whitelist
-    whitelist: Option<WhitelistBase>,
-}
+// Key storage items in AMACI contract
+POLL_ID: Item<u64>                    // Unique poll ID assigned by Registry
+PERIOD: Item<Period>                  // Current round period status (Pending/Processing/Tallying/Ended)
+MACIPARAMETERS: Item<MaciParameters>  // ZK circuit parameters
+
+// Unified configuration (new)
+VOICE_CREDIT_MODE: Item<VoiceCreditMode>      // Unified { amount } or Dynamic
+REGISTRATION_MODE: Item<RegistrationMode>     // SignUpWithStaticWhitelist / SignUpWithOracle / PrePopulated
+DEACTIVATE_ENABLED: Item<bool>               // Whether deactivate→AddNewKey flow is active
+
+// User data
+NUMSIGNUPS: Item<Uint256>
+WHITELIST: Item<Whitelist>           // Used in SignUpWithStaticWhitelist mode
+ORACLE_WHITELIST: Map<...>           // Used in SignUpWithOracle mode
+
+// Message storage
+MSG_CHAIN_LENGTH: Item<Uint256>      // Total vote message count
+DMSG_CHAIN_LENGTH: Item<Uint256>     // Total deactivate message count
+
+// Merkle tree state
+CURRENT_STATE_COMMITMENT: Item<Uint256>
+CURRENT_TALLY_COMMITMENT: Item<Uint256>
+CURRENT_DEACTIVATE_COMMITMENT: Item<Uint256>
+
+// Round configuration
+ROUNDINFO: Item<RoundInfo>
+VOTINGTIME: Item<VotingTime>
+COORDINATORHASH: Item<Uint256>
+
+// Voting configuration
+MAX_VOTE_OPTIONS: Item<Uint256>
+VOTEOPTIONMAP: Item<Vec<String>>
+CIRCUITTYPE: Item<Uint256>
+CERTSYSTEM: Item<Uint256>
+
+// Results
+RESULT: Map<Vec<u8>, Uint256>
+TOTAL_RESULT: Item<Uint256>
 ```
 
 ### State Tree Mechanism
@@ -684,7 +690,7 @@ graph TD
 ```rust
 // Registry supports updating AMACI Code ID
 ExecuteMsg::UpdateAmaciCodeId {
-    amaci_code_id: u64,
+    code_id: u64,  // Note: parameter renamed from amaci_code_id to code_id
 }
 
 // Newly created AMACI instances use new Code ID

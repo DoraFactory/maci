@@ -28,13 +28,17 @@ All voting messages are encrypted with the operator's public key before being su
 
 ### Identity Anonymization
 
-AMACI provides three registration methods:
+AMACI uses a `RegistrationModeConfig` enum to control how users register. Three modes are available:
 
-**Signup** is the fastest. Register directly with your wallet address, suitable for public voting scenarios. The downside is the operator can see your address.
+**`SignUpWithStaticWhitelist`** is the fastest. Pre-defined addresses call SignUp directly, suitable for public voting scenarios. The downside is the operator can see your address.
 
-**Add-new-key** is fully anonymous. Create a new identity through zero-knowledge proofs; the operator cannot link it to your original address. Requires waiting for the operator to process deactivate messages.
+**`SignUpWithOracle`** enables oracle-gated registration. Any address can register but must provide a backend-signed certificate. Voice credits can be fixed (Unified) or variable per user (Dynamic).
 
-**Pre-add-new-key** combines anonymity and speed. Vote organizers pre-configure an anonymity set, allowing immediate anonymous registration.
+**`PrePopulated`** (Pre-add-new-key) combines anonymity and speed. Vote organizers pre-configure an anonymity set, and users can register anonymously immediately via ZK proof — without linking to their real identity.
+
+When `deactivateEnabled: true`, the **Add-new-key** flow is also available, allowing users to create an anonymous identity from within the round itself after deactivating their original key.
+
+All vote messages now include a **Poll ID** to prevent cross-round replay attacks.
 
 ### Anti-Bribery Mechanism
 

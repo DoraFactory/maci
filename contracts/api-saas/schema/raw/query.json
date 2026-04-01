@@ -65,19 +65,6 @@
     {
       "type": "object",
       "required": [
-        "maci_code_id"
-      ],
-      "properties": {
-        "maci_code_id": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "treasury_manager"
       ],
       "properties": {

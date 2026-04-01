@@ -37,13 +37,15 @@ rounds.forEach(round => {
 ### Query by Status
 
 ```typescript
-const activeRounds = await client.indexer.getRoundsByStatus(
-  'Voting',
+const processingRounds = await client.indexer.getRoundsByStatus(
+  'Processing',
   'first',
   10
 );
 
-// Available statuses: 'Created', 'Voting', 'Processing', 'Tallied'
+// Available statuses: 'Pending', 'Processing', 'Tallying', 'Ended'
+// Note: 'Voting' state was removed. User signup and voting happen during 'Pending'
+// state while the time window is open.
 ```
 
 ### Query by Operator
@@ -175,6 +177,72 @@ console.log('Proof info:', {
 });
 ```
 
+## AMACI-Specific Queries
+
+### Get Poll ID
+
+Each AMACI contract is assigned a unique Poll ID by the Registry:
+
+```typescript
+const pollId = await client.getPollId({ contractAddress: amaciAddress });
+console.log('Poll ID:', pollId);  // e.g., 42
+```
+
+### Registration Status (replaces isWhitelisted / queryWhitelistBalanceOf)
+
+A unified query that works across all registration modes:
+
+```typescript
+// For SignUpWithStaticWhitelist mode
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciAddress,
+  address: userAddress
+});
+
+// For SignUpWithOracle mode (with certificate)
+const status = await client.queryRegistrationStatus({
+  contractAddress: amaciAddress,
+  pubkey: { x: pubkeyX, y: pubkeyY },
+  certificate: oracleCertificate,
+  amount: '150'  // for Dynamic VC mode
+});
+
+console.log('can_sign_up:', status.can_sign_up);   // Whether user can register
+console.log('is_register:', status.is_register);   // Whether already registered
+console.log('balance:', status.balance);           // Voice credits if registered
+```
+
+### State Index and Voice Credits
+
+```typescript
+// Get a user's state index (returns increment counter)
+const stateIdx = await client.getStateIdxInc({ contractAddress: amaciAddress, address: userAddress });
+
+// Get voice credit balance by state index
+const balance = await client.getVoiceCreditBalance({ contractAddress: amaciAddress, index: stateIdx.toString() });
+```
+
+### Registration Configuration
+
+```typescript
+// Get the round's registration and VC configuration
+const config = await client.getRegistrationConfig({ contractAddress: amaciAddress });
+console.log('deactivate_enabled:', config.deactivate_enabled);
+console.log('voice_credit_mode:', config.voice_credit_mode);
+console.log('registration_mode:', config.registration_mode);
+
+// Check if deactivate is enabled
+const deactivateEnabled = await client.getDeactivateEnabled({ contractAddress: amaciAddress });
+```
+
+### Tally Results
+
+```typescript
+// Get all option results at once
+const results = await client.getAllResults({ contractAddress: amaciAddress });
+console.log('Vote counts per option:', results);  // Vec<Uint256>
+```
+
 ## Balance Queries
 
 ### Query Account Balance
@@ -212,12 +280,14 @@ const page0 = await client.getRounds('before', 10, page1[0].id);
 async function findActiveQVRounds(client: MaciClient) {
   const qvRounds = await client.indexer.getRoundsByCircuitName('amaci-qv', 'first', 100);
   
+  // Voting happens during 'Pending' status while the time window is open.
+  // There is no separate 'Voting' state — check both status and time window.
   const activeRounds = qvRounds.filter(round => {
     const now = Date.now() / 1000;
     return (
+      round.status === 'Pending' &&
       round.votingTime.startTime <= now &&
-      round.votingTime.endTime >= now &&
-      round.status === 'Voting'
+      round.votingTime.endTime >= now
     );
   });
   

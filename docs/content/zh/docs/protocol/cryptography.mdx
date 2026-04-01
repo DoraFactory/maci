@@ -216,17 +216,9 @@ console.log("哈希:", hash);
 **1. 消息哈希**
 
 ```typescript
-// 计算命令的哈希用于签名
-function hashCommand(command: Command): bigint {
-  return poseidon([
-    command.nonce,
-    command.stateIndex,
-    command.voteOptionIndex,
-    command.newVoteWeight,
-    command.newPubKey[0],
-    command.newPubKey[1],
-    command.salt
-  ]);
+// 对打包元素和新公钥计算哈希
+function hashCommand(packaged: bigint, newPubKey: Point): bigint {
+  return poseidon([packaged, newPubKey[0], newPubKey[1]]);
 }
 ```
 
@@ -411,116 +403,122 @@ function decryptMessage(
 
 ### 消息打包
 
-为了提高效率，多个字段被打包成一个大整数：
+为了提高效率并与 ZK 电路兼容，命令的多个字段被打包成一个 256 位整数，使用固定位宽编码：
 
 ```typescript
-function packCommandFields(command: Command): bigint {
-  // 将多个小字段打包成一个大整数
-  // nonce (8 bits) | stateIdx (24 bits) | voIdx (8 bits) | 
-  // newVotes (24 bits) | salt (remaining bits)
-  
-  let packed = BigInt(0);
-  packed |= (command.nonce & 0xFF);
-  packed |= (command.stateIndex & 0xFFFFFF) << 8;
-  packed |= (command.voteOptionIndex & 0xFF) << 32;
-  packed |= (command.newVoteWeight & 0xFFFFFF) << 40;
-  packed |= command.salt << 64;
-  
-  return packed;
+/**
+ * 将命令字段打包为单个 bigint。
+ * 位布局（小端序，共 256 位）：
+ *
+ *  bits   0 –  31 :  nonce      (32 bits)
+ *  bits  32 –  63 :  stateIdx   (32 bits)
+ *  bits  64 –  95 :  voIdx      (32 bits)
+ *  bits  96 – 191 :  newVotes   (96 bits)
+ *  bits 192 – 223 :  pollId     (32 bits)
+ *  bits 224 – 255 :  （未使用）
+ */
+function packElement({
+  nonce, stateIdx, voIdx, newVotes, pollId
+}: {
+  nonce: number | bigint;
+  stateIdx: number | bigint;
+  voIdx: number | bigint;
+  newVotes: number | bigint;
+  pollId: number | bigint;
+}): bigint {
+  return (
+    BigInt(nonce) +
+    (BigInt(stateIdx) << 32n) +
+    (BigInt(voIdx)   << 64n) +
+    (BigInt(newVotes) << 96n) +
+    (BigInt(pollId)  << 192n)
+  );
 }
 
-function unpackCommandFields(packed: bigint): {
+function unpackElement(packaged: bigint): {
   nonce: bigint;
-  stateIndex: bigint;
-  voteOptionIndex: bigint;
-  newVoteWeight: bigint;
-  salt: bigint;
+  stateIdx: bigint;
+  voIdx: bigint;
+  newVotes: bigint;
+  pollId: bigint;
 } {
+  const UINT32 = (1n << 32n);
+  const UINT96 = (1n << 96n);
   return {
-    nonce: packed & BigInt(0xFF),
-    stateIndex: (packed >> BigInt(8)) & BigInt(0xFFFFFF),
-    voteOptionIndex: (packed >> BigInt(32)) & BigInt(0xFF),
-    newVoteWeight: (packed >> BigInt(40)) & BigInt(0xFFFFFF),
-    salt: packed >> BigInt(64)
+    nonce:    packaged % UINT32,
+    stateIdx: (packaged >> 32n) % UINT32,
+    voIdx:    (packaged >> 64n) % UINT32,
+    newVotes: (packaged >> 96n) % UINT96,
+    pollId:   (packaged >> 192n) % UINT32,
   };
 }
 ```
 
+> **注意：** `salt`（56 位随机数）是命令的一部分，但作为明文命令数组的独立元素（位置 [3]）存在，**不**打包在 `packElement` 中。
+
 ## 完整的投票消息流程
 
-将所有密码学组件整合在一起：
+将所有密码学组件整合在一起。SDK 已将以下流程自动化处理：
 
 ```typescript
-// 投票者端：创建和加密投票消息
+// 投票者端：创建并加密投票消息（简化版 — SDK 内部自动执行）
 async function createVoteMessage(
-  voterKeypair: Keypair,
-  coordinatorPubKey: Point,
-  voteOptions: { idx: number; weight: number }[]
-): Promise<Message> {
-  // 1. 创建命令
-  const command: Command = {
-    nonce: getCurrentNonce(),
-    stateIndex: getStateIndex(),
-    voteOptionIndex: voteOptions[0].idx,
-    newVoteWeight: voteOptions[0].weight,
-    newPubKey: voterKeypair.publicKey,
-    salt: genRandomSalt()
-  };
-  
-  // 2. 计算命令哈希
-  const commandHash = hashCommand(command);
-  
+  voterPrivKey: bigint,
+  operatorPubKey: Point,
+  contractAddress: string,
+  stateIdx: number,
+  nonce: number,
+  voIdx: number,
+  newVotes: number,
+  newPubKey: Point,
+): Promise<{ messageData: bigint[]; encPubKey: Point }> {
+  // 1. 从合约查询 pollId
+  const pollId = await client.getPollId({ contractAddress });
+
+  // 2. 打包所有命令字段
+  const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
+
   // 3. 签名
-  const signature = sign(voterKeypair.privateKey, commandHash);
-  command.signature = signature;
-  
-  // 4. 加密
-  const encryptedData = encryptCommand(
-    command,
-    voterKeypair.privateKey,
-    coordinatorPubKey
-  );
-  
-  // 5. 构造消息
-  return {
-    msgType: BigInt(1),  // 投票消息
-    data: encryptedData
-  };
+  const hash = poseidon([packaged, newPubKey[0], newPubKey[1]]);
+  const signature = eddsa.sign(voterPrivKey, hash);
+
+  // 4. 构造 7 元素命令数组
+  //    [packaged, newPubKey.x, newPubKey.y, salt, sig.R8.x, sig.R8.y, sig.S]
+  const salt = genRandomSalt();
+  const command = [packaged, newPubKey[0], newPubKey[1], salt, ...signature.R8, signature.S];
+
+  // 5. 生成临时密钥对用于 ECDH
+  const encPrivKey = genRandomPrivKey();
+  const encPubKey  = genPubKey(encPrivKey);
+
+  // 6. 用 ECDH 共享密钥对命令进行 Poseidon 加密
+  const sharedKey    = genEcdhSharedKey(encPrivKey, operatorPubKey);
+  const messageData  = poseidonEncrypt(command, sharedKey, 0n);
+
+  return { messageData, encPubKey };
 }
 
-// Coordinator 端：解密和验证消息
-async function processMessage(
-  message: Message,
-  coordinatorPrivKey: bigint
-): Promise<Command | null> {
-  // 1. 从消息中提取投票者公钥（需要从状态树查询）
-  const voterPubKey = getVoterPublicKey(message);
-  
-  // 2. 解密
-  const command = decryptMessage(
-    message.data,
-    coordinatorPrivKey,
-    voterPubKey
-  );
-  
-  // 3. 验证签名
-  const commandHash = hashCommand(command);
-  const isValid = verifySignature(commandHash, command.signature, voterPubKey);
-  
-  if (!isValid) {
-    console.log("签名验证失败");
-    return null;
-  }
-  
-  // 4. 验证 Nonce
-  const currentNonce = getCurrentNonce(command.stateIndex);
-  if (command.nonce !== currentNonce) {
-    console.log("Nonce 不匹配");
-    return null;
-  }
-  
-  // 5. 返回有效命令
-  return command;
+// Coordinator 端：解密并验证消息
+async function processVoteMessage(
+  messageData: bigint[],
+  encPubKey: Point,
+  coordPrivKey: bigint
+): Promise<{ voIdx: number; newVotes: number; pollId: number } | null> {
+  // 1. 用消息中的 encPubKey 派生 ECDH 共享密钥
+  const sharedKey = genEcdhSharedKey(coordPrivKey, encPubKey);
+
+  // 2. 解密，恢复 7 元素命令数组
+  const command = poseidonDecrypt(messageData, sharedKey, 0n);
+  const [packaged, pubKeyX, pubKeyY, salt, sigR8x, sigR8y, sigS] = command;
+
+  // 3. 验证 EdDSA 签名
+  const hash = poseidon([packaged, pubKeyX, pubKeyY]);
+  const isValid = eddsa.verify(hash, { R8: [sigR8x, sigR8y], S: sigS }, [pubKeyX, pubKeyY]);
+  if (!isValid) return null;
+
+  // 4. 解包命令字段
+  const { nonce, stateIdx, voIdx, newVotes, pollId } = unpackElement(packaged);
+  return { voIdx: Number(voIdx), newVotes: Number(newVotes), pollId: Number(pollId) };
 }
 ```
 

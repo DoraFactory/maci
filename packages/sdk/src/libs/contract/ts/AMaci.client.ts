@@ -9,32 +9,36 @@ import { Coin, StdFee } from '@cosmjs/amino';
 import {
   Addr,
   Uint256,
+  RegistrationModeConfig,
+  VoiceCreditMode,
   Timestamp,
   Uint64,
   InstantiateMsg,
   PubKey,
   MaciParameters,
-  RoundInfo,
-  VotingTime,
   WhitelistBase,
   WhitelistBaseConfig,
+  RoundInfo,
+  VotingTime,
   ExecuteMsg,
+  RegistrationConfigUpdate,
   MessageData,
   Groth16ProofType,
   QueryMsg,
+  ArrayOfUint256,
   Boolean,
   DelayType,
   DelayRecords,
   DelayRecord,
   PeriodStatus,
   Period,
+  RegistrationMode,
+  RegistrationConfigInfo,
   TallyDelayInfo,
   NullableString,
   NullableUint256,
-  Uint128,
-  ArrayOfString,
-  Whitelist,
-  WhitelistConfig
+  RegistrationStatus,
+  ArrayOfString
 } from './AMaci.types';
 export interface AMaciReadOnlyInterface {
   contractAddress: string;
@@ -53,17 +57,13 @@ export interface AMaciReadOnlyInterface {
   getNode: ({ index }: { index: Uint256 }) => Promise<Uint256>;
   getResult: ({ index }: { index: Uint256 }) => Promise<Uint256>;
   getAllResult: () => Promise<Uint256>;
+  getAllResults: () => Promise<ArrayOfUint256>;
   getStateIdxInc: ({ address }: { address: Addr }) => Promise<Uint256>;
   getVoiceCreditBalance: ({ index }: { index: Uint256 }) => Promise<Uint256>;
   getVoiceCreditAmount: () => Promise<Uint256>;
-  whiteList: () => Promise<Whitelist>;
-  canSignUp: ({ sender }: { sender: Addr }) => Promise<Boolean>;
-  isWhiteList: ({ sender }: { sender: Addr }) => Promise<Boolean>;
-  isRegister: ({ sender }: { sender: Addr }) => Promise<Boolean>;
   signuped: ({ pubkey }: { pubkey: PubKey }) => Promise<NullableUint256>;
   voteOptionMap: () => Promise<ArrayOfString>;
   maxVoteOptions: () => Promise<Uint256>;
-  queryTotalFeeGrant: () => Promise<Uint128>;
   queryCircuitType: () => Promise<Uint256>;
   queryCertSystem: () => Promise<Uint256>;
   queryPreDeactivateRoot: () => Promise<Uint256>;
@@ -71,21 +71,24 @@ export interface AMaciReadOnlyInterface {
   getDelayRecords: () => Promise<DelayRecords>;
   getTallyDelay: () => Promise<TallyDelayInfo>;
   queryOracleWhitelistConfig: () => Promise<NullableString>;
-  canSignUpWithOracle: ({
-    certificate,
-    pubkey
-  }: {
-    certificate: string;
-    pubkey: PubKey;
-  }) => Promise<Boolean>;
-  whiteBalanceOf: ({
-    certificate,
-    pubkey
-  }: {
-    certificate: string;
-    pubkey: PubKey;
-  }) => Promise<Uint256>;
   queryCurrentStateCommitment: () => Promise<Uint256>;
+  getCoordinatorHash: () => Promise<Uint256>;
+  getMsgHash: ({ index }: { index: Uint256 }) => Promise<Uint256>;
+  getCurrentDeactivateCommitment: () => Promise<Uint256>;
+  getPollId: () => Promise<Uint64>;
+  getDeactivateEnabled: () => Promise<Boolean>;
+  getRegistrationConfig: () => Promise<RegistrationConfigInfo>;
+  queryRegistrationStatus: ({
+    amount,
+    certificate,
+    pubkey,
+    sender
+  }: {
+    amount?: Uint256;
+    certificate?: string;
+    pubkey?: PubKey;
+    sender?: Addr;
+  }) => Promise<RegistrationStatus>;
 }
 export class AMaciQueryClient implements AMaciReadOnlyInterface {
   client: CosmWasmClient;
@@ -108,17 +111,13 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getNode = this.getNode.bind(this);
     this.getResult = this.getResult.bind(this);
     this.getAllResult = this.getAllResult.bind(this);
+    this.getAllResults = this.getAllResults.bind(this);
     this.getStateIdxInc = this.getStateIdxInc.bind(this);
     this.getVoiceCreditBalance = this.getVoiceCreditBalance.bind(this);
     this.getVoiceCreditAmount = this.getVoiceCreditAmount.bind(this);
-    this.whiteList = this.whiteList.bind(this);
-    this.canSignUp = this.canSignUp.bind(this);
-    this.isWhiteList = this.isWhiteList.bind(this);
-    this.isRegister = this.isRegister.bind(this);
     this.signuped = this.signuped.bind(this);
     this.voteOptionMap = this.voteOptionMap.bind(this);
     this.maxVoteOptions = this.maxVoteOptions.bind(this);
-    this.queryTotalFeeGrant = this.queryTotalFeeGrant.bind(this);
     this.queryCircuitType = this.queryCircuitType.bind(this);
     this.queryCertSystem = this.queryCertSystem.bind(this);
     this.queryPreDeactivateRoot = this.queryPreDeactivateRoot.bind(this);
@@ -126,9 +125,14 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getDelayRecords = this.getDelayRecords.bind(this);
     this.getTallyDelay = this.getTallyDelay.bind(this);
     this.queryOracleWhitelistConfig = this.queryOracleWhitelistConfig.bind(this);
-    this.canSignUpWithOracle = this.canSignUpWithOracle.bind(this);
-    this.whiteBalanceOf = this.whiteBalanceOf.bind(this);
     this.queryCurrentStateCommitment = this.queryCurrentStateCommitment.bind(this);
+    this.getCoordinatorHash = this.getCoordinatorHash.bind(this);
+    this.getMsgHash = this.getMsgHash.bind(this);
+    this.getCurrentDeactivateCommitment = this.getCurrentDeactivateCommitment.bind(this);
+    this.getPollId = this.getPollId.bind(this);
+    this.getDeactivateEnabled = this.getDeactivateEnabled.bind(this);
+    this.getRegistrationConfig = this.getRegistrationConfig.bind(this);
+    this.queryRegistrationStatus = this.queryRegistrationStatus.bind(this);
   }
   admin = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -209,6 +213,11 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
       get_all_result: {}
     });
   };
+  getAllResults = async (): Promise<ArrayOfUint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_all_results: {}
+    });
+  };
   getStateIdxInc = async ({ address }: { address: Addr }): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_state_idx_inc: {
@@ -228,32 +237,6 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
       get_voice_credit_amount: {}
     });
   };
-  whiteList = async (): Promise<Whitelist> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      white_list: {}
-    });
-  };
-  canSignUp = async ({ sender }: { sender: Addr }): Promise<Boolean> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      can_sign_up: {
-        sender
-      }
-    });
-  };
-  isWhiteList = async ({ sender }: { sender: Addr }): Promise<Boolean> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      is_white_list: {
-        sender
-      }
-    });
-  };
-  isRegister = async ({ sender }: { sender: Addr }): Promise<Boolean> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      is_register: {
-        sender
-      }
-    });
-  };
   signuped = async ({ pubkey }: { pubkey: PubKey }): Promise<NullableUint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       signuped: {
@@ -269,11 +252,6 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
   maxVoteOptions = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       max_vote_options: {}
-    });
-  };
-  queryTotalFeeGrant = async (): Promise<Uint128> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      query_total_fee_grant: {}
     });
   };
   queryCircuitType = async (): Promise<Uint256> => {
@@ -311,37 +289,61 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
       query_oracle_whitelist_config: {}
     });
   };
-  canSignUpWithOracle = async ({
-    certificate,
-    pubkey
-  }: {
-    certificate: string;
-    pubkey: PubKey;
-  }): Promise<Boolean> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      can_sign_up_with_oracle: {
-        certificate,
-        pubkey
-      }
-    });
-  };
-  whiteBalanceOf = async ({
-    certificate,
-    pubkey
-  }: {
-    certificate: string;
-    pubkey: PubKey;
-  }): Promise<Uint256> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      white_balance_of: {
-        certificate,
-        pubkey
-      }
-    });
-  };
   queryCurrentStateCommitment = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       query_current_state_commitment: {}
+    });
+  };
+  getCoordinatorHash = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_coordinator_hash: {}
+    });
+  };
+  getMsgHash = async ({ index }: { index: Uint256 }): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_msg_hash: {
+        index
+      }
+    });
+  };
+  getCurrentDeactivateCommitment = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_current_deactivate_commitment: {}
+    });
+  };
+  getPollId = async (): Promise<Uint64> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_poll_id: {}
+    });
+  };
+  getDeactivateEnabled = async (): Promise<Boolean> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_deactivate_enabled: {}
+    });
+  };
+  getRegistrationConfig = async (): Promise<RegistrationConfigInfo> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_registration_config: {}
+    });
+  };
+  queryRegistrationStatus = async ({
+    amount,
+    certificate,
+    pubkey,
+    sender
+  }: {
+    amount?: Uint256;
+    certificate?: string;
+    pubkey?: PubKey;
+    sender?: Addr;
+  }): Promise<RegistrationStatus> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      query_registration_status: {
+        amount,
+        certificate,
+        pubkey,
+        sender
+      }
     });
   };
 }
@@ -358,11 +360,11 @@ export interface AMaciInterface extends AMaciReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
-  setWhitelists: (
+  updateRegistrationConfig: (
     {
-      whitelists
+      config
     }: {
-      whitelists: WhitelistBase;
+      config: RegistrationConfigUpdate;
     },
     fee?: number | StdFee | 'auto',
     memo?: string,
@@ -380,9 +382,11 @@ export interface AMaciInterface extends AMaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   signUp: (
     {
+      amount,
       certificate,
       pubkey
     }: {
+      amount?: Uint256;
       certificate?: string;
       pubkey: PubKey;
     },
@@ -457,18 +461,6 @@ export interface AMaciInterface extends AMaciReadOnlyInterface {
   ) => Promise<ExecuteResult>;
   publishMessage: (
     {
-      encPubKey,
-      message
-    }: {
-      encPubKey: PubKey;
-      message: MessageData;
-    },
-    fee?: number | StdFee | 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ) => Promise<ExecuteResult>;
-  publishMessageBatch: (
-    {
       encPubKeys,
       messages
     }: {
@@ -532,7 +524,7 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
     this.sender = sender;
     this.contractAddress = contractAddress;
     this.setRoundInfo = this.setRoundInfo.bind(this);
-    this.setWhitelists = this.setWhitelists.bind(this);
+    this.updateRegistrationConfig = this.updateRegistrationConfig.bind(this);
     this.setVoteOptionsMap = this.setVoteOptionsMap.bind(this);
     this.signUp = this.signUp.bind(this);
     this.startProcessPeriod = this.startProcessPeriod.bind(this);
@@ -541,7 +533,6 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
     this.addNewKey = this.addNewKey.bind(this);
     this.preAddNewKey = this.preAddNewKey.bind(this);
     this.publishMessage = this.publishMessage.bind(this);
-    this.publishMessageBatch = this.publishMessageBatch.bind(this);
     this.processMessage = this.processMessage.bind(this);
     this.stopProcessingPeriod = this.stopProcessingPeriod.bind(this);
     this.processTally = this.processTally.bind(this);
@@ -571,11 +562,11 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
       _funds
     );
   };
-  setWhitelists = async (
+  updateRegistrationConfig = async (
     {
-      whitelists
+      config
     }: {
-      whitelists: WhitelistBase;
+      config: RegistrationConfigUpdate;
     },
     fee: number | StdFee | 'auto' = 'auto',
     memo?: string,
@@ -585,8 +576,8 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
       this.sender,
       this.contractAddress,
       {
-        set_whitelists: {
-          whitelists
+        update_registration_config: {
+          config
         }
       },
       fee,
@@ -619,9 +610,11 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
   };
   signUp = async (
     {
+      amount,
       certificate,
       pubkey
     }: {
+      amount?: Uint256;
       certificate?: string;
       pubkey: PubKey;
     },
@@ -634,6 +627,7 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
       this.contractAddress,
       {
         sign_up: {
+          amount,
           certificate,
           pubkey
         }
@@ -783,32 +777,6 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
   };
   publishMessage = async (
     {
-      encPubKey,
-      message
-    }: {
-      encPubKey: PubKey;
-      message: MessageData;
-    },
-    fee: number | StdFee | 'auto' = 'auto',
-    memo?: string,
-    _funds?: Coin[]
-  ): Promise<ExecuteResult> => {
-    return await this.client.execute(
-      this.sender,
-      this.contractAddress,
-      {
-        publish_message: {
-          enc_pub_key: encPubKey,
-          message
-        }
-      },
-      fee,
-      memo,
-      _funds
-    );
-  };
-  publishMessageBatch = async (
-    {
       encPubKeys,
       messages
     }: {
@@ -823,7 +791,7 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
       this.sender,
       this.contractAddress,
       {
-        publish_message_batch: {
+        publish_message: {
           enc_pub_keys: encPubKeys,
           messages
         }

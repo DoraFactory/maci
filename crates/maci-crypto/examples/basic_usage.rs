@@ -3,8 +3,8 @@
 //! Run with: cargo run --example basic_usage
 
 use maci_crypto::{
-    gen_keypair, hash_left_right, pack_element, poseidon, 
-    tree::biguint_to_node, unpack_element, Tree
+    gen_keypair, hash_left_right, pack_element, poseidon, tree::biguint_to_node, unpack_element,
+    Tree,
 };
 use num_bigint::BigUint;
 
@@ -46,7 +46,7 @@ fn main() {
         &BigUint::from(5u32),   // state_idx
         &BigUint::from(10u32),  // vo_idx
         &BigUint::from(100u32), // new_votes
-        None,                   // salt (auto-generated)
+        &BigUint::from(0u32),   // poll_id
     );
     println!("Packed Element: {}", packed);
 
@@ -56,11 +56,7 @@ fn main() {
     println!("  State Index: {}", unpacked.state_idx);
     println!("  VO Index:    {}", unpacked.vo_idx);
     println!("  New Votes:   {}", unpacked.new_votes);
-    if let Some(salt) = &unpacked.salt {
-        println!("  Salt:        {}", salt);
-    } else {
-        println!("  Salt:        None");
-    }
+    println!("  Poll ID:     {}", unpacked.poll_id);
 
     // 4. Merkle Tree
     println!("\n🌳 4. Merkle Tree");
@@ -82,7 +78,8 @@ fn main() {
     println!("Tree Root: {}", tree.root());
 
     // Update a leaf
-    tree.update_leaf(1, biguint_to_node(&BigUint::from(250u32))).unwrap();
+    tree.update_leaf(1, biguint_to_node(&BigUint::from(250u32)))
+        .unwrap();
     println!("\nAfter updating leaf[1] to 250:");
     println!("New Tree Root: {}", tree.root());
 
@@ -94,14 +91,14 @@ fn main() {
     println!("\n🔤 5. Direct String Usage");
     println!("{}", "-".repeat(60));
     println!("Recommended way: directly use strings, no conversion needed");
-    
+
     let mut simple_tree = Tree::new(2, 2, "0".to_string());
     let simple_leaves = vec!["100".to_string(), "200".to_string(), "300".to_string()];
     simple_tree.init_leaves(&simple_leaves);
-    
+
     println!("Leaves: {:?}", simple_leaves);
     println!("Root: {}", simple_tree.root());
-    
+
     simple_tree.update_leaf(0, "999".to_string()).unwrap();
     println!("\nAfter updating leaf[0] to \"999\":");
     println!("Root: {}", simple_tree.root());

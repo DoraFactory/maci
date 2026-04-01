@@ -217,12 +217,12 @@ import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
 
 const client = new MaciClient({ network: 'mainnet' });
 
-// Method 1: Whitelist mode
-const roundWithWhitelist = await client.createMaciRound({
+// Method 1: Static whitelist mode (SignUpWithStaticWhitelist + Unified VC)
+const roundWithWhitelist = await client.createAMaciRound({
   signer: wallet,
   
   // 1. Select Operator
-  operatorPubkey: '0e752c8f4c4c9f5c...',
+  operator: selectedOperator.address,
   
   // 2. Configure voting time
   startVoting: new Date('2024-03-01T00:00:00Z'),
@@ -239,45 +239,60 @@ const roundWithWhitelist = await client.createMaciRound({
     'Proposal B: Improve Technical Infrastructure',
     'Proposal C: Expand Marketing'
   ],
+  maxVoter: 500,
   
   // 5. Select voting type
   circuitType: MaciCircuitType.QV,
   
-  // 6. Configure whitelist
-  whitelist: [
-    'dora1abc...',
-    'dora1def...',
-    'dora1ghi...'
-    // ... more whitelist addresses
-  ],
-  voiceCreditsPerUser: 100  // 100 voting credits per person
+  // 6. Voice credit mode: all users get 100 credits
+  voiceCreditMode: { unified: { amount: "100" } },
+  
+  // 7. Registration mode: static whitelist
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: 'dora1abc...' },
+          { addr: 'dora1def...' },
+          { addr: 'dora1ghi...' }
+        ]
+      }
+    }
+  },
+  
+  // 8. Deactivate feature (optional, default false)
+  deactivateEnabled: false
 });
 
-// Method 2: Pre-add-new-key pre-generated mode
-const roundWithPreKeys = await client.createMaciRound({
+// Method 2: PrePopulated mode (anonymous registration via pre-configured keys)
+const roundWithPreKeys = await client.createAMaciRound({
   signer: wallet,
-  operatorPubkey: '0e752c8f4c4c9f5c...',
+  operator: selectedOperator.address,
+  startVoting: new Date('2024-03-01T00:00:00Z'),
+  endVoting: new Date('2024-03-07T23:59:59Z'),
+  title: 'Anonymous Community Vote',
+  voteOptionMap: ['Option A', 'Option B', 'Option C'],
+  maxVoter: 100,
+  circuitType: MaciCircuitType.QV,
+  voiceCreditMode: { unified: { amount: "100" } },
   
-  // ... same parameters as above
-  
-  // Configure pre-deactivate (platform pre-generated)
-  preDeactivateRoot: preGeneratedRoot,
-  preDeactivateCoordinator: {
-    x: platformCoordPubkey[0],
-    y: platformCoordPubkey[1]
-  }
+  // PrePopulated: users must register via PreAddNewKey
+  registrationMode: {
+    pre_populated: {
+      pre_deactivate_root: preGeneratedRoot,
+      pre_deactivate_coordinator: {
+        x: platformCoordPubkey[0].toString(),
+        y: platformCoordPubkey[1].toString()
+      }
+    }
+  },
+  deactivateEnabled: false
 });
 
 console.log('Round created successfully!');
 console.log('Contract address:', round.contractAddress);
+console.log('Poll ID:', await client.getPollId({ contractAddress: round.contractAddress }));
 console.log('Transaction hash:', round.transactionHash);
-console.log('');
-console.log('Next steps:');
-console.log('1. Whitelisted users can signup to register');
-console.log('   Or users can use pre-add-new-key for anonymous registration');
-console.log('2. Operator automatically monitors this Round');
-console.log('3. Operator auto-processes after voting period ends');
-console.log('4. Query results after processing completes');
 ```
 
 ### Selecting from Operator List
@@ -317,12 +332,20 @@ const selectedOperator = activeOperators[0];
 console.log(`\n✓ Selected Operator: ${selectedOperator.identity}`);
 
 // 5. Create Round using this Operator (whitelist mode)
-const round = await client.createMaciRound({
+const round = await client.createAMaciRound({
   signer: wallet,
-  operatorPubkey: selectedOperator.pubkey,
-  // ...
-  whitelist: ['dora1...', 'dora1...'],
-  voiceCreditsPerUser: 100
+  operator: selectedOperator.address,
+  maxVoter: 200,
+  voteOptionMap: ['Option A', 'Option B'],
+  circuitType: MaciCircuitType.QV,
+  voiceCreditMode: { unified: { amount: "100" } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: [{ addr: 'dora1...' }, { addr: 'dora1...' }] }
+    }
+  },
+  deactivateEnabled: false,
+  // ... other params
 });
 ```
 
@@ -381,11 +404,17 @@ console.log('- Entire Round processing costs');
 
 ```typescript
 // SDK automatically handles fee payment
-const round = await client.createMaciRound({
+const round = await client.createAMaciRound({
   signer: wallet,  // Wallet pays required fee
-  // ... other parameters
-  whitelist: whitelistAddresses,
-  voiceCreditsPerUser: 100
+  operator: selectedOperator.address,
+  // ... other round parameters
+  voiceCreditMode: { unified: { amount: '100' } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: whitelistAddresses.map(addr => ({ addr })) }
+    }
+  },
+  deactivateEnabled: false
 });
 
 // Users only need to ensure wallet has sufficient balance
@@ -409,22 +438,28 @@ const selectedOp = operators[0];  // Select best performing
 console.log('Selected Operator:', selectedOp.identity);
 
 // ========== Create Round ==========
-const round = await client.createMaciRound({
+const round = await client.createAMaciRound({
   signer: wallet,
-  operatorPubkey: selectedOp.pubkey,
+  operator: selectedOp.address,
   startVoting: new Date(),
   endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   title: 'Community Vote',
   voteOptionMap: ['Option A', 'Option B', 'Option C'],
   circuitType: MaciCircuitType.QV,
-  
-  // Whitelist mode
-  whitelist: [
-    'dora1user1...',
-    'dora1user2...',
-    'dora1user3...'
-  ],
-  voiceCreditsPerUser: 100
+  maxVoter: 200,
+  voiceCreditMode: { unified: { amount: "100" } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: 'dora1user1...' },
+          { addr: 'dora1user2...' },
+          { addr: 'dora1user3...' }
+        ]
+      }
+    }
+  },
+  deactivateEnabled: false
 });
 
 console.log('Round created successfully');
@@ -463,6 +498,32 @@ const checkStatus = setInterval(async () => {
 | Operator Configuration | Need to run yourself | Select existing one |
 | Ongoing Maintenance | Need to monitor and process | Operator auto-processes |
 | Failure Risk | High configuration error risk | Registry validates, low risk |
+
+---
+
+## Poll ID Management
+
+The Registry assigns a unique, sequential **Poll ID** to every AMACI contract it creates. This ID serves as a cross-round replay attack prevention mechanism — each vote message is cryptographically bound to its `poll_id`, so a message signed for round 5 cannot be replayed in round 6.
+
+### Poll ID Queries
+
+```typescript
+// Get the Poll ID of an AMACI contract by its address
+const pollId = await client.getPollId({ contractAddress: amaciAddress });
+// or query the Registry directly:
+// QueryMsg::GetPollId { address: Addr }  -> u64
+
+// Reverse lookup: get contract address from Poll ID
+// QueryMsg::GetPollAddress { poll_id: u64 } -> Option<Addr>
+
+// Get the next Poll ID that will be assigned
+// QueryMsg::GetNextPollId {} -> u64
+
+// Get the current AMACI Code ID used for instantiation
+// QueryMsg::GetAmaciCodeId {} -> u64
+```
+
+Poll IDs start at `1` and increment by one for each new round created through Registry.
 
 ---
 

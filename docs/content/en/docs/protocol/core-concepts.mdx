@@ -2,30 +2,31 @@
 
 AMACI's core components, data structures, and key mechanisms.
 
-## Three Registration Methods
+## Registration Mode Configuration
 
-AMACI provides three registration methods, balancing privacy and convenience:
+AMACI uses a unified `RegistrationModeConfig` enum to control how users can register. This replaces the old separate whitelist, oracle, and pre-deactivate fields.
 
-### Signup (Standard Registration)
+### SignUpWithStaticWhitelist (Standard Registration)
 
-The fastest method. Register directly with wallet address, contract assigns state index.
+The fastest method. Pre-defined addresses call `SignUp` directly and receive a state index.
 
 ```typescript
-const maciKeypair = await client.genKeypairFromSign({ signer: wallet, address });
+// Round created with static whitelist
+registrationMode: {
+  sign_up_with_static_whitelist: {
+    whitelist: { users: [{ addr: 'dora1abc...' }] }
+  }
+}
 
-await client.signup({
-  signer: wallet,
-  address,
-  contractAddress,
-  maciKeypair
-});
+// User registers
+await client.signup({ signer: wallet, address, contractAddress, maciKeypair });
 ```
 
 **Privacy Level: Low.** Operator can correlate through on-chain signup transactions: address `dora1abc...` → state index 5 → what they voted for.
 
 **Use Cases:** Public voting where privacy isn't a concern, or trusted internal environments.
 
-### Add-new-key (Dynamic Anonymity)
+### Add-new-key (Dynamic Anonymity, requires deactivateEnabled: true)
 
 Creates new identity through zero-knowledge proofs, completely breaking link to original address.
 
@@ -58,16 +59,25 @@ await client.addNewKey({
 
 **Privacy Level: High.** Operator only knows "someone registered with add-new-key" but cannot determine which user in the deactivate tree. Anonymity set size = number of deactivate messages.
 
+**Requires:** Round must be created with `deactivateEnabled: true`.
+
 **Trade-off:** Need to wait for operator to process deactivate (usually a few hours).
 
-### Pre-add-new-key (Pre-configured Anonymity)
+### PrePopulated (Pre-configured Anonymity)
 
-Combines anonymity and speed. Deactivate tree is pre-configured when vote is created, users can register anonymously immediately.
+Users must use `PreAddNewKey`. Deactivate tree is pre-configured when the round is created. Direct `SignUp` is disabled.
 
 ```typescript
-// Platform pre-generates keypairs and builds deactivate tree
-// After users receive distributed keys, they generate proof locally
+// Round created in PrePopulated mode
+registrationMode: {
+  pre_populated: {
+    pre_deactivate_root: preDeactivateData.root,
+    pre_deactivate_coordinator: { x: '...', y: '...' }
+  }
+}
 
+// Platform pre-generates keypairs and distributes to users
+// Users generate ZK proof and register from any address
 const payload = await voterClient.buildPreAddNewKeyPayload({
   coordinatorPubkey,
   deactivates: preConfiguredLeaves,
@@ -75,7 +85,6 @@ const payload = await voterClient.buildPreAddNewKeyPayload({
   zkeyFile
 });
 
-// Send transaction from any address
 await client.rawPreAddNewKey({
   signer: anyWallet,
   d: payload.d,
@@ -88,6 +97,45 @@ await client.rawPreAddNewKey({
 **Privacy Level: High.** Same as add-new-key, but without waiting.
 
 **Trade-off:** Requires vote organizer to pre-configure, and secure key distribution needed.
+
+### SignUpWithOracle (Oracle-gated Registration)
+
+Any address can register but must present a backend-signed certificate. Used when access should be controlled by an off-chain oracle rather than a fixed address list.
+
+```typescript
+// Round created with oracle
+registrationMode: {
+  sign_up_with_oracle: { oracle_pubkey: ORACLE_PUBKEY_HEX }
+}
+voiceCreditMode: 'dynamic'  // Certificate contains the voice credit amount
+
+// User registers with oracle certificate
+await client.signup({
+  signer: wallet, address, contractAddress, maciKeypair,
+  certificate: oracleCertificate,
+  amount: '150'  // included in certificate signature
+});
+```
+
+## Voice Credit Modes
+
+Alongside registration mode, `VoiceCreditMode` defines how voting power is allocated:
+
+- **`Unified { amount }`**: All users get the same fixed number of voice credits.
+- **`Dynamic`**: Each user's voice credits come from their oracle certificate. Used with `SignUpWithOracle`.
+
+## Poll ID
+
+Each AMACI contract is assigned a unique, sequential **Poll ID** by the Registry contract.
+The `pollId` is embedded in every vote message as part of the packed command element,
+which the ZK circuit uses to verify message integrity. It can be queried via `getPollId()`.
+
+```typescript
+const pollId = await client.getPollId({ contractAddress });
+console.log('Poll ID:', pollId);
+
+await client.vote({
+```
 
 ## Participating Roles
 
@@ -238,13 +286,14 @@ vote = [
 ]
 ```
 
-## Whitelist Modes
+## Registration and Access Control Summary
 
-Voting can limit participants:
-
-**Address List Mode** - Specify specific addresses, only addresses in list can signup. All whitelisted users get same voting weight.
-
-When using add-new-key, whitelist checks occur during deactivate phase (old identity needs to be in whitelist), new identity doesn't need recheck.
+| Mode | Who Can Register | Voice Credits | Anonymity |
+|------|-----------------|---------------|-----------|
+| `SignUpWithStaticWhitelist` | Pre-listed addresses only | Fixed (Unified) | Low |
+| `SignUpWithOracle` | Any address with valid certificate | Fixed or oracle-defined (Dynamic) | Low |
+| `PrePopulated` | Anyone with pre-generated key + ZK proof | Fixed (Unified) | High |
+| `deactivateEnabled + AddNewKey` | Anyone who previously deactivated | Inherited | High |
 
 ## Next Steps
 

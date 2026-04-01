@@ -1,0 +1,134 @@
+# Delay Structure
+
+The MACI protocol uses a dynamic delay mechanism to give Operators reasonable processing time, while penalizing overdue behavior. Delay limits are computed dynamically based on circuit tier and actual vote message count, rather than using a fixed value.
+
+---
+
+## Core Formula
+
+```
+delay_allowed = (BASE_DELAY + msg_count × PER_VOTE_DELAY) × 3
+tally_timeout = delay_allowed + 2 days
+```
+
+| Variable | Meaning |
+|----------|---------|
+| `BASE_DELAY` | Circuit-specific base processing time (seconds), derived from benchmarks |
+| `msg_count` | Actual number of vote messages published (`msg_chain_length`) |
+| `PER_VOTE_DELAY` | Per-vote processing time (flat 2 seconds/vote) |
+| `×3` | Adaptation multiplier, gives Operator extra buffer |
+| `+2 days` | Hard timeout added on top of `delay_allowed` |
+
+---
+
+## Parameters
+
+### Base Delay (per circuit tier)
+
+| Circuit | Max Voters | Benchmark Time | Base Delay |
+|---------|-----------|---------------|-----------|
+| **2-1-1-5** | ≤ 25 | ~0.48 min (0.2267 + 0.2516 min) | **60s** |
+| **4-2-2-25** | ≤ 625 | ~2.88 min (2.5346 + 0.3404 min) | **180s** |
+| **6-3-3-125** | ≤ 15,625 | ~22.26 min (21.9313 + 0.3308 min) | **1380s** |
+| **9-4-3-125** | ≤ 1,953,125 | *(benchmark in progress)* | **14400s (TODO)** |
+
+### Per-Vote Delay (unified)
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| `PER_VOTE_DELAY` | **2 seconds/vote** | Based on 4-2-2-25 (0.2531s) and 6-3-3-125 (0.2289s); rounded up to 1s then doubled for additional safety margin |
+
+---
+
+## Example Calculations
+
+### 2-1-1-5, 10 votes
+
+```
+delay_allowed = (60 + 10 × 2) × 3 = 240s = 4 min
+tally_timeout = 240 + 172800 = 173040s ≈ 2 days 4 min
+```
+
+### 4-2-2-25, 500 votes
+
+```
+delay_allowed = (180 + 500 × 2) × 3 = 3540s = 59 min
+tally_timeout = 3540 + 172800 = 176340s ≈ 2 days 59 min
+```
+
+### 6-3-3-125, 10000 votes
+
+```
+delay_allowed = (1380 + 10000 × 2) × 3 = 64140s ≈ 17.8 hours
+tally_timeout = 64140 + 172800 = 236940s ≈ 2.74 days
+```
+
+---
+
+## Delay Checkpoints
+
+### Tally Delay
+
+Evaluated when `stop_tallying_period` is called:
+
+```
+Triggered when: current_time - voting_end_time > delay_allowed
+```
+
+When triggered, a `TallyDelay` record is written on-chain and the following event attributes are emitted (consumed by the indexer):
+
+| Attribute | Description |
+|-----------|-------------|
+| `delay_timestamp` | Voting end time (delay start point) |
+| `delay_duration` | Actual elapsed time (seconds) |
+| `delay_reason` | Timeout description string |
+| `delay_type` | `"tally_delay"` |
+
+### Deactivate Delay
+
+Evaluated when `process_deactivate_message` is called (fixed 10-minute window; not affected by this change).
+
+---
+
+## Timeout Penalty (execute_claim)
+
+When `claim` is called:
+
+```mermaid
+flowchart TD
+    A["execute_claim called"] --> B{"current_time > voting_end + tally_timeout?"}
+    B -->|"Yes, timed out"| C["100% to admin, fee_recipient receives 0%"]
+    B -->|"No"| D{"period == Ended?"}
+    D -->|"No"| E["Return PeriodError"]
+    D -->|"Yes"| F["10% to fee_recipient, remaining 90% to be distributed"]
+    F --> G["Calculate penalty_rate"]
+    G --> H["TallyDelay: +50% per record"]
+    G --> I["DeactivateDelay: +5% per timed-out message, capped at 100%"]
+    H --> J["miss_rate = 100% - penalty_rate"]
+    I --> J
+    J --> K["operator_reward = 90% x miss_rate to operator"]
+    J --> L["penalty_amount = 90% x penalty_rate to admin"]
+```
+
+> **Note**: `fee_recipient` (set by the registry at round creation) and `admin` (the round admin) are different addresses. When a timeout occurs, `fee_recipient` receives nothing.
+
+| Scenario | fee_recipient | Operator | Admin |
+|---------|--------------|----------|-------|
+| No delay, completed on time | 10% | 90% | 0% |
+| 1 TallyDelay record | 10% | 45% | 45% |
+| 2 TallyDelay records | 10% | 0% | 90% |
+| N DeactivateDelay messages | 10% | 90% - N x 4.5% | N x 4.5% |
+| Exceeded tally_timeout | **0%** | 0% | 100% |
+
+---
+
+## Relationship to Fee Structure
+
+`delay_allowed` and `tally_timeout` are both computed dynamically from the **actual `msg_chain_length`** (votes published). This is independent of the Base Fee which is charged upfront based on `max_voter`:
+
+| Dimension | Fee | Delay limit |
+|-----------|-----|-------------|
+| Basis | max_voter (maximum scale) | msg_chain_length (actual messages) |
+| Timing | Charged once at round creation | Computed dynamically when tallying ends |
+| Circuit differentiation | Base Fee varies by circuit | Base Delay varies by circuit |
+| Unified component | Vote Fee = 0.06 DORA/vote (flat) | Per-Vote Delay = 2s/vote (flat) |

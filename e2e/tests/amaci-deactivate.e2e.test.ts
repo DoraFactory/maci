@@ -11,7 +11,8 @@ import {
   formatMessageForContract,
   assertExecuteSuccess,
   log,
-  advanceTime
+  advanceTime,
+  queryPollId
 } from '../src';
 
 /**
@@ -32,10 +33,10 @@ describe('AMACI Deactivate E2E Tests', function () {
 
   let client: SimulateCosmWasmClient;
 
-  const adminAddress = 'dora1admin000000000000000000000000000000';
-  const operatorAddress = 'dora1operator000000000000000000000000';
-  const feeRecipient = 'dora1feerecipient0000000000000000000';
-  const voter1Address = 'dora1voter1000000000000000000000000000000';
+  const adminAddress = 'dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug';
+  const operatorAddress = 'dora1f0cywn02dm63xl52kw8r9myu5lelxfxd7zrqan';
+  const feeRecipient = 'dora1xp0twdzsdeq4qg3c64v66552deax8zmvq4zw78';
+  const voter1Address = 'dora1x0lkxq7g7eaq2u3uh2l39yhzf5046h00w2mlsf';
 
   // Test parameters (must match zkey configuration: 2-1-1-5)
   const stateTreeDepth = 2;
@@ -61,6 +62,25 @@ describe('AMACI Deactivate E2E Tests', function () {
 
     client = env.client;
     log('Test environment created');
+
+    // Initialize balances for test addresses (need peaka for deactivate fee)
+    await client.app.bank.setBalance(adminAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(operatorAddress, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(feeRecipient, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    await client.app.bank.setBalance(voter1Address, [
+      { denom: 'dora', amount: '1000000000000' },
+      { denom: 'peaka', amount: '100000000000000000000000' }
+    ]);
+    log('Test address balances initialized');
   });
 
   describe('ActiveStateTree State Validation', () => {
@@ -70,22 +90,13 @@ describe('AMACI Deactivate E2E Tests', function () {
 
       const testOperator = new OperatorClient({ network: 'testnet', secretKey: 555555n });
 
-      testOperator.initRound({
-        stateTreeDepth,
-        intStateTreeDepth,
-        voteOptionTreeDepth,
-        batchSize,
-        maxVoteOptions,
-        isQuadraticCost: true,
-        isAmaci: true
-      });
-
       const voter = new VoterClient({ network: 'testnet', secretKey: 666666n });
-      const coordPubKey = testOperator.getPubkey().toPoints();
 
       // Deploy contract
       const contractLoader = new ContractLoader();
       const deployManager = new DeployManager(client, contractLoader);
+
+      const coordPubKey = testOperator.getPubkey().toPoints();
 
       const app: any = client.app;
       const now = BigInt(app.time);
@@ -106,7 +117,20 @@ describe('AMACI Deactivate E2E Tests', function () {
         admin: adminAddress,
         fee_recipient: feeRecipient,
         operator: operatorAddress,
-        voice_credit_amount: '100',
+        voice_credit_mode: {
+          unified: { amount: '100' }
+        },
+        registration_mode: {
+          sign_up_with_static_whitelist: {
+            whitelist: {
+              users: [
+                { addr: adminAddress, voice_credit_amount: null },
+                { addr: operatorAddress, voice_credit_amount: null },
+                { addr: voter1Address, voice_credit_amount: null }
+              ]
+            }
+          }
+        },
         vote_option_map: ['Option 0', 'Option 1'],
         round_info: {
           title: 'ActiveStateTree Test',
@@ -117,14 +141,10 @@ describe('AMACI Deactivate E2E Tests', function () {
           start_time: startTime.toString(),
           end_time: endTime.toString()
         },
-        whitelist: {
-          users: [{ addr: adminAddress }, { addr: operatorAddress }, { addr: voter1Address }]
-        },
-        pre_deactivate_root: '0',
         circuit_type: '1',
         certification_system: '0',
-        oracle_whitelist_pubkey: null,
-        pre_deactivate_coordinator: null
+        poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
+        deactivate_enabled: true // Deactivate feature ENABLED for this deactivate test
       };
 
       const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -135,6 +155,24 @@ describe('AMACI Deactivate E2E Tests', function () {
       );
 
       log(`Contract deployed at: ${contractInfo.contractAddress}`);
+
+      // Query pollId from deployed contract
+      const pollId = await queryPollId(testContract);
+      log(`Poll ID retrieved from contract: ${pollId}`);
+
+      // Initialize operator with pollId (must be after contract deployment)
+      testOperator.initRound({
+        stateTreeDepth,
+        intStateTreeDepth,
+        voteOptionTreeDepth,
+        batchSize,
+        maxVoteOptions,
+        isQuadraticCost: true,
+        isAmaci: true,
+        pollId // From contract query
+      });
+
+      log('Test operator initialized with pollId');
 
       // Phase 1: SignUp
       log('\n--- Phase 1: SignUp ---');
@@ -157,7 +195,8 @@ describe('AMACI Deactivate E2E Tests', function () {
 
       const deactivatePayload = await voter.buildDeactivatePayload({
         stateIdx: 0,
-        operatorPubkey: coordPubKey
+        operatorPubkey: coordPubKey,
+        pollId
       });
 
       const deactivateMessage = deactivatePayload.msg.map((m: string) => BigInt(m));

@@ -28,6 +28,33 @@ import { isErrorResponse } from './libs/maci/maci';
 import { Contract } from './libs/contract';
 
 /**
+ * Build a sorted, comma-separated string of K-anonymous leaf indices for a
+ * pre-deactivate proof request.
+ *
+ * The real `deactivateIdx` is mixed with up to `kMax - 1` random decoy
+ * indices drawn from `[0, voterScale)` so that the server cannot identify
+ * which leaf the caller actually owns.
+ *
+ * K-max is capped at `min(200, floor(voterScale * 0.1) || 1)` to stay within
+ * the API's per-request limit.
+ *
+ * When `voterScale` is not provided the function returns just the real index
+ * (K=1, no anonymity).
+ */
+function buildKAnonymousIndices(deactivateIdx: number, voterScale: number): string {
+  const kMax = Math.min(200, Math.floor(voterScale * 0.1) || 1);
+
+  // Fisher-Yates shuffle over all indices except the real one, then take kMax-1 decoys.
+  const pool = Array.from({ length: voterScale }, (_, i) => i).filter((i) => i !== deactivateIdx);
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  return [deactivateIdx, ...pool.slice(0, kMax - 1)].sort((a, b) => a - b).join(',');
+}
+
+/**
  * @class Maci Voter Client
  * @description This class is used to interact with Maci Voter Client.
  */
@@ -185,10 +212,20 @@ export class VoterClient {
     return plan;
   }
 
+  /**
+   * Build vote payload for batch message publishing
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param selectedOptions - The vote options with their vote credits
+   * @param pollId - The poll ID for this round (prevents replay attacks)
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Stringified vote payload ready for submission
+   */
   buildVotePayload({
     stateIdx,
     operatorPubkey,
     selectedOptions,
+    pollId,
     derivePathParams
   }: {
     stateIdx: number;
@@ -197,11 +234,16 @@ export class VoterClient {
       idx: number;
       vc: number;
     }[];
+    /** When omitted the legacy message format (no `pollId` in packed element) is used. */
+    pollId?: bigint | number;
     derivePathParams?: DerivePathParams;
   }) {
     const plan = this.normalizeVoteOptions(selectedOptions);
 
-    const payload = this.batchGenMessage(stateIdx, operatorPubkey, plan, derivePathParams);
+    const payload =
+      pollId !== undefined
+        ? this.batchGenMessage(stateIdx, operatorPubkey, pollId, plan, derivePathParams)
+        : this.legacyBatchGenMessage(stateIdx, operatorPubkey, plan, derivePathParams);
 
     return stringizing(payload) as {
       msg: string[];
@@ -209,13 +251,24 @@ export class VoterClient {
     }[];
   }
 
+  /**
+   * Generate multiple encrypted messages in batch
+   * Messages are generated in reverse order for on-chain processing
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param pollId - The poll ID for this round
+   * @param plan - Array of [voteOptionIndex, voteCredit] tuples
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Array of encrypted messages with their encryption public keys
+   */
   batchGenMessage(
     stateIdx: number,
     operatorPubkey: bigint | string | PubKey,
+    pollId: bigint | number,
     plan: [number, number][],
     derivePathParams?: DerivePathParams
   ) {
-    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, derivePathParams);
+    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, pollId, derivePathParams);
 
     const payload = [];
     for (let i = plan.length - 1; i >= 0; i--) {
@@ -233,12 +286,19 @@ export class VoterClient {
     return payload;
   }
 
+  /**
+   * Create a message factory for generating encrypted vote messages
+   * The factory returns a function that can generate individual messages
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param pollId - The poll ID for this round (prevents replay attacks across different polls)
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns A function that generates encrypted messages
+   */
   genMessageFactory(
     stateIdx: number,
     operatorPubkey: bigint | string | PubKey,
-    // signPriKey: PrivKey,
-    // signPubKey: PubKey,
-    // coordPubKey: PubKey,
+    pollId: bigint | number,
     derivePathParams?: DerivePathParams
   ) {
     return (
@@ -249,41 +309,52 @@ export class VoterClient {
       isLastCmd: boolean,
       salt?: bigint
     ): bigint[] => {
-      // if (!salt) {
-      //   // uint56
-      //   salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
-      // }
+      if (salt === undefined) {
+        // Generate random 56-bit salt
+        salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
+      }
 
-      // const packaged =
-      //   BigInt(nonce) +
-      //   (BigInt(stateIdx) << 32n) +
-      //   (BigInt(voIdx) << 64n) +
-      //   (BigInt(newVotes) << 96n) +
-      //   (BigInt(salt) << 192n);
-
-      const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, salt });
+      // Pack command data including pollId to prevent replay attacks
+      const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
 
       const signer = this.getSigner(derivePathParams);
 
       let newPubKey: PubKey;
       if (isLastCmd) {
+        // Last command uses null public key to indicate end of batch
         newPubKey = [0n, 0n];
       } else {
         // For non-last commands, keep the current public key (no rotation)
         newPubKey = [...signer.getPublicKey().toPoints()];
       }
 
+      // Create hash for signing: [packed_data, newPubKey_x, newPubKey_y]
+      // Signature does NOT include salt
       const hash = poseidon([packaged, ...newPubKey]);
-      // const signature = signMessage(bigInt2Buffer(signPriKey), hash);
       const signature = signer.sign(hash);
 
-      const command = [packaged, ...newPubKey, ...signature.R8, signature.S];
+      // Build command array: [packed_data, newPubKey_x, newPubKey_y, salt, sig_R8_x, sig_R8_y, sig_S]
+      const command = [packaged, ...newPubKey, BigInt(salt), ...signature.R8, signature.S];
       const coordPubkey = this.unpackMaciPubkey(operatorPubkey);
 
+      // Encrypt command with shared key derived from encPriKey and coordinator's public key
       const message = poseidonEncrypt(command, genEcdhSharedKey(encPriKey, coordPubkey), 0n);
-
       return message;
     };
+  }
+
+  async getPollId(contractAddress: string): Promise<number> {
+    try {
+      const pollId = await this.contract.getPollId({
+        contractAddress
+      });
+      if (pollId === null) {
+        throw new Error('Poll ID not found');
+      }
+      return Number(pollId);
+    } catch (error) {
+      throw new Error(`Failed to get poll_id from ${contractAddress}: ${error}`);
+    }
   }
 
   async getStateIdx({
@@ -325,6 +396,8 @@ export class VoterClient {
     stateTreeDepth,
     operatorPubkey,
     deactivates,
+    newPubkey,
+    pollId,
     wasmFile,
     zkeyFile,
     derivePathParams
@@ -332,6 +405,10 @@ export class VoterClient {
     stateTreeDepth: number;
     operatorPubkey: bigint | string | PubKey;
     deactivates: DeactivateMessage[] | bigint[][] | string[][];
+    /** Required when `pollId` is provided (new circuit). Omit for legacy mode. */
+    newPubkey?: PubKey;
+    /** When omitted the legacy circuit input (no `pollId` / `newPubKey` in ZK inputs) is used. */
+    pollId?: bigint;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -345,12 +422,27 @@ export class VoterClient {
     nullifier: string;
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(operatorPubkey);
-    // const stateTreeDepth = Number(circuitPower.split('-')[0]);
-    const addKeyInput = await this.genAddKeyInput(stateTreeDepth + 2, {
-      coordPubKey: [coordPubkeyX, coordPubkeyY],
-      deactivates: deactivates.map((d: any) => d.map(BigInt)),
-      derivePathParams
-    });
+
+    let addKeyInput: Awaited<ReturnType<typeof this.genAddKeyInput>> | Awaited<ReturnType<typeof this.legacyGenAddKeyInput>>;
+
+    if (pollId !== undefined) {
+      if (!newPubkey) {
+        throw new Error('buildAddNewKeyPayload: `newPubkey` is required when `pollId` is provided');
+      }
+      addKeyInput = await this.genAddKeyInput(stateTreeDepth + 2, {
+        coordPubKey: [coordPubkeyX, coordPubkeyY],
+        deactivates: deactivates.map((d: any) => d.map(BigInt)),
+        newPubKey: newPubkey,
+        pollId,
+        derivePathParams
+      });
+    } else {
+      addKeyInput = await this.legacyGenAddKeyInput(stateTreeDepth + 2, {
+        coordPubKey: [coordPubkeyX, coordPubkeyY],
+        deactivates: deactivates.map((d: any) => d.map(BigInt)),
+        derivePathParams
+      });
+    }
 
     if (addKeyInput === null) {
       throw Error('genAddKeyInput failed');
@@ -379,13 +471,37 @@ export class VoterClient {
     stateTreeDepth,
     coordinatorPubkey,
     deactivates,
+    contractAddress,
+    deactivateIdx,
+    voterScale,
+    newPubkey,
+    pollId,
     wasmFile,
     zkeyFile,
     derivePathParams
   }: {
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
-    deactivates: bigint[][] | string[][];
+    /** Raw deactivate leaf data for local Merkle tree construction. When omitted, `contractAddress` must be provided and the proof will be fetched from the SaaS API. */
+    deactivates?: bigint[][] | string[][];
+    /** Contract address used for the API proof path. Required when `deactivates` is not provided. */
+    contractAddress?: string;
+    /**
+     * Leaf index of this account in the deactivate tree, as returned by the API
+     * in `accounts[n].accountIndex` at signup time.  When provided the costly
+     * `sharedKeyHash` scan is skipped in both local and API paths.
+     */
+    deactivateIdx?: number;
+    /**
+     * Pre-deactivate tree capacity (i.e. `preDeactivateScale` from the create-round
+     * response).  Used to generate K-anonymous decoy indices when fetching the proof
+     * from the SaaS API.  When omitted only the real index is sent (K=1, no anonymity).
+     */
+    voterScale?: number;
+    /** Required when `pollId` is provided (new circuit). Omit for legacy mode. */
+    newPubkey?: PubKey;
+    /** When omitted the legacy circuit input (no `pollId` / `newPubKey` in ZK inputs) is used. */
+    pollId?: bigint;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
@@ -399,19 +515,113 @@ export class VoterClient {
     nullifier: string;
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(coordinatorPubkey);
-    // const stateTreeDepth = Number(circuitPower.split('-')[0]);
+
+    if (pollId === undefined) {
+      // Legacy path: no pollId / newPubKey in ZK circuit inputs.
+      if (!deactivates || deactivates.length === 0) {
+        throw new Error(
+          'buildPreAddNewKeyPayload: `deactivates` is required in legacy mode (pollId omitted)'
+        );
+      }
+      const addKeyInput = await this.legacyGenPreAddKeyInput(stateTreeDepth + 2, {
+        coordPubKey: [coordPubkeyX, coordPubkeyY],
+        deactivates: deactivates.map((d: any) => d.map(BigInt)),
+        derivePathParams
+      });
+      if (addKeyInput === null) {
+        throw Error('legacyGenPreAddKeyInput failed, cannot find deactivate idx');
+      }
+      const { proof } = await groth16.fullProve(addKeyInput, wasmFile, zkeyFile);
+      const proofHex = await adaptToUncompressed(proof);
+      return {
+        proof: proofHex,
+        d: [
+          addKeyInput.d1[0].toString(),
+          addKeyInput.d1[1].toString(),
+          addKeyInput.d2[0].toString(),
+          addKeyInput.d2[1].toString()
+        ],
+        nullifier: addKeyInput.nullifier.toString()
+      };
+    }
+
+    // New-version path: pollId provided.
+    if (!newPubkey) {
+      throw new Error('buildPreAddNewKeyPayload: `newPubkey` is required when `pollId` is provided');
+    }
+
+    const coordPubKey: PubKey = [coordPubkeyX, coordPubkeyY];
+
+    let resolvedDeactivates: bigint[][];
+    let preComputedTreeProof: { root: string; pathElements: string[][] } | undefined;
+    let preComputedLeaf: bigint[] | undefined;
+
+    if (deactivates && deactivates.length > 0) {
+      // Local path: caller supplied full deactivate data, build Merkle tree locally.
+      // deactivateIdx is optional — when omitted the sharedKeyHash search runs inside genPreAddKeyInput.
+      resolvedDeactivates = deactivates.map((d: any) => d.map(BigInt));
+    } else {
+      // API path: contractAddress + deactivateIdx must both be provided.
+      if (!contractAddress) {
+        throw new Error(
+          'buildPreAddNewKeyPayload: `contractAddress` is required when `deactivates` is not provided'
+        );
+      }
+      if (deactivateIdx === undefined) {
+        throw new Error(
+          'buildPreAddNewKeyPayload: `deactivateIdx` is required when `deactivates` is not provided'
+        );
+      }
+      if (voterScale === undefined) {
+        throw new Error(
+          'buildPreAddNewKeyPayload: `voterScale` is required when `deactivates` is not provided'
+        );
+      }
+
+      // Build K-anonymous indices: the real index mixed with random decoys drawn from [0, voterScale).
+      const indicesParam = buildKAnonymousIndices(deactivateIdx, voterScale);
+
+      const proofResp = await this.saasApiClient.getPreDeactivateProof(
+        contractAddress,
+        indicesParam
+      );
+
+      const pkg = proofResp.proofs.find((p) => p.leafIndex === deactivateIdx);
+      if (!pkg) {
+        throw new Error(
+          `buildPreAddNewKeyPayload: proof package for leafIndex ${deactivateIdx} not found in API response`
+        );
+      }
+
+      preComputedLeaf = pkg.deactivateLeaf.map(BigInt);
+      preComputedTreeProof = {
+        root: proofResp.root,
+        pathElements: pkg.pathElements
+      };
+      resolvedDeactivates = [];
+    }
+
+    const genPreAddKeyInputStart = Date.now();
     const addKeyInput = await this.genPreAddKeyInput(stateTreeDepth + 2, {
-      coordPubKey: [coordPubkeyX, coordPubkeyY],
-      deactivates: deactivates.map((d: any) => d.map(BigInt)),
-      derivePathParams
+      coordPubKey,
+      deactivates: resolvedDeactivates,
+      newPubKey: newPubkey,
+      pollId,
+      derivePathParams,
+      preComputedTreeProof,
+      preComputedLeaf,
+      deactivateIdx
     });
+    console.log(`[genPreAddKeyInput] elapsed: ${Date.now() - genPreAddKeyInputStart}ms`);
 
     if (addKeyInput === null) {
       throw Error('genPreAddKeyInput failed, cannot find deactivate idx');
     }
 
     // 1. generate proof
+    const fullProveStart = Date.now();
     const { proof } = await groth16.fullProve(addKeyInput, wasmFile, zkeyFile);
+    console.log(`[fullProve] elapsed: ${Date.now() - fullProveStart}ms`);
 
     // 2. compress proof to vote proof
     const proofHex = await adaptToUncompressed(proof);
@@ -430,6 +640,379 @@ export class VoterClient {
   }
 
   async genAddKeyInput(
+    depth: number,
+    {
+      coordPubKey,
+      deactivates,
+      newPubKey,
+      pollId,
+      derivePathParams
+    }: {
+      coordPubKey: PubKey;
+      deactivates: bigint[][];
+      newPubKey: PubKey;
+      pollId: bigint;
+      derivePathParams?: DerivePathParams;
+    }
+  ) {
+    const signer = this.getSigner(derivePathParams);
+
+    const sharedKeyHash = poseidon(signer.genEcdhSharedKey(coordPubKey));
+
+    const randomVal = genRandomSalt();
+    const deactivateIdx = deactivates.findIndex((d) => d[4] === sharedKeyHash);
+    if (deactivateIdx < 0) {
+      return null;
+    }
+
+    const deactivateLeaf = deactivates[deactivateIdx];
+
+    const c1 = [deactivateLeaf[0], deactivateLeaf[1]];
+    const c2 = [deactivateLeaf[2], deactivateLeaf[3]];
+
+    const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
+
+    // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+    const nullifier = poseidon([signer.getFormatedPrivKey(), pollId]);
+
+    const tree = new Tree(5, depth, 0n);
+    const leaves = deactivates.map((d) => poseidon(d));
+    tree.initLeaves(leaves);
+
+    const deactivateRoot = tree.root;
+    const deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
+
+    const inputHash = computeInputHash([
+      deactivateRoot,
+      poseidon(coordPubKey),
+      nullifier,
+      d1[0],
+      d1[1],
+      d2[0],
+      d2[1],
+      poseidon(newPubKey),
+      pollId
+    ]);
+
+    const input = {
+      inputHash,
+      coordPubKey,
+      deactivateRoot,
+      deactivateIndex: deactivateIdx,
+      deactivateLeaf: poseidon(deactivateLeaf),
+      c1,
+      c2,
+      randomVal,
+      d1,
+      d2,
+      deactivateLeafPathElements,
+      nullifier,
+      oldPrivateKey: signer.getFormatedPrivKey(),
+      newPubKey,
+      pollId
+    };
+
+    return input;
+  }
+
+  async genPreAddKeyInput(
+    depth: number,
+    {
+      coordPubKey,
+      deactivates,
+      newPubKey,
+      pollId,
+      derivePathParams,
+      preComputedTreeProof,
+      preComputedLeaf,
+      deactivateIdx: providedDeactivateIdx
+    }: {
+      coordPubKey: PubKey;
+      deactivates: bigint[][];
+      newPubKey: PubKey;
+      pollId: bigint;
+      derivePathParams?: DerivePathParams;
+      /**
+       * When provided, skip local Merkle tree construction and use the API-supplied
+       * root and path elements instead.
+       */
+      preComputedTreeProof?: {
+        root: string;
+        pathElements: string[][];
+      };
+      /**
+       * Pre-fetched leaf data `[c1.x, c1.y, c2.x, c2.y, sharedKeyHash]` from the
+       * API proof response.  When provided together with `deactivateIdx`, the
+       * `deactivates` array is not accessed at all.
+       */
+      preComputedLeaf?: bigint[];
+      /**
+       * Leaf index of this account in the deactivate tree, as returned by the API
+       * in `accounts[n].accountIndex` at signup time.  When provided the costly
+       * `sharedKeyHash` search over `deactivates` is skipped.
+       */
+      deactivateIdx?: number;
+    }
+  ) {
+    let t0 = Date.now();
+
+    const signer = this.getSigner(derivePathParams);
+    console.log(`[genPreAddKeyInput] getSigner: ${Date.now() - t0}ms`);
+    t0 = Date.now();
+
+    const randomVal = genRandomSalt();
+    let deactivateIdx: number;
+
+    if (providedDeactivateIdx !== undefined) {
+      deactivateIdx = providedDeactivateIdx;
+      console.log(
+        `[genPreAddKeyInput] using provided deactivateIdx=${deactivateIdx} (skip search)`
+      );
+    } else {
+      const sharedKeyHash = poseidon(signer.genEcdhSharedKey(coordPubKey));
+      console.log(`[genPreAddKeyInput] genEcdhSharedKey + poseidon: ${Date.now() - t0}ms`);
+      t0 = Date.now();
+
+      deactivateIdx = deactivates.findIndex((d) => d[4] === sharedKeyHash);
+      if (deactivateIdx < 0) {
+        return null;
+      }
+      console.log(`[genPreAddKeyInput] genRandomSalt + findDeactivateIdx: ${Date.now() - t0}ms`);
+      t0 = Date.now();
+    }
+
+    const deactivateLeaf = preComputedLeaf ?? deactivates[deactivateIdx];
+    if (!deactivateLeaf) {
+      return null;
+    }
+
+    const c1: [bigint, bigint] = [deactivateLeaf[0], deactivateLeaf[1]];
+    const c2: [bigint, bigint] = [deactivateLeaf[2], deactivateLeaf[3]];
+
+    const { d1, d2 } = rerandomize(coordPubKey, { c1, c2 }, randomVal);
+    console.log(`[genPreAddKeyInput] rerandomize: ${Date.now() - t0}ms`);
+    t0 = Date.now();
+
+    // Round-specific nullifier: Poseidon(oldPrivKey, pollId)
+    const nullifier = poseidon([signer.getFormatedPrivKey(), pollId]);
+    console.log(`[genPreAddKeyInput] nullifier (poseidon): ${Date.now() - t0}ms`);
+    t0 = Date.now();
+
+    let deactivateRoot: bigint;
+    let deactivateLeafPathElements: bigint[][];
+
+    if (preComputedTreeProof) {
+      // Use API-supplied Merkle root and path elements — skip local tree construction.
+      deactivateRoot = BigInt(preComputedTreeProof.root);
+      deactivateLeafPathElements = preComputedTreeProof.pathElements.map((level) =>
+        level.map(BigInt)
+      );
+      console.log(`[genPreAddKeyInput] using preComputedTreeProof (API path)`);
+    } else {
+      const tree = new Tree(5, depth, 0n);
+      const leaves = deactivates.map((d) => poseidon(d));
+      tree.initLeaves(leaves);
+      console.log(`[genPreAddKeyInput] build tree + initLeaves: ${Date.now() - t0}ms`);
+      t0 = Date.now();
+
+      deactivateRoot = tree.root;
+      deactivateLeafPathElements = tree.pathElementOf(deactivateIdx);
+      console.log(`[genPreAddKeyInput] tree.root + pathElementOf: ${Date.now() - t0}ms`);
+      t0 = Date.now();
+    }
+
+    const inputHash = computeInputHash([
+      deactivateRoot,
+      poseidon(coordPubKey),
+      nullifier,
+      d1[0],
+      d1[1],
+      d2[0],
+      d2[1],
+      poseidon(newPubKey),
+      pollId
+    ]);
+    console.log(`[genPreAddKeyInput] computeInputHash: ${Date.now() - t0}ms`);
+    t0 = Date.now();
+
+    const input = {
+      inputHash,
+      coordPubKey,
+      deactivateRoot,
+      deactivateIndex: deactivateIdx,
+      deactivateLeaf: poseidon(deactivateLeaf),
+      c1,
+      c2,
+      randomVal,
+      d1,
+      d2,
+      deactivateLeafPathElements,
+      nullifier,
+      oldPrivateKey: signer.getFormatedPrivKey(),
+      newPubKey,
+      pollId
+    };
+
+    return input;
+  }
+
+  /**
+   * Build deactivate message payload
+   * Deactivate messages use a specific nonce (default 0) and are independent from vote messages
+   * @param stateIdx - The state index of the voter
+   * @param operatorPubkey - The coordinator's public key
+   * @param pollId - The poll ID for this round
+   * @param nonce - The nonce for deactivation (default: 0)
+   * @param derivePathParams - Optional BIP44 derive path parameters
+   * @returns Stringified deactivate payload
+   */
+  buildDeactivatePayload({
+    stateIdx,
+    operatorPubkey,
+    pollId,
+    nonce = 0,
+    derivePathParams
+  }: {
+    stateIdx: number;
+    operatorPubkey: bigint | string | PubKey;
+    /** When omitted the legacy message format (no `pollId` in packed element) is used. */
+    pollId?: number;
+    nonce?: number;
+    derivePathParams?: DerivePathParams;
+  }) {
+    const genMessage =
+      pollId !== undefined
+        ? this.genMessageFactory(stateIdx, operatorPubkey, pollId, derivePathParams)
+        : this.legacyGenMessageFactory(stateIdx, operatorPubkey, derivePathParams);
+    const encAccount = genKeypair();
+    const msg = genMessage(BigInt(encAccount.privKey), nonce, 0, 0, true);
+
+    return stringizing({
+      msg,
+      encPubkeys: encAccount.pubKey
+    }) as {
+      msg: string[];
+      encPubkeys: string[];
+    };
+  }
+
+  // ==================== Legacy Methods (backward-compat, no pollId) ====================
+
+  private legacyGenMessageFactory(
+    stateIdx: number,
+    operatorPubkey: bigint | string | PubKey,
+    derivePathParams?: DerivePathParams
+  ) {
+    return (
+      encPriKey: PrivKey,
+      nonce: number,
+      voIdx: number,
+      newVotes: number,
+      isLastCmd: boolean,
+      salt?: bigint
+    ): bigint[] => {
+      if (salt === undefined) {
+        // uint56 random salt, same as old packElement default behavior
+        salt = BigInt(`0x${CryptoJS.lib.WordArray.random(7).toString(CryptoJS.enc.Hex)}`);
+      }
+      const packaged =
+        BigInt(nonce) +
+        (BigInt(stateIdx) << 32n) +
+        (BigInt(voIdx) << 64n) +
+        (BigInt(newVotes) << 96n) +
+        (BigInt(salt) << 192n);
+
+      const signer = this.getSigner(derivePathParams);
+
+      let newPubKey: PubKey;
+      if (isLastCmd) {
+        newPubKey = [0n, 0n];
+      } else {
+        newPubKey = [...signer.getPublicKey().toPoints()];
+      }
+
+      const hash = poseidon([packaged, ...newPubKey]);
+      const signature = signer.sign(hash);
+
+      const command = [packaged, ...newPubKey, ...signature.R8, signature.S];
+      const coordPubkey = this.unpackMaciPubkey(operatorPubkey);
+
+      const message = poseidonEncrypt(command, genEcdhSharedKey(encPriKey, coordPubkey), 0n);
+      return message;
+    };
+  }
+
+  private legacyBatchGenMessage(
+    stateIdx: number,
+    operatorPubkey: bigint | string | PubKey,
+    plan: [number, number][],
+    derivePathParams?: DerivePathParams
+  ) {
+    const genMessage = this.legacyGenMessageFactory(stateIdx, operatorPubkey, derivePathParams);
+
+    const payload = [];
+    for (let i = plan.length - 1; i >= 0; i--) {
+      const p = plan[i];
+      const encAccount = genKeypair();
+      const isLastCmd = i === plan.length - 1;
+      const msg = genMessage(BigInt(encAccount.privKey), i + 1, p[0], p[1], isLastCmd);
+
+      payload.push({
+        msg,
+        encPubkeys: encAccount.pubKey
+      });
+    }
+
+    return payload;
+  }
+
+  legacyBuildVotePayload({
+    stateIdx,
+    operatorPubkey,
+    selectedOptions,
+    derivePathParams
+  }: {
+    stateIdx: number;
+    operatorPubkey: bigint | string | PubKey;
+    selectedOptions: {
+      idx: number;
+      vc: number;
+    }[];
+    derivePathParams?: DerivePathParams;
+  }) {
+    const plan = this.normalizeVoteOptions(selectedOptions);
+    const payload = this.legacyBatchGenMessage(stateIdx, operatorPubkey, plan, derivePathParams);
+    return stringizing(payload) as {
+      msg: string[];
+      encPubkeys: string[];
+    }[];
+  }
+
+  legacyBuildDeactivatePayload({
+    stateIdx,
+    operatorPubkey,
+    nonce = 0,
+    derivePathParams
+  }: {
+    stateIdx: number;
+    operatorPubkey: bigint | string | PubKey;
+    nonce?: number;
+    derivePathParams?: DerivePathParams;
+  }) {
+    const genMessage = this.legacyGenMessageFactory(stateIdx, operatorPubkey, derivePathParams);
+    const encAccount = genKeypair();
+    const msg = genMessage(BigInt(encAccount.privKey), nonce, 0, 0, true);
+
+    return stringizing({
+      msg,
+      encPubkeys: encAccount.pubKey
+    }) as {
+      msg: string[];
+      encPubkeys: string[];
+    };
+  }
+
+  async legacyGenAddKeyInput(
     depth: number,
     {
       coordPubKey,
@@ -477,7 +1060,7 @@ export class VoterClient {
       d2[1]
     ]);
 
-    const input = {
+    return {
       inputHash,
       coordPubKey,
       deactivateRoot,
@@ -492,11 +1075,9 @@ export class VoterClient {
       nullifier,
       oldPrivateKey: signer.getFormatedPrivKey()
     };
-
-    return input;
   }
 
-  async genPreAddKeyInput(
+  async legacyGenPreAddKeyInput(
     depth: number,
     {
       coordPubKey,
@@ -544,7 +1125,7 @@ export class VoterClient {
       d2[1]
     ]);
 
-    const input = {
+    return {
       inputHash,
       coordPubKey,
       deactivateRoot,
@@ -559,33 +1140,107 @@ export class VoterClient {
       nullifier,
       oldPrivateKey: signer.getFormatedPrivKey()
     };
-
-    return input;
   }
 
-  async buildDeactivatePayload({
-    stateIdx,
+  /**
+   * Legacy `buildAddNewKeyPayload` — old deactivate+addNewKey flow without `pollId` / `newPubKey`
+   * in the ZK circuit.  Use when interacting with contracts that predate the poll-ID upgrade.
+   */
+  async legacyBuildAddNewKeyPayload({
+    stateTreeDepth,
     operatorPubkey,
-    nonce = 0,
+    deactivates,
+    wasmFile,
+    zkeyFile,
     derivePathParams
   }: {
-    stateIdx: number;
+    stateTreeDepth: number;
     operatorPubkey: bigint | string | PubKey;
-    nonce?: number;
+    deactivates: DeactivateMessage[] | bigint[][] | string[][];
+    wasmFile: ZKArtifact;
+    zkeyFile: ZKArtifact;
     derivePathParams?: DerivePathParams;
-  }) {
-    // Deactivate messages use nonce=0 (independent from vote messages)
-    // Create a custom message with explicit nonce
-    const genMessage = this.genMessageFactory(stateIdx, operatorPubkey, derivePathParams);
-    const encAccount = genKeypair();
-    const msg = genMessage(BigInt(encAccount.privKey), nonce, 0, 0, true);
+  }): Promise<{
+    proof: {
+      a: string;
+      b: string;
+      c: string;
+    };
+    d: string[];
+    nullifier: string;
+  }> {
+    const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(operatorPubkey);
+    const addKeyInput = await this.legacyGenAddKeyInput(stateTreeDepth + 2, {
+      coordPubKey: [coordPubkeyX, coordPubkeyY],
+      deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      derivePathParams
+    });
 
-    return stringizing({
-      msg,
-      encPubkeys: encAccount.pubKey
-    }) as {
-      msg: string[];
-      encPubkeys: string[];
+    if (addKeyInput === null) {
+      throw Error('legacyGenAddKeyInput failed, cannot find deactivate idx');
+    }
+
+    const { proof } = await groth16.fullProve(addKeyInput, wasmFile, zkeyFile);
+    const proofHex = await adaptToUncompressed(proof);
+
+    return {
+      proof: proofHex,
+      d: [
+        addKeyInput.d1[0].toString(),
+        addKeyInput.d1[1].toString(),
+        addKeyInput.d2[0].toString(),
+        addKeyInput.d2[1].toString()
+      ],
+      nullifier: addKeyInput.nullifier.toString()
+    };
+  }
+
+  async legacyBuildPreAddNewKeyPayload({
+    stateTreeDepth,
+    coordinatorPubkey,
+    deactivates,
+    wasmFile,
+    zkeyFile,
+    derivePathParams
+  }: {
+    stateTreeDepth: number;
+    coordinatorPubkey: bigint | string | PubKey;
+    deactivates: bigint[][] | string[][];
+    wasmFile: ZKArtifact;
+    zkeyFile: ZKArtifact;
+    derivePathParams?: DerivePathParams;
+  }): Promise<{
+    proof: {
+      a: string;
+      b: string;
+      c: string;
+    };
+    d: string[];
+    nullifier: string;
+  }> {
+    const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(coordinatorPubkey);
+    const addKeyInput = await this.legacyGenPreAddKeyInput(stateTreeDepth + 2, {
+      coordPubKey: [coordPubkeyX, coordPubkeyY],
+      deactivates: deactivates.map((d: any) => d.map(BigInt)),
+      derivePathParams
+    });
+
+    if (addKeyInput === null) {
+      throw Error('legacyGenPreAddKeyInput failed, cannot find deactivate idx');
+    }
+
+    const { proof } = await groth16.fullProve(addKeyInput, wasmFile, zkeyFile);
+    const proofHex = await adaptToUncompressed(proof);
+
+    return {
+      proof: proofHex,
+      d: [
+        addKeyInput.d1[0].toString(),
+        addKeyInput.d1[1].toString(),
+        addKeyInput.d2[0].toString(),
+        addKeyInput.d2[1].toString()
+      ],
+      nullifier: addKeyInput.nullifier.toString()
     };
   }
 
@@ -698,8 +1353,14 @@ export class VoterClient {
 
   // ==================== Maci Voter Methods ====================
   /**
-   * Pre-create a new account for AMACI voting (pre-deactivate mode)
-   * @param params - Parameters including contract address, deactivates, circuit files, and ticket
+   * Pre-create a new account for AMACI voting (pre-deactivate mode).
+   *
+   * Two modes are supported:
+   * - **Local mode**: pass `deactivates` to build the Merkle tree locally (original behaviour).
+   * - **API mode**: omit `deactivates` and the proof will be fetched from the SaaS API using
+   *   `contractAddress` (K-anonymous request).
+   *
+   * @param params - Parameters including contract address, optional deactivates, circuit files, and ticket
    * @returns Result with transaction details and new voter account
    */
   async saasPreCreateNewAccount({
@@ -707,6 +1368,9 @@ export class VoterClient {
     stateTreeDepth,
     coordinatorPubkey,
     deactivates,
+    deactivateIdx,
+    voterScale,
+    pollId,
     wasmFile,
     zkeyFile,
     ticket,
@@ -715,21 +1379,27 @@ export class VoterClient {
     contractAddress: string;
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
-    deactivates: bigint[][] | string[][];
+    /** Raw deactivate leaf data for local Merkle tree construction. Omit to fetch the proof from the SaaS API automatically. */
+    deactivates?: bigint[][] | string[][];
+    /**
+     * Leaf index of this account in the deactivate tree, as returned by the API
+     * in `accounts[n].accountIndex` at signup time.  When provided the costly
+     * `sharedKeyHash` scan is skipped.
+     */
+    deactivateIdx?: number;
+    /**
+     * Pre-deactivate tree capacity (`preDeactivateScale` from the create-round response).
+     * Used to generate K-anonymous decoy indices for the API proof request.
+     * When omitted only the real index is sent (K=1, no anonymity).
+     */
+    voterScale?: number;
+    /** When omitted the legacy circuit input (no `pollId` / `newPubKey` in ZK inputs) is used. */
+    pollId?: bigint | number;
     wasmFile: ZKArtifact;
     zkeyFile: ZKArtifact;
     ticket: string;
     derivePathParams?: DerivePathParams;
   }) {
-    const addNewKeyPayload = await this.buildPreAddNewKeyPayload({
-      stateTreeDepth,
-      coordinatorPubkey,
-      deactivates,
-      wasmFile,
-      zkeyFile,
-      derivePathParams
-    });
-
     const newVoterClient = new VoterClient({
       network: this.network,
       restEndpoint: this.restEndpoint,
@@ -738,15 +1408,28 @@ export class VoterClient {
       registryAddress: this.registryAddress
     });
 
+    const newPubkey = newVoterClient.getPubkey().toPoints() as [bigint, bigint];
+
+    const addNewKeyPayload = await this.buildPreAddNewKeyPayload({
+      stateTreeDepth,
+      coordinatorPubkey,
+      deactivates,
+      contractAddress,
+      deactivateIdx,
+      voterScale,
+      newPubkey,
+      pollId: pollId !== undefined ? BigInt(pollId) : undefined,
+      wasmFile,
+      zkeyFile,
+      derivePathParams
+    });
+
     const addNewKeyResult = await newVoterClient.saasSubmitPreAddNewKey({
       contractAddress: contractAddress,
       proof: addNewKeyPayload.proof,
       d: addNewKeyPayload.d,
       nullifier: addNewKeyPayload.nullifier,
-      newPubkey: newVoterClient
-        .getPubkey()
-        .toPoints()
-        .map((p) => p.toString()),
+      newPubkey: newPubkey.map((p) => p.toString()),
       ticket
     });
 
@@ -766,6 +1449,8 @@ export class VoterClient {
     operatorPubkey,
     selectedOptions,
     ticket,
+    pollId,
+    stateIdx,
     derivePathParams
   }: {
     contractAddress: string;
@@ -775,21 +1460,25 @@ export class VoterClient {
       vc: number;
     }[];
     ticket: string;
+    /** When omitted the legacy message format (no `pollId` in packed element, no salt in command) is used. */
+    pollId?: bigint | number;
+    stateIdx?: number;
     derivePathParams?: DerivePathParams;
   }) {
-    const stateIdx = await this.getStateIdx({
-      contractAddress,
-      derivePathParams
-    });
+    const resolvedStateIdx =
+      stateIdx !== undefined
+        ? stateIdx
+        : await this.getStateIdx({ contractAddress, derivePathParams });
 
-    if (stateIdx === -1) {
+    if (resolvedStateIdx === -1) {
       throw new Error('State index is not set, Please signup or addNewKey first');
     }
 
     const payload = this.buildVotePayload({
-      stateIdx,
+      stateIdx: resolvedStateIdx,
       operatorPubkey,
       selectedOptions,
+      pollId,
       derivePathParams
     });
 

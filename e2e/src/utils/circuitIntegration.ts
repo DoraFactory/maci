@@ -3,20 +3,13 @@ import path from 'path';
 // @ts-ignore - snarkjs doesn't have official type definitions
 import * as snarkjs from 'snarkjs';
 import { ContractProofType } from '../types';
+import { getAmaciCircuitConfig } from './circuitConfig';
 
 /**
  * Circuit integration utilities
- * Handles circuit loading, proof generation using snarkjs, and format conversion
- *
- * Circuit configuration: 2-1-1-5
- * - state_tree_depth: 2 (max 25 voters)
- * - int_state_tree_depth: 1
- * - vote_option_tree_depth: 1 (max 5 options)
- * - message_batch_size: 5
+ * Handles circuit loading, proof generation using snarkjs, and format conversion.
+ * The AMACI circuit size is selected via AMACI_CIRCUIT_SIZE, defaulting to 2-1-1-5.
  */
-
-const CIRCUIT_CONFIG = '2-1-1-5';
-const CIRCUITS_DIR = path.join(__dirname, '..', '..', 'circuits', CIRCUIT_CONFIG);
 
 interface CircuitPaths {
   wasm: string;
@@ -27,8 +20,9 @@ interface CircuitPaths {
  * Get paths to circuit artifacts
  */
 function getCircuitPaths(circuitName: 'processMessages' | 'tallyVotes'): CircuitPaths {
-  const wasm = path.join(CIRCUITS_DIR, `${circuitName}.wasm`);
-  const zkey = path.join(CIRCUITS_DIR, `${circuitName}.zkey`);
+  const { circuitDir } = getAmaciCircuitConfig();
+  const wasm = path.join(circuitDir, `${circuitName}.wasm`);
+  const zkey = path.join(circuitDir, `${circuitName}.zkey`);
 
   if (!fs.existsSync(wasm)) {
     throw new Error(`Circuit WASM file not found: ${wasm}\n` + 'Please run: pnpm setup-circuits');
@@ -85,10 +79,15 @@ export async function generateProcessMessagesProof(
   voteOptionTreeDepth: number,
   batchSize: number
 ): Promise<ContractProofType> {
-  // Validate parameters match zkey configuration
-  if (stateTreeDepth !== 2 || voteOptionTreeDepth !== 1 || batchSize !== 5) {
+  const config = getAmaciCircuitConfig();
+
+  if (
+    stateTreeDepth !== config.stateTreeDepth ||
+    voteOptionTreeDepth !== config.voteOptionTreeDepth ||
+    batchSize !== config.batchSize
+  ) {
     throw new Error(
-      `Invalid circuit parameters. Expected: 2-1-5, Got: ${stateTreeDepth}-${voteOptionTreeDepth}-${batchSize}\n` +
+      `Invalid circuit parameters. Expected: ${config.stateTreeDepth}-${config.voteOptionTreeDepth}-${config.batchSize}, Got: ${stateTreeDepth}-${voteOptionTreeDepth}-${batchSize}\n` +
         'Please update test parameters to match zkey configuration'
     );
   }
@@ -152,10 +151,15 @@ export async function generateTallyProof(
   intStateTreeDepth: number,
   voteOptionTreeDepth: number
 ): Promise<ContractProofType> {
-  // Validate parameters match zkey configuration
-  if (stateTreeDepth !== 2 || intStateTreeDepth !== 1 || voteOptionTreeDepth !== 1) {
+  const config = getAmaciCircuitConfig();
+
+  if (
+    stateTreeDepth !== config.stateTreeDepth ||
+    intStateTreeDepth !== config.intStateTreeDepth ||
+    voteOptionTreeDepth !== config.voteOptionTreeDepth
+  ) {
     throw new Error(
-      `Invalid circuit parameters. Expected: 2-1-1, Got: ${stateTreeDepth}-${intStateTreeDepth}-${voteOptionTreeDepth}\n` +
+      `Invalid circuit parameters. Expected: ${config.stateTreeDepth}-${config.intStateTreeDepth}-${config.voteOptionTreeDepth}, Got: ${stateTreeDepth}-${intStateTreeDepth}-${voteOptionTreeDepth}\n` +
         'Please update test parameters to match zkey configuration'
     );
   }
@@ -189,8 +193,14 @@ export async function generateDeactivateProof(
   try {
     console.log('🔐 Generating Deactivate proof...');
 
-    const circuitConfig = 'amaci-2-1-1-5';
-    const circuitPath = path.join(__dirname, '../../circuits', circuitConfig);
+    const config = getAmaciCircuitConfig();
+    if (stateTreeDepth !== config.stateTreeDepth || batchSize !== config.batchSize) {
+      throw new Error(
+        `Invalid circuit parameters. Expected: ${config.stateTreeDepth}-${config.batchSize}, Got: ${stateTreeDepth}-${batchSize}`
+      );
+    }
+
+    const circuitPath = config.circuitDir;
     const wasm = path.join(circuitPath, 'deactivate.wasm');
     const zkey = path.join(circuitPath, 'deactivate.zkey');
 
@@ -224,8 +234,14 @@ export async function generateAddNewKeyProof(
   try {
     console.log('🔐 Generating AddNewKey proof...');
 
-    const circuitConfig = 'amaci-2-1-1-5';
-    const circuitPath = path.join(__dirname, '../../circuits', circuitConfig);
+    const config = getAmaciCircuitConfig();
+    if (stateTreeDepth !== config.stateTreeDepth) {
+      throw new Error(
+        `Invalid circuit parameters. Expected state_tree_depth=${config.stateTreeDepth}, Got: ${stateTreeDepth}`
+      );
+    }
+
+    const circuitPath = config.circuitDir;
     const wasm = path.join(circuitPath, 'addNewKey.wasm');
     const zkey = path.join(circuitPath, 'addNewKey.zkey');
 

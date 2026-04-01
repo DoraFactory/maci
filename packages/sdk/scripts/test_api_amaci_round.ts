@@ -34,6 +34,7 @@ async function main() {
   const address = await client.getAddress();
 
   const newRound = await client.createApiSaasAmaciRound({
+    operator: 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm',
     maxVoter: 2,
     voteOptionMap: [
       'option1: A',
@@ -42,19 +43,24 @@ async function main() {
       'option4: D',
       'option5: E',
     ],
-    operator: 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm',
-    whitelist: {
-      users: [
-        {
-          addr: address,
-        },
-      ],
-    },
-    voiceCreditAmount: '10000000000000000000',
-    startVoting: new Date(new Date().getTime()),
-    endVoting: new Date(new Date().getTime() + 11 * 60 * 1000),
     title: 'new amaci round',
+    description: '',
+    link: '',
+    startVoting: new Date(),
+    endVoting: new Date(Date.now() + 11 * 60 * 1000),
     circuitType: MaciCircuitType.IP1V,
+    certificationSystem: '0',
+    deactivateEnabled: false,
+    registrationMode: {
+      sign_up_with_static_whitelist: {
+        whitelist: {
+          users: [{ addr: address }],
+        },
+      },
+    },
+    voiceCreditMode: {
+      unified: { amount: '10000000000000000000' },
+    },
   });
   console.log('newRound:', newRound);
 

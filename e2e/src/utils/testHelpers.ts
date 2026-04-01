@@ -381,7 +381,7 @@ export async function verifyTallyResults(
   expectedVotes: bigint[]
 ): Promise<void> {
   const sdkResults = operator.getTallyResults();
-  const contractResults = await contract.getAllResult();
+  const contractResults = await contract.getAllResults();
 
   // Verify expected votes length matches
   if (expectedVotes.length !== sdkResults.length) {
@@ -563,5 +563,18 @@ export function verifyBatchCount(
   expect(actualBatchCount, 'Batch count exceeded maximum').to.be.lessThanOrEqual(maxBatchCount);
 
   log(`✓ Batch count verified: ${actualBatchCount} batches processed`);
+}
+
+/**
+ * Query poll ID from contract
+ * Returns the poll ID as a number for use in vote/deactivate payload generation
+ */
+export async function queryPollId(contract: any): Promise<number> {
+  try {
+    const pollId = await contract.getPollId();
+    return Number(pollId);
+  } catch (error) {
+    throw new Error(`Failed to query poll ID from contract: ${extractErrorMessage(error)}`);
+  }
 }
 

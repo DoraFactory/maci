@@ -7,12 +7,14 @@
     "certification_system",
     "circuit_type",
     "coordinator",
+    "deactivate_enabled",
     "fee_recipient",
     "operator",
     "parameters",
-    "pre_deactivate_root",
+    "poll_id",
+    "registration_mode",
     "round_info",
-    "voice_credit_amount",
+    "voice_credit_mode",
     "vote_option_map",
     "voting_time"
   ],
@@ -29,39 +31,31 @@
     "coordinator": {
       "$ref": "#/definitions/PubKey"
     },
+    "deactivate_enabled": {
+      "type": "boolean"
+    },
     "fee_recipient": {
       "$ref": "#/definitions/Addr"
     },
     "operator": {
       "$ref": "#/definitions/Addr"
     },
-    "oracle_whitelist_pubkey": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "parameters": {
       "$ref": "#/definitions/MaciParameters"
     },
-    "pre_deactivate_coordinator": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/PubKey"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "poll_id": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
-    "pre_deactivate_root": {
-      "$ref": "#/definitions/Uint256"
+    "registration_mode": {
+      "$ref": "#/definitions/RegistrationModeConfig"
     },
     "round_info": {
       "$ref": "#/definitions/RoundInfo"
     },
-    "voice_credit_amount": {
-      "$ref": "#/definitions/Uint256"
+    "voice_credit_mode": {
+      "$ref": "#/definitions/VoiceCreditMode"
     },
     "vote_option_map": {
       "type": "array",
@@ -71,16 +65,6 @@
     },
     "voting_time": {
       "$ref": "#/definitions/VotingTime"
-    },
-    "whitelist": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/WhitelistBase"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   },
   "additionalProperties": false,
@@ -129,6 +113,77 @@
       },
       "additionalProperties": false
     },
+    "RegistrationModeConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "sign_up_with_static_whitelist"
+          ],
+          "properties": {
+            "sign_up_with_static_whitelist": {
+              "type": "object",
+              "required": [
+                "whitelist"
+              ],
+              "properties": {
+                "whitelist": {
+                  "$ref": "#/definitions/WhitelistBase"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "sign_up_with_oracle"
+          ],
+          "properties": {
+            "sign_up_with_oracle": {
+              "type": "object",
+              "required": [
+                "oracle_pubkey"
+              ],
+              "properties": {
+                "oracle_pubkey": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "pre_populated"
+          ],
+          "properties": {
+            "pre_populated": {
+              "type": "object",
+              "required": [
+                "pre_deactivate_coordinator",
+                "pre_deactivate_root"
+              ],
+              "properties": {
+                "pre_deactivate_coordinator": {
+                  "$ref": "#/definitions/PubKey"
+                },
+                "pre_deactivate_root": {
+                  "$ref": "#/definitions/Uint256"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "RoundInfo": {
       "type": "object",
       "required": [
@@ -164,6 +219,37 @@
     "Uint64": {
       "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
       "type": "string"
+    },
+    "VoiceCreditMode": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "dynamic"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "unified"
+          ],
+          "properties": {
+            "unified": {
+              "type": "object",
+              "required": [
+                "amount"
+              ],
+              "properties": {
+                "amount": {
+                  "$ref": "#/definitions/Uint256"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "VotingTime": {
       "type": "object",
@@ -204,6 +290,16 @@
       "properties": {
         "addr": {
           "$ref": "#/definitions/Addr"
+        },
+        "voice_credit_amount": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Uint256"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false

@@ -501,7 +501,7 @@ export interface ComprehensiveTallyResult {
  * @example
  * ```typescript
  * // Get results from contract
- * const encodedResults = await contract.getAllResult();
+ * const encodedResults = await contract.getAllResults();
  *
  * // Comprehensive analysis
  * const analysis = analyzeComprehensiveTallyResults(encodedResults);

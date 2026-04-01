@@ -85,7 +85,7 @@ describe('MACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: true, // QV mode
       isAmaci: false // Standard MACI (no anonymous keys)
     });
@@ -112,7 +112,8 @@ describe('MACI Integration Test', function () {
     const vote1Payload = voter1.buildVotePayload({
       stateIdx: USER_1,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 1, vc: 8 }]
+      selectedOptions: [{ idx: 1, vc: 8 }],
+      pollId: 1
     });
 
     // Publish all messages in vote1Payload
@@ -126,7 +127,8 @@ describe('MACI Integration Test', function () {
     const vote2Payload = voter2.buildVotePayload({
       stateIdx: USER_2,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: 2, vc: 12 }]
+      selectedOptions: [{ idx: 2, vc: 12 }],
+      pollId: 1
     });
 
     // Publish all messages in vote2Payload
@@ -248,7 +250,7 @@ describe('MACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: false // Standard MACI
     });
@@ -274,7 +276,7 @@ describe('MACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: false // Standard MACI
     });
@@ -300,7 +302,7 @@ describe('MACI Integration Test', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: false // Standard MACI
     });
@@ -334,7 +336,7 @@ describe('MACI Integration Test', function () {
       voteOptionTreeDepth: 1,
       batchSize: 5,
       maxVoteOptions: 5,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: false
     });
@@ -346,7 +348,7 @@ describe('MACI Integration Test', function () {
       voteOptionTreeDepth: 1,
       batchSize: 5,
       maxVoteOptions: 5,
-
+      pollId: 1,
       isQuadraticCost: false,
       isAmaci: true
     });

@@ -1,26 +1,29 @@
 use cosmwasm_std::{coins, from_json, Addr, BlockInfo, Timestamp, Uint128, Uint256};
-use cw_multi_test::App;
+use cw_multi_test::{App, AppBuilder};
 
 // use crate::error::ContractError;
 // use crate::msg::ClaimsResponse;
 use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
 use crate::{
     multitest::{
-        admin, creator, operator, operator2, operator3, operator_pubkey1, operator_pubkey2,
-        operator_pubkey3, user1, user2, user3, user4, AmaciRegistryCodeId, InstantiationData,
-        DORA_DEMON,
+        admin, creator, dora_mock_api, operator, operator2, operator3, operator_pubkey1,
+        operator_pubkey2, operator_pubkey3, user1, user2, user3, user4, user5, AmaciRegistryCodeId,
+        InstantiationData, DORA_DEMON,
     },
     state::ValidatorSet,
 };
-use cw_amaci::multitest::{fee_recipient, owner, MaciCodeId, MaciContract};
+use cw_amaci::multitest::{
+    fee_recipient, owner, test_pubkey1, test_pubkey2, MaciCodeId, MaciContract,
+};
 // Oracle whitelist config no longer needed - using simple pubkey string
 use cosmwasm_std::Binary;
 use cw_amaci::ContractError as AmaciContractError;
 
-use cw_amaci::msg::Groth16ProofType;
+use cw_amaci::msg::{Groth16ProofType, WhitelistBase, WhitelistBaseConfig};
 use cw_amaci::multitest::uint256_from_decimal_string;
 use cw_amaci::state::{
-    DelayRecord, DelayRecords, DelayType, MessageData, Period, PeriodStatus, PubKey,
+    DelayRecord, DelayRecords, DelayType, MessageData, Period, PeriodStatus, PubKey, FEE_DENOM,
+    MESSAGE_FEE,
 };
 use cw_multi_test::next_block;
 use serde::{Deserialize, Serialize};
@@ -86,6 +89,8 @@ struct AMaciLogEntry {
     #[serde(rename = "type")]
     log_type: String,
     data: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    inputs: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -196,7 +201,7 @@ pub fn next_block_4_days(block: &mut BlockInfo) {
 //     let user2_coin_amount = 20u128;
 //     let user3_coin_amount = 10u128;
 
-//     let mut app = App::new(|router, _api, storage| {
+//     let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
 //         router
 //             .bank
 //             .init_balance(storage, &user1(), coins(user1_coin_amount, DORA_DEMON))
@@ -319,7 +324,7 @@ pub fn next_block_4_days(block: &mut BlockInfo) {
 // fn create_round_should_works() {
 //     let user1_coin_amount = 30u128;
 
-//     let mut app = App::new(|router, _api, storage| {
+//     let mut app = AppBuilder::new().with_api(dora_mock_api()).build(|router, _api, storage| {
 //         router
 //             .bank
 //             .init_balance(storage, &user1(), coins(user1_coin_amount, DORA_DEMON))
@@ -417,16 +422,18 @@ fn create_round_with_reward_should_works() {
     let admin_coin_amount = 1000000000000000000000u128; // 1000 DORA (register 500, create round 50)
     let creator_coin_amount = 1000000000000000000000u128; // 1000 DORA
 
-    let mut app = App::new(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &admin(), coins(admin_coin_amount, DORA_DEMON))
-            .unwrap();
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &admin(), coins(admin_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -461,7 +468,7 @@ fn create_round_with_reward_should_works() {
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
     let create_round_with_wrong_circuit_type = contract
         .create_round(
             &mut app,
@@ -600,14 +607,28 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
         serde_json::from_str(&logs_content).expect("Failed to parse JSON");
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
-    let _operator_coin_amount = 1000000000000000000000u128; // 1000 DORA
+    let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = App::new(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -642,7 +663,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     // Record balance before creating round
     let creator_balance_before = contract
@@ -654,7 +675,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
         .unwrap();
 
     let resp = contract
-        .create_round_with_whitelist(
+        .create_round_with_whitelist_and_deactivate(
             &mut app,
             creator(),
             operator(),
@@ -781,17 +802,17 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
         y: uint256_from_decimal_string(&pubkey_data.pubkeys[1][1]),
     };
 
-    let _ = maci_contract.amaci_sign_up(&mut app, Addr::unchecked("0"), pubkey0.clone());
+    let _ = maci_contract.amaci_sign_up(&mut app, user1(), pubkey0.clone());
 
     let can_sign_up_error = maci_contract
-        .amaci_sign_up(&mut app, Addr::unchecked("0"), pubkey0.clone())
+        .amaci_sign_up(&mut app, user1(), pubkey0.clone())
         .unwrap_err();
     assert_eq!(
         AmaciContractError::UserAlreadyRegistered {},
         can_sign_up_error.downcast().unwrap()
     );
 
-    let _ = maci_contract.amaci_sign_up(&mut app, Addr::unchecked("1"), pubkey1.clone());
+    let _ = maci_contract.amaci_sign_up(&mut app, user2(), pubkey1.clone());
 
     assert_eq!(
         maci_contract.amaci_num_sign_up(&app).unwrap(),
@@ -821,6 +842,9 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -846,10 +870,11 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
+
                 let proof = Groth16ProofType {
-                    a: "04c5d564a7dd1feaba7c422f429327bd5e9430cb6b67f0bf77a19788fac264a7080063a86a7f45a4893f68ce20a4ee0bc22cb085866c9387d1b822d1b1fba033".to_string(),
-                    b: "1515ff2d529baece55d6d9f7338de646dc83fba060dce13a88a8b31114b9df8b2573959072de506962aeadc60198138bfbba84a7ed3a7a349563a1b3ed4fef67062efab826e3b0ebdbce3bf0744634ba3db1d336d7ba38cfd16b8d3d42f9bb5d2546e2f71e1bbd6f680e65696aad163f99c3baac18c27146c17086542b2da535".to_string(),
-                    c: "2cb72b2822ff424c48e6972bdca59ee9f6b813bfb00571a286c41070a5a56de91d5e9c1310eef0653dc5c34255ebd40afaffcd65ba34f6d4799a4dca92cf12ff".to_string()
+                    a: data.proof.pi_a.to_string(),
+                    b: data.proof.pi_b.to_string(),
+                    c: data.proof.pi_c.to_string(),
                 };
                 println!("process_deactivate_message proof {:?}", proof);
                 println!(
@@ -908,6 +933,9 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -959,6 +987,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -1070,7 +1099,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 3600 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 198 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -1208,14 +1237,28 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
         serde_json::from_str(&logs_content).expect("Failed to parse JSON");
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
-    let _operator_coin_amount = 1000000000000000000000u128; // 1000 DORA
+    let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = App::new(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -1250,7 +1293,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     // Record balance before creating the round
     let creator_balance_before = contract
@@ -1258,7 +1301,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
         .unwrap();
 
     let resp = contract
-        .create_round_with_whitelist(
+        .create_round_with_whitelist_and_deactivate(
             &mut app,
             creator(),
             operator(),
@@ -1384,17 +1427,17 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
         y: uint256_from_decimal_string(&pubkey_data.pubkeys[1][1]),
     };
 
-    let _ = maci_contract.amaci_sign_up(&mut app, Addr::unchecked("0"), pubkey0.clone());
+    let _ = maci_contract.amaci_sign_up(&mut app, user1(), pubkey0.clone());
 
     let can_sign_up_error = maci_contract
-        .amaci_sign_up(&mut app, Addr::unchecked("0"), pubkey0.clone())
+        .amaci_sign_up(&mut app, user1(), pubkey0.clone())
         .unwrap_err();
     assert_eq!(
         AmaciContractError::UserAlreadyRegistered {},
         can_sign_up_error.downcast().unwrap()
     );
 
-    let _ = maci_contract.amaci_sign_up(&mut app, Addr::unchecked("1"), pubkey1.clone());
+    let _ = maci_contract.amaci_sign_up(&mut app, user2(), pubkey1.clone());
 
     assert_eq!(
         maci_contract.amaci_num_sign_up(&app).unwrap(),
@@ -1424,6 +1467,9 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -1449,10 +1495,11 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
+
                 let proof = Groth16ProofType {
-                    a: "04c5d564a7dd1feaba7c422f429327bd5e9430cb6b67f0bf77a19788fac264a7080063a86a7f45a4893f68ce20a4ee0bc22cb085866c9387d1b822d1b1fba033".to_string(),
-                    b: "1515ff2d529baece55d6d9f7338de646dc83fba060dce13a88a8b31114b9df8b2573959072de506962aeadc60198138bfbba84a7ed3a7a349563a1b3ed4fef67062efab826e3b0ebdbce3bf0744634ba3db1d336d7ba38cfd16b8d3d42f9bb5d2546e2f71e1bbd6f680e65696aad163f99c3baac18c27146c17086542b2da535".to_string(),
-                    c: "2cb72b2822ff424c48e6972bdca59ee9f6b813bfb00571a286c41070a5a56de91d5e9c1310eef0653dc5c34255ebd40afaffcd65ba34f6d4799a4dca92cf12ff".to_string()
+                    a: data.proof.pi_a.to_string(),
+                    b: data.proof.pi_b.to_string(),
+                    c: data.proof.pi_c.to_string(),
                 };
                 println!("process_deactivate_message proof {:?}", proof);
                 println!(
@@ -1511,6 +1558,9 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -1562,6 +1612,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -1673,7 +1724,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 3600 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 198 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -1812,13 +1863,28 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
         serde_json::from_str(&pubkey_content).expect("Failed to parse JSON");
 
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+    let user_coin_amount = 100000000000000000000000u128; // 100000 DORA for users who need to pay deactivate fees
 
-    let mut app = App::new(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user1(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user3(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -1850,7 +1916,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
     let user1_operator_pubkey = contract.get_operator_pubkey(&app, operator()).unwrap();
     assert_eq!(operator_pubkey1(), user1_operator_pubkey);
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     // Record balance before creating round
     let creator_balance_before = contract
@@ -2015,6 +2081,9 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -2040,10 +2109,11 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 let new_deactivate_commitment =
                     uint256_from_decimal_string(&data.new_deactivate_commitment);
                 let new_deactivate_root = uint256_from_decimal_string(&data.new_deactivate_root);
+
                 let proof = Groth16ProofType {
-                    a: "04c5d564a7dd1feaba7c422f429327bd5e9430cb6b67f0bf77a19788fac264a7080063a86a7f45a4893f68ce20a4ee0bc22cb085866c9387d1b822d1b1fba033".to_string(),
-                    b: "1515ff2d529baece55d6d9f7338de646dc83fba060dce13a88a8b31114b9df8b2573959072de506962aeadc60198138bfbba84a7ed3a7a349563a1b3ed4fef67062efab826e3b0ebdbce3bf0744634ba3db1d336d7ba38cfd16b8d3d42f9bb5d2546e2f71e1bbd6f680e65696aad163f99c3baac18c27146c17086542b2da535".to_string(),
-                    c: "2cb72b2822ff424c48e6972bdca59ee9f6b813bfb00571a286c41070a5a56de91d5e9c1310eef0653dc5c34255ebd40afaffcd65ba34f6d4799a4dca92cf12ff".to_string()
+                    a: data.proof.pi_a.to_string(),
+                    b: data.proof.pi_b.to_string(),
+                    c: data.proof.pi_c.to_string(),
                 };
                 println!("process_deactivate_message proof {:?}", proof);
                 println!(
@@ -2102,6 +2172,9 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                         uint256_from_decimal_string(&data.message[4]),
                         uint256_from_decimal_string(&data.message[5]),
                         uint256_from_decimal_string(&data.message[6]),
+                        uint256_from_decimal_string(&data.message[7]),
+                        uint256_from_decimal_string(&data.message[8]),
+                        uint256_from_decimal_string(&data.message[9]),
                     ],
                 };
 
@@ -2153,6 +2226,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 );
 
                 let new_state_commitment = uint256_from_decimal_string(&data.new_state_commitment);
+
                 let proof = Groth16ProofType {
                     a: data.proof.pi_a.to_string(),
                     b: data.proof.pi_b.to_string(),
@@ -2264,7 +2338,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
                 DelayRecord {
                     delay_timestamp: Timestamp::from_nanos(1571798684879000000),
                     delay_duration: 10860,
-                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 3600 seconds)".to_string(),
+                    delay_reason: "Tallying has timed out after 10860 seconds (total process: 6, allowed: 198 seconds)".to_string(),
                     delay_process_dmsg_count: Uint256::from_u128(0),
                     delay_type: DelayType::TallyDelay,
                 },
@@ -2369,12 +2443,14 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
 fn test_create_round_event_data() {
     let creator_coin_amount = 50000000000000000000u128; // 50 DORA
 
-    let mut app = App::new(|router, _api, storage| {
-        router
-            .bank
-            .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
-            .unwrap();
-    });
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
 
     let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
     let amaci_code_id = MaciCodeId::store_default_code(&mut app);
@@ -2397,7 +2473,7 @@ fn test_create_round_event_data() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let small_base_payamount = 20000000000000000000u128; // 20 DORA
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
 
     // Create round and capture response
     let resp = contract
@@ -2481,4 +2557,1901 @@ fn test_create_round_event_data() {
         updated_vote_option_map
     );
     assert_eq!(updated_vote_option_map, custom_vote_options);
+}
+
+/// Helper: get attribute value by key from an event's attributes.
+fn event_attr_value(attributes: &[cosmwasm_std::Attribute], key: &str) -> Option<String> {
+    attributes
+        .iter()
+        .find(|a| a.key == key)
+        .map(|a| a.value.clone())
+}
+
+/// Find the event that has attribute action="created_round" (emitted by reply_created_round).
+fn find_created_round_event(events: &[cosmwasm_std::Event]) -> Option<&cosmwasm_std::Event> {
+    events
+        .iter()
+        .find(|e| event_attr_value(&e.attributes, "action").as_deref() == Some("created_round"))
+}
+
+#[test]
+fn test_reply_created_round_event() {
+    // Same setup as test_create_round_event_data: create round and capture response
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let label = "Dora AMaci Registry";
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), label)
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let small_base_payamount = 5000000000000000000u128; // 5 DORA
+
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(small_base_payamount, DORA_DEMON),
+        )
+        .unwrap();
+
+    // Find the reply "created_round" event (from reply_created_round in contract)
+    let created_round_event = find_created_round_event(&resp.events).expect(
+        "response should contain an event with action=created_round from reply_created_round",
+    );
+
+    let attrs = &created_round_event.attributes;
+    println!("attrs: {:?}", attrs);
+
+    // Required attributes from reply_created_round
+    assert_eq!(
+        event_attr_value(attrs, "action").as_deref(),
+        Some("created_round"),
+        "action must be created_round"
+    );
+    assert!(
+        event_attr_value(attrs, "code_id").is_some(),
+        "event must have code_id"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "code_id").as_deref(),
+        Some(amaci_code_id.id().to_string().as_str()),
+        "code_id must match amaci code id"
+    );
+
+    let round_addr = event_attr_value(attrs, "round_addr").expect("event must have round_addr");
+    assert!(!round_addr.is_empty(), "round_addr must be non-empty");
+
+    let poll_id = event_attr_value(attrs, "poll_id").expect("event must have poll_id");
+    assert!(!poll_id.is_empty(), "poll_id must be non-empty");
+
+    // caller in event is the contract that sent the instantiate submsg (registry), not the tx sender
+    assert_eq!(
+        event_attr_value(attrs, "caller").as_deref(),
+        Some(contract.addr().as_str()),
+        "caller must be registry contract (instantiate sender)"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "admin").as_deref(),
+        Some(creator().as_str()),
+        "admin must be creator"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "operator").as_deref(),
+        Some(operator().as_str()),
+        "operator must match"
+    );
+
+    assert_eq!(
+        event_attr_value(attrs, "round_title").as_deref(),
+        Some("HackWasm Berlin"),
+        "round_title must match create_round_with_whitelist RoundInfo"
+    );
+
+    let voting_start =
+        event_attr_value(attrs, "voting_start").expect("event must have voting_start");
+    assert_eq!(voting_start, "1571797424879000000");
+
+    let voting_end = event_attr_value(attrs, "voting_end").expect("event must have voting_end");
+    assert!(!voting_end.is_empty());
+
+    // Coordinator pubkey
+    assert!(
+        event_attr_value(attrs, "coordinator_pubkey_x").is_some(),
+        "event must have coordinator_pubkey_x"
+    );
+    assert!(
+        event_attr_value(attrs, "coordinator_pubkey_y").is_some(),
+        "event must have coordinator_pubkey_y"
+    );
+
+    // vote_option_map (JSON array)
+    let vote_option_map =
+        event_attr_value(attrs, "vote_option_map").expect("event must have vote_option_map");
+    assert!(vote_option_map.starts_with('[') && vote_option_map.ends_with(']'));
+
+    // MACI config
+    assert!(
+        event_attr_value(attrs, "voice_credit_mode").is_some(),
+        "event must have voice_credit_mode"
+    );
+    assert!(
+        event_attr_value(attrs, "registration_mode").is_some(),
+        "event must have registration_mode"
+    );
+    assert!(
+        event_attr_value(attrs, "state_tree_depth")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false),
+        "event must have state_tree_depth"
+    );
+    assert!(
+        event_attr_value(attrs, "circuit_type")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false),
+        "event must have circuit_type"
+    );
+    assert!(
+        event_attr_value(attrs, "certification_system")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false),
+        "event must have certification_system"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "deactivate_enabled").as_deref(),
+        Some("false"),
+        "deactivate_enabled from create_round_with_whitelist"
+    );
+
+    // Optional: round_description / round_link (we set them in create_round_with_whitelist)
+    assert_eq!(
+        event_attr_value(attrs, "round_description").as_deref(),
+        Some("Hack In Brelin"),
+        "round_description must match RoundInfo"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "round_link").as_deref(),
+        Some("https://baidu.com"),
+        "round_link must match RoundInfo"
+    );
+
+    // voice_credit_amount for Unified mode
+    assert_eq!(
+        event_attr_value(attrs, "voice_credit_amount").as_deref(),
+        Some("100"),
+        "voice_credit_amount from Unified mode"
+    );
+}
+
+/// Test created_round event for SignUpWithStaticWhitelist mode: registration_mode and no pre_deactivate attrs.
+#[test]
+fn test_created_round_event_sign_up_with_static_whitelist() {
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pay = 5000000000000000000u128; // 5 DORA
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let created_round_event = find_created_round_event(&resp.events)
+        .expect("response should contain action=created_round event");
+    let attrs = &created_round_event.attributes;
+
+    assert_eq!(
+        event_attr_value(attrs, "action").as_deref(),
+        Some("created_round"),
+        "action must be created_round"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "registration_mode").as_deref(),
+        Some("SignUpWithStaticWhitelist"),
+        "registration_mode must be SignUpWithStaticWhitelist"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "voice_credit_mode").as_deref(),
+        Some("Unified"),
+        "voice_credit_mode must be Unified"
+    );
+
+    // SignUpWithStaticWhitelist must NOT have pre-deactivate attrs
+    assert!(
+        event_attr_value(attrs, "pre_deactivate_root").is_none(),
+        "SignUpWithStaticWhitelist event must not have pre_deactivate_root"
+    );
+    assert!(
+        event_attr_value(attrs, "pre_deactivate_coordinator_x").is_none(),
+        "SignUpWithStaticWhitelist event must not have pre_deactivate_coordinator_x"
+    );
+    assert!(
+        event_attr_value(attrs, "pre_deactivate_coordinator_y").is_none(),
+        "SignUpWithStaticWhitelist event must not have pre_deactivate_coordinator_y"
+    );
+}
+
+/// Test created_round event for PrePopulated (pre-deactivate) mode: registration_mode and pre_deactivate_* attrs.
+#[test]
+fn test_created_round_event_pre_populated() {
+    use cw_amaci::state::PubKey;
+
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pre_deactivate_root = Uint256::from_u128(12345u128);
+    let pre_deactivate_coordinator = test_pubkey2();
+
+    let pay = 5000000000000000000u128; // 5 DORA
+    let resp = contract
+        .create_round_with_pre_populated(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            pre_deactivate_root,
+            pre_deactivate_coordinator,
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let created_round_event = find_created_round_event(&resp.events)
+        .expect("response should contain action=created_round event");
+    let attrs = &created_round_event.attributes;
+    println!("attrs: {:?}", attrs);
+    assert_eq!(
+        event_attr_value(attrs, "action").as_deref(),
+        Some("created_round"),
+        "action must be created_round"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "registration_mode").as_deref(),
+        Some("PrePopulated"),
+        "registration_mode must be PrePopulated"
+    );
+    assert_eq!(
+        event_attr_value(attrs, "voice_credit_mode").as_deref(),
+        Some("Unified"),
+        "voice_credit_mode must be Unified"
+    );
+
+    // PrePopulated must have pre-deactivate attrs
+    let event_root = event_attr_value(attrs, "pre_deactivate_root")
+        .expect("PrePopulated event must have pre_deactivate_root");
+    assert_eq!(event_root, "12345", "pre_deactivate_root must match");
+
+    let event_coord_x = event_attr_value(attrs, "pre_deactivate_coordinator_x")
+        .expect("PrePopulated event must have pre_deactivate_coordinator_x");
+    let event_coord_y = event_attr_value(attrs, "pre_deactivate_coordinator_y")
+        .expect("PrePopulated event must have pre_deactivate_coordinator_y");
+    assert_eq!(
+        event_coord_x,
+        test_pubkey2().x.to_string(),
+        "pre_deactivate_coordinator_x must match"
+    );
+    assert_eq!(
+        event_coord_y,
+        test_pubkey2().y.to_string(),
+        "pre_deactivate_coordinator_y must match"
+    );
+}
+
+/// Test QueryRegistrationStatus for SignUpWithStaticWhitelist mode.
+/// Covers: whitelisted user, non-whitelisted user, no sender, and after sign-up.
+#[test]
+fn test_query_registration_status_static_whitelist() {
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pay = 5000000000000000000u128; // 5 DORA
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128), // 1p1v
+            Uint256::from_u128(0u128), // groth16
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let amaci_addr = amaci_contract_addr.addr.clone();
+    let maci_contract = MaciContract::new(amaci_addr.clone());
+
+    // user1() ("0") is in whitelist, not yet registered → can_sign_up = true
+    let status: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: Some(user1()),
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        status.can_sign_up,
+        "whitelisted user should be able to sign up"
+    );
+    assert!(
+        !status.is_register,
+        "whitelisted user should not be registered yet"
+    );
+    assert_eq!(
+        status.balance,
+        Uint256::from_u128(100u128),
+        "balance should equal the unified voice credit amount"
+    );
+
+    // user5() ("4") is NOT in whitelist → can_sign_up = false
+    let status_not_whitelisted: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: Some(user5()),
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_not_whitelisted.can_sign_up,
+        "non-whitelisted user must not be able to sign up"
+    );
+    assert!(
+        !status_not_whitelisted.is_register,
+        "non-whitelisted user must not be registered"
+    );
+
+    // No sender provided → all false
+    let status_no_sender: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(!status_no_sender.can_sign_up);
+    assert!(!status_no_sender.is_register);
+
+    // Advance block to enter voting period, then sign up user1
+    app.update_block(next_block);
+    _ = maci_contract.amaci_sign_up(&mut app, user1(), operator_pubkey1());
+
+    // After sign-up: is_register = true, can_sign_up = false
+    let status_after: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: Some(user1()),
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_after.can_sign_up,
+        "registered user must not be able to sign up again"
+    );
+    assert!(
+        status_after.is_register,
+        "user1 should be registered after sign-up"
+    );
+}
+
+/// Test QueryRegistrationStatus for SignUpWithOracle mode.
+/// Covers: valid certificate, wrong certificate, no pubkey/cert, and after sign-up.
+#[test]
+fn test_query_registration_status_oracle() {
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let oracle_pubkey = "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string();
+    let pay = 5000000000000000000u128; // 5 DORA
+    let resp = contract
+        .create_round_with_oracle(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128), // 1p1v
+            Uint256::from_u128(0u128), // groth16
+            oracle_pubkey,
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let amaci_addr = amaci_contract_addr.addr.clone();
+    let maci_contract = MaciContract::new(amaci_addr.clone());
+    let contract_addr_str = amaci_addr.to_string();
+
+    let test_pubkey = cw_amaci::multitest::test_pubkey1();
+    let valid_cert = generate_certificate_for_pubkey(
+        &contract_addr_str,
+        &test_pubkey.x.to_string(),
+        &test_pubkey.y.to_string(),
+        100u128,
+    );
+
+    // Valid pubkey + valid cert → can_sign_up = true, is_register = false
+    let status_valid: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: Some(test_pubkey.clone()),
+                certificate: Some(valid_cert.clone()),
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(status_valid.can_sign_up, "valid cert should allow sign up");
+    assert!(
+        !status_valid.is_register,
+        "pubkey should not be registered yet"
+    );
+    assert_eq!(
+        status_valid.balance,
+        Uint256::from_u128(100u128),
+        "balance should equal the unified voice credit amount"
+    );
+
+    // Valid pubkey + wrong certificate (valid base64, wrong signature) → can_sign_up = false
+    let wrong_cert =
+        "9N+0uBmu7b2Sr2ibC0ViOQ00z7LZwrTJDZmoGit8TScDDzbjXUmOkB4hLKSnLEORX7ITYbeG9409VL3OLCZdag==";
+    let status_wrong_cert: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: Some(test_pubkey.clone()),
+                certificate: Some(wrong_cert.to_string()),
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_wrong_cert.can_sign_up,
+        "wrong cert should not allow sign up"
+    );
+    assert!(!status_wrong_cert.is_register);
+
+    // No pubkey/cert provided → all false
+    let status_no_input: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(!status_no_input.can_sign_up);
+    assert!(!status_no_input.is_register);
+
+    // Advance block to enter voting period, then sign up the pubkey
+    app.update_block(next_block);
+    _ = maci_contract.amaci_sign_up_oracle(&mut app, user1(), test_pubkey.clone(), valid_cert);
+
+    // After sign-up: oracle_registration_status returns early with is_register = true
+    // No certificate re-verification is needed once the pubkey is in ORACLE_WHITELIST
+    let status_after: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: Some(test_pubkey.clone()),
+                certificate: Some(wrong_cert.to_string()),
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_after.can_sign_up,
+        "registered pubkey must not be able to sign up again"
+    );
+    assert!(
+        status_after.is_register,
+        "pubkey should be registered after sign-up"
+    );
+}
+
+/// Test QueryRegistrationStatus for PrePopulated mode.
+/// In this mode can_sign_up is always false; is_register reflects the SIGNUPED map.
+#[test]
+fn test_query_registration_status_pre_populated() {
+    use cw_amaci::state::PubKey;
+
+    let creator_coin_amount = 50000000000000000000u128; // 50 DORA
+
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pre_deactivate_root = Uint256::from_u128(12345u128);
+    let pre_deactivate_coordinator = test_pubkey2();
+
+    let pay = 5000000000000000000u128; // 5 DORA
+    let resp = contract
+        .create_round_with_pre_populated(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128), // 1p1v
+            Uint256::from_u128(0u128), // groth16
+            pre_deactivate_root,
+            pre_deactivate_coordinator,
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let amaci_addr = amaci_contract_addr.addr.clone();
+
+    let test_pubkey = cw_amaci::multitest::test_pubkey1();
+
+    // Query with a pubkey not in SIGNUPED → can_sign_up = false, is_register = false
+    let status_with_pubkey: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: Some(test_pubkey),
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(
+        !status_with_pubkey.can_sign_up,
+        "PrePopulated mode: direct sign-up is not allowed"
+    );
+    assert!(
+        !status_with_pubkey.is_register,
+        "pubkey should not be registered in a fresh round"
+    );
+
+    // Query without pubkey → both false
+    let status_no_pubkey: cw_amaci::msg::RegistrationStatus = app
+        .wrap()
+        .query_wasm_smart(
+            amaci_addr.clone(),
+            &cw_amaci::msg::QueryMsg::QueryRegistrationStatus {
+                sender: None,
+                pubkey: None,
+                certificate: None,
+                amount: None,
+            },
+        )
+        .unwrap();
+    assert!(!status_no_pubkey.can_sign_up);
+    assert!(!status_no_pubkey.is_register);
+}
+
+// ─── UpdateRegistrationConfig tests ────────────────────────────────────────
+
+/// Helper: set up registry + amaci, create a StaticWhitelist round, return (app, maci_contract).
+fn setup_whitelist_round() -> (cw_multi_test::App, MaciContract) {
+    let creator_coin_amount = 50000000000000000000u128;
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pay = 5000000000000000000u128; // 5 DORA
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let maci_contract = MaciContract::new(amaci_contract_addr.addr.clone());
+    (app, maci_contract)
+}
+
+/// Test: toggle deactivate_enabled before voting starts, verify event and query.
+#[test]
+fn test_update_registration_config_deactivate_enabled() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // Initial state: deactivate_enabled = false (created with deactivate_enabled: false)
+    let config = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(!config.deactivate_enabled);
+
+    // Admin enables deactivate
+    let resp = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(), // creator is the round admin
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap();
+
+    // Verify event attribute
+    let action_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "action")
+        .expect("response must have action attribute");
+    assert_eq!(action_attr.value, "update_registration_config");
+
+    let deactivate_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "deactivate_enabled")
+        .expect("response must have deactivate_enabled attribute");
+    assert_eq!(deactivate_attr.value, "true");
+
+    // Query confirms the change
+    let config_after = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(config_after.deactivate_enabled);
+
+    // Disable it again
+    let resp2 = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(false),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap();
+
+    let deactivate_attr2 = resp2
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "deactivate_enabled")
+        .expect("response must have deactivate_enabled attribute");
+    assert_eq!(deactivate_attr2.value, "false");
+
+    let config_after2 = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(!config_after2.deactivate_enabled);
+}
+
+/// Test: non-admin cannot call UpdateRegistrationConfig.
+#[test]
+fn test_update_registration_config_unauthorized() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    let err = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            user2(), // not the admin
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(AmaciContractError::Unauthorized {}, err.downcast().unwrap());
+}
+
+/// Test: UpdateRegistrationConfig is rejected once voting has started.
+#[test]
+fn test_update_registration_config_after_voting_starts() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // Advance block into the voting period
+    app.update_block(next_block);
+
+    let err = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(AmaciContractError::PeriodError {}, err.downcast().unwrap());
+}
+
+/// Test: update voice_credit_mode before voting, verify event and query.
+#[test]
+fn test_update_registration_config_voice_credit_mode() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // Initial mode: Unified(100) (set by create_round_with_whitelist)
+    let config = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config.voice_credit_mode,
+        cw_amaci::state::VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(100u128)
+    ));
+
+    // Update to Unified(200)
+    let resp = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: Some(cw_amaci::state::VoiceCreditMode::Unified {
+                    amount: Uint256::from_u128(200u128),
+                }),
+                registration_mode: None,
+            },
+        )
+        .unwrap();
+
+    let vc_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "voice_credit_mode")
+        .expect("response must have voice_credit_mode attribute");
+    assert_eq!(vc_attr.value, "Unified");
+
+    let vc_amount_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "voice_credit_amount")
+        .expect("response must have voice_credit_amount attribute");
+    assert_eq!(vc_amount_attr.value, "200");
+
+    let config_after = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config_after.voice_credit_mode,
+        cw_amaci::state::VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(200u128)
+    ));
+}
+
+/// Test: switch registration mode (StaticWhitelist → Oracle → PrePopulated → StaticWhitelist),
+/// verify events and query after each transition.
+#[test]
+fn test_update_registration_config_registration_mode() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // ── Switch to Oracle mode ──
+    let oracle_pubkey = "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string();
+    let resp_oracle = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
+                    oracle_pubkey: oracle_pubkey.clone(),
+                }),
+            },
+        )
+        .unwrap();
+
+    let reg_attr_oracle = resp_oracle
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "registration_mode")
+        .expect("response must have registration_mode attribute");
+    assert_eq!(reg_attr_oracle.value, "SignUpWithOracle");
+
+    // No pre_deactivate_root attribute for Oracle mode
+    let has_root_attr = resp_oracle
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .any(|a| a.key == "pre_deactivate_root");
+    assert!(
+        !has_root_attr,
+        "Oracle mode must not emit pre_deactivate_root"
+    );
+
+    let config_oracle = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config_oracle.registration_mode,
+        cw_amaci::state::RegistrationMode::SignUpWithOracle { .. }
+    ));
+
+    // ── Switch to PrePopulated mode ──
+    let pre_root = Uint256::from_u128(99999u128);
+    let pre_coord = test_pubkey2();
+    let resp_pre = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::PrePopulated {
+                    pre_deactivate_root: pre_root,
+                    pre_deactivate_coordinator: pre_coord,
+                }),
+            },
+        )
+        .unwrap();
+
+    let reg_attr_pre = resp_pre
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "registration_mode")
+        .expect("response must have registration_mode attribute");
+    assert_eq!(reg_attr_pre.value, "PrePopulated");
+
+    let root_attr = resp_pre
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "pre_deactivate_root")
+        .expect("PrePopulated mode must emit pre_deactivate_root attribute");
+    assert_eq!(root_attr.value, "99999");
+
+    let coord_x_attr = resp_pre
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "pre_deactivate_coordinator_x")
+        .expect("PrePopulated mode must emit pre_deactivate_coordinator_x attribute");
+    assert_eq!(coord_x_attr.value, test_pubkey2().x.to_string());
+
+    let coord_y_attr = resp_pre
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "pre_deactivate_coordinator_y")
+        .expect("PrePopulated mode must emit pre_deactivate_coordinator_y attribute");
+    assert_eq!(coord_y_attr.value, test_pubkey2().y.to_string());
+
+    let config_pre = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config_pre.registration_mode,
+        cw_amaci::state::RegistrationMode::PrePopulated { .. }
+    ));
+
+    // ── Switch back to StaticWhitelist mode ──
+    let resp_wl = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(
+                    cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
+                        whitelist: cw_amaci::msg::WhitelistBase {
+                            users: vec![
+                                cw_amaci::msg::WhitelistBaseConfig {
+                                    addr: user1(),
+                                    voice_credit_amount: None,
+                                },
+                                cw_amaci::msg::WhitelistBaseConfig {
+                                    addr: user2(),
+                                    voice_credit_amount: None,
+                                },
+                            ],
+                        },
+                    },
+                ),
+            },
+        )
+        .unwrap();
+
+    let reg_attr_wl = resp_wl
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "registration_mode")
+        .expect("response must have registration_mode attribute");
+    assert_eq!(reg_attr_wl.value, "SignUpWithStaticWhitelist");
+
+    let config_wl = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(matches!(
+        config_wl.registration_mode,
+        cw_amaci::state::RegistrationMode::SignUpWithStaticWhitelist
+    ));
+}
+
+/// Test: after voting starts and a user signs up, ALL config update attempts fail with PeriodError.
+///
+/// Note: `ConfigModificationAfterSignup` is a defensive check in the contract but cannot be
+/// triggered in normal flow, because:
+/// - `sign_up` requires the voting period to be active (block.time >= start_time)
+/// - `update_registration_config` requires the pending period (block.time < start_time)
+/// Therefore, the PeriodError check always fires first once voting has begun.
+#[test]
+fn test_update_registration_config_after_signup() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    // Enter voting period and sign up user1
+    app.update_block(next_block);
+    let signup_result = maci_contract.amaci_sign_up(&mut app, user1(), operator_pubkey1());
+    assert!(
+        signup_result.is_ok(),
+        "sign up should succeed once voting period is active"
+    );
+
+    // All update_registration_config calls now fail with PeriodError (voting has started)
+    let err_vc = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: Some(cw_amaci::state::VoiceCreditMode::Unified {
+                    amount: Uint256::from_u128(50u128),
+                }),
+                registration_mode: None,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        AmaciContractError::PeriodError {},
+        err_vc.downcast().unwrap(),
+        "updating voice_credit_mode after voting starts must return PeriodError"
+    );
+
+    let err_rm = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
+                    oracle_pubkey: "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string(),
+                }),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        AmaciContractError::PeriodError {},
+        err_rm.downcast().unwrap(),
+        "updating registration_mode after voting starts must return PeriodError"
+    );
+
+    let err_de = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: None,
+                registration_mode: None,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        AmaciContractError::PeriodError {},
+        err_de.downcast().unwrap(),
+        "updating deactivate_enabled after voting starts must also return PeriodError"
+    );
+}
+
+/// Test: PrePopulated mode with zero coordinator is rejected.
+#[test]
+fn test_update_registration_config_pre_populated_invalid_coordinator() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    let err = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: None,
+                voice_credit_mode: None,
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::PrePopulated {
+                    pre_deactivate_root: Uint256::from_u128(12345u128),
+                    pre_deactivate_coordinator: cw_amaci::state::PubKey {
+                        x: Uint256::zero(),
+                        y: Uint256::zero(),
+                    },
+                }),
+            },
+        )
+        .unwrap_err();
+
+    assert!(matches!(
+        err.downcast::<AmaciContractError>().unwrap(),
+        AmaciContractError::InvalidRegistrationConfig { .. }
+    ));
+}
+
+/// Test: single call can update multiple fields simultaneously, all attributes emitted.
+#[test]
+fn test_update_registration_config_multiple_fields() {
+    let (mut app, maci_contract) = setup_whitelist_round();
+
+    let resp = maci_contract
+        .amaci_update_registration_config(
+            &mut app,
+            creator(),
+            cw_amaci::msg::RegistrationConfigUpdate {
+                deactivate_enabled: Some(true),
+                voice_credit_mode: Some(cw_amaci::state::VoiceCreditMode::Unified {
+                    amount: Uint256::from_u128(500u128),
+                }),
+                registration_mode: Some(cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
+                    oracle_pubkey: "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string(),
+                }),
+            },
+        )
+        .unwrap();
+
+    let all_attrs: Vec<_> = resp.events.iter().flat_map(|e| &e.attributes).collect();
+
+    let find = |key: &str| {
+        all_attrs
+            .iter()
+            .find(|a| a.key == key)
+            .map(|a| a.value.as_str())
+    };
+    println!("all_attrs: {:?}", all_attrs);
+
+    assert_eq!(find("action"), Some("update_registration_config"));
+    assert_eq!(find("deactivate_enabled"), Some("true"));
+    assert_eq!(find("voice_credit_mode"), Some("Unified"));
+    assert_eq!(find("voice_credit_amount"), Some("500"));
+    assert_eq!(find("registration_mode"), Some("SignUpWithOracle"));
+
+    // Verify config matches all changes
+    let config = maci_contract.amaci_get_registration_config(&app).unwrap();
+    assert!(config.deactivate_enabled);
+    assert!(matches!(
+        config.voice_credit_mode,
+        cw_amaci::state::VoiceCreditMode::Unified { amount } if amount == Uint256::from_u128(500u128)
+    ));
+    assert!(matches!(
+        config.registration_mode,
+        cw_amaci::state::RegistrationMode::SignUpWithOracle { .. }
+    ));
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Publish-message fee tests
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Creates a round inside the voting period.
+/// - creator has 50 DORA (for create_round deposit)
+/// - user2  has 1000 DORA (for publish_message fees)
+fn setup_voting_round_with_user_balance() -> (App, MaciContract) {
+    let creator_coin_amount = 50_000_000_000_000_000_000u128; // 50 DORA
+    let user_coin_amount = 1_000_000_000_000_000_000_000u128; // 1000 DORA
+
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_coin_amount, DORA_DEMON))
+                .unwrap();
+            router
+                .bank
+                .init_balance(storage, &user2(), coins(user_coin_amount, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    let pay = 5_000_000_000_000_000_000u128; // 5 DORA
+    let resp = contract
+        .create_round_with_whitelist(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(1u128),
+            Uint256::from_u128(0u128),
+            &coins(pay, DORA_DEMON),
+        )
+        .unwrap();
+
+    let amaci_contract_addr: InstantiationData = from_json(&resp.data.unwrap()).unwrap();
+    let maci_contract = MaciContract::new(amaci_contract_addr.addr.clone());
+
+    // Advance into the voting period
+    app.update_block(next_block);
+
+    (app, maci_contract)
+}
+
+/// Constructs a dummy MessageData using a seed value.
+fn dummy_message(seed: u128) -> MessageData {
+    MessageData {
+        data: [
+            Uint256::from_u128(seed),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+        ],
+    }
+}
+
+/// Constructs an enc_pub_key for tests. Returns a valid BabyJubJub curve point.
+/// The contract enforces global uniqueness of enc_pub_keys within a round, so each
+/// distinct x argument maps to a distinct valid curve point.
+///
+/// Callers use x = 2, 4, 6, 8, 10 (step 2, starting at 2); we map each to a
+/// unique pre-verified BabyJubJub point:
+///   x=2  → test_pubkey1
+///   x=4  → test_pubkey2
+///   x=6  → test_pubkey3 (BASE8)
+///   x=8  → neg(test_pubkey1)  = (p − x1, y1)  — also on the curve
+///   x=10 → neg(test_pubkey2)  = (p − x2, y2)  — also on the curve
+fn dummy_enc_pub_key(x: u128, _y: u128) -> PubKey {
+    let idx = x.wrapping_sub(2) / 2; // x=2→0, x=4→1, x=6→2, x=8→3, x=10→4
+    match idx {
+        0 => test_pubkey1(),
+        1 => test_pubkey2(),
+        2 => cw_amaci::multitest::test_pubkey3(),
+        // Negation on Twisted Edwards: neg(x, y) = (p - x, y), which is also on the curve.
+        3 => PubKey {
+            x: uint256_from_decimal_string(
+                "18330650710046509409342318032445163966638846089274028457040951814671531797846",
+            ),
+            y: uint256_from_decimal_string(
+                "4363822302427519764561660537570341277214758164895027920046745209970137856681",
+            ),
+        },
+        _ => PubKey {
+            x: uint256_from_decimal_string(
+                "16953397073957751294591563499869634831180054965890073281096930076506392151886",
+            ),
+            y: uint256_from_decimal_string(
+                "7218132018004361008636029786293016526331813670637191622129869640055131468762",
+            ),
+        },
+    }
+}
+
+/// Test: publish_message fails with InsufficientFundsSend when no fee is sent.
+#[test]
+fn test_publish_message_insufficient_fee() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let err = maci_contract
+        .amaci_publish_message_no_fee(&mut app, user2(), dummy_message(1), dummy_enc_pub_key(2, 3))
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::InsufficientFundsSend {},
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message fails when the sent fee is less than MESSAGE_FEE.
+#[test]
+fn test_publish_message_partial_fee_rejected() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let partial_fee = MESSAGE_FEE.u128() / 2;
+    let err = maci_contract
+        .amaci_publish_message_with_funds(
+            &mut app,
+            user2(),
+            dummy_message(1),
+            dummy_enc_pub_key(2, 3),
+            &coins(partial_fee, FEE_DENOM),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::InsufficientFundsSend {},
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message with exact fee succeeds, contract balance grows by
+/// MESSAGE_FEE, and the fee_paid event attribute is emitted.
+#[test]
+fn test_publish_message_fee_paid() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let contract_addr = maci_contract.addr();
+    let balance_before = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    let resp = maci_contract
+        .amaci_publish_message(&mut app, user2(), dummy_message(1), dummy_enc_pub_key(2, 3))
+        .unwrap();
+
+    let balance_after = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    // Contract balance must grow by exactly MESSAGE_FEE
+    assert_eq!(
+        balance_after - balance_before,
+        Uint128::from(MESSAGE_FEE.u128()),
+        "contract balance should increase by MESSAGE_FEE"
+    );
+
+    // Response must carry the fee_paid attribute
+    let fee_paid_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "fee_paid")
+        .expect("response must include fee_paid attribute");
+
+    assert_eq!(
+        fee_paid_attr.value,
+        format!("{}{}", MESSAGE_FEE.u128(), FEE_DENOM)
+    );
+}
+
+/// Test: multiple publish_message calls accumulate fees in the contract.
+#[test]
+fn test_publish_message_fee_accumulation() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let contract_addr = maci_contract.addr();
+    let balance_before = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    // Send 3 messages with distinct enc_pub_keys
+    let pubkeys = [(2u128, 3u128), (4u128, 5u128), (6u128, 7u128)];
+    for (i, (x, y)) in pubkeys.iter().enumerate() {
+        maci_contract
+            .amaci_publish_message(
+                &mut app,
+                user2(),
+                dummy_message(i as u128 + 1),
+                dummy_enc_pub_key(*x, *y),
+            )
+            .unwrap();
+    }
+
+    let balance_after = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    let expected_total = Uint128::from(MESSAGE_FEE.u128() * 3);
+    assert_eq!(
+        balance_after - balance_before,
+        expected_total,
+        "contract balance should increase by 3 × MESSAGE_FEE"
+    );
+}
+
+/// Test: publish_message_batch fails with InsufficientFundsSend when no fee is sent.
+#[test]
+fn test_publish_message_batch_insufficient_fee() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let messages = vec![dummy_message(1), dummy_message(2)];
+    let enc_pub_keys = vec![dummy_enc_pub_key(2, 3), dummy_enc_pub_key(4, 5)];
+
+    let err = maci_contract
+        .amaci_publish_message_batch_no_fee(&mut app, user2(), messages, enc_pub_keys)
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::InsufficientFundsSend {},
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message_batch fails when the fee covers fewer messages than
+/// the actual batch size.
+#[test]
+fn test_publish_message_batch_partial_fee_rejected() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let messages = vec![dummy_message(1), dummy_message(2), dummy_message(3)];
+    let enc_pub_keys = vec![
+        dummy_enc_pub_key(2, 3),
+        dummy_enc_pub_key(4, 5),
+        dummy_enc_pub_key(6, 7),
+    ];
+    // Pay only for 1 message instead of 3
+    let partial_fee = MESSAGE_FEE.u128();
+
+    let err = maci_contract
+        .amaci_publish_message_batch_with_funds(
+            &mut app,
+            user2(),
+            messages,
+            enc_pub_keys,
+            &coins(partial_fee, FEE_DENOM),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::InsufficientFundsSend {},
+        err.downcast().unwrap()
+    );
+}
+
+/// Test: publish_message_batch with correct total fee (batch_size × MESSAGE_FEE)
+/// succeeds, contract balance grows by the full amount, and the fee_paid
+/// event attribute is emitted with the total.
+#[test]
+fn test_publish_message_batch_fee_paid() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let contract_addr = maci_contract.addr();
+    let balance_before = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    let batch_size = 3usize;
+    let messages = vec![dummy_message(1), dummy_message(2), dummy_message(3)];
+    let enc_pub_keys = vec![
+        dummy_enc_pub_key(2, 3),
+        dummy_enc_pub_key(4, 5),
+        dummy_enc_pub_key(6, 7),
+    ];
+
+    let resp = maci_contract
+        .amaci_publish_message_batch(&mut app, user2(), messages, enc_pub_keys)
+        .unwrap();
+
+    let balance_after = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    let expected_total = MESSAGE_FEE.u128() * batch_size as u128;
+
+    // Contract balance must grow by exactly batch_size × MESSAGE_FEE
+    assert_eq!(
+        balance_after - balance_before,
+        Uint128::from(expected_total),
+        "contract balance should increase by batch_size × MESSAGE_FEE"
+    );
+
+    // fee_paid attribute must equal total fee sent
+    let fee_paid_attr = resp
+        .events
+        .iter()
+        .flat_map(|e| &e.attributes)
+        .find(|a| a.key == "fee_paid")
+        .expect("response must include fee_paid attribute");
+
+    assert_eq!(
+        fee_paid_attr.value,
+        format!("{}{}", expected_total, FEE_DENOM)
+    );
+}
+
+// ============================================================================
+// Static Whitelist Scale Restriction Tests
+//
+// The StaticWhitelist registration mode is limited to circuits with
+// state_tree_depth <= 4 (max 625 voters).  Larger scales must use
+// SignUpWithOracle or PrePopulated instead.
+//
+// Circuit mapping (via calculate_round_fee_and_params in registry/utils.rs):
+//   max_voter <=   25 → 2-1-1-5  (state_tree_depth=2, fee=5 DORA)    ✅ allowed
+//   max_voter <=  625 → 4-2-2-25 (state_tree_depth=4, fee=27 DORA)   ✅ allowed
+//   max_voter <= 15625 → 6-3-3-125 (state_tree_depth=6, fee=208 DORA) ❌ rejected
+// ============================================================================
+
+/// Shared setup: creates an App funded for `creator`, stores both contract
+/// codes, instantiates the registry, configures a validator/operator chain.
+fn setup_registry_for_scale_test(
+    creator_balance: u128,
+) -> (App, crate::multitest::AmaciRegistryContract) {
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &creator(), coins(creator_balance, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+
+    let contract = register_code_id
+        .instantiate(
+            &mut app,
+            creator(),
+            amaci_code_id.id(),
+            "Dora AMaci Registry",
+        )
+        .unwrap();
+
+    // Set validators, then bind operator to validator user1, then register pubkey.
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+    _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
+
+    (app, contract)
+}
+
+/// Test: 2-1-1-5 scale (max_voter=25) with SignUpWithStaticWhitelist should succeed.
+#[test]
+fn test_static_whitelist_small_scale_2_1_1_5_allowed() {
+    let fee = 5_000_000_000_000_000_000u128; // 5 DORA
+    let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
+
+    let whitelist = WhitelistBase {
+        users: vec![
+            WhitelistBaseConfig {
+                addr: user1(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user2(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user3(),
+                voice_credit_amount: None,
+            },
+        ],
+    };
+
+    // max_voter=25 → registry selects 2-1-1-5 (state_tree_depth=2, max_voters=25)
+    let result = contract.create_round_static_whitelist_custom(
+        &mut app,
+        creator(),
+        operator(),
+        Uint256::from_u128(25u128),
+        whitelist,
+        Uint256::from_u128(0u128),
+        Uint256::from_u128(0u128),
+        &coins(fee, DORA_DEMON),
+    );
+
+    assert!(
+        result.is_ok(),
+        "2-1-1-5 (state_tree_depth=2) should be allowed with SignUpWithStaticWhitelist, got: {:?}",
+        result.err()
+    );
+}
+
+/// Test: 4-2-2-25 scale (max_voter=625) with SignUpWithStaticWhitelist should succeed.
+#[test]
+fn test_static_whitelist_medium_scale_4_2_2_25_allowed() {
+    let fee = 27_000_000_000_000_000_000u128; // 27 DORA
+    let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
+
+    let whitelist = WhitelistBase {
+        users: vec![
+            WhitelistBaseConfig {
+                addr: user1(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user2(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user3(),
+                voice_credit_amount: None,
+            },
+        ],
+    };
+
+    // max_voter=625 → registry selects 4-2-2-25 (state_tree_depth=4, max_voters=625)
+    let result = contract.create_round_static_whitelist_custom(
+        &mut app,
+        creator(),
+        operator(),
+        Uint256::from_u128(625u128),
+        whitelist,
+        Uint256::from_u128(0u128),
+        Uint256::from_u128(0u128),
+        &coins(fee, DORA_DEMON),
+    );
+
+    assert!(
+        result.is_ok(),
+        "4-2-2-25 (state_tree_depth=4) should be allowed with SignUpWithStaticWhitelist, got: {:?}",
+        result.err()
+    );
+}
+
+/// Test: 6-3-3-125 scale (max_voter=626) with SignUpWithStaticWhitelist should be rejected.
+/// The 6-3-3-125 circuit has state_tree_depth=6 which exceeds the static whitelist
+/// limit of 625 voters. Callers must use SignUpWithOracle or PrePopulated instead.
+#[test]
+fn test_static_whitelist_large_scale_6_3_3_125_rejected() {
+    let fee = 208_000_000_000_000_000_000u128; // 208 DORA
+    let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
+
+    let whitelist = WhitelistBase {
+        users: vec![
+            WhitelistBaseConfig {
+                addr: user1(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user2(),
+                voice_credit_amount: None,
+            },
+            WhitelistBaseConfig {
+                addr: user3(),
+                voice_credit_amount: None,
+            },
+        ],
+    };
+
+    // max_voter=626 → registry selects 6-3-3-125 (state_tree_depth=6, max_voters=15625)
+    // SignUpWithStaticWhitelist is not allowed at this scale.
+    let err = contract
+        .create_round_static_whitelist_custom(
+            &mut app,
+            creator(),
+            operator(),
+            Uint256::from_u128(626u128),
+            whitelist,
+            Uint256::from_u128(0u128),
+            Uint256::from_u128(0u128),
+            &coins(fee, DORA_DEMON),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        AmaciContractError::StaticWhitelistScaleExceeded {
+            max_allowed: Uint256::from_u128(625u128),
+        },
+        err.downcast().unwrap()
+    );
+}
+
+// ─── set_maci_operator_identity tests ────────────────────────────────────────
+
+fn setup_registry_with_operator() -> (cw_multi_test::App, super::AmaciRegistryContract) {
+    use cw_amaci::multitest::MaciCodeId;
+    let mut app = AppBuilder::new()
+        .with_api(dora_mock_api())
+        .build(|router, _api, storage| {
+            router
+                .bank
+                .init_balance(storage, &admin(), coins(1_000_000_000_000_000_000_000u128, DORA_DEMON))
+                .unwrap();
+        });
+
+    let register_code_id = AmaciRegistryCodeId::store_code(&mut app);
+    let amaci_code_id = MaciCodeId::store_default_code(&mut app);
+    let contract = register_code_id
+        .instantiate(&mut app, creator(), amaci_code_id.id(), "Dora AMaci Registry")
+        .unwrap();
+
+    _ = contract.set_validators(&mut app, admin());
+    _ = contract.set_maci_operator(&mut app, user1(), operator());
+
+    (app, contract)
+}
+
+#[test]
+fn set_maci_operator_identity_valid_should_work() {
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let valid_identity = "E6FDC1B9AD669B9B".to_string();
+    contract
+        .set_maci_operator_identity(&mut app, operator(), valid_identity.clone())
+        .unwrap();
+
+    let stored = contract
+        .get_maci_operator_identity(&app, operator())
+        .unwrap();
+    assert_eq!(valid_identity, stored);
+}
+
+#[test]
+fn set_maci_operator_identity_update_should_work() {
+    let (mut app, contract) = setup_registry_with_operator();
+
+    _ = contract.set_maci_operator_identity(&mut app, operator(), "E6FDC1B9AD669B9B".to_string());
+
+    let new_identity = "81D1AD803C0467F4".to_string();
+    contract
+        .set_maci_operator_identity(&mut app, operator(), new_identity.clone())
+        .unwrap();
+
+    let stored = contract
+        .get_maci_operator_identity(&app, operator())
+        .unwrap();
+    assert_eq!(new_identity, stored);
+}
+
+#[test]
+fn set_maci_operator_identity_unauthorized_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, user1(), "E6FDC1B9AD669B9B".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_too_short_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "E6FDC1B9AD66".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_too_long_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "E6FDC1B9AD669B9BFF".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_lowercase_hex_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    // lowercase hex is not accepted — must be uppercase
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "e6fdc1b9ad669b9b".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_non_hex_chars_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "E6FDC1B9AD66ZZZZ".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+#[test]
+fn set_maci_operator_identity_empty_should_fail() {
+    use crate::error::ContractError;
+    let (mut app, contract) = setup_registry_with_operator();
+
+    let err = contract
+        .set_maci_operator_identity(&mut app, operator(), "".to_string())
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidIdentity {}, err.downcast().unwrap());
+}
+
+// ─── end of set_maci_operator_identity tests ─────────────────────────────────
+
+/// Test: publish_message_batch accumulates fees correctly across multiple batches.
+#[test]
+fn test_publish_message_batch_fee_accumulation() {
+    let (mut app, maci_contract) = setup_voting_round_with_user_balance();
+
+    let contract_addr = maci_contract.addr();
+    let balance_before = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    // First batch: 2 messages
+    maci_contract
+        .amaci_publish_message_batch(
+            &mut app,
+            user2(),
+            vec![dummy_message(1), dummy_message(2)],
+            vec![dummy_enc_pub_key(2, 3), dummy_enc_pub_key(4, 5)],
+        )
+        .unwrap();
+
+    // Second batch: 3 messages
+    maci_contract
+        .amaci_publish_message_batch(
+            &mut app,
+            user2(),
+            vec![dummy_message(3), dummy_message(4), dummy_message(5)],
+            vec![
+                dummy_enc_pub_key(6, 7),
+                dummy_enc_pub_key(8, 9),
+                dummy_enc_pub_key(10, 11),
+            ],
+        )
+        .unwrap();
+
+    let balance_after = app
+        .wrap()
+        .query_balance(contract_addr.to_string(), FEE_DENOM)
+        .unwrap()
+        .amount;
+
+    // Total: (2 + 3) × MESSAGE_FEE
+    let expected_total = Uint128::from(MESSAGE_FEE.u128() * 5);
+    assert_eq!(
+        balance_after - balance_before,
+        expected_total,
+        "contract balance should increase by 5 × MESSAGE_FEE across two batches"
+    );
 }

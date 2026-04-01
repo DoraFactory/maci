@@ -1,13 +1,8 @@
 import { OfflineSigner } from '@cosmjs/proto-signing';
 import { StdFee } from '@cosmjs/amino';
 
-import { WhitelistBase as RegistryWhitelist } from './ts/Registry.types';
-import { Whitelist as MaciWhitelist } from './ts/Maci.types';
-import {
-  MaciCircuitType,
-  MaciCertSystemType,
-  CertificateEcosystem,
-} from '../../types';
+import type { RegistrationModeConfig, VoiceCreditMode } from './ts/AMaci.types';
+import { MaciCircuitType } from '../../types';
 import { PubKey } from '../crypto';
 
 export type CreateRoundParams = {
@@ -22,55 +17,34 @@ export type CreateRoundParams = {
 };
 
 export type CreateAMaciRoundParams = {
+  operator: string;
   maxVoter: number;
   voteOptionMap: string[];
+  certificationSystem?: string;
+  deactivateEnabled: boolean;
+  registrationMode: RegistrationModeConfig;
+  voiceCreditMode: VoiceCreditMode;
+  fee?: number | StdFee | 'auto';
+} & CreateRoundParams;
+
+export type CreateApiSaasAmaciRoundParams = {
   operator: string;
-  whitelist?: RegistryWhitelist;
-  voiceCreditAmount: string;
-  preDeactivateRoot?: string;
-  preDeactivateCoordinator?: PubKey | bigint;
-  oracleWhitelistPubkey?: string;
+  maxVoter: number;
+  voteOptionMap: string[];
+  certificationSystem?: string;
+  deactivateEnabled: boolean;
+  registrationMode: RegistrationModeConfig;
+  voiceCreditMode: VoiceCreditMode;
+  gasStation?: boolean;
+  fee?: StdFee | 'auto' | number;
 } & CreateRoundParams;
 
 export type CreateMaciRoundParams = {
   maxVoter: number;
-  maxOption: number;
-  operatorPubkey: bigint | string;
-  whitelist: MaciWhitelist;
-  certSystemType: MaciCertSystemType;
+  voteOptionMap: string[];
+  coordinator: PubKey | bigint;
+  whitelistBackendPubkey: string;
+  whitelistVotingPowerMode: 'slope' | 'threshold';
 } & CreateRoundParams;
 
-export type CreateOracleMaciRoundParams = {
-  voteOptionMap: string[];
-  operatorPubkey: bigint | string;
-  whitelistEcosystem: CertificateEcosystem;
-  whitelistSnapshotHeight: string;
-  whitelistVotingPowerArgs: {
-    mode: 'slope' | 'threshold';
-    slope: string;
-    threshold: string;
-  };
-} & CreateRoundParams;
-
-export type CreateSaasOracleMaciRoundParams = {
-  maxVoter: number;
-  voteOptionMap: string[];
-  operatorPubkey: bigint | string;
-  whitelistBackendPubkey?: string;
-  feegrantOperator?: string;
-  gasStation?: boolean;
-  fee?: StdFee | 'auto' | number;
-} & CreateRoundParams;
-
-export type CreateApiSaasAmaciRoundParams = {
-  maxVoter: number;
-  voteOptionMap: string[];
-  operator: string;
-  whitelist?: RegistryWhitelist;
-  voiceCreditAmount: string;
-  preDeactivateRoot?: string;
-  preDeactivateCoordinator?: PubKey | bigint;
-  oracleWhitelistPubkey?: string;
-  gasStation?: boolean;
-  fee?: StdFee | 'auto' | number;
-} & CreateRoundParams;
+export type { RegistrationModeConfig, VoiceCreditMode } from './ts/AMaci.types';

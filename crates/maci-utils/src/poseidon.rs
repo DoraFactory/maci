@@ -14,9 +14,7 @@ pub fn uint256_to_fr(input: &Uint256) -> Fr {
     let bytes = input.to_le_bytes();
 
     // Try to create Fr from little-endian bytes
-    match Fr::from_le_bytes_mod_order(&bytes) {
-        fr => fr,
-    }
+    Fr::from_le_bytes_mod_order(&bytes)
 }
 
 /// Hash a single Uint256 value
@@ -89,10 +87,10 @@ pub fn hash(message: Vec<Fr>) -> Uint256 {
 
     if len == 2 {
         let arr: [Fr; 2] = [message[0], message[1]];
-        return hash_width_2(&arr);
+        hash_width_2(&arr)
     } else if len == 5 {
         let arr: [Fr; 5] = [message[0], message[1], message[2], message[3], message[4]];
-        return hash_width_5(&arr);
+        hash_width_5(&arr)
     } else {
         // For other widths, create a new Poseidon instance
         let mut poseidon = Poseidon::<Fr>::new_circom(len)

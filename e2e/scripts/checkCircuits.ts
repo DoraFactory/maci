@@ -12,18 +12,6 @@ interface CircuitCheck {
 
 const CIRCUIT_CHECKS: CircuitCheck[] = [
   {
-    name: 'MACI 1P1V',
-    configName: 'maci-2-1-1-5',
-    required: true,
-    files: [
-      path.join(CIRCUITS_DIR, 'maci-2-1-1-5', 'processMessages.wasm'),
-      path.join(CIRCUITS_DIR, 'maci-2-1-1-5', 'processMessages.zkey'),
-      path.join(CIRCUITS_DIR, 'maci-2-1-1-5', 'tallyVotes.wasm'),
-      path.join(CIRCUITS_DIR, 'maci-2-1-1-5', 'tallyVotes.zkey'),
-      path.join(CIRCUITS_DIR, 'vkeys-maci-2-1-1-5.json')
-    ]
-  },
-  {
     name: 'AMACI',
     configName: 'amaci-2-1-1-5',
     required: true,

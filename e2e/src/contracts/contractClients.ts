@@ -57,28 +57,35 @@ export class AmaciContractClient extends BaseContractClient {
   /**
    * Sign up a user
    */
-  async signUp(pubkey: { x: string; y: string }, certificate?: string): Promise<any> {
+  async signUp(pubkey: { x: string; y: string }, certificate?: string, amount?: string): Promise<any> {
     return await this.execute({
       sign_up: {
         pubkey,
-        certificate
+        certificate,
+        amount
       }
     });
   }
 
   /**
    * Publish deactivate message
+   * NOTE: Requires 10 DORA fee (10 * 10^18 peaka)
    */
   async publishDeactivateMessage(
     message: string[],
     encPubKey: { x: string; y: string }
   ): Promise<any> {
-    return await this.execute({
-      publish_deactivate_message: {
-        message: { data: message },
-        enc_pub_key: encPubKey
-      }
-    });
+    // 10 DORA = 10 * 10^18 peaka
+    const deactivateFee = [{ denom: 'peaka', amount: '10000000000000000000' }];
+    return await this.execute(
+      {
+        publish_deactivate_message: {
+          message: { data: message },
+          enc_pub_key: encPubKey
+        }
+      },
+      deactivateFee
+    );
   }
 
   /**
@@ -140,30 +147,42 @@ export class AmaciContractClient extends BaseContractClient {
 
   /**
    * Publish message (vote)
+   * NOTE: Requires 0.06 DORA fee (6 * 10^16 peaka) per message
    */
   async publishMessage(message: string[], encPubKey: { x: string; y: string }): Promise<any> {
-    return await this.execute({
-      publish_message: {
-        message: { data: message },
-        enc_pub_key: encPubKey
-      }
-    });
+    const messageFee = [{ denom: 'peaka', amount: '60000000000000000' }];
+    return await this.execute(
+      {
+        publish_message: {
+          messages: [{ data: message }],
+          enc_pub_keys: [encPubKey]
+        }
+      },
+      messageFee
+    );
   }
 
   /**
-   * Publish message batch (multiple votes in one transaction)
+   * Publish multiple messages in one transaction (batch).
+   * NOTE: Requires 0.06 DORA fee per message (batch_size * 6 * 10^16 peaka total).
+   * Uses the unified publish_message endpoint.
    */
   async publishMessageBatch(
     messages: Array<{ message: string[]; encPubKey: { x: string; y: string } }>
   ): Promise<any> {
     const formattedMessages = messages.map((m) => ({ data: m.message }));
     const encPubKeys = messages.map((m) => m.encPubKey);
-    return await this.execute({
-      publish_message_batch: {
-        messages: formattedMessages,
-        enc_pub_keys: encPubKeys
-      }
-    });
+    const totalFee = BigInt('60000000000000000') * BigInt(messages.length);
+    const batchFee = [{ denom: 'peaka', amount: totalFee.toString() }];
+    return await this.execute(
+      {
+        publish_message: {
+          messages: formattedMessages,
+          enc_pub_keys: encPubKeys
+        }
+      },
+      batchFee
+    );
   }
 
   /**
@@ -283,10 +302,17 @@ export class AmaciContractClient extends BaseContractClient {
   }
 
   /**
-   * Query: Get all results
+   * Query: Get all results (sum)
    */
   async getAllResult(): Promise<any> {
     return await this.query({ get_all_result: {} });
+  }
+
+  /**
+   * Query: Get all results (array of vote counts for each option)
+   */
+  async getAllResults(): Promise<any> {
+    return await this.query({ get_all_results: {} });
   }
 
   /**
@@ -362,12 +388,19 @@ export class AmaciContractClient extends BaseContractClient {
   async getDeactivateMessage(): Promise<string[][]> {
     return await this.query({ get_deactivate_message: {} });
   }
+
+  /**
+   * Query: Get poll ID
+   */
+  async getPollId(): Promise<string> {
+    return await this.query({ get_poll_id: {} });
+  }
 }
 
 /**
- * API-MACI contract client
+ * MACI contract client
  */
-export class ApiMaciContractClient extends BaseContractClient {
+export class MaciContractClient extends BaseContractClient {
   /**
    * Sign up a user
    */
@@ -396,8 +429,8 @@ export class ApiMaciContractClient extends BaseContractClient {
 
     return await this.execute({
       publish_message: {
-        message: { data: message },
-        enc_pub_key: pubkeyObj
+        messages: [{ data: message }],
+        enc_pub_keys: [pubkeyObj]
       }
     });
   }
@@ -474,6 +507,13 @@ export class ApiMaciContractClient extends BaseContractClient {
    */
   async getPeriod(): Promise<any> {
     return await this.query({ get_period: {} });
+  }
+
+  /**
+   * Query: Get poll ID
+   */
+  async getPollId(): Promise<string> {
+    return await this.query({ get_poll_id: {} });
   }
 }
 

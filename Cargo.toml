@@ -2,7 +2,7 @@
 members = [
     "contracts/amaci",
     "contracts/registry",
-    "contracts/api-maci",
+    "contracts/maci",
     "contracts/api-saas",
     "contracts/test",
 

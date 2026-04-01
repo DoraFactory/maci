@@ -76,7 +76,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -95,7 +95,8 @@ describe('TallyVotes Circuit Tests', function () {
       const vote1Payload = voter1.buildVotePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 5 }]
+        selectedOptions: [{ idx: 1, vc: 5 }],
+        pollId: 1
       });
 
       for (const payload of vote1Payload) {
@@ -108,7 +109,8 @@ describe('TallyVotes Circuit Tests', function () {
       const vote2Payload = voter2.buildVotePayload({
         stateIdx: 1,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 2, vc: 7 }]
+        selectedOptions: [{ idx: 2, vc: 7 }],
+        pollId: 1
       });
 
       for (const payload of vote2Payload) {
@@ -159,6 +161,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
+        pollId: 1,
         // More than one batch
         isQuadraticCost: true,
         isAmaci: false
@@ -186,7 +189,8 @@ describe('TallyVotes Circuit Tests', function () {
         const votePayload = tempVoter.buildVotePayload({
           stateIdx: i,
           operatorPubkey: coordPubKey,
-          selectedOptions: [{ idx: i % maxVoteOptions, vc: 3 }]
+          selectedOptions: [{ idx: i % maxVoteOptions, vc: 3 }],
+          pollId: 1
         });
 
         for (const payload of votePayload) {
@@ -242,7 +246,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: false,
         isAmaci: false
       });
@@ -256,7 +260,8 @@ describe('TallyVotes Circuit Tests', function () {
       const votePayload = voter1.buildVotePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 10 }]
+        selectedOptions: [{ idx: 0, vc: 10 }],
+        pollId: 1
       });
 
       for (const payload of votePayload) {
@@ -298,7 +303,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -351,7 +356,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -364,7 +369,8 @@ describe('TallyVotes Circuit Tests', function () {
       const votePayload = voter1.buildVotePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 8 }]
+        selectedOptions: [{ idx: 1, vc: 8 }],
+        pollId: 1
       });
 
       for (const payload of votePayload) {
@@ -408,7 +414,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -432,7 +438,8 @@ describe('TallyVotes Circuit Tests', function () {
         const votePayload = voters[i].buildVotePayload({
           stateIdx: i,
           operatorPubkey: coordPubKey,
-          selectedOptions: [{ idx: 1, vc: 2 }]
+          selectedOptions: [{ idx: 1, vc: 2 }],
+          pollId: 1
         });
 
         for (const payload of votePayload) {
@@ -494,7 +501,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -509,7 +516,8 @@ describe('TallyVotes Circuit Tests', function () {
       const votePayload = voter1.buildVotePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 2, vc: voteWeight }]
+        selectedOptions: [{ idx: 2, vc: voteWeight }],
+        pollId: 1
       });
 
       for (const payload of votePayload) {
@@ -589,7 +597,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: true // AMACI mode
       });
@@ -604,7 +612,8 @@ describe('TallyVotes Circuit Tests', function () {
       const votePayload = voter1.buildVotePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 1, vc: 5 }]
+        selectedOptions: [{ idx: 1, vc: 5 }],
+        pollId: 1
       });
 
       for (const payload of votePayload) {
@@ -657,7 +666,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth: 1,
         batchSize: 5,
         maxVoteOptions: 5,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -681,7 +690,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth: 1,
         batchSize: 5,
         maxVoteOptions: 5,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -698,7 +707,8 @@ describe('TallyVotes Circuit Tests', function () {
       const votePayload = voter.buildVotePayload({
         stateIdx: 0,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: 0, vc: 3 }]
+        selectedOptions: [{ idx: 0, vc: 3 }],
+        pollId: 1
       });
 
       for (const payload of votePayload) {
@@ -739,7 +749,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth: 1,
         batchSize: 5,
         maxVoteOptions,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -764,7 +774,8 @@ describe('TallyVotes Circuit Tests', function () {
           { idx: 2, vc: 3 },
           { idx: 3, vc: 4 },
           { idx: 4, vc: 5 }
-        ]
+        ],
+        pollId: 1
       });
 
       for (const payload of votePayload) {
@@ -827,7 +838,7 @@ describe('TallyVotes Circuit Tests', function () {
         voteOptionTreeDepth,
         batchSize: 5,
         maxVoteOptions: 5,
-
+        pollId: 1,
         isQuadraticCost: true,
         isAmaci: false
       });
@@ -847,7 +858,8 @@ describe('TallyVotes Circuit Tests', function () {
         const votePayload = voters[i].buildVotePayload({
           stateIdx: i,
           operatorPubkey: coordPubKey,
-          selectedOptions: voteOptions[i]
+          selectedOptions: voteOptions[i],
+          pollId: 1
         });
 
         for (const payload of votePayload) {

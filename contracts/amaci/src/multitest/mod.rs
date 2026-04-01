@@ -6,7 +6,8 @@ mod tests;
 use anyhow::Result as AnyResult;
 
 use crate::state::{
-    DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VotingTime,
+    DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VoiceCreditMode,
+    VotingTime, FEE_DENOM, MESSAGE_FEE,
 };
 use crate::{
     contract::{execute, instantiate, query},
@@ -15,10 +16,10 @@ use crate::{
 use maci_utils::uint256_from_hex_string;
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
-use cosmwasm_std::{Addr, Empty, StdResult, Timestamp, Uint128, Uint256};
+use cosmwasm_std::{coins, Addr, Empty, StdResult, Timestamp, Uint128, Uint256};
 use cw_multi_test::App as DefaultApp;
 use cw_multi_test::{
-    no_init, AppBuilder, AppResponse, BankKeeper, ContractWrapper, DistributionKeeper, Executor,
+    AppBuilder, AppResponse, BankKeeper, ContractWrapper, DistributionKeeper, Executor,
     FailingModule, GovFailingModule, IbcFailingModule, StakeKeeper, StargateAccepting, WasmKeeper,
 };
 use num_bigint::BigUint;
@@ -54,10 +55,25 @@ pub type App<ExecC = Empty, QueryC = Empty> = cw_multi_test::App<
     StargateAccepting,
 >;
 
+// 1000 DORA per test user, enough to cover all publish_message fees in any test
+const TEST_USER_BALANCE: u128 = 1_000_000_000_000_000_000_000u128;
+
+pub fn dora_mock_api() -> MockApi {
+    MockApi::default().with_prefix("dora")
+}
+
 pub fn create_app() -> App {
     AppBuilder::new()
+        .with_api(dora_mock_api())
         .with_stargate(StargateAccepting)
-        .build(no_init)
+        .build(|router, _, storage| {
+            for addr in [user1(), user2(), user3()] {
+                router
+                    .bank
+                    .init_balance(storage, &addr, coins(TEST_USER_BALANCE, "peaka"))
+                    .unwrap();
+            }
+        })
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -99,8 +115,14 @@ impl MaciCodeId {
         };
         let whitelist = Some(WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1 },
-                WhitelistBaseConfig { addr: user2 },
+                WhitelistBaseConfig {
+                    addr: user1,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2,
+                    voice_credit_amount: None,
+                },
             ],
         });
 
@@ -141,8 +163,14 @@ impl MaciCodeId {
         };
         let whitelist = Some(WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1 },
-                WhitelistBaseConfig { addr: user2 },
+                WhitelistBaseConfig {
+                    addr: user1,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2,
+                    voice_credit_amount: None,
+                },
             ],
         });
         let voting_time = VotingTime {
@@ -212,8 +240,14 @@ impl MaciCodeId {
         };
         let whitelist = Some(WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1 },
-                WhitelistBaseConfig { addr: user2 },
+                WhitelistBaseConfig {
+                    addr: user1,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2,
+                    voice_credit_amount: None,
+                },
             ],
         });
         let voting_time = VotingTime {
@@ -252,9 +286,18 @@ impl MaciCodeId {
         };
         let whitelist = Some(WhitelistBase {
             users: vec![
-                WhitelistBaseConfig { addr: user1 },
-                WhitelistBaseConfig { addr: user2 },
-                WhitelistBaseConfig { addr: user3 },
+                WhitelistBaseConfig {
+                    addr: user1,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user2,
+                    voice_credit_amount: None,
+                },
+                WhitelistBaseConfig {
+                    addr: user3,
+                    voice_credit_amount: None,
+                },
             ],
         });
         let start_time = Timestamp::from_nanos(1571797424879000000);
@@ -327,7 +370,6 @@ impl MaciContract {
                     "4363822302427519764561660537570341277214758164895027920046745209970137856681",
                 ),
             },
-            voice_credit_amount: Uint256::from_u128(100u128),
             vote_option_map: vec![
                 "Option 1".to_string(),
                 "Option 2".to_string(),
@@ -335,17 +377,22 @@ impl MaciContract {
                 "Option 4".to_string(),
                 "Option 5".to_string(),
             ],
-            pre_deactivate_root: Uint256::from_u128(0u128),
             round_info,
-            whitelist,
             voting_time,
             circuit_type,
             certification_system,
             operator: operator(),
             admin: owner(),
             fee_recipient: fee_recipient(),
-            oracle_whitelist_pubkey: None,
-            pre_deactivate_coordinator: None,
+            poll_id: 1u64,
+            // Unified MACI Configuration
+            voice_credit_mode: VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: whitelist.unwrap_or_else(|| WhitelistBase { users: vec![] }),
+            },
+            deactivate_enabled: false, // Default: disabled
         };
 
         app.instantiate_contract(
@@ -388,7 +435,6 @@ impl MaciContract {
                     "4363822302427519764561660537570341277214758164895027920046745209970137856681",
                 ),
             },
-            voice_credit_amount: Uint256::from_u128(100u128),
             vote_option_map: vec![
                 "Option 1".to_string(),
                 "Option 2".to_string(),
@@ -396,17 +442,22 @@ impl MaciContract {
                 "Option 4".to_string(),
                 "Option 5".to_string(),
             ],
-            pre_deactivate_root: Uint256::from_u128(0u128),
             round_info,
-            whitelist,
             voting_time,
             circuit_type,
             certification_system,
             operator: operator(),
             admin: owner(),
             fee_recipient: fee_recipient(),
-            oracle_whitelist_pubkey: None,
-            pre_deactivate_coordinator: None,
+            poll_id: 1u64,
+            // Unified MACI Configuration
+            voice_credit_mode: VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: whitelist.unwrap_or_else(|| WhitelistBase { users: vec![] }),
+            },
+            deactivate_enabled: true, // ENABLED for deactivate and add_new_key tests
         };
 
         app.instantiate_contract(
@@ -421,6 +472,21 @@ impl MaciContract {
     }
 
     #[track_caller]
+    pub fn update_registration_config(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        config: RegistrationConfigUpdate,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::UpdateRegistrationConfig { config },
+            &[],
+        )
+    }
+
+    #[track_caller]
     pub fn sign_up(&self, app: &mut App, sender: Addr, pubkey: PubKey) -> AnyResult<AppResponse> {
         app.execute_contract(
             sender,
@@ -428,6 +494,7 @@ impl MaciContract {
             &ExecuteMsg::SignUp {
                 pubkey,
                 certificate: None,
+                amount: None,
             },
             &[],
         )
@@ -447,6 +514,7 @@ impl MaciContract {
             &ExecuteMsg::SignUp {
                 pubkey,
                 certificate: Some(certificate),
+                amount: None,
             },
             &[],
         )
@@ -464,10 +532,30 @@ impl MaciContract {
             sender,
             self.addr(),
             &ExecuteMsg::PublishMessage {
-                message,
-                enc_pub_key,
+                messages: vec![message],
+                enc_pub_keys: vec![enc_pub_key],
             },
-            &[],
+            &coins(MESSAGE_FEE.u128(), FEE_DENOM),
+        )
+    }
+
+    #[track_caller]
+    pub fn publish_message_batch(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+    ) -> AnyResult<AppResponse> {
+        let total_fee = MESSAGE_FEE.u128() * messages.len() as u128;
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                messages,
+                enc_pub_keys,
+            },
+            &coins(total_fee, FEE_DENOM),
         )
     }
 
@@ -505,17 +593,29 @@ impl MaciContract {
 
     #[track_caller]
     pub fn set_whitelist(&self, app: &mut App, sender: Addr) -> AnyResult<AppResponse> {
+        // Use UpdateRegistrationConfig instead of deprecated SetWhitelists
+        let config = RegistrationConfigUpdate {
+            deactivate_enabled: None,
+            voice_credit_mode: None,
+            registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase {
+                    users: vec![
+                        WhitelistBaseConfig {
+                            addr: user1(),
+                            voice_credit_amount: None,
+                        },
+                        WhitelistBaseConfig {
+                            addr: user2(),
+                            voice_credit_amount: None,
+                        },
+                    ],
+                },
+            }),
+        };
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::SetWhitelists {
-                whitelists: WhitelistBase {
-                    users: vec![
-                        WhitelistBaseConfig { addr: user1() },
-                        WhitelistBaseConfig { addr: user2() },
-                    ],
-                },
-            },
+            &ExecuteMsg::UpdateRegistrationConfig { config },
             &[],
         )
     }
@@ -750,11 +850,6 @@ impl MaciContract {
             .query_wasm_smart(self.addr(), &QueryMsg::GetRoundInfo {})
     }
 
-    pub fn query_total_feegrant(&self, app: &App) -> StdResult<Uint128> {
-        app.wrap()
-            .query_wasm_smart(self.addr(), &QueryMsg::QueryTotalFeeGrant {})
-    }
-
     pub fn query_delay_records(&self, app: &App) -> StdResult<DelayRecords> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::GetDelayRecords {})
@@ -788,6 +883,7 @@ impl MaciContract {
             &ExecuteMsg::SignUp {
                 pubkey,
                 certificate: None,
+                amount: None,
             },
             &[],
         )
@@ -807,6 +903,7 @@ impl MaciContract {
             &ExecuteMsg::SignUp {
                 pubkey,
                 certificate: Some(certificate),
+                amount: None,
             },
             &[],
         )
@@ -824,10 +921,108 @@ impl MaciContract {
             sender,
             self.addr(),
             &ExecuteMsg::PublishMessage {
-                message,
-                enc_pub_key,
+                messages: vec![message],
+                enc_pub_keys: vec![enc_pub_key],
+            },
+            &coins(MESSAGE_FEE.u128(), FEE_DENOM),
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_batch(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+    ) -> AnyResult<AppResponse> {
+        let total_fee = MESSAGE_FEE.u128() * messages.len() as u128;
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                messages,
+                enc_pub_keys,
+            },
+            &coins(total_fee, FEE_DENOM),
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_no_fee(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        message: MessageData,
+        enc_pub_key: PubKey,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                messages: vec![message],
+                enc_pub_keys: vec![enc_pub_key],
             },
             &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_with_funds(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        message: MessageData,
+        enc_pub_key: PubKey,
+        funds: &[cosmwasm_std::Coin],
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                messages: vec![message],
+                enc_pub_keys: vec![enc_pub_key],
+            },
+            funds,
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_batch_no_fee(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                messages,
+                enc_pub_keys,
+            },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn amaci_publish_message_batch_with_funds(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        messages: Vec<MessageData>,
+        enc_pub_keys: Vec<PubKey>,
+        funds: &[cosmwasm_std::Coin],
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                messages,
+                enc_pub_keys,
+            },
+            funds,
         )
     }
 
@@ -877,17 +1072,29 @@ impl MaciContract {
         app: &mut DefaultApp,
         sender: Addr,
     ) -> AnyResult<AppResponse> {
+        // Use UpdateRegistrationConfig instead of deprecated SetWhitelists
+        let config = RegistrationConfigUpdate {
+            deactivate_enabled: None,
+            voice_credit_mode: None,
+            registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase {
+                    users: vec![
+                        WhitelistBaseConfig {
+                            addr: user1(),
+                            voice_credit_amount: None,
+                        },
+                        WhitelistBaseConfig {
+                            addr: user2(),
+                            voice_credit_amount: None,
+                        },
+                    ],
+                },
+            }),
+        };
         app.execute_contract(
             sender,
             self.addr(),
-            &ExecuteMsg::SetWhitelists {
-                whitelists: WhitelistBase {
-                    users: vec![
-                        WhitelistBaseConfig { addr: user1() },
-                        WhitelistBaseConfig { addr: user2() },
-                    ],
-                },
-            },
+            &ExecuteMsg::UpdateRegistrationConfig { config },
             &[],
         )
     }
@@ -937,6 +1144,8 @@ impl MaciContract {
         message: MessageData,
         enc_pub_key: PubKey,
     ) -> AnyResult<AppResponse> {
+        use cosmwasm_std::coin;
+        // Always send 10 DORA fee for deactivate message
         app.execute_contract(
             sender,
             self.addr(),
@@ -944,7 +1153,7 @@ impl MaciContract {
                 message,
                 enc_pub_key,
             },
-            &[],
+            &[coin(10_000_000_000_000_000_000, "peaka")], // 10 DORA fee
         )
     }
 
@@ -1114,6 +1323,11 @@ impl MaciContract {
             .query_wasm_smart(self.addr(), &QueryMsg::GetNumSignUp {})
     }
 
+    pub fn amaci_processed_msg_count(&self, app: &DefaultApp) -> StdResult<Uint256> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetProcessedMsgCount {})
+    }
+
     pub fn amaci_signuped(&self, app: &DefaultApp, pubkey: PubKey) -> StdResult<Option<Uint256>> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::Signuped { pubkey })
@@ -1149,11 +1363,6 @@ impl MaciContract {
             .query_wasm_smart(self.addr(), &QueryMsg::GetRoundInfo {})
     }
 
-    pub fn amaci_query_total_feegrant(&self, app: &DefaultApp) -> StdResult<Uint128> {
-        app.wrap()
-            .query_wasm_smart(self.addr(), &QueryMsg::QueryTotalFeeGrant {})
-    }
-
     pub fn amaci_query_delay_records(&self, app: &DefaultApp) -> StdResult<DelayRecords> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::GetDelayRecords {})
@@ -1177,6 +1386,29 @@ impl MaciContract {
     pub fn amaci_query_tally_delay(&self, app: &DefaultApp) -> StdResult<TallyDelayInfo> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::GetTallyDelay {})
+    }
+
+    pub fn amaci_get_registration_config(
+        &self,
+        app: &DefaultApp,
+    ) -> StdResult<RegistrationConfigInfo> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetRegistrationConfig {})
+    }
+
+    #[track_caller]
+    pub fn amaci_update_registration_config(
+        &self,
+        app: &mut DefaultApp,
+        sender: Addr,
+        config: RegistrationConfigUpdate,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::UpdateRegistrationConfig { config },
+            &[],
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1209,7 +1441,6 @@ impl MaciContract {
                     "4363822302427519764561660537570341277214758164895027920046745209970137856681",
                 ),
             },
-            voice_credit_amount: Uint256::from_u128(100u128),
             vote_option_map: vec![
                 "Option 1".to_string(),
                 "Option 2".to_string(),
@@ -1217,17 +1448,22 @@ impl MaciContract {
                 "Option 4".to_string(),
                 "Option 5".to_string(),
             ],
-            pre_deactivate_root: Uint256::from_u128(0u128),
             round_info,
-            whitelist,
             voting_time,
             circuit_type,
             certification_system,
             operator: operator(),
             admin: owner(),
             fee_recipient: fee_recipient(),
-            oracle_whitelist_pubkey: Some(oracle_whitelist_pubkey),
-            pre_deactivate_coordinator: None,
+            poll_id: 1u64,
+            // Unified MACI Configuration
+            voice_credit_mode: VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithOracle {
+                oracle_pubkey: oracle_whitelist_pubkey,
+            },
+            deactivate_enabled: false, // Default: disabled
         };
 
         app.instantiate_contract(
@@ -1236,6 +1472,136 @@ impl MaciContract {
             &init_msg,
             &[],
             label,
+            None,
+        )
+        .map(Self::from)
+    }
+
+    // Helper function to instantiate with default parameters (deactivate disabled)
+    #[track_caller]
+    pub fn instantiate_default(app: &mut App, whitelist: bool) -> AnyResult<Self> {
+        let code_id = MaciCodeId::store_code(app);
+        let round_info = RoundInfo {
+            title: String::from("TestRound"),
+            description: String::from("Test Description"),
+            link: String::from("https://github.com"),
+        };
+
+        let whitelist_cfg = Some(WhitelistBase {
+            users: if whitelist {
+                vec![
+                    WhitelistBaseConfig {
+                        addr: user1(),
+                        voice_credit_amount: None, // Will use Unified mode default
+                    },
+                    WhitelistBaseConfig {
+                        addr: user2(),
+                        voice_credit_amount: None, // Will use Unified mode default
+                    },
+                ]
+            } else {
+                vec![]
+            },
+        });
+
+        let voting_time = VotingTime {
+            start_time: Timestamp::from_nanos(1571797424879000000),
+            end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11), // 11 minutes later
+        };
+
+        Self::instantiate(
+            app,
+            code_id,
+            owner(),
+            round_info,
+            whitelist_cfg,
+            voting_time,
+            Uint256::from_u128(0), // 1p1v
+            Uint256::from_u128(0), // groth16
+            "MACI Contract",
+        )
+    }
+
+    // Helper function to instantiate with deactivate enabled
+    #[track_caller]
+    pub fn instantiate_with_deactivate_enabled(app: &mut App, whitelist: bool) -> AnyResult<Self> {
+        let code_id = MaciCodeId::store_code(app);
+        let parameters = MaciParameters {
+            state_tree_depth: Uint256::from_u128(2u128),
+            int_state_tree_depth: Uint256::from_u128(1u128),
+            message_batch_size: Uint256::from_u128(5u128),
+            vote_option_tree_depth: Uint256::from_u128(1u128),
+        };
+
+        let round_info = RoundInfo {
+            title: String::from("TestRound"),
+            description: String::from("Test Description"),
+            link: String::from("https://github.com"),
+        };
+
+        let whitelist_cfg = Some(WhitelistBase {
+            users: if whitelist {
+                vec![
+                    WhitelistBaseConfig {
+                        addr: user1(),
+                        voice_credit_amount: None, // Will use Unified mode default
+                    },
+                    WhitelistBaseConfig {
+                        addr: user2(),
+                        voice_credit_amount: None, // Will use Unified mode default
+                    },
+                ]
+            } else {
+                vec![]
+            },
+        });
+
+        let voting_time = VotingTime {
+            start_time: Timestamp::from_nanos(1571797424879000000),
+            end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11), // 11 minutes later
+        };
+
+        let init_msg = InstantiateMsg {
+            parameters,
+            coordinator: PubKey {
+                x: uint256_from_decimal_string(
+                    "3557592161792765812904087712812111121909518311142005886657252371904276697771",
+                ),
+                y: uint256_from_decimal_string(
+                    "4363822302427519764561660537570341277214758164895027920046745209970137856681",
+                ),
+            },
+            vote_option_map: vec![
+                "Option 1".to_string(),
+                "Option 2".to_string(),
+                "Option 3".to_string(),
+                "Option 4".to_string(),
+                "Option 5".to_string(),
+            ],
+            round_info,
+            voting_time,
+            circuit_type: Uint256::from_u128(0),         // 1p1v
+            certification_system: Uint256::from_u128(0), // groth16
+            operator: operator(),
+            admin: owner(),
+            fee_recipient: fee_recipient(),
+            poll_id: 1u64,
+            // Unified MACI Configuration
+            voice_credit_mode: VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: whitelist_cfg.unwrap_or_else(|| WhitelistBase { users: vec![] }),
+            },
+            deactivate_enabled: true, // ENABLED!
+        };
+
+        app.instantiate_contract(
+            code_id.0,
+            owner(),
+            &init_msg,
+            &[],
+            "MACI Contract with Deactivate Enabled",
             None,
         )
         .map(Self::from)
@@ -1249,15 +1615,15 @@ impl From<Addr> for MaciContract {
 }
 
 pub fn user1() -> Addr {
-    Addr::unchecked("0")
+    dora_mock_api().addr_make("user1")
 }
 
 pub fn user2() -> Addr {
-    Addr::unchecked("1")
+    dora_mock_api().addr_make("user2")
 }
 
 pub fn user3() -> Addr {
-    Addr::unchecked("2")
+    dora_mock_api().addr_make("user3")
 }
 
 pub fn owner() -> Addr {
@@ -1287,10 +1653,22 @@ pub fn test_pubkey1() -> PubKey {
 pub fn test_pubkey2() -> PubKey {
     PubKey {
         x: uint256_from_decimal_string(
-            "1234567890123456789012345678901234567890123456789012345678901234567890123456",
+            "4934845797881523927654842245387640257368309434525961062601274110069416343731",
         ),
         y: uint256_from_decimal_string(
-            "9876543210987654321098765432109876543210987654321098765432109876543210987654",
+            "7218132018004361008636029786293016526331813670637191622129869640055131468762",
+        ),
+    }
+}
+
+// BabyJubJub BASE8 generator point — a canonical valid curve point for test data
+pub fn test_pubkey3() -> PubKey {
+    PubKey {
+        x: uint256_from_decimal_string(
+            "5299619240641551281634865583518297030282874472190772894086521144482721001553",
+        ),
+        y: uint256_from_decimal_string(
+            "16950150798460657717958625567821834550301663161624707787222815936182638968203",
         ),
     }
 }

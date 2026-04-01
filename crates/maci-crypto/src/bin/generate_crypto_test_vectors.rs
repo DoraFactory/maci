@@ -541,9 +541,9 @@ fn generate_pack_vectors() -> Vec<TestVector> {
     let state_idx1 = BigUint::from(5u32);
     let vo_idx1 = BigUint::from(10u32);
     let new_votes1 = BigUint::from(100u32);
-    let salt1 = BigUint::from(999u32);
+    let poll_id1 = BigUint::from(0u32); // Default poll_id is 0
 
-    let packed1 = pack_element(&nonce1, &state_idx1, &vo_idx1, &new_votes1, Some(&salt1));
+    let packed1 = pack_element(&nonce1, &state_idx1, &vo_idx1, &new_votes1, &poll_id1);
     let unpacked1 = unpack_element(&packed1);
 
     vectors.push(TestVector {
@@ -556,7 +556,7 @@ fn generate_pack_vectors() -> Vec<TestVector> {
                 "state_idx": biguint_to_hex(&state_idx1),
                 "vo_idx": biguint_to_hex(&vo_idx1),
                 "new_votes": biguint_to_hex(&new_votes1),
-                "salt": biguint_to_hex(&salt1),
+                "poll_id": biguint_to_hex(&poll_id1),
             },
             "packed": biguint_to_hex(&packed1),
             "unpacked": {
@@ -564,6 +564,7 @@ fn generate_pack_vectors() -> Vec<TestVector> {
                 "state_idx": biguint_to_hex(&unpacked1.state_idx),
                 "vo_idx": biguint_to_hex(&unpacked1.vo_idx),
                 "new_votes": biguint_to_hex(&unpacked1.new_votes),
+                "poll_id": biguint_to_hex(&unpacked1.poll_id),
             },
         }),
     });
@@ -573,9 +574,9 @@ fn generate_pack_vectors() -> Vec<TestVector> {
     let state_idx2 = BigUint::from(0u32);
     let vo_idx2 = BigUint::from(0u32);
     let new_votes2 = BigUint::from(0u32);
-    let salt2 = BigUint::from(0u32);
+    let poll_id2 = BigUint::from(0u32);
 
-    let packed2 = pack_element(&nonce2, &state_idx2, &vo_idx2, &new_votes2, Some(&salt2));
+    let packed2 = pack_element(&nonce2, &state_idx2, &vo_idx2, &new_votes2, &poll_id2);
     let unpacked2 = unpack_element(&packed2);
 
     vectors.push(TestVector {
@@ -588,7 +589,7 @@ fn generate_pack_vectors() -> Vec<TestVector> {
                 "state_idx": biguint_to_hex(&state_idx2),
                 "vo_idx": biguint_to_hex(&vo_idx2),
                 "new_votes": biguint_to_hex(&new_votes2),
-                "salt": biguint_to_hex(&salt2),
+                "poll_id": biguint_to_hex(&poll_id2),
             },
             "packed": biguint_to_hex(&packed2),
             "unpacked": {
@@ -596,6 +597,7 @@ fn generate_pack_vectors() -> Vec<TestVector> {
                 "state_idx": biguint_to_hex(&unpacked2.state_idx),
                 "vo_idx": biguint_to_hex(&unpacked2.vo_idx),
                 "new_votes": biguint_to_hex(&unpacked2.new_votes),
+                "poll_id": biguint_to_hex(&unpacked2.poll_id),
             },
         }),
     });
@@ -606,9 +608,9 @@ fn generate_pack_vectors() -> Vec<TestVector> {
     let state_idx3 = &*UINT32 - BigUint::from(1u32);
     let vo_idx3 = &*UINT32 - BigUint::from(1u32);
     let new_votes3 = &*UINT96 - BigUint::from(1u32);
-    let salt3 = BigUint::from(0xFFFFFFFFFFFFFFu64); // 56 bits max
+    let poll_id3 = &*UINT32 - BigUint::from(1u32); // 32 bits max for poll_id
 
-    let packed3 = pack_element(&nonce3, &state_idx3, &vo_idx3, &new_votes3, Some(&salt3));
+    let packed3 = pack_element(&nonce3, &state_idx3, &vo_idx3, &new_votes3, &poll_id3);
     let unpacked3 = unpack_element(&packed3);
 
     vectors.push(TestVector {
@@ -621,7 +623,7 @@ fn generate_pack_vectors() -> Vec<TestVector> {
                 "state_idx": biguint_to_hex(&state_idx3),
                 "vo_idx": biguint_to_hex(&vo_idx3),
                 "new_votes": biguint_to_hex(&new_votes3),
-                "salt": biguint_to_hex(&salt3),
+                "poll_id": biguint_to_hex(&poll_id3),
             },
             "packed": biguint_to_hex(&packed3),
             "unpacked": {
@@ -629,6 +631,7 @@ fn generate_pack_vectors() -> Vec<TestVector> {
                 "state_idx": biguint_to_hex(&unpacked3.state_idx),
                 "vo_idx": biguint_to_hex(&unpacked3.vo_idx),
                 "new_votes": biguint_to_hex(&unpacked3.new_votes),
+                "poll_id": biguint_to_hex(&unpacked3.poll_id),
             },
         }),
     });

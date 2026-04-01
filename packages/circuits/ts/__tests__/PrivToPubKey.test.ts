@@ -1,10 +1,20 @@
 import { EdDSAPoseidonKeypair } from '@dorafactory/maci-sdk';
-import { inCurve } from '@zk-kit/baby-jubjub';
+import { inCurve, mulPointEscalar, Base8 } from '@zk-kit/baby-jubjub';
 import { expect } from 'chai';
 import { type WitnessTester } from 'circomkit';
 import fc from 'fast-check';
 
 import { circomkitInstance, getSignal } from './utils/utils';
+
+// Operator-side key derivation uses the old `circom` package (blake512).
+// These functions mirror what packages/circuits/js/keypair.js does in production.
+const { genKeypair: operatorGenKeypair } = require('../../js/keypair') as {
+  genKeypair: (privKey: bigint) => {
+    privKey: bigint;
+    pubKey: [bigint, bigint];
+    formatedPrivKey: bigint;
+  };
+};
 
 /**
  * PrivToPubKey (Private Key to Public Key) Circuit Tests
@@ -176,6 +186,254 @@ describe('Public key derivation circuit', function test() {
       }),
       { numRuns: 10_000 }
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Operator compatibility tests
+  //
+  // Background:
+  //   The on-chain operator uses packages/circuits/js/keypair.js, which derives
+  //   keys via blake512 (old `circom` library).  The SDK (used by voters) uses
+  //   @zk-kit/eddsa-poseidon, which uses blake2b.  The two libraries produce
+  //   DIFFERENT pubkeys from the same raw private key.
+  //
+  //   The critical question is: does PrivToPubKey(operatorFormatedPrivKey)
+  //   still equal the operator's coordPubKey?  If yes, the circuit constraint
+  //     PrivToPubKey(coordPrivKey) === coordPubKey
+  //   continues to hold and the operator does NOT need to upgrade.
+  // -------------------------------------------------------------------------
+  describe('Operator compatibility (blake512 key derivation)', () => {
+    it('should pass circuit constraint: PrivToPubKey(operatorFormatedPrivKey) === coordPubKey', async () => {
+      /**
+       * Replicates the processMessages / processDeactivate circuit constraint:
+       *   component derivedPubKey = PrivToPubKey();
+       *   derivedPubKey.privKey <== coordPrivKey;         // = formatedPrivKey (blake512)
+       *   derivedPubKey.pubKey[0] === coordPubKey[0];     // must match
+       *   derivedPubKey.pubKey[1] === coordPubKey[1];
+       *
+       * The operator passes:
+       *   coordPrivKey = coordinator.formatedPrivKey  (blake512 scalar >> 3 % SUBGROUP_ORDER)
+       *   coordPubKey  = coordinator.pubKey           (eddsa.prv2pub via blake512)
+       *
+       * Both are derived from the same raw privKey using the same (blake512) path,
+       * so BASE8 * formatedPrivKey === pubKey holds even though the values differ
+       * from the SDK's blake2b-derived keys.
+       */
+      const RAW_PRIV_KEY = 111111n;
+      const operatorKeypair = operatorGenKeypair(RAW_PRIV_KEY);
+      const { pubKey, formatedPrivKey } = operatorKeypair;
+
+      // Run the circuit with the operator's formatedPrivKey
+      const witness = await circuit.calculateWitness({ privKey: formatedPrivKey });
+      await circuit.expectConstraintPass(witness);
+
+      const circuitPubKeyX = await getSignal(circuit, witness, 'pubKey[0]');
+      const circuitPubKeyY = await getSignal(circuit, witness, 'pubKey[1]');
+
+      // Circuit output must match the operator's pubKey
+      expect(circuitPubKeyX.toString()).to.equal(pubKey[0].toString());
+      expect(circuitPubKeyY.toString()).to.equal(pubKey[1].toString());
+    });
+
+    it('should differ from SDK pubKey for the same raw privKey', async () => {
+      /**
+       * Confirms that the operator (blake512) and the SDK (blake2b) produce
+       * DIFFERENT pubkeys from the same raw private key.  This is expected and
+       * is NOT a bug — they are independent keypairs.
+       *
+       * This test documents the known divergence so that any future accidental
+       * convergence is immediately visible.
+       */
+      const RAW_PRIV_KEY = 111111n;
+
+      const operatorKeypair = operatorGenKeypair(RAW_PRIV_KEY);
+      const sdkKeypair = EdDSAPoseidonKeypair.fromSecretKey(RAW_PRIV_KEY);
+
+      const [opX, opY] = operatorKeypair.pubKey;
+      const [sdkX, sdkY] = sdkKeypair.getPublicKey().toPoints();
+
+      // Both should be on-curve
+      expect(inCurve([opX, opY])).to.eq(true, 'operator pubKey must be on BabyJubJub curve');
+      expect(inCurve([sdkX, sdkY])).to.eq(true, 'SDK pubKey must be on BabyJubJub curve');
+
+      // They must NOT be equal (different hash algorithms)
+      const same = opX === sdkX && opY === sdkY;
+      expect(same).to.eq(false, 'blake512 and blake2b should yield different pubKeys');
+    });
+
+    it('should pass circuit constraint for multiple operator keypairs', async () => {
+      /**
+       * Runs the PrivToPubKey circuit constraint check for several distinct
+       * operator keypairs, including keys whose hex representation has an odd
+       * number of digits (edge case for the bigInt2Buffer no-padding bug).
+       *
+       * Expected outcome for all cases:
+       *   PrivToPubKey(formatedPrivKey_blake512) === coordPubKey_blake512
+       *
+       * This proves the operator can continue processing rounds without
+       * upgrading its key derivation library.
+       */
+      const testKeys: Array<{ key: bigint; label: string }> = [
+        { key: 999999999999n, label: 'normal large key' },
+        { key: 0xfn, label: 'odd-length hex (1 char): 0xf' },
+        { key: 0xabcn, label: 'odd-length hex (3 chars): 0xabc' },
+        { key: 0x1234567n, label: 'odd-length hex (7 chars): 0x1234567' },
+        { key: 7766554433221100n, label: 'even-length hex baseline' }
+      ];
+
+      for (const { key, label } of testKeys) {
+        const operatorKeypair = operatorGenKeypair(key);
+        const { pubKey, formatedPrivKey } = operatorKeypair;
+
+        const witness = await circuit.calculateWitness({ privKey: formatedPrivKey });
+        await circuit.expectConstraintPass(witness);
+
+        const circuitX = await getSignal(circuit, witness, 'pubKey[0]');
+        const circuitY = await getSignal(circuit, witness, 'pubKey[1]');
+
+        expect(circuitX.toString()).to.equal(
+          pubKey[0].toString(),
+          `pubKey[0] mismatch for: ${label}`
+        );
+        expect(circuitY.toString()).to.equal(
+          pubKey[1].toString(),
+          `pubKey[1] mismatch for: ${label}`
+        );
+      }
+    });
+
+    it('should satisfy JS-side PrivToPubKey manually: BASE8 * formatedPrivKey === pubKey', async () => {
+      /**
+       * Pure JS verification (no circuit) that the mathematical relationship
+       *   BASE8 * formatedPrivKey_blake512 === pubKey_blake512
+       * holds for operator keypairs.
+       *
+       * This is the same scalar multiplication the PrivToPubKey circuit performs,
+       * expressed directly via @zk-kit/baby-jubjub's mulPointEscalar.
+       */
+      const testKeys = [111111n, 0xabcn, 999999999999n];
+
+      for (const rawKey of testKeys) {
+        const { pubKey, formatedPrivKey } = operatorGenKeypair(rawKey);
+        const derived = mulPointEscalar(Base8, formatedPrivKey);
+
+        expect(derived[0].toString()).to.equal(
+          pubKey[0].toString(),
+          `BASE8 * formatedPrivKey[0] mismatch for rawKey=${rawKey}`
+        );
+        expect(derived[1].toString()).to.equal(
+          pubKey[1].toString(),
+          `BASE8 * formatedPrivKey[1] mismatch for rawKey=${rawKey}`
+        );
+      }
+    });
+  });
+
+  describe('ECDH symmetry: operator (blake512) coordinator key ↔ SDK (blake2b) user key', () => {
+    let ecdhCircuit: WitnessTester<['privKey', 'pubKey'], ['sharedKey']>;
+
+    before(async () => {
+      ecdhCircuit = await circomkitInstance.WitnessTester('Ecdh', {
+        file: 'utils/ecdh',
+        template: 'Ecdh'
+      });
+    });
+
+    it('should produce the same shared key in both ECDH directions across libraries', async () => {
+      /**
+       * Models the cross-library ECDH interaction inside the circuits:
+       *
+       *   processDeactivate builds the deactivate leaf using:
+       *     sharedKey = ECDH(coordFormatedPrivKey_blake512, userPubKey_sdk)
+       *
+       *   addNewKey circuit verifies:
+       *     ECDH(userFormatedPrivKey_sdk, coordPubKey_blake512) == stored sharedKey
+       *
+       * ECDH symmetry guarantees both sides compute the same point:
+       *   a * (b * G) = b * (a * G)
+       *
+       * This test runs both directions through the Ecdh circuit and asserts
+       * that the outputs are identical, regardless of the key derivation library.
+       */
+      const COORD_RAW_KEY = 1234567890n;
+      const USER_RAW_KEY = 9876543210n;
+
+      const coordKeypair = operatorGenKeypair(COORD_RAW_KEY); // blake512
+      const userSdkKeypair = EdDSAPoseidonKeypair.fromSecretKey(USER_RAW_KEY); // blake2b
+
+      const userPubKey = userSdkKeypair.getPublicKey().toPoints() as [bigint, bigint];
+      const coordPubKey = coordKeypair.pubKey;
+
+      // Direction 1: operator coordinator key ← user's pubKey  (processDeactivate side)
+      const w1 = await ecdhCircuit.calculateWitness({
+        privKey: coordKeypair.formatedPrivKey,
+        pubKey: userPubKey
+      });
+      await ecdhCircuit.expectConstraintPass(w1);
+      const shared1x = await getSignal(ecdhCircuit, w1, 'sharedKey[0]');
+      const shared1y = await getSignal(ecdhCircuit, w1, 'sharedKey[1]');
+
+      // Direction 2: SDK user key ← coordinator's pubKey  (addNewKey side)
+      const w2 = await ecdhCircuit.calculateWitness({
+        privKey: userSdkKeypair.getFormatedPrivKey(),
+        pubKey: coordPubKey
+      });
+      await ecdhCircuit.expectConstraintPass(w2);
+      const shared2x = await getSignal(ecdhCircuit, w2, 'sharedKey[0]');
+      const shared2y = await getSignal(ecdhCircuit, w2, 'sharedKey[1]');
+
+      // Both directions must yield the same shared key
+      expect(shared1x.toString()).to.equal(
+        shared2x.toString(),
+        'sharedKey[0] must be equal in both ECDH directions'
+      );
+      expect(shared1y.toString()).to.equal(
+        shared2y.toString(),
+        'sharedKey[1] must be equal in both ECDH directions'
+      );
+    });
+
+    it('should maintain ECDH symmetry for multiple keypair combinations', async () => {
+      /**
+       * Runs the cross-library ECDH symmetry test for several (coord, user) pairs
+       * to provide broader coverage beyond a single fixed example.
+       */
+      const pairs: Array<{ coordKey: bigint; userKey: bigint }> = [
+        { coordKey: 111111n, userKey: 222222n },
+        { coordKey: 0xabcn, userKey: 999999n },
+        { coordKey: 0xfn, userKey: 0x1234567n }
+      ];
+
+      for (const { coordKey, userKey } of pairs) {
+        const coordKeypair = operatorGenKeypair(coordKey);
+        const userSdkKeypair = EdDSAPoseidonKeypair.fromSecretKey(userKey);
+
+        const w1 = await ecdhCircuit.calculateWitness({
+          privKey: coordKeypair.formatedPrivKey,
+          pubKey: userSdkKeypair.getPublicKey().toPoints() as [bigint, bigint]
+        });
+        await ecdhCircuit.expectConstraintPass(w1);
+        const s1x = await getSignal(ecdhCircuit, w1, 'sharedKey[0]');
+        const s1y = await getSignal(ecdhCircuit, w1, 'sharedKey[1]');
+
+        const w2 = await ecdhCircuit.calculateWitness({
+          privKey: userSdkKeypair.getFormatedPrivKey(),
+          pubKey: coordKeypair.pubKey
+        });
+        await ecdhCircuit.expectConstraintPass(w2);
+        const s2x = await getSignal(ecdhCircuit, w2, 'sharedKey[0]');
+        const s2y = await getSignal(ecdhCircuit, w2, 'sharedKey[1]');
+
+        expect(s1x.toString()).to.equal(
+          s2x.toString(),
+          `sharedKey[0] mismatch for coordKey=${coordKey} userKey=${userKey}`
+        );
+        expect(s1y.toString()).to.equal(
+          s2y.toString(),
+          `sharedKey[1] mismatch for coordKey=${coordKey} userKey=${userKey}`
+        );
+      }
+    });
   });
 
   describe('Invalid private key inputs', () => {

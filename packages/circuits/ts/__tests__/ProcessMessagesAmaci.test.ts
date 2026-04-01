@@ -56,6 +56,7 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
       voteOptionTreeDepth,
       batchSize,
       maxVoteOptions,
+      pollId: 1,
       isQuadraticCost,
       isAmaci: true // AMACI mode
     });
@@ -92,7 +93,8 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
       const votePayload = voter.buildVotePayload({
         stateIdx: voterIdx,
         operatorPubkey: coordPubKey,
-        selectedOptions: [{ idx: optionIdx, vc: weight }]
+        selectedOptions: [{ idx: optionIdx, vc: weight }],
+        pollId: 1
       });
 
       // Push each message
@@ -683,7 +685,7 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
         voteOptionTreeDepth: 2,
         batchSize: 5,
         maxVoteOptions: 5,
-
+        pollId: 1,
         isQuadraticCost: false,
         isAmaci: false
       });
@@ -695,7 +697,7 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
         voteOptionTreeDepth: 2,
         batchSize: 5,
         maxVoteOptions: 5,
-
+        pollId: 1,
         isQuadraticCost: false,
         isAmaci: true
       });
@@ -792,7 +794,7 @@ describe('ProcessMessages AMACI Circuit Tests', function () {
         voteOptionTreeDepth: 2,
         batchSize: 5,
         maxVoteOptions: 5,
-
+        pollId: 1,
         isQuadraticCost: false,
         isAmaci: true
       });

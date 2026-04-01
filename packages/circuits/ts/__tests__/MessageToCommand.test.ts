@@ -3,7 +3,9 @@ import {
   OperatorClient,
   poseidonEncrypt,
   poseidon,
-  poseidonDecrypt
+  poseidonDecrypt,
+  packElement,
+  unpackElement
 } from '@dorafactory/maci-sdk';
 import { expect } from 'chai';
 import { type WitnessTester } from 'circomkit';
@@ -175,18 +177,14 @@ describe('MessageToCommand circuit', function test() {
     const voIdx = 2;
     const votes = 100;
     const nonce = 1;
+    const pollId = 1;
     const salt = 12345678n;
 
     // Get coordinator's public key
     const coordPubKey = coordinatorClient.getSigner().getPublicKey().toPoints();
 
-    // Voter creates the packed command
-    const packaged =
-      BigInt(nonce) +
-      (BigInt(stateIdx) << 32n) +
-      (BigInt(voIdx) << 64n) +
-      (BigInt(votes) << 96n) +
-      (BigInt(salt) << 192n);
+    // Voter creates the packed command using packElement
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes: votes, pollId });
 
     // Voter's key pair
     const voterSigner = voterClient.getSigner();
@@ -196,11 +194,13 @@ describe('MessageToCommand circuit', function test() {
     const msgHash = poseidon([packaged, voterPubKey[0], voterPubKey[1]]);
     const signature = voterSigner.sign(msgHash);
 
-    // Construct the command (plaintext)
+    // Construct the command (plaintext) - 7 elements
+    // [packed_data, pubkey_x, pubkey_y, salt, sig_R8_x, sig_R8_y, sig_S]
     const command = [
       packaged,
       voterPubKey[0],
       voterPubKey[1],
+      salt,
       signature.R8[0],
       signature.R8[1],
       signature.S
@@ -278,16 +278,12 @@ describe('MessageToCommand circuit', function test() {
     const voIdx = 3;
     const votes = 2n ** 60n; // Large vote weight (1,152,921,504,606,846,976)
     const nonce = 2;
+    const pollId = 1;
     const salt = 98765432n;
 
     const coordPubKey = coordinatorClient.getSigner().getPublicKey().toPoints();
 
-    const packaged =
-      BigInt(nonce) +
-      (BigInt(stateIdx) << 32n) +
-      (BigInt(voIdx) << 64n) +
-      (votes << 96n) +
-      (BigInt(salt) << 192n);
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes: votes, pollId });
 
     const voterSigner = voterClient.getSigner();
     const voterPubKey = voterSigner.getPublicKey().toPoints();
@@ -299,6 +295,7 @@ describe('MessageToCommand circuit', function test() {
       packaged,
       voterPubKey[0],
       voterPubKey[1],
+      salt,
       signature.R8[0],
       signature.R8[1],
       signature.S
@@ -343,16 +340,12 @@ describe('MessageToCommand circuit', function test() {
     const voIdx = 0xffffffff;
     const votes = 50;
     const nonce = 3;
+    const pollId = 1;
     const salt = 11111111n;
 
     const coordPubKey = coordinatorClient.getSigner().getPublicKey().toPoints();
 
-    const packaged =
-      BigInt(nonce) +
-      (BigInt(stateIdx) << 32n) +
-      (BigInt(voIdx) << 64n) +
-      (BigInt(votes) << 96n) +
-      (BigInt(salt) << 192n);
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes: votes, pollId });
 
     const voterSigner = voterClient.getSigner();
     const voterPubKey = voterSigner.getPublicKey().toPoints();
@@ -364,6 +357,7 @@ describe('MessageToCommand circuit', function test() {
       packaged,
       voterPubKey[0],
       voterPubKey[1],
+      salt,
       signature.R8[0],
       signature.R8[1],
       signature.S
@@ -409,16 +403,12 @@ describe('MessageToCommand circuit', function test() {
     const voIdx = 4;
     const votes = 200;
     const nonce = 4;
+    const pollId = 1;
     const salt = 55555555n;
 
     const coordPubKey = coordinatorClient.getSigner().getPublicKey().toPoints();
 
-    const packaged =
-      BigInt(nonce) +
-      (BigInt(stateIdx) << 32n) +
-      (BigInt(voIdx) << 64n) +
-      (BigInt(votes) << 96n) +
-      (BigInt(salt) << 192n);
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes: votes, pollId });
 
     const voterSigner = voterClient.getSigner();
     const voterPubKey = voterSigner.getPublicKey().toPoints();
@@ -430,6 +420,7 @@ describe('MessageToCommand circuit', function test() {
       packaged,
       voterPubKey[0],
       voterPubKey[1],
+      salt,
       signature.R8[0],
       signature.R8[1],
       signature.S
@@ -483,11 +474,12 @@ describe('MessageToCommand circuit', function test() {
     const voIdx = 0;
     const votes = 10;
     const nonce = 5;
+    const pollId = 1;
+    const salt = 33333333n;
 
     const coordPubKey = coordinatorClient.getSigner().getPublicKey().toPoints();
 
-    const packaged =
-      BigInt(nonce) + (BigInt(stateIdx) << 32n) + (BigInt(voIdx) << 64n) + (BigInt(votes) << 96n);
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes: votes, pollId });
 
     const voterSigner = voterClient.getSigner();
     const voterPubKey = voterSigner.getPublicKey().toPoints();
@@ -499,6 +491,7 @@ describe('MessageToCommand circuit', function test() {
       packaged,
       voterPubKey[0],
       voterPubKey[1],
+      salt,
       signature.R8[0],
       signature.R8[1],
       signature.S
@@ -547,16 +540,12 @@ describe('MessageToCommand circuit', function test() {
     const voIdx = 5;
     const votes = 0; // Zero votes
     const nonce = 6;
+    const pollId = 1;
     const salt = 99999999n;
 
     const coordPubKey = coordinatorClient.getSigner().getPublicKey().toPoints();
 
-    const packaged =
-      BigInt(nonce) +
-      (BigInt(stateIdx) << 32n) +
-      (BigInt(voIdx) << 64n) +
-      (BigInt(votes) << 96n) +
-      (BigInt(salt) << 192n);
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes: votes, pollId });
 
     const voterSigner = voterClient.getSigner();
     const voterPubKey = voterSigner.getPublicKey().toPoints();
@@ -568,6 +557,7 @@ describe('MessageToCommand circuit', function test() {
       packaged,
       voterPubKey[0],
       voterPubKey[1],
+      salt,
       signature.R8[0],
       signature.R8[1],
       signature.S
@@ -613,11 +603,12 @@ describe('MessageToCommand circuit', function test() {
     const voIdx = 1;
     const votes = 500;
     const nonce = 7;
+    const pollId = 1;
+    const salt = 44444444n;
 
     const coordPubKey = coordinatorClient.getSigner().getPublicKey().toPoints();
 
-    const packaged =
-      BigInt(nonce) + (BigInt(stateIdx) << 32n) + (BigInt(voIdx) << 64n) + (BigInt(votes) << 96n);
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes: votes, pollId });
 
     const voter2Signer = voter2.getSigner();
     const voter2PubKey = voter2Signer.getPublicKey().toPoints();
@@ -629,6 +620,7 @@ describe('MessageToCommand circuit', function test() {
       packaged,
       voter2PubKey[0],
       voter2PubKey[1],
+      salt,
       signature.R8[0],
       signature.R8[1],
       signature.S
@@ -678,11 +670,8 @@ describe('MessageToCommand circuit', function test() {
     const voIdx = 3;
     const votes = 200;
 
-    // Initialize OperatorClient with full state
-    const operatorWithState = new OperatorClient({
-      network: 'testnet',
-      secretKey: 77777n
-    });
+    // Use the same coordinator client (not a new one)
+    const operatorWithState = coordinatorClient;
 
     // Initialize basic MACI state (minimal setup for testing)
     operatorWithState.stateTreeDepth = 4;
@@ -699,7 +688,8 @@ describe('MessageToCommand circuit', function test() {
     const votePayload = voterClient.buildVotePayload({
       stateIdx,
       operatorPubkey: coordPubKey,
-      selectedOptions: [{ idx: voIdx, vc: votes }]
+      selectedOptions: [{ idx: voIdx, vc: votes }],
+      pollId: 1
     });
 
     expect(votePayload).to.have.lengthOf(1);
@@ -809,7 +799,8 @@ describe('MessageToCommand circuit', function test() {
       selectedOptions: [
         { idx: 0, vc: 30 },
         { idx: 5, vc: 70 }
-      ]
+      ],
+      pollId: 1
     });
 
     expect(batchPayload).to.have.lengthOf(2);
@@ -899,7 +890,8 @@ describe('MessageToCommand circuit', function test() {
     const votePayload = voterClient.buildVotePayload({
       stateIdx,
       operatorPubkey: coordPubKey,
-      selectedOptions
+      selectedOptions,
+      pollId: 1
     });
 
     // The payload contains 1 message for 1 vote
@@ -912,7 +904,8 @@ describe('MessageToCommand circuit', function test() {
     const message = voteMessage.msg.map((m) => BigInt(m));
     const encPubKey = voteMessage.encPubkeys.map((p) => BigInt(p)) as [bigint, bigint];
 
-    expect(message).to.have.lengthOf(7); // Poseidon encrypted message
+    
+    expect(message).to.have.lengthOf(10); // Poseidon encrypted message (updated from 7 to 10)
     expect(encPubKey).to.have.lengthOf(2); // Ephemeral public key
 
     // ========================================================================
@@ -922,20 +915,17 @@ describe('MessageToCommand circuit', function test() {
     const sharedKey = operatorSigner.genEcdhSharedKey(encPubKey);
 
     // Import poseidonDecrypt from SDK
-    const plaintext = poseidonDecrypt(message, sharedKey, 0n, 6);
+    const plaintext = poseidonDecrypt(message, sharedKey, 0n, 7);
 
-    // Extract command fields (same as SDK's msgToCmd logic)
-    const UINT32 = 1n << 32n;
-    const UINT96 = 1n << 96n;
-
+    // Extract command fields from correct indices
     const packaged = plaintext[0];
-    const sdkNonce = packaged % UINT32;
-    const sdkStateIdx = (packaged >> 32n) % UINT32;
-    const sdkVoIdx = (packaged >> 64n) % UINT32;
-    const sdkNewVotes = (packaged >> 96n) % UINT96;
+    // salt is at plaintext[3] but not used in this test
     const sdkNewPubKey = [plaintext[1], plaintext[2]];
-    const sdkSigR8 = [plaintext[3], plaintext[4]];
-    const sdkSigS = plaintext[5];
+    const sdkSigR8 = [plaintext[4], plaintext[5]];
+    const sdkSigS = plaintext[6];
+
+    // Unpack using SDK function (pollId is extracted but not verified in this test)
+    const { nonce: sdkNonce, stateIdx: sdkStateIdx, voIdx: sdkVoIdx, newVotes: sdkNewVotes } = unpackElement(packaged);
 
     // Verify SDK decryption results match expected values
     expect(sdkStateIdx).to.equal(BigInt(stateIdx), 'SDK: stateIdx should match');
@@ -994,7 +984,8 @@ describe('MessageToCommand circuit', function test() {
     const multiVotePayload = voterClient.buildVotePayload({
       stateIdx,
       operatorPubkey: coordPubKey,
-      selectedOptions: multiVoteOptions
+      selectedOptions: multiVoteOptions,
+      pollId: 1
     });
 
     expect(multiVotePayload).to.have.lengthOf(2);
@@ -1006,10 +997,10 @@ describe('MessageToCommand circuit', function test() {
 
       // SDK decrypt
       const sk = operatorSigner.genEcdhSharedKey(pubKey);
-      const pt = poseidonDecrypt(msg, sk, 0n, 6);
+      const pt = poseidonDecrypt(msg, sk, 0n, 7);
       const pkg = pt[0];
-      const sdkVo = (pkg >> 64n) % UINT32;
-      const sdkVc = (pkg >> 96n) % UINT96;
+      // pollId is extracted but not used in this test
+      const { voIdx: sdkVo, newVotes: sdkVc } = unpackElement(pkg);
 
       // Circuit decrypt
       const inputs = {

@@ -448,4 +448,30 @@ export class MaciApiClient {
       method: 'GET'
     });
   }
+
+  /**
+   * Get coordinator public key, deactivate root, and voter scale for a round.
+   * Lighter alternative to the full data endpoint when only circuit inputs are needed.
+   */
+  async getPreDeactivateMeta(
+    params: PathParams<paths['/v1/pre-deactivate/{contractAddress}/meta']['get']>
+  ): Promise<ResponseBody<paths['/v1/pre-deactivate/{contractAddress}/meta']['get'], 200>> {
+    return this.fetch(`/v1/pre-deactivate/${params.contractAddress}/meta`, {
+      method: 'GET'
+    });
+  }
+
+  /**
+   * Get K-anonymous Merkle proof packages for the specified leaf indices.
+   * The caller should mix the real leaf index with decoy indices to preserve privacy.
+   */
+  async getPreDeactivateProof(
+    contractAddress: string,
+    indices: string
+  ): Promise<ResponseBody<paths['/v1/pre-deactivate/{contractAddress}/proof']['get'], 200>> {
+    return this.fetch(
+      `/v1/pre-deactivate/${contractAddress}/proof?indices=${indices}`,
+      { method: 'GET' }
+    );
+  }
 }

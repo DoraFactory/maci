@@ -68,6 +68,9 @@ pub enum ContractError {
     #[error("This pubkey is already existed.")]
     PubkeyExisted {},
 
+    #[error("Invalid pubkey: coordinates must be on the BabyJubJub curve")]
+    InvalidPubKey {},
+
     #[error("Not set operator pubkey.")]
     NotSetOperatorPubkey,
 
@@ -104,4 +107,7 @@ pub enum ContractError {
     // Conversion and parsing errors
     #[error("Failed to parse numeric value: {value}, reason: {reason}")]
     ParseError { value: String, reason: String },
+
+    #[error("Invalid Keybase identity: must be exactly 16 uppercase hexadecimal characters (0-9, A-F)")]
+    InvalidIdentity {},
 }

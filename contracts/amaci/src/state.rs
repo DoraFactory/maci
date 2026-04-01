@@ -37,7 +37,6 @@ impl Admin {
 #[cw_serde]
 pub enum PeriodStatus {
     Pending,
-    Voting,
     Processing,
     Tallying,
     Ended,
@@ -62,6 +61,9 @@ pub const ADMIN: Item<Admin> = Item::new("admin");
 pub const PERIOD: Item<Period> = Item::new("period");
 pub const MACIPARAMETERS: Item<MaciParameters> = Item::new("maci_param");
 
+// Poll ID assigned by Registry
+pub const POLL_ID: Item<u64> = Item::new("poll_id");
+
 // the num of signup, the state_key is signupnums.
 pub const NUMSIGNUPS: Item<Uint256> = Item::new("num_sign_ups");
 
@@ -74,8 +76,84 @@ pub const MAX_VOTE_OPTIONS: Item<Uint256> = Item::new("max_vote_options");
 pub const CURRENT_STATE_COMMITMENT: Item<Uint256> = Item::new("current_state_commitment");
 pub const CURRENT_TALLY_COMMITMENT: Item<Uint256> = Item::new("current_tally_commitment");
 
-pub const RESULT: Map<Vec<u8>, Uint256> = Map::new("voice_credit_balance");
+pub const RESULT: Map<Vec<u8>, Uint256> = Map::new("result");
 pub const TOTAL_RESULT: Item<Uint256> = Item::new("total_result");
+
+// ============================================
+// Unified MACI Configuration Types
+// ============================================
+
+// Voice Credit Mode: defines how voting power is allocated
+#[cw_serde]
+pub enum VoiceCreditMode {
+    // Unified mode: all users get the same voice credit amount (original AMACI)
+    Unified { amount: Uint256 },
+    // Dynamic mode: each user's voice credit equals their provided amount (original MACI)
+    // No calculation needed - amount is voice credit directly
+    Dynamic,
+}
+
+impl VoiceCreditMode {
+    /// Returns the enum variant name for use in event attributes ("Unified" or "Dynamic").
+    pub fn variant_name(&self) -> &'static str {
+        match self {
+            VoiceCreditMode::Unified { .. } => "Unified",
+            VoiceCreditMode::Dynamic => "Dynamic",
+        }
+    }
+}
+
+// Registration Mode: combines access control and state initialization
+// This unified enum prevents invalid configuration combinations
+#[cw_serde]
+pub enum RegistrationMode {
+    // SignUp with Static Whitelist: users register individually, access controlled by whitelist
+    // - Pre-defined list of addresses (original AMACI traditional mode)
+    // - Whitelist data stored in WHITELIST storage item
+    SignUpWithStaticWhitelist,
+
+    // SignUp with Oracle: users register individually, access controlled by Oracle signature
+    // - Backend signature verification (both AMACI and MACI support)
+    // - oracle_pubkey: visa/verification pubkey (签证pubkey) for certificate verification
+    SignUpWithOracle {
+        oracle_pubkey: String,
+    },
+
+    // PrePopulated: bulk import users via PreAddNewKey with ZK proof
+    // - Users cannot signup directly, must use PreAddNewKey
+    // - Access control is enforced by ZK proof verification
+    // - Technical: all users are "pre-deactivated" (deactivated state initialized upfront)
+    PrePopulated {
+        // Pre-deactivate root: Merkle root of the state tree after pre-deactivation
+        // This is the initial state where all users are already in deactivated status
+        pre_deactivate_root: Uint256,
+
+        // Pre-deactivate coordinator: coordinator pubkey for the pre-deactivated state
+        // This coordinator performed the pre-deactivation operation
+        // REQUIRED: Must be provided for PreAddNewKey proof verification
+        pre_deactivate_coordinator: PubKey,
+    },
+}
+
+impl RegistrationMode {
+    /// Returns the enum variant name for use in event attributes
+    /// (e.g. "SignUpWithStaticWhitelist", "SignUpWithOracle", "PrePopulated").
+    pub fn variant_name(&self) -> &'static str {
+        match self {
+            RegistrationMode::SignUpWithStaticWhitelist => "SignUpWithStaticWhitelist",
+            RegistrationMode::SignUpWithOracle { .. } => "SignUpWithOracle",
+            RegistrationMode::PrePopulated { .. } => "PrePopulated",
+        }
+    }
+}
+
+// Storage items for unified configuration
+pub const VOICE_CREDIT_MODE: Item<VoiceCreditMode> = Item::new("voice_credit_mode");
+pub const REGISTRATION_MODE: Item<RegistrationMode> = Item::new("registration_mode");
+
+// ============================================
+// End of Unified MACI Configuration Types
+// ============================================
 
 #[cw_serde]
 pub struct PubKey {
@@ -134,12 +212,16 @@ impl StateLeaf {
 pub const MAX_LEAVES_COUNT: Item<Uint256> = Item::new("max_leaves_count");
 pub const LEAF_IDX_0: Item<Uint256> = Item::new("leaf_idx_0");
 pub const COORDINATORHASH: Item<Uint256> = Item::new("coordinator_hash");
-pub const ZEROS: Item<[Uint256; 9]> = Item::new("zeros");
-pub const ZEROS_H10: Item<[Uint256; 7]> = Item::new("zeros_h10");
+pub const ZEROS: Item<[Uint256; 12]> = Item::new("zeros");
+pub const ZEROS_H10: Item<[Uint256; 10]> = Item::new("zeros_h10");
 
 #[cw_serde]
+/// Message data structure for encrypted vote messages
+/// Length changed from 7 to 10 to accommodate new command structure:
+/// - Command: 7 elements [packed_data, newPubKey_x, newPubKey_y, salt, sig_R8_x, sig_R8_y, sig_S]
+/// - Encrypted: roundUp(7, 3) + 1 = 10 elements (Poseidon encryption padding)
 pub struct MessageData {
-    pub data: [Uint256; 7],
+    pub data: [Uint256; 10],
 }
 
 pub const MSG_HASHES: Map<Vec<u8>, Uint256> = Map::new("msg_hashes");
@@ -176,7 +258,7 @@ pub struct Groth16ProofStr {
 
 #[cw_serde]
 pub struct QuinaryTreeRoot {
-    pub zeros: [Uint256; 9],
+    pub zeros: [Uint256; 12],
 }
 
 impl QuinaryTreeRoot {
@@ -249,6 +331,9 @@ pub const QTR_LIB: Item<QuinaryTreeRoot> = Item::new("qtr_lib");
 pub struct WhitelistConfig {
     pub addr: Addr,
     pub is_register: bool,
+    // Voice credit amount for this user
+    // Set during instantiate: Unified mode uses Unified.amount, Dynamic mode uses preset value
+    pub voice_credit_amount: Uint256,
 }
 
 #[cw_serde]
@@ -276,29 +361,9 @@ impl Whitelist {
 
 pub const WHITELIST: Item<Whitelist> = Item::new("whitelist");
 
-pub const FEEGRANTS: Item<Uint128> = Item::new("fee_grants");
-
 pub const CIRCUITTYPE: Item<Uint256> = Item::new("circuit_type"); // <0: 1p1v | 1: pv>
 
 pub const CERTSYSTEM: Item<Uint256> = Item::new("certification_system"); // <0: groth16 | 1: plonk>
-
-#[cw_serde]
-pub struct PlonkProofStr {
-    pub num_inputs: usize,
-    pub n: usize,
-    pub input_values: Vec<String>,
-    pub wire_commitments: Vec<Vec<u8>>,
-    pub grand_product_commitment: Vec<u8>,
-    pub quotient_poly_commitments: Vec<Vec<u8>>,
-    pub wire_values_at_z: Vec<String>,
-    pub wire_values_at_z_omega: Vec<String>,
-    pub grand_product_at_z_omega: String,
-    pub quotient_polynomial_at_z: String,
-    pub linearization_polynomial_at_z: String,
-    pub permutation_polynomials_at_z: Vec<String>,
-    pub opening_at_z_proof: Vec<u8>,
-    pub opening_at_z_omega_proof: Vec<u8>,
-}
 
 #[cw_serde]
 pub struct Groth16VkeyStr {
@@ -334,6 +399,45 @@ pub const FIRST_DMSG_TIMESTAMP: Item<Timestamp> = Item::new("first_dmsg_timestam
 
 pub const FEE_RECIPIENT: Item<Addr> = Item::new("fee_recipient");
 
+// Deactivate feature enabled/disabled flag
+pub const DEACTIVATE_ENABLED: Item<bool> = Item::new("deactivate_enabled");
+
+// Shared fee denomination
+pub const FEE_DENOM: &str = "peaka";
+
+// Deactivate fee constants (hard-coded)
+pub const DEACTIVATE_FEE: Uint128 = Uint128::new(10_000_000_000_000_000_000); // 10 DORA = 10 * 10^18 peaka
+
+// Per-vote fee: unified across all circuit sizes
+// Pricing: $0.0003 USD / $0.005 per DORA = 0.06 DORA = 6 * 10^16 peaka
+pub const MESSAGE_FEE: Uint128 = Uint128::new(60_000_000_000_000_000); // 0.06 DORA = 0.06 * 10^18 peaka
+
+// Tally delay constants (based on circuit benchmarks)
+// Formula: delay_allowed = (BASE_DELAY + msg_count * PER_VOTE_DELAY) * TALLY_DELAY_MULTIPLIER
+//          tally_timeout  = delay_allowed + TALLY_TIMEOUT_EXTRA_SECONDS
+//
+// Benchmark source (server processing time):
+//   2-1-1-5:   base ≈ 0.48 min (0.2267 + 0.2516 min),  per_vote ≈ 0.8841s
+//   4-2-2-25:  base ≈ 2.88 min (2.5346 + 0.3404 min),  per_vote ≈ 0.2531s
+//   6-3-3-125: base ≈ 22.26 min (21.9313 + 0.3308 min), per_vote ≈ 0.2289s
+//
+// Base delay rounded up to next whole minute for each circuit:
+pub const TALLY_BASE_DELAY_2_1_1_5: u64 = 60; // 1 min  (benchmark: 0.48 min)
+pub const TALLY_BASE_DELAY_4_2_2_25: u64 = 180; // 3 min  (benchmark: 2.88 min)
+pub const TALLY_BASE_DELAY_6_3_3_125: u64 = 1380; // 23 min (benchmark: 22.26 min)
+// TODO: update TALLY_BASE_DELAY_9_4_3_125 when 9-4-3-125 benchmark is complete
+pub const TALLY_BASE_DELAY_9_4_3_125: u64 = 14400; // 240 min (placeholder)
+
+// Per-vote delay: unified across all circuits
+// Reference: 4-2-2-25 ≈ 0.2531s/vote, 6-3-3-125 ≈ 0.2289s/vote → rounded up to 2s for safety margin
+pub const TALLY_PER_VOTE_DELAY: u64 = 2; // 2 seconds per vote
+
+// Multiplier applied to computed delay to give operator adaptation time
+pub const TALLY_DELAY_MULTIPLIER: u64 = 3;
+
+// Extra seconds added on top of the delay window to form the hard timeout
+pub const TALLY_TIMEOUT_EXTRA_SECONDS: u64 = 2 * 24 * 60 * 60; // 2 days
+
 #[cw_serde]
 pub enum DelayType {
     DeactivateDelay = 0,
@@ -355,9 +459,6 @@ pub struct DelayRecords {
 }
 
 pub const DELAY_RECORDS: Item<DelayRecords> = Item::new("delay_records");
-
-// Oracle whitelist backend pubkey
-pub const ORACLE_WHITELIST_PUBKEY: Item<String> = Item::new("oracle_whitelist_pubkey");
 
 // Oracle whitelist storage per user
 #[cw_serde]

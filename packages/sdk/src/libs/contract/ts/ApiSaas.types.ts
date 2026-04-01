@@ -8,7 +8,6 @@ export type Addr = string;
 export interface InstantiateMsg {
   admin: Addr;
   denom: string;
-  maci_code_id: number;
   registry_contract: Addr;
   treasury_manager: Addr;
 }
@@ -17,11 +16,6 @@ export type ExecuteMsg =
       update_config: {
         admin?: Addr | null;
         denom?: string | null;
-      };
-    }
-  | {
-      update_maci_code_id: {
-        code_id: number;
       };
     }
   | {
@@ -49,32 +43,17 @@ export type ExecuteMsg =
       };
     }
   | {
-      create_maci_round: {
-        certification_system: Uint256;
-        circuit_type: Uint256;
-        coordinator: PubKey;
-        end_time: Timestamp;
-        max_voters: number;
-        round_info: RoundInfo;
-        start_time: Timestamp;
-        vote_option_map: string[];
-        whitelist_backend_pubkey: string;
-      };
-    }
-  | {
       create_amaci_round: {
         certification_system: Uint256;
         circuit_type: Uint256;
+        deactivate_enabled: boolean;
         max_voter: Uint256;
         operator: Addr;
-        oracle_whitelist_pubkey?: string | null;
-        pre_deactivate_coordinator?: PubKey | null;
-        pre_deactivate_root: Uint256;
+        registration_mode: RegistrationModeConfig;
         round_info: RoundInfo;
-        voice_credit_amount: Uint256;
+        voice_credit_mode: VoiceCreditMode;
         vote_option_map: string[];
         voting_time: VotingTime;
-        whitelist?: WhitelistBase | null;
       };
     }
   | {
@@ -88,11 +67,56 @@ export type ExecuteMsg =
         contract_addr: string;
         vote_option_map: string[];
       };
+    }
+  | {
+      publish_message: {
+        contract_addr: string;
+        enc_pub_keys: EncPubKeyParam[];
+        messages: MessageDataParam[];
+      };
+    }
+  | {
+      publish_deactivate_message: {
+        contract_addr: string;
+        enc_pub_key: EncPubKeyParam;
+        message: MessageDataParam;
+      };
     };
 export type Uint128 = string;
 export type Uint256 = string;
+export type RegistrationModeConfig =
+  | {
+      sign_up_with_static_whitelist: {
+        whitelist: WhitelistBase;
+      };
+    }
+  | {
+      sign_up_with_oracle: {
+        oracle_pubkey: string;
+      };
+    }
+  | {
+      pre_populated: {
+        pre_deactivate_coordinator: PubKey;
+        pre_deactivate_root: Uint256;
+      };
+    };
+export type VoiceCreditMode =
+  | 'dynamic'
+  | {
+      unified: {
+        amount: Uint256;
+      };
+    };
 export type Timestamp = Uint64;
 export type Uint64 = string;
+export interface WhitelistBase {
+  users: WhitelistBaseConfig[];
+}
+export interface WhitelistBaseConfig {
+  addr: Addr;
+  voice_credit_amount?: Uint256 | null;
+}
 export interface PubKey {
   x: Uint256;
   y: Uint256;
@@ -106,11 +130,12 @@ export interface VotingTime {
   end_time: Timestamp;
   start_time: Timestamp;
 }
-export interface WhitelistBase {
-  users: WhitelistBaseConfig[];
+export interface EncPubKeyParam {
+  x: string;
+  y: string;
 }
-export interface WhitelistBaseConfig {
-  addr: Addr;
+export interface MessageDataParam {
+  data: string[];
 }
 export type QueryMsg =
   | {
@@ -126,9 +151,6 @@ export type QueryMsg =
     }
   | {
       balance: {};
-    }
-  | {
-      maci_code_id: {};
     }
   | {
       treasury_manager: {};

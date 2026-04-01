@@ -102,6 +102,7 @@ export interface CryptoTestVector {
       state_idx: string;
       vo_idx: string;
       new_votes: string;
+      poll_id?: string;
       salt?: string;
     };
     packed?: string;
@@ -110,6 +111,7 @@ export interface CryptoTestVector {
       state_idx: string;
       vo_idx: string;
       new_votes: string;
+      poll_id: string;
     };
 
     // Tree test data (required for test_type === 'tree')

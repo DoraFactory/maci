@@ -59,7 +59,6 @@ impl SaasCodeId {
         treasury_manager: Addr,
         registry_contract: Addr,
         denom: String,
-        oracle_maci_code_id: u64,
         label: &str,
     ) -> AnyResult<SaasContract> {
         SaasContract::instantiate(
@@ -70,7 +69,6 @@ impl SaasCodeId {
             treasury_manager,
             registry_contract,
             denom,
-            oracle_maci_code_id,
             label,
         )
     }
@@ -99,7 +97,6 @@ impl SaasContract {
         treasury_manager: Addr,
         registry_contract: Addr,
         denom: String,
-        maci_code_id: u64,
         label: &str,
     ) -> AnyResult<Self> {
         let init_msg = InstantiateMsg {
@@ -107,7 +104,6 @@ impl SaasContract {
             treasury_manager,
             registry_contract,
             denom,
-            maci_code_id,
         };
 
         app.instantiate_contract(code_id.0, sender, &init_msg, &[], label, None)
@@ -181,53 +177,40 @@ impl SaasContract {
         )
     }
 
-    #[track_caller]
-    pub fn update_maci_code_id(
-        &self,
-        app: &mut App,
-        sender: Addr,
-        code_id: u64,
-    ) -> AnyResult<AppResponse> {
-        app.execute_contract(
-            sender,
-            self.addr(),
-            &ExecuteMsg::UpdateMaciCodeId { code_id },
-            &[],
-        )
-    }
-
-    #[track_caller]
-    pub fn create_api_maci_round(
-        &self,
-        app: &mut App,
-        sender: Addr,
-        coordinator: PubKey,
-        max_voters: u128,
-        vote_option_map: Vec<String>,
-        round_info: RoundInfo,
-        start_time: Timestamp,
-        end_time: Timestamp,
-        circuit_type: cosmwasm_std::Uint256,
-        certification_system: cosmwasm_std::Uint256,
-        whitelist_backend_pubkey: String,
-    ) -> AnyResult<AppResponse> {
-        app.execute_contract(
-            sender,
-            self.addr(),
-            &ExecuteMsg::CreateMaciRound {
-                coordinator,
-                max_voters,
-                vote_option_map,
-                round_info,
-                start_time,
-                end_time,
-                circuit_type,
-                certification_system,
-                whitelist_backend_pubkey,
-            },
-            &[],
-        )
-    }
+    // DEPRECATED: CreateMaciRound has been removed from api-saas
+    // All MACI rounds should be created directly through Registry
+    // #[track_caller]
+    // pub fn create_api_maci_round(
+    //     &self,
+    //     app: &mut App,
+    //     sender: Addr,
+    //     coordinator: cw_amaci::state::PubKey,
+    //     max_voters: u128,
+    //     vote_option_map: Vec<String>,
+    //     round_info: RoundInfo,
+    //     start_time: Timestamp,
+    //     end_time: Timestamp,
+    //     circuit_type: cosmwasm_std::Uint256,
+    //     certification_system: cosmwasm_std::Uint256,
+    //     whitelist_backend_pubkey: String,
+    // ) -> AnyResult<AppResponse> {
+    //     app.execute_contract(
+    //         sender,
+    //         self.addr(),
+    //         &ExecuteMsg::CreateMaciRound {
+    //             coordinator,
+    //             max_voters,
+    //             vote_option_map,
+    //             round_info,
+    //             start_time,
+    //             end_time,
+    //             circuit_type,
+    //             certification_system,
+    //             whitelist_backend_pubkey,
+    //         },
+    //         &[],
+    //     )
+    // }
 
     #[track_caller]
     pub fn create_amaci_round(
@@ -236,15 +219,14 @@ impl SaasContract {
         sender: Addr,
         operator: Addr,
         max_voter: Uint256,
-        voice_credit_amount: Uint256,
+        voice_credit_mode: cw_amaci::state::VoiceCreditMode,
         vote_option_map: Vec<String>,
         round_info: RoundInfo,
         voting_time: cw_amaci::state::VotingTime,
-        whitelist: Option<cw_amaci::msg::WhitelistBase>,
-        pre_deactivate_root: Uint256,
+        registration_mode: cw_amaci::msg::RegistrationModeConfig,
         circuit_type: Uint256,
         certification_system: Uint256,
-        oracle_whitelist_pubkey: Option<String>,
+        deactivate_enabled: bool,
         funds: &[Coin],
     ) -> AnyResult<AppResponse> {
         app.execute_contract(
@@ -253,16 +235,14 @@ impl SaasContract {
             &ExecuteMsg::CreateAmaciRound {
                 operator,
                 max_voter,
-                voice_credit_amount,
                 vote_option_map,
                 round_info,
                 voting_time,
-                whitelist,
-                pre_deactivate_root,
                 circuit_type,
                 certification_system,
-                oracle_whitelist_pubkey,
-                pre_deactivate_coordinator: None,
+                deactivate_enabled,
+                voice_credit_mode,
+                registration_mode,
             },
             funds,
         )
@@ -289,11 +269,6 @@ impl SaasContract {
             .query_wasm_smart(self.addr(), &QueryMsg::Balance {})
     }
 
-    pub fn query_maci_code_id(&self, app: &App) -> StdResult<u64> {
-        app.wrap()
-            .query_wasm_smart(self.addr(), &QueryMsg::MaciCodeId {})
-    }
-
     pub fn query_treasury_manager(&self, app: &App) -> StdResult<Addr> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::TreasuryManager {})
@@ -304,6 +279,48 @@ impl SaasContract {
     }
 
     // Note: Feegrant query functions removed as they're handled by Oracle MACI contract
+
+    #[track_caller]
+    pub fn publish_message(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        contract_addr: String,
+        enc_pub_keys: Vec<EncPubKeyParam>,
+        messages: Vec<MessageDataParam>,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishMessage {
+                contract_addr,
+                enc_pub_keys,
+                messages,
+            },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn publish_deactivate_message(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        contract_addr: String,
+        enc_pub_key: EncPubKeyParam,
+        message: MessageDataParam,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishDeactivateMessage {
+                contract_addr,
+                enc_pub_key,
+                message,
+            },
+            &[],
+        )
+    }
 }
 
 impl From<Addr> for SaasContract {

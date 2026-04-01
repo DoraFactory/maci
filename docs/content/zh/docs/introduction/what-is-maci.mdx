@@ -28,13 +28,17 @@ MACI 通过密码学技术解决这些问题，让投票既可验证又能保护
 
 ### 身份匿名化
 
-AMACI 提供三种注册方式：
+AMACI 使用 `RegistrationModeConfig` 枚举控制用户注册方式，提供以下模式：
 
-**Signup** 最快捷。直接用你的钱包地址注册，适合公开投票场景。缺点是 operator 能看到你的地址。
+**`SignUpWithStaticWhitelist`** 最快捷。预定义地址直接调用 SignUp，适合公开投票场景。缺点是 Operator 能看到你的地址。
 
-**Add-new-key** 完全匿名。通过零知识证明创建新身份，operator 无法关联到你的原始地址。需要等待 operator 处理 deactivate 消息。
+**`SignUpWithOracle`** 支持 Oracle 认证注册。任意地址均可注册，但须提供后端签发的证书。投票权重可以是固定值（Unified）或由用户提供（Dynamic）。
 
-**Pre-add-new-key** 兼具匿名性和速度。投票组织者预先配置好匿名集，你可以立即匿名注册。
+**`PrePopulated`**（Pre-add-new-key）兼具匿名性和速度。投票组织者预先配置好匿名集，用户通过 ZK 证明即可立即匿名注册，无需暴露真实身份。
+
+当 `deactivateEnabled: true` 时，还支持 **Add-new-key** 流程，允许用户在轮次内通过去活化旧密钥来创建匿名新身份。
+
+所有投票消息现在包含 **Poll ID**，用于防止跨轮次重放攻击。
 
 ### 防贿选机制
 

@@ -217,12 +217,12 @@ import { MaciClient, MaciCircuitType } from '@dorafactory/maci-sdk';
 
 const client = new MaciClient({ network: 'mainnet' });
 
-// 方式 1: 白名单列表模式
-const roundWithWhitelist = await client.createMaciRound({
+// 方式 1: 静态白名单模式（SignUpWithStaticWhitelist + Unified VC）
+const roundWithWhitelist = await client.createAMaciRound({
   signer: wallet,
   
   // 1. 选择 Operator
-  operatorPubkey: '0e752c8f4c4c9f5c...',
+  operator: selectedOperator.address,
   
   // 2. 配置投票时间
   startVoting: new Date('2024-03-01T00:00:00Z'),
@@ -239,45 +239,60 @@ const roundWithWhitelist = await client.createMaciRound({
     '提案 B: 改进技术基础设施',
     '提案 C: 扩大市场推广'
   ],
+  maxVoter: 500,
   
   // 5. 选择投票类型
   circuitType: MaciCircuitType.QV,
   
-  // 6. 配置白名单列表
-  whitelist: [
-    'dora1abc...',
-    'dora1def...',
-    'dora1ghi...'
-    // ... 更多白名单地址
-  ],
-  voiceCreditsPerUser: 100  // 每人100投票权重
+  // 6. 投票权重模式：所有人获得 100 权重
+  voiceCreditMode: { unified: { amount: "100" } },
+  
+  // 7. 注册模式：静态白名单
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: 'dora1abc...' },
+          { addr: 'dora1def...' },
+          { addr: 'dora1ghi...' }
+        ]
+      }
+    }
+  },
+  
+  // 8. 去活化功能（可选，默认 false）
+  deactivateEnabled: false
 });
 
-// 方式 2: Pre-add-new-key 预生成模式
-const roundWithPreKeys = await client.createMaciRound({
+// 方式 2: PrePopulated 模式（通过预配置密钥进行匿名注册）
+const roundWithPreKeys = await client.createAMaciRound({
   signer: wallet,
-  operatorPubkey: '0e752c8f4c4c9f5c...',
+  operator: selectedOperator.address,
+  startVoting: new Date('2024-03-01T00:00:00Z'),
+  endVoting: new Date('2024-03-07T23:59:59Z'),
+  title: '匿名社区投票',
+  voteOptionMap: ['选项 A', '选项 B', '选项 C'],
+  maxVoter: 100,
+  circuitType: MaciCircuitType.QV,
+  voiceCreditMode: { unified: { amount: "100" } },
   
-  // ... 其他参数同上
-  
-  // 配置 pre-deactivate（平台预先生成）
-  preDeactivateRoot: preGeneratedRoot,
-  preDeactivateCoordinator: {
-    x: platformCoordPubkey[0],
-    y: platformCoordPubkey[1]
-  }
+  // PrePopulated：用户必须通过 PreAddNewKey 注册
+  registrationMode: {
+    pre_populated: {
+      pre_deactivate_root: preGeneratedRoot,
+      pre_deactivate_coordinator: {
+        x: platformCoordPubkey[0].toString(),
+        y: platformCoordPubkey[1].toString()
+      }
+    }
+  },
+  deactivateEnabled: false
 });
 
 console.log('Round 创建成功！');
 console.log('合约地址:', round.contractAddress);
+console.log('Poll ID:', await client.getPollId({ contractAddress: round.contractAddress }));
 console.log('交易哈希:', round.transactionHash);
-console.log('');
-console.log('后续流程：');
-console.log('1. 白名单用户可以 signup 注册');
-console.log('   或用户使用 pre-add-new-key 匿名注册');
-console.log('2. Operator 自动监控此 Round');
-console.log('3. 投票期结束后 Operator 自动处理');
-console.log('4. 处理完成后可查询结果');
 ```
 
 ### 从 Operator 列表选择
@@ -317,12 +332,20 @@ const selectedOperator = activeOperators[0];
 console.log(`\n选择 Operator: ${selectedOperator.identity}`);
 
 // 5. 使用该 Operator 创建 Round（白名单模式）
-const round = await client.createMaciRound({
+const round = await client.createAMaciRound({
   signer: wallet,
-  operatorPubkey: selectedOperator.pubkey,
-  // ...
-  whitelist: ['dora1...', 'dora1...'],
-  voiceCreditsPerUser: 100
+  operator: selectedOperator.address,
+  maxVoter: 200,
+  voteOptionMap: ['选项 A', '选项 B'],
+  circuitType: MaciCircuitType.QV,
+  voiceCreditMode: { unified: { amount: "100" } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: [{ addr: 'dora1...' }, { addr: 'dora1...' }] }
+    }
+  },
+  deactivateEnabled: false,
+  // ... 其他参数
 });
 ```
 
@@ -381,11 +404,12 @@ console.log('- 整个 Round 的处理成本');
 
 ```typescript
 // SDK 会自动处理费用支付
-const round = await client.createMaciRound({
+const round = await client.createAMaciRound({
   signer: wallet,  // 钱包会支付所需费用
   // ... 其他参数
-  whitelist: whitelistAddresses,
-  voiceCreditsPerUser: 100
+  voiceCreditMode: { unified: { amount: "100" } },
+  registrationMode: { sign_up_with_static_whitelist: { whitelist: { users: [] } } },
+  deactivateEnabled: false
 });
 
 // 用户只需确保钱包有足够余额
@@ -409,22 +433,28 @@ const selectedOp = operators[0];  // 选择表现最好的
 console.log('选择 Operator:', selectedOp.identity);
 
 // ========== 创建 Round ==========
-const round = await client.createMaciRound({
+const round = await client.createAMaciRound({
   signer: wallet,
-  operatorPubkey: selectedOp.pubkey,
+  operator: selectedOp.address,
   startVoting: new Date(),
   endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   title: '社区投票',
   voteOptionMap: ['选项 A', '选项 B', '选项 C'],
   circuitType: MaciCircuitType.QV,
-  
-  // 白名单列表模式
-  whitelist: [
-    'dora1user1...',
-    'dora1user2...',
-    'dora1user3...'
-  ],
-  voiceCreditsPerUser: 100
+  maxVoter: 200,
+  voiceCreditMode: { unified: { amount: "100" } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: {
+        users: [
+          { addr: 'dora1user1...' },
+          { addr: 'dora1user2...' },
+          { addr: 'dora1user3...' }
+        ]
+      }
+    }
+  },
+  deactivateEnabled: false
 });
 
 console.log('Round 创建成功');
@@ -463,6 +493,32 @@ const checkStatus = setInterval(async () => {
 | Operator 配置 | 需要自己运行 | 选择现成的 |
 | 后续维护 | 需要监控和处理 | Operator 自动处理 |
 | 失败风险 | 配置错误风险高 | Registry 验证，风险低 |
+
+---
+
+## Poll ID 管理
+
+Registry 为其创建的每个 AMACI 合约分配唯一的、顺序递增的 **Poll ID**。该 ID 是防止跨轮次重放攻击的机制——每条投票消息都在密码学上绑定到其 `poll_id`，因此为第 5 轮签名的消息无法在第 6 轮中重放。
+
+### Poll ID 查询
+
+```typescript
+// 通过合约地址获取其 Poll ID
+const pollId = await client.getPollId({ contractAddress: amaciAddress });
+// 或直接查询 Registry：
+// QueryMsg::GetPollId { address: Addr }  -> u64
+
+// 反向查找：通过 Poll ID 获取合约地址
+// QueryMsg::GetPollAddress { poll_id: u64 } -> Option<Addr>
+
+// 获取下一个将被分配的 Poll ID
+// QueryMsg::GetNextPollId {} -> u64
+
+// 获取当前用于实例化的 AMACI Code ID
+// QueryMsg::GetAmaciCodeId {} -> u64
+```
+
+Poll ID 从 `1` 开始，每创建一个新轮次递增 1。
 
 ---
 

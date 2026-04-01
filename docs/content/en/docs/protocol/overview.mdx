@@ -20,12 +20,21 @@ Alice selects a registered operator and configures voting parameters:
 
 ```typescript
 const round = await client.createAMaciRound({
+  signer: wallet,
   operator: 'dora1operator...',
   startVoting: new Date(),
   endVoting: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  title: 'DAO Proposal Vote',
   voteOptionMap: ['Proposal A', 'Proposal B', 'Proposal C'],
   circuitType: MaciCircuitType.QV,
-  whitelist: { addresses: [...] }
+  maxVoter: 200,
+  voiceCreditMode: { unified: { amount: '100' } },
+  registrationMode: {
+    sign_up_with_static_whitelist: {
+      whitelist: { users: daoMembers.map(addr => ({ addr })) }
+    }
+  },
+  deactivateEnabled: false
 });
 ```
 
@@ -53,7 +62,7 @@ const voterClient = new VoterClient({
 
 const payload = await voterClient.buildAddNewKeyPayload({
   stateTreeDepth: 10,
-  coordinatorPubkey: operatorPubkey,
+  operatorPubkey: operatorPubkey,
   deactivates: deactivateLeaves,
   wasmFile: './addNewKey.wasm',
   zkeyFile: './addNewKey.zkey'
@@ -102,6 +111,8 @@ This method is fastest, but the operator can see Carol's address.
 Both Bob and Carol create encrypted voting messages:
 
 ```typescript
+const pollId = await client.getPollId({ contractAddress });
+
 // Bob votes with new key
 await client.vote({
   signer: newWallet,
@@ -124,15 +135,18 @@ await client.vote({
 });
 ```
 
-Voting messages are encrypted with operator public key before going on-chain. Anyone can see encrypted messages on-chain, but cannot decrypt the content.
+投票消息用 operator 公钥加密后上链。任何人都能看到链上有加密消息，但无法解密内容。
 
-Bob changes his mind and revotes:
+Bob 改变主意，重新投票：
 
 ```typescript
 await client.vote({
+  signer: newWallet,
+  contractAddress,
   selectedOptions: [{ idx: 1, vc: 14 }],  // Change to Proposal B
+  operatorCoordPubKey: [...],
+  maciKeypair: newKeypair
   // nonce automatically +1, overwrites previous vote
-  ...
 });
 ```
 

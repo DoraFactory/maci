@@ -44,178 +44,104 @@ if (totalCost > voiceCredits) {
 }
 ```
 
-### 构造命令
+### 构造并打包命令
+
+投票命令被打包为一个 `bigint`，使用固定位宽字段编码：
 
 ```typescript
-function createVoteCommand(
-  stateIndex: number,
-  nonce: number,
-  voteOption: { idx: number; vc: number },
-  currentPubKey: Point,
-  salt: bigint
-): Command {
-  return {
-    nonce: BigInt(nonce),
-    stateIndex: BigInt(stateIndex),
-    voteOptionIndex: BigInt(voteOption.idx),
-    newVoteWeight: BigInt(voteOption.vc),
-    newPubKey: currentPubKey,  // 通常保持不变
-    salt: salt
-  };
+/**
+ * 将命令字段打包为单个 bigint。
+ * 位布局（小端序，共 256 位）：
+ *
+ *  bits   0 –  31 :  nonce      (32 bits)
+ *  bits  32 –  63 :  stateIdx   (32 bits)
+ *  bits  64 –  95 :  voIdx      (32 bits)
+ *  bits  96 – 191 :  newVotes   (96 bits)
+ *  bits 192 – 223 :  pollId     (32 bits)
+ *  bits 224 – 255 :  （未使用）
+ */
+function packElement({
+  nonce, stateIdx, voIdx, newVotes, pollId
+}: {
+  nonce: number | bigint;
+  stateIdx: number | bigint;
+  voIdx: number | bigint;
+  newVotes: number | bigint;
+  pollId: number | bigint;
+}): bigint {
+  return (
+    BigInt(nonce) +
+    (BigInt(stateIdx) << 32n) +
+    (BigInt(voIdx)   << 64n) +
+    (BigInt(newVotes) << 96n) +
+    (BigInt(pollId)  << 192n)
+  );
 }
 ```
 
-### 打包和哈希
+### 签名与加密
+
+打包完成后，命令数组签名后通过临时私钥与 Operator 公钥派生的 ECDH 共享密钥进行 Poseidon 加密。
 
 ```typescript
-// 打包命令字段
-function packCommand(command: Command): bigint {
-  // 将 5 个字段打包成一个 bigint
-  let packed = BigInt(0);
-  
-  // nonce (8 bits)
-  packed |= (command.nonce & BigInt(0xFF));
-  
-  // stateIndex (24 bits)
-  packed |= ((command.stateIndex & BigInt(0xFFFFFF)) << BigInt(8));
-  
-  // voteOptionIndex (8 bits)
-  packed |= ((command.voteOptionIndex & BigInt(0xFF)) << BigInt(32));
-  
-  // newVoteWeight (24 bits)
-  packed |= ((command.newVoteWeight & BigInt(0xFFFFFF)) << BigInt(40));
-  
-  // salt (remaining bits)
-  packed |= (command.salt << BigInt(64));
-  
-  return packed;
-}
+// 1. 从合约查询 pollId
+const pollId = await client.getPollId({ contractAddress });
 
-// 计算命令哈希
-function hashCommand(command: Command): bigint {
-  const packed = packCommand(command);
-  return poseidon([
-    packed,
-    command.newPubKey[0],
-    command.newPubKey[1]
-  ]);
-}
+// 2. 打包所有命令字段
+const packaged = packElement({ nonce, stateIdx, voIdx, newVotes, pollId });
+
+// 3. 构造命令数组（共 7 个元素）
+//    [0] packaged
+//    [1] newPubKey.x
+//    [2] newPubKey.y
+//    [3] salt
+//    [4] sig.R8.x
+//    [5] sig.R8.y
+//    [6] sig.S
+const salt = genRandomSalt();
+const hash = poseidon([packaged, newPubKey.x, newPubKey.y]);
+const signature = eddsa.sign(voterPrivKey, hash);
+
+const command = [packaged, newPubKey.x, newPubKey.y, salt, ...signature.R8, signature.S];
+
+// 4. 生成临时密钥对
+const encPrivKey = genRandomPrivKey();
+const encPubKey  = genPubKey(encPrivKey);
+
+// 5. 加密
+const sharedKey    = genEcdhSharedKey(encPrivKey, operatorPubKey);
+const ciphertext   = poseidonEncrypt(command, sharedKey, 0n);
+
+// 6. 提交
+const messageData  = { data: ciphertext };
+await maciContract.publishMessage({
+  messages:    [messageData],
+  enc_pub_keys: [encPubKey],
+});
 ```
 
-### 签名
+## 完整投票消息生成示例
 
 ```typescript
-// 使用私钥对命令哈希签名
-const commandHash = hashCommand(command);
-const signature = sign(voterPrivateKey, commandHash);
+// 使用 SDK
+import { MaciClient } from '@doravote/sdk';
 
-// 签名结构
-// signature = {
-//   R8: [x, y],  // 曲线上的点
-//   S: bigint    // 标量
-// }
-```
+const client = new MaciClient({ ... });
 
-### 加密
-
-```typescript
-// 生成 ECDH 共享密钥
-const sharedKey = genEcdhSharedKey(
-  voterPrivateKey,
-  coordinatorPublicKey
-);
-
-// 加密命令
-const encryptedData = encrypt(
-  {
-    packed: packCommand(command),
-    newPubKeyX: command.newPubKey[0],
-    newPubKeyY: command.newPubKey[1],
-    signatureR8X: signature.R8[0],
-    signatureR8Y: signature.R8[1],
-    signatureS: signature.S
-  },
-  sharedKey
-);
-```
-
-### 提交到链上
-
-```typescript
-// 构造消息
-const message = {
-  msgType: 1,  // 1 = 投票消息
-  data: encryptedData  // 10 个加密的字段
-};
-
-// 提交到 MACI 合约
-await maciContract.publishMessage(message);
-```
-
-## 完整的投票消息生成示例
-
-```typescript
-async function generateAndSubmitVote(
-  voterAccount: {
-    privateKey: bigint;
-    publicKey: Point;
-    stateIndex: number;
-    nonce: number;
-  },
-  coordinatorPubKey: Point,
-  contractAddress: string,
-  voteOptions: { idx: number; vc: number }[]
-) {
-  // 对每个投票选项生成一条消息
-  for (const option of voteOptions) {
-    // 1. 生成随机盐值
-    const salt = genRandomSalt();
-    
-    // 2. 创建命令
-    const command = {
-      nonce: BigInt(voterAccount.nonce),
-      stateIndex: BigInt(voterAccount.stateIndex),
-      voteOptionIndex: BigInt(option.idx),
-      newVoteWeight: BigInt(option.vc),
-      newPubKey: voterAccount.publicKey,
-      salt: salt
-    };
-    
-    // 3. 计算哈希
-    const commandHash = hashCommand(command);
-    
-    // 4. 签名
-    const signature = sign(voterAccount.privateKey, commandHash);
-    
-    // 5. ECDH 共享密钥
-    const sharedKey = genEcdhSharedKey(
-      voterAccount.privateKey,
-      coordinatorPubKey
-    );
-    
-    // 6. 加密
-    const encryptedData = encrypt(
-      command,
-      signature,
-      sharedKey
-    );
-    
-    // 7. 构造消息
-    const message = {
-      msgType: 1,
-      data: encryptedData
-    };
-    
-    // 8. 提交到链上
-    const tx = await contract.publishMessage(message);
-    await tx.wait();
-    
-    console.log(`消息 ${voterAccount.nonce} 已提交`);
-    
-    // 9. 增加本地 nonce（注意：链上 nonce 只在处理时更新）
-    voterAccount.nonce++;
-  }
-}
+await client.vote({
+  signer: wallet,
+  address: userAddress,
+  contractAddress,
+  selectedOptions: [
+    { idx: 0, vc: 5 },
+    { idx: 1, vc: 3 },
+  ],
+  operatorCoordPubKey: [
+    BigInt(roundInfo.coordinatorPubkeyX),
+    BigInt(roundInfo.coordinatorPubkeyY)
+  ],
+  maciKeypair,
+});
 ```
 
 ## Coordinator 端：消息处理

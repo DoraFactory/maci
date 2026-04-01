@@ -9,6 +9,9 @@
     "pretest": "ts-node scripts/checkCircuits.ts && pnpm run generate:all-vectors",
     "test": "pnpm run mocha-test tests/**/*.test.ts",
     "test:amaci": "pnpm run mocha-test tests/amaci.e2e.test.ts",
+    "test:amaci:4-2-2-25": "AMACI_CIRCUIT_SIZE=4-2-2-25 pnpm run mocha-test tests/amaci.e2e.test.ts",
+    "test:amaci:6-3-3-125": "AMACI_CIRCUIT_SIZE=6-3-3-125 pnpm run mocha-test tests/amaci.e2e.test.ts",
+    "test:amaci:9-4-3-125": "AMACI_CIRCUIT_SIZE=9-4-3-125 pnpm run mocha-test tests/amaci.e2e.test.ts",
     "test:maci": "pnpm run mocha-test tests/maci.e2e.test.ts",
     "test:registry": "pnpm run mocha-test tests/registry.e2e.test.ts",
     "test:advanced": "pnpm run mocha-test tests/advanced.e2e.test.ts",
@@ -31,6 +34,7 @@
     "test:zk-kit": "pnpm run test:baby-jubjub && pnpm run test:eddsa-poseidon",
     "mocha-test": "NODE_OPTIONS=--max-old-space-size=4096 ts-mocha --project tsconfig.test.json --exit --timeout 900000",
     "download-zkeys": "ts-node scripts/downloadZkeys.ts",
+    "copy-circuits": "ts-node scripts/copyLatestCircuits.ts",
     "extract-vkeys": "ts-node scripts/extractVkeys.ts",
     "setup-circuits": "pnpm download-zkeys && pnpm extract-vkeys",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"

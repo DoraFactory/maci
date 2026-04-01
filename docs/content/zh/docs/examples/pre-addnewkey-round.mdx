@@ -91,18 +91,24 @@ async function platformPrepareRound() {
     circuitType: MaciCircuitType.QV,
     
     maxVoter: 100,
-    voiceCreditAmount: '100',
+    voiceCreditMode: { unified: { amount: '100' } },
     
-    // Pre-add-new-key 配置
-    preDeactivateRoot: preDeactivateTree.root,
-    preDeactivateCoordinator: [
-      platformCoordKeypair.publicKey[0],
-      platformCoordKeypair.publicKey[1]
-    ]
+    // Pre-populated 模式配置
+    registrationMode: {
+      pre_populated: {
+        pre_deactivate_root: preDeactivateTree.root,
+        pre_deactivate_coordinator: {
+          x: platformCoordKeypair.publicKey[0].toString(16),
+          y: platformCoordKeypair.publicKey[1].toString(16)
+        }
+      }
+    },
+    deactivateEnabled: false
   });
   
   console.log(' Round 创建成功！');
   console.log('合约地址:', round.contractAddress);
+  console.log('Poll ID:', await client.getPollId({ contractAddress: round.contractAddress }));
   console.log('');
   
   // === 保存数据 ===
@@ -284,7 +290,8 @@ multipleUsersVote().catch(console.error);
 4. **创建 Round**
    - 使用 `createAMaciRound` API
    - 配置 `operator` 地址
-   - 配置 `preDeactivateRoot` 和 `preDeactivateCoordinator`
+   - 将 `registrationMode` 设置为 `pre_populated`，包含 `pre_deactivate_root` 和 `pre_deactivate_coordinator`
+   - 配置 `voiceCreditMode`（例如 `unified` 固定额度）
    - Round 创建后立即可用
 
 5. **分发密钥**
@@ -350,6 +357,7 @@ Root: 0x1234567890abcdef...
 创建匿名投票 Round...
  Round 创建成功！
 合约地址: dora1contract...
+Poll ID: 1
 
 保存数据...
  数据已保存到 round_data.json

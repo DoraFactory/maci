@@ -143,9 +143,13 @@ pub const NODES_NO_HASH: Map<Vec<u8>, Uint256> = Map::new("nodes_no_hash");
 pub const SIGNUPED_NO_HASH: Map<&(Vec<u8>, Vec<u8>), Uint256> = Map::new("signuped_no_hash");
 pub const ZEROS_H10_NO_HASH: Item<[Uint256; 7]> = Item::new("zeros_h10_no_hash");
 
+/// Message data structure for encrypted vote messages
+/// Length changed from 7 to 10 to accommodate new command structure:
+/// - Command: 7 elements [packed_data, newPubKey_x, newPubKey_y, salt, sig_R8_x, sig_R8_y, sig_S]
+/// - Encrypted: roundUp(7, 3) + 1 = 10 elements (Poseidon encryption padding)
 #[cw_serde]
 pub struct MessageData {
-    pub data: [Uint256; 7],
+    pub data: [Uint256; 10],
 }
 
 pub const MSG_HASHES: Map<Vec<u8>, Uint256> = Map::new("msg_hashes");
