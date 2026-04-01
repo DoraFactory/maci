@@ -3583,7 +3583,8 @@ mod test {
         (Uint256, Uint256, Uint256),
     ) {
         let pubkey_file_path = "./src/test/user_pubkey.json";
-        let mut pubkey_file = fs::File::open(pubkey_file_path).expect("Failed to open user_pubkey.json");
+        let mut pubkey_file =
+            fs::File::open(pubkey_file_path).expect("Failed to open user_pubkey.json");
         let mut pubkey_content = String::new();
         pubkey_file.read_to_string(&mut pubkey_content).unwrap();
         let pubkey_data: UserPubkeyData = serde_json::from_str(&pubkey_content).unwrap();
@@ -3665,7 +3666,11 @@ mod test {
             }
         }
 
-        (app, contract, (size, new_deactivate_commitment, new_deactivate_root))
+        (
+            app,
+            contract,
+            (size, new_deactivate_commitment, new_deactivate_root),
+        )
     }
 
     /// Helper: build an app + contract configured so that `PreAddNewKey` can reach
@@ -3745,14 +3750,7 @@ mod test {
 
         // ── First call: wrong proof must fail ──────────────────────────────────
         let err = contract
-            .process_deactivate_message(
-                &mut app,
-                owner(),
-                size,
-                commitment,
-                root,
-                wrong_proof,
-            )
+            .process_deactivate_message(&mut app, owner(), size, commitment, root, wrong_proof)
             .unwrap_err();
 
         assert_eq!(
@@ -3778,14 +3776,7 @@ mod test {
             c: "1832b7d8607c041bd1437f43fe1d207ad64bea58f346cc91d0c72d9c02bbc4031decf433ecafc3874f4bcedbfae591caaf87834ad6867c7d342b96b6299ddd0a".to_string(),
         };
         let err2 = contract
-            .process_deactivate_message(
-                &mut app,
-                owner(),
-                size,
-                commitment,
-                root,
-                wrong_proof_2,
-            )
+            .process_deactivate_message(&mut app, owner(), size, commitment, root, wrong_proof_2)
             .unwrap_err();
 
         // Must still be InvalidProof, not AllDeactivateMessagesProcessed.
