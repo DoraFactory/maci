@@ -474,6 +474,7 @@ export class VoterClient {
     contractAddress,
     deactivateIdx,
     voterScale,
+    preComputedProof,
     newPubkey,
     pollId,
     wasmFile,
@@ -482,22 +483,31 @@ export class VoterClient {
   }: {
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
-    /** Raw deactivate leaf data for local Merkle tree construction. When omitted, `contractAddress` must be provided and the proof will be fetched from the SaaS API. */
+    /** Raw deactivate leaf data for local Merkle tree construction. When omitted, either `preComputedProof` or the SaaS API path must be used. */
     deactivates?: bigint[][] | string[][];
-    /** Contract address used for the API proof path. Required when `deactivates` is not provided. */
+    /** Contract address used for the K-anonymous API proof path. Required only when neither `deactivates` nor `preComputedProof` is provided. */
     contractAddress?: string;
     /**
-     * Leaf index of this account in the deactivate tree, as returned by the API
-     * in `accounts[n].accountIndex` at signup time.  When provided the costly
-     * `sharedKeyHash` scan is skipped in both local and API paths.
+     * Leaf index of this account in the deactivate tree.
+     * Required when `preComputedProof` is provided.
+     * When provided on the local or API path the costly `sharedKeyHash` scan is skipped.
      */
     deactivateIdx?: number;
     /**
-     * Pre-deactivate tree capacity (i.e. `preDeactivateScale` from the create-round
-     * response).  Used to generate K-anonymous decoy indices when fetching the proof
-     * from the SaaS API.  When omitted only the real index is sent (K=1, no anonymity).
+     * Pre-deactivate tree capacity (i.e. `preDeactivateScale` from the create-round response).
+     * Only needed for the K-anonymous API path. Ignored when `preComputedProof` is provided.
      */
     voterScale?: number;
+    /**
+     * Pre-computed Merkle proof from an external source (e.g. `claimMaciKey` response).
+     * When provided, both the local tree construction and the SaaS API proof request are skipped entirely.
+     * Must be accompanied by `deactivateIdx`.
+     */
+    preComputedProof?: {
+      root: string;
+      pathElements: string[][];
+      deactivateLeaf: string[];
+    };
     /** Required when `pollId` is provided (new circuit). Omit for legacy mode. */
     newPubkey?: PubKey;
     /** When omitted the legacy circuit input (no `pollId` / `newPubKey` in ZK inputs) is used. */
@@ -560,8 +570,22 @@ export class VoterClient {
       // Local path: caller supplied full deactivate data, build Merkle tree locally.
       // deactivateIdx is optional — when omitted the sharedKeyHash search runs inside genPreAddKeyInput.
       resolvedDeactivates = deactivates.map((d: any) => d.map(BigInt));
+    } else if (preComputedProof) {
+      // Pre-computed proof path: caller provided root, pathElements and deactivateLeaf directly
+      // (e.g. from a claimMaciKey response). No local tree construction or API call needed.
+      if (deactivateIdx === undefined) {
+        throw new Error(
+          'buildPreAddNewKeyPayload: `deactivateIdx` is required when `preComputedProof` is provided'
+        );
+      }
+      preComputedLeaf = preComputedProof.deactivateLeaf.map(BigInt);
+      preComputedTreeProof = {
+        root: preComputedProof.root,
+        pathElements: preComputedProof.pathElements
+      };
+      resolvedDeactivates = [];
     } else {
-      // API path: contractAddress + deactivateIdx must both be provided.
+      // K-anonymous API path: fetch proof from the SaaS API using contractAddress + deactivateIdx + voterScale.
       if (!contractAddress) {
         throw new Error(
           'buildPreAddNewKeyPayload: `contractAddress` is required when `deactivates` is not provided'
@@ -574,7 +598,7 @@ export class VoterClient {
       }
       if (voterScale === undefined) {
         throw new Error(
-          'buildPreAddNewKeyPayload: `voterScale` is required when `deactivates` is not provided'
+          'buildPreAddNewKeyPayload: `voterScale` is required for the K-anonymous API path'
         );
       }
 
@@ -1370,6 +1394,7 @@ export class VoterClient {
     deactivates,
     deactivateIdx,
     voterScale,
+    preComputedProof,
     pollId,
     wasmFile,
     zkeyFile,
@@ -1379,20 +1404,28 @@ export class VoterClient {
     contractAddress: string;
     stateTreeDepth: number;
     coordinatorPubkey: bigint | string | PubKey;
-    /** Raw deactivate leaf data for local Merkle tree construction. Omit to fetch the proof from the SaaS API automatically. */
+    /** Raw deactivate leaf data for local Merkle tree construction. Omit when using `preComputedProof` or the K-anonymous API path. */
     deactivates?: bigint[][] | string[][];
     /**
-     * Leaf index of this account in the deactivate tree, as returned by the API
-     * in `accounts[n].accountIndex` at signup time.  When provided the costly
-     * `sharedKeyHash` scan is skipped.
+     * Leaf index of this account in the deactivate tree.
+     * Required when `preComputedProof` is provided; optional for other paths.
      */
     deactivateIdx?: number;
     /**
      * Pre-deactivate tree capacity (`preDeactivateScale` from the create-round response).
-     * Used to generate K-anonymous decoy indices for the API proof request.
-     * When omitted only the real index is sent (K=1, no anonymity).
+     * Only required for the K-anonymous API path. Ignored when `preComputedProof` is provided.
      */
     voterScale?: number;
+    /**
+     * Pre-computed Merkle proof supplied by the caller (e.g. from `claimMaciKey` response).
+     * When provided, skips both local tree construction and the SaaS API proof request.
+     * Must be accompanied by `deactivateIdx`.
+     */
+    preComputedProof?: {
+      root: string;
+      pathElements: string[][];
+      deactivateLeaf: string[];
+    };
     /** When omitted the legacy circuit input (no `pollId` / `newPubKey` in ZK inputs) is used. */
     pollId?: bigint | number;
     wasmFile: ZKArtifact;
@@ -1417,6 +1450,7 @@ export class VoterClient {
       contractAddress,
       deactivateIdx,
       voterScale,
+      preComputedProof,
       newPubkey,
       pollId: pollId !== undefined ? BigInt(pollId) : undefined,
       wasmFile,

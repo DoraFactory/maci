@@ -825,6 +825,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/rounds/{contractAddress}/claim-key': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Claim MACI Key
+     * @description Assign the next available pre-generated MACI key pair for an AMACI round (first-come-first-served). Returns pubkey, secretKey, and the full deactivate Merkle proof. WARNING: secretKey is returned only once and cannot be retrieved again.
+     */
+    post: operations['claimMaciKey'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/rounds/{contractAddress}/claim-key-stats': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Claim Statistics
+     * @description Returns total key slots (scale), claimed count, and available count for the round. Public endpoint — no authentication required.
+     */
+    get: operations['getClaimStats'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -900,6 +940,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -919,8 +961,8 @@ export interface operations {
           contractAddress: string;
           /** @description Array of vote messages */
           payload: {
-            /** @description Serialized MACI vote message (10 elements) */
-            msg: string[];
+            /** @description Serialized MACI vote message (7 elements for legacy mode, 10 elements for new mode) */
+            msg: string[] | string[];
             /** @description Encrypted public keys (2 elements) */
             encPubkeys: string[];
           }[];
@@ -969,6 +1011,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -1051,6 +1095,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -1131,6 +1177,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -1197,6 +1245,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -1259,6 +1309,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -1328,6 +1380,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -1405,6 +1459,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -1482,6 +1538,8 @@ export interface operations {
             preDeactivateScale?: number;
             /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
             preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
           };
         };
       };
@@ -1800,6 +1858,147 @@ export interface operations {
         content: {
           'application/json': {
             error: string;
+          };
+        };
+      };
+    };
+  };
+  claimMaciKey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Round contract address */
+        contractAddress: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Default Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            contractAddress: string;
+            /** @description On-chain poll ID for this round (used in pre-add-new-key circuit) */
+            pollId: string | null;
+            /** @description Pre-deactivate coordinator public key (packed BigInt string) */
+            coordinatorPubkey: string;
+            /** @description MACI public key for signup */
+            pubkey: string;
+            /** @description MACI secret key. Returned only once — save immediately, cannot be retrieved again. */
+            secretKey: string;
+            /** @description Leaf index in the deactivate tree */
+            leafIndex: number;
+            /** @description Deactivate tree root for on-chain verification */
+            root: string;
+            /** @description Deactivate leaf [c1.x, c1.y, c2.x, c2.y, sharedKeyHash] */
+            deactivateLeaf: string[];
+            /** @description Poseidon hash of deactivateLeaf */
+            deactivateLeafHash: string;
+            /** @description Merkle proof path elements (stateTreeDepth+2 levels, 4 siblings each) */
+            pathElements: string[][];
+            /** @description Merkle proof path indices (stateTreeDepth+2 values) */
+            pathIndices: number[];
+            /** @description ISO timestamp when the key was claimed */
+            claimedAt: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+            message: string;
+            code?: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+            message: string;
+            code?: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+            message: string;
+            code?: string;
+          };
+        };
+      };
+    };
+  };
+  getClaimStats: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Round contract address */
+        contractAddress: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Default Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            contractAddress: string;
+            /** @description Total key slots (PoolDeactivateTree.scale) */
+            scale: number;
+            claimedCount: number;
+            availableCount: number;
+          };
+        };
+      };
+      /** @description Default Response */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+            message: string;
+            code?: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+            message: string;
+            code?: string;
           };
         };
       };

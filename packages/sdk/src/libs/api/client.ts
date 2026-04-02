@@ -474,4 +474,33 @@ export class MaciApiClient {
       { method: 'GET' }
     );
   }
+
+  // ==================== Claim Key APIs ====================
+
+  /**
+   * Claim MACI Key
+   * Assign the next available pre-generated MACI key pair for an AMACI round (first-come-first-served).
+   * Returns pubkey, secretKey, and the full deactivate Merkle proof.
+   * WARNING: secretKey is returned only once and cannot be retrieved again.
+   */
+  async claimMaciKey(
+    params: PathParams<operations['claimMaciKey']>
+  ): Promise<ResponseBody<operations['claimMaciKey'], 201>> {
+    return this.fetch(`/v1/rounds/${params.contractAddress}/claim-key`, {
+      method: 'POST'
+    });
+  }
+
+  /**
+   * Get Claim Statistics
+   * Returns total key slots (scale), claimed count, and available count for the round.
+   * Public endpoint — no authentication required.
+   */
+  async getClaimStats(
+    params: PathParams<operations['getClaimStats']>
+  ): Promise<ResponseBody<operations['getClaimStats'], 200>> {
+    return this.fetch(`/v1/rounds/${params.contractAddress}/claim-key-stats`, {
+      method: 'GET'
+    });
+  }
 }
