@@ -13,7 +13,7 @@ use crate::error::ContractError;
 pub const BASE_FEE_2_1_1_5: u128 = 5_000_000_000_000_000_000; // 5 DORA
 pub const BASE_FEE_4_2_2_25: u128 = 27_000_000_000_000_000_000; // 27 DORA
 pub const BASE_FEE_6_3_3_125: u128 = 208_000_000_000_000_000_000; // 208 DORA
-// TODO: update BASE_FEE_9_4_3_125 when benchmark is complete
+                                                                  // TODO: update BASE_FEE_9_4_3_125 when benchmark is complete
 pub const BASE_FEE_9_4_3_125: u128 = 2160_000_000_000_000_000_000; // 2160 DORA (placeholder)
 
 /// Calculate the required fee and MACI parameters based on max voters and vote options.
@@ -29,7 +29,7 @@ pub fn calculate_round_fee_and_params(
             state_tree_depth: Uint256::from_u128(2u128),
             int_state_tree_depth: Uint256::from_u128(1u128),
             vote_option_tree_depth: Uint256::from_u128(1u128),
-            message_batch_size: Uint256::from_u128(5u128),
+            message_batch_size: Uint256::from_u128(25u128),
         };
         Ok((Uint128::from(BASE_FEE_2_1_1_5), maci_parameters))
     } else if max_voter <= Uint256::from_u128(625u128) && max_option <= Uint256::from_u128(25u128) {
