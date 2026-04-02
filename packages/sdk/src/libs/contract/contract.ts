@@ -97,6 +97,7 @@ export class Contract {
     );
 
     let contractAddress = '';
+    let pollId = '';
     for (const event of res.events) {
       if (event.type === 'wasm') {
         const actionEvent = event.attributes.find(
@@ -106,8 +107,16 @@ export class Contract {
           const roundAddrEvent = event.attributes.find(
             (attr: { key: string; value: string }) => attr.key === 'round_addr'
           );
+          const pollIdEvent = event.attributes.find(
+            (attr: { key: string; value: string }) => attr.key === 'poll_id'
+          );
           if (roundAddrEvent) {
             contractAddress = roundAddrEvent.value.toString();
+          }
+          if (pollIdEvent) {
+            pollId = pollIdEvent.value.toString();
+          }
+          if (contractAddress) {
             break;
           }
         }
@@ -115,7 +124,8 @@ export class Contract {
     }
     return {
       ...res,
-      contractAddress
+      contractAddress,
+      pollId
     };
   }
 
@@ -599,6 +609,7 @@ export class Contract {
     }
 
     let contractAddress = '';
+    let pollId = '';
     for (const event of createResponse.events) {
       if (event.type === 'wasm') {
         const actionEvent = event.attributes.find(
@@ -608,8 +619,16 @@ export class Contract {
           const roundAddrEvent = event.attributes.find(
             (attr: { key: string; value: string }) => attr.key === 'round_addr'
           );
+          const pollIdEvent = event.attributes.find(
+            (attr: { key: string; value: string }) => attr.key === 'poll_id'
+          );
           if (roundAddrEvent) {
             contractAddress = roundAddrEvent.value.toString();
+          }
+          if (pollIdEvent) {
+            pollId = pollIdEvent.value.toString();
+          }
+          if (contractAddress) {
             break;
           }
         }
@@ -617,7 +636,8 @@ export class Contract {
     }
     return {
       ...createResponse,
-      contractAddress
+      contractAddress,
+      pollId
     };
   }
 
