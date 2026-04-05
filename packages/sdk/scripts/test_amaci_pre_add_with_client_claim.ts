@@ -33,8 +33,8 @@ async function main() {
   console.log('='.repeat(80));
 
   // API base configuration
-  const API_BASE_URL = 'http://localhost:8080';
-  // const API_BASE_URL = undefined;
+  // const API_BASE_URL = 'http://localhost:8080';
+  const API_BASE_URL = undefined;
   // const maxVoter = 20000;
   // const circuitPower = '9-4-3-125';
   // const stateTreeDepth = 9;
@@ -128,11 +128,10 @@ async function main() {
   // ==================== 3. Claim Key ====================
   console.log('\n[3/4] Claiming MACI Key (saasClaimKey)');
 
-  // Create a temporary VoterClient with the API key to call saasClaimKey (ticket required)
+  // No API key required — ticket is the only credential needed for claimKey
   const claimVoterClient = new VoterClient({
     network: network,
-    saasApiEndpoint: API_BASE_URL,
-    saasApiKey: apiKey
+    saasApiEndpoint: API_BASE_URL
   });
   const claimedKey = await claimVoterClient.saasClaimKey({ contractAddress, ticket });
 
@@ -265,7 +264,9 @@ async function main() {
     '    • getSaasApiClient().getClaimStats(): public — get scale / claimed / available counts'
   );
   console.log('  - VoterClient:');
-  console.log('    • saasClaimKey({ contractAddress, ticket }): claim pre-generated key + full deactivate Merkle proof');
+  console.log(
+    '    • saasClaimKey({ contractAddress, ticket }): claim pre-generated key + full deactivate Merkle proof'
+  );
   console.log('    • saasPreCreateNewAccount(): pre-computed proof path (preComputedProof)');
   console.log('      uses root/pathElements/deactivateLeaf from claimMaciKey directly');
   console.log('    • saasVote(): builds payload + submits vote');
