@@ -858,17 +858,4 @@ export class MaciClient {
     return await this.saasApiClient.setVoteOptions(params);
   }
 
-  /**
-   * Claim the next available pre-generated MACI key pair for an AMACI round via SaaS API.
-   * The key is assigned on a first-come-first-served basis.
-   * WARNING: secretKey is returned only once — save it immediately, it cannot be retrieved again.
-   * @param contractAddress - Round contract address
-   * @returns Claimed key pair with full deactivate Merkle proof
-   */
-  async saasClaimKey(contractAddress: string) {
-    if (!this.saasApiClient) {
-      throw new Error('SaaS API client not initialized');
-    }
-    return await this.saasApiClient.claimMaciKey({ contractAddress });
-  }
 }

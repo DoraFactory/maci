@@ -484,10 +484,12 @@ export class MaciApiClient {
    * WARNING: secretKey is returned only once and cannot be retrieved again.
    */
   async claimMaciKey(
-    params: PathParams<operations['claimMaciKey']>
+    params: PathParams<operations['claimMaciKey']> & RequestBody<operations['claimMaciKey']>
   ): Promise<ResponseBody<operations['claimMaciKey'], 201>> {
-    return this.fetch(`/v1/rounds/${params.contractAddress}/claim-key`, {
-      method: 'POST'
+    const { contractAddress, ...body } = params;
+    return this.fetch(`/v1/rounds/${contractAddress}/claim-key`, {
+      method: 'POST',
+      body: JSON.stringify(body)
     });
   }
 

@@ -1474,6 +1474,20 @@ export class VoterClient {
   }
 
   /**
+   * Claim the next available pre-generated MACI key pair for an AMACI round via SaaS API.
+   * The key is assigned on a first-come-first-served basis.
+   * WARNING: secretKey is returned only once — save it immediately, it cannot be retrieved again.
+   * @param params - Parameters including contractAddress and ticket
+   * @returns Claimed key pair with full deactivate Merkle proof
+   */
+  async saasClaimKey(params: operations['claimMaciKey']['parameters']['path'] & operations['claimMaciKey']['requestBody']['content']['application/json']) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.claimMaciKey(params);
+  }
+
+  /**
    * Vote via SaaS API with automatic payload building
    * @param params - Parameters including contract address, operator pubkey, vote options, and ticket
    * @returns Response with transaction details

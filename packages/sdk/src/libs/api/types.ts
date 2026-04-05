@@ -836,7 +836,7 @@ export interface paths {
     put?: never;
     /**
      * Claim MACI Key
-     * @description Assign the next available pre-generated MACI key pair for an AMACI round (first-come-first-served). Returns pubkey, secretKey, and the full deactivate Merkle proof. WARNING: secretKey is returned only once and cannot be retrieved again.
+     * @description Assign the next available pre-generated MACI key pair for an AMACI round (first-come-first-served). Requires the round ticket (JWT) returned when the round was created. Returns pubkey, secretKey, and the full deactivate Merkle proof. WARNING: secretKey is returned only once and cannot be retrieved again.
      */
     post: operations['claimMaciKey'];
     delete?: never;
@@ -1873,7 +1873,14 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description Round ticket (JWT) issued when the round was created */
+          ticket: string;
+        };
+      };
+    };
     responses: {
       /** @description Default Response */
       201: {
@@ -1910,6 +1917,19 @@ export interface operations {
       };
       /** @description Default Response */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            error: string;
+            message: string;
+            code?: string;
+          };
+        };
+      };
+      /** @description Default Response */
+      401: {
         headers: {
           [name: string]: unknown;
         };
