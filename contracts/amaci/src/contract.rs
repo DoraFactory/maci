@@ -19,11 +19,10 @@ use crate::state::{
     MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE,
     PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT,
     PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB, REGISTRATION_MODE, RESULT, ROUNDINFO,
-    SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_BASE_DELAY_2_1_1_5, TALLY_BASE_DELAY_4_2_2_25,
-    TALLY_BASE_DELAY_6_3_3_125, TALLY_BASE_DELAY_9_4_3_125, TALLY_DELAY_MAX_HOURS,
-    TALLY_DELAY_MULTIPLIER, TALLY_PER_VOTE_DELAY, TALLY_TIMEOUT, TALLY_TIMEOUT_EXTRA_SECONDS,
-    TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE,
-    VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
+    SIGNUPED, SIGNUP_FEE, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_BASE_DELAY_9_4_3_125,
+    TALLY_DELAY_MAX_HOURS, TALLY_DELAY_MULTIPLIER, TALLY_PER_VOTE_DELAY, TALLY_TIMEOUT,
+    TALLY_TIMEOUT_EXTRA_SECONDS, TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE,
+    VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE, VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
 };
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
@@ -1235,6 +1234,12 @@ pub fn execute_sign_up(
     }
 
     // ============================================
+    // Step 1.5: Collect Registration Fee
+    // Fee stays in contract balance and is distributed at Claim time.
+    // ============================================
+    let signup_payment = check_fee_payment(&info, SIGNUP_FEE)?;
+
+    // ============================================
     // Step 2: Calculate Voice Credit Balance
     // ============================================
     let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
@@ -1333,6 +1338,7 @@ pub fn execute_sign_up(
 
     Ok(Response::new()
         .add_attribute("action", "sign_up")
+        .add_attribute("fee_paid", format!("{}{}", signup_payment, FEE_DENOM))
         .add_attribute("state_idx", state_index.to_string())
         .add_attribute(
             "pubkey",
@@ -1808,20 +1814,23 @@ fn add_key_internal(
 pub fn execute_add_new_key(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     pubkey: PubKey,
     nullifier: Uint256,
     d: [Uint256; 4],
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
-    add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, false)
+    // Fee stays in contract balance and is distributed at Claim time.
+    let payment = check_fee_payment(&info, SIGNUP_FEE)?;
+    let resp = add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, false)?;
+    Ok(resp.add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
 }
 
 // in voting — only allowed in PrePopulated registration mode
 pub fn execute_pre_add_new_key(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     pubkey: PubKey,
     nullifier: Uint256,
     d: [Uint256; 4],
@@ -1831,7 +1840,10 @@ pub fn execute_pre_add_new_key(
     if !matches!(registration_mode, RegistrationMode::PrePopulated { .. }) {
         return Err(ContractError::PreAddNewKeyNotAllowed {});
     }
-    add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, true)
+    // Fee stays in contract balance and is distributed at Claim time.
+    let payment = check_fee_payment(&info, SIGNUP_FEE)?;
+    let resp = add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, true)?;
+    Ok(resp.add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
 }
 
 pub fn execute_start_process_period(
@@ -2820,21 +2832,8 @@ pub fn calculate_tally_delay(deps: Deps) -> Result<TallyDelayInfo, ContractError
         .map(|x: Uint128| x.u128() as u64)
         .map_err(|_| ContractError::ValueTooLarge {})?;
 
-    let parameter: MaciParameters = MACIPARAMETERS.load(deps.storage)?;
-    let state_tree_depth = parameter.state_tree_depth;
-
-    // Select base delay based on circuit tier
-    let base_delay = if state_tree_depth == Uint256::from_u128(2u128) {
-        TALLY_BASE_DELAY_2_1_1_5
-    } else if state_tree_depth == Uint256::from_u128(4u128) {
-        TALLY_BASE_DELAY_4_2_2_25
-    } else if state_tree_depth == Uint256::from_u128(6u128) {
-        TALLY_BASE_DELAY_6_3_3_125
-    } else if state_tree_depth == Uint256::from_u128(9u128) {
-        TALLY_BASE_DELAY_9_4_3_125 // TODO: update when benchmark is complete
-    } else {
-        return Err(ContractError::ValueTooLarge {});
-    };
+    // Only 9-4-3-125 is supported; base delay covers the first 5^4=625 slot tally batch.
+    let base_delay = TALLY_BASE_DELAY_9_4_3_125;
 
     // delay_allowed = (base_delay + msg_count * per_vote_delay) * multiplier
     let delay_seconds =

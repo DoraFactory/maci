@@ -412,21 +412,17 @@ pub const DEACTIVATE_FEE: Uint128 = Uint128::new(10_000_000_000_000_000_000); //
 // Pricing: $0.0003 USD / $0.005 per DORA = 0.06 DORA = 6 * 10^16 peaka
 pub const MESSAGE_FEE: Uint128 = Uint128::new(60_000_000_000_000_000); // 0.06 DORA = 0.06 * 10^18 peaka
 
-// Tally delay constants (based on circuit benchmarks)
+// Registration fee: unified for signup / addNewKey / preAddNewKey
+// 1 DORA = 10^18 peaka
+pub const SIGNUP_FEE: Uint128 = Uint128::new(1_000_000_000_000_000_000); // 1 DORA
+
+// Tally delay constant for the only supported circuit: 9-4-3-125
 // Formula: delay_allowed = (BASE_DELAY + msg_count * PER_VOTE_DELAY) * TALLY_DELAY_MULTIPLIER
 //          tally_timeout  = delay_allowed + TALLY_TIMEOUT_EXTRA_SECONDS
 //
-// Benchmark source (server processing time):
-//   2-1-1-5:   base ≈ 0.48 min (0.2267 + 0.2516 min),  per_vote ≈ 0.8841s
-//   4-2-2-25:  base ≈ 2.88 min (2.5346 + 0.3404 min),  per_vote ≈ 0.2531s
-//   6-3-3-125: base ≈ 22.26 min (21.9313 + 0.3308 min), per_vote ≈ 0.2289s
-//
-// Base delay rounded up to next whole minute for each circuit:
-pub const TALLY_BASE_DELAY_2_1_1_5: u64 = 60; // 1 min  (benchmark: 0.48 min)
-pub const TALLY_BASE_DELAY_4_2_2_25: u64 = 180; // 3 min  (benchmark: 2.88 min)
-pub const TALLY_BASE_DELAY_6_3_3_125: u64 = 1380; // 23 min (benchmark: 22.26 min)
-// TODO: update TALLY_BASE_DELAY_9_4_3_125 when 9-4-3-125 benchmark is complete
-pub const TALLY_BASE_DELAY_9_4_3_125: u64 = 14400; // 240 min (placeholder)
+// First tally batch processes 5^int_state_tree_depth = 5^4 = 625 slots minimum.
+// TODO: update when 9-4-3-125 benchmark is complete
+pub const TALLY_BASE_DELAY_9_4_3_125: u64 = 14400; // 240 min (placeholder, covers first 625-slot batch)
 
 // Per-vote delay: unified across all circuits
 // Reference: 4-2-2-25 ≈ 0.2531s/vote, 6-3-3-125 ≈ 0.2289s/vote → rounded up to 2s for safety margin
