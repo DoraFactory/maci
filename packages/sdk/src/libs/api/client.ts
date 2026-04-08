@@ -480,16 +480,19 @@ export class MaciApiClient {
   /**
    * Claim MACI Key
    * Assign the next available pre-generated MACI key pair for an AMACI round (first-come-first-served).
+   * Requires the X-Amaci-Claim-Key header for authentication.
    * Returns pubkey, secretKey, and the full deactivate Merkle proof.
    * WARNING: secretKey is returned only once and cannot be retrieved again.
    */
   async claimMaciKey(
-    params: PathParams<operations['claimMaciKey']> & RequestBody<operations['claimMaciKey']>
+    params: PathParams<operations['claimMaciKey']> & { amaciClaimKey: string }
   ): Promise<ResponseBody<operations['claimMaciKey'], 201>> {
-    const { contractAddress, ...body } = params;
+    const { contractAddress, amaciClaimKey } = params;
     return this.fetch(`/v1/rounds/${contractAddress}/claim-key`, {
       method: 'POST',
-      body: JSON.stringify(body)
+      headers: {
+        'X-Amaci-Claim-Key': amaciClaimKey
+      }
     });
   }
 
