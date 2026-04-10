@@ -253,22 +253,18 @@ export type QueryMsg = {
     sender?: Addr | null;
   };
 } | {
-  get_message_fee: {};
+  get_fee_config: {};
 } | {
-  get_deactivate_fee: {};
-} | {
-  get_signup_fee: {};
-} | {
-  get_base_delay: {};
-} | {
-  get_message_delay: {};
-} | {
-  get_signup_delay: {};
-} | {
-  get_deactivate_delay: {};
+  get_delay_config: {};
 };
 export type ArrayOfUint256 = Uint256[];
 export type Boolean = boolean;
+export interface DelayConfigResponse {
+  base_delay: number;
+  deactivate_delay: number;
+  message_delay: number;
+  signup_delay: number;
+}
 export type DelayType = "deactivate_delay" | "tally_delay";
 export interface DelayRecords {
   records: DelayRecord[];
@@ -279,6 +275,11 @@ export interface DelayRecord {
   delay_reason: string;
   delay_timestamp: Timestamp;
   delay_type: DelayType;
+}
+export interface FeeConfigResponse {
+  deactivate_fee: Uint128;
+  message_fee: Uint128;
+  signup_fee: Uint128;
 }
 export type PeriodStatus = "pending" | "processing" | "tallying" | "ended";
 export interface Period {

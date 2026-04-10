@@ -322,7 +322,6 @@ pub enum QueryMsg {
 
     #[returns(DelayConfigResponse)]
     GetDelayConfig {},
-
 }
 
 // Response type for GetRegistrationConfig query

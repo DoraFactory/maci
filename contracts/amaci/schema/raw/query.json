@@ -576,10 +576,10 @@
     {
       "type": "object",
       "required": [
-        "get_message_fee"
+        "get_fee_config"
       ],
       "properties": {
-        "get_message_fee": {
+        "get_fee_config": {
           "type": "object",
           "additionalProperties": false
         }
@@ -589,75 +589,10 @@
     {
       "type": "object",
       "required": [
-        "get_deactivate_fee"
+        "get_delay_config"
       ],
       "properties": {
-        "get_deactivate_fee": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get_signup_fee"
-      ],
-      "properties": {
-        "get_signup_fee": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get_base_delay"
-      ],
-      "properties": {
-        "get_base_delay": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get_message_delay"
-      ],
-      "properties": {
-        "get_message_delay": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get_signup_delay"
-      ],
-      "properties": {
-        "get_signup_delay": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get_deactivate_delay"
-      ],
-      "properties": {
-        "get_deactivate_delay": {
+        "get_delay_config": {
           "type": "object",
           "additionalProperties": false
         }

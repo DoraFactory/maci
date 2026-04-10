@@ -2,20 +2,18 @@ use crate::circuit_params::match_vkeys;
 use crate::error::ContractError;
 use crate::groth16_parser::{parse_groth16_proof, parse_groth16_vkey};
 use crate::msg::{
-    ExecuteMsg, Groth16ProofType, InstantiateMsg, InstantiationData, QueryMsg,
-    RegistrationConfigInfo, RegistrationConfigUpdate, RegistrationModeConfig, RegistrationStatus,
-    TallyDelayInfo, WhitelistBaseConfig, FeeConfigResponse, DelayConfigResponse,
+    DelayConfigResponse, ExecuteMsg, FeeConfigResponse, Groth16ProofType, InstantiateMsg,
+    InstantiationData, QueryMsg, RegistrationConfigInfo, RegistrationConfigUpdate,
+    RegistrationModeConfig, RegistrationStatus, TallyDelayInfo, WhitelistBaseConfig,
 };
 use crate::state::{
     Admin, DelayConfig, DelayRecord, DelayRecords, DelayType, FeeConfig, Groth16ProofStr,
-    MaciParameters, MessageData, OracleWhitelistUser, Period, PeriodStatus, PubKey, QuinaryTreeRoot,
-    RegistrationMode, RoundInfo, StateLeaf, VoiceCreditMode, VotingTime, Whitelist,
-    WhitelistConfig, ADMIN, CERTSYSTEM, CIRCUITTYPE,
-    COORDINATORHASH,
+    MaciParameters, MessageData, OracleWhitelistUser, Period, PeriodStatus, PubKey,
+    QuinaryTreeRoot, RegistrationMode, RoundInfo, StateLeaf, VoiceCreditMode, VotingTime,
+    Whitelist, WhitelistConfig, ADMIN, CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH,
     CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT, CURRENT_STATE_COMMITMENT,
-    CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_ENABLED,
-    DELAY_CONFIG, DELAY_RECORDS, DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES, FEE_CONFIG, FEE_DENOM,
-    FEE_RECIPIENT,
+    CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_ENABLED, DELAY_CONFIG, DELAY_RECORDS,
+    DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES, FEE_CONFIG, FEE_DENOM, FEE_RECIPIENT,
     FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS, GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS,
     GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS, MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR,
     MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS,

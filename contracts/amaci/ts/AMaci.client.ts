@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Addr, Uint256, Uint128, RegistrationModeConfig, VoiceCreditMode, Timestamp, Uint64, InstantiateMsg, PubKey, MaciParameters, WhitelistBase, WhitelistBaseConfig, RoundInfo, VotingTime, ExecuteMsg, RegistrationConfigUpdate, MessageData, Groth16ProofType, QueryMsg, ArrayOfUint256, Boolean, DelayType, DelayRecords, DelayRecord, PeriodStatus, Period, RegistrationMode, RegistrationConfigInfo, TallyDelayInfo, NullableString, NullableUint256, RegistrationStatus, ArrayOfString } from "./AMaci.types";
+import { Addr, Uint256, Uint128, RegistrationModeConfig, VoiceCreditMode, Timestamp, Uint64, InstantiateMsg, PubKey, MaciParameters, WhitelistBase, WhitelistBaseConfig, RoundInfo, VotingTime, ExecuteMsg, RegistrationConfigUpdate, MessageData, Groth16ProofType, QueryMsg, ArrayOfUint256, Boolean, DelayConfigResponse, DelayType, DelayRecords, DelayRecord, FeeConfigResponse, PeriodStatus, Period, RegistrationMode, RegistrationConfigInfo, TallyDelayInfo, NullableString, NullableUint256, RegistrationStatus, ArrayOfString } from "./AMaci.types";
 export interface AMaciReadOnlyInterface {
   contractAddress: string;
   admin: () => Promise<Addr>;
@@ -80,13 +80,8 @@ export interface AMaciReadOnlyInterface {
     pubkey?: PubKey;
     sender?: Addr;
   }) => Promise<RegistrationStatus>;
-  getMessageFee: () => Promise<Uint128>;
-  getDeactivateFee: () => Promise<Uint128>;
-  getSignupFee: () => Promise<Uint128>;
-  getBaseDelay: () => Promise<Uint64>;
-  getMessageDelay: () => Promise<Uint64>;
-  getSignupDelay: () => Promise<Uint64>;
-  getDeactivateDelay: () => Promise<Uint64>;
+  getFeeConfig: () => Promise<FeeConfigResponse>;
+  getDelayConfig: () => Promise<DelayConfigResponse>;
 }
 export class AMaciQueryClient implements AMaciReadOnlyInterface {
   client: CosmWasmClient;
@@ -131,13 +126,8 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getDeactivateEnabled = this.getDeactivateEnabled.bind(this);
     this.getRegistrationConfig = this.getRegistrationConfig.bind(this);
     this.queryRegistrationStatus = this.queryRegistrationStatus.bind(this);
-    this.getMessageFee = this.getMessageFee.bind(this);
-    this.getDeactivateFee = this.getDeactivateFee.bind(this);
-    this.getSignupFee = this.getSignupFee.bind(this);
-    this.getBaseDelay = this.getBaseDelay.bind(this);
-    this.getMessageDelay = this.getMessageDelay.bind(this);
-    this.getSignupDelay = this.getSignupDelay.bind(this);
-    this.getDeactivateDelay = this.getDeactivateDelay.bind(this);
+    this.getFeeConfig = this.getFeeConfig.bind(this);
+    this.getDelayConfig = this.getDelayConfig.bind(this);
   }
   admin = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -375,39 +365,14 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
       }
     });
   };
-  getMessageFee = async (): Promise<Uint128> => {
+  getFeeConfig = async (): Promise<FeeConfigResponse> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_message_fee: {}
+      get_fee_config: {}
     });
   };
-  getDeactivateFee = async (): Promise<Uint128> => {
+  getDelayConfig = async (): Promise<DelayConfigResponse> => {
     return this.client.queryContractSmart(this.contractAddress, {
-      get_deactivate_fee: {}
-    });
-  };
-  getSignupFee = async (): Promise<Uint128> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      get_signup_fee: {}
-    });
-  };
-  getBaseDelay = async (): Promise<Uint64> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      get_base_delay: {}
-    });
-  };
-  getMessageDelay = async (): Promise<Uint64> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      get_message_delay: {}
-    });
-  };
-  getSignupDelay = async (): Promise<Uint64> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      get_signup_delay: {}
-    });
-  };
-  getDeactivateDelay = async (): Promise<Uint64> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      get_deactivate_delay: {}
+      get_delay_config: {}
     });
   };
 }
