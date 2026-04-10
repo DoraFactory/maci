@@ -263,7 +263,10 @@ pub fn execute_create_round(
         .add_attribute("poll_id", poll_id.to_string())
         .add_attribute("total_fee", required_fee.to_string())
         .add_attribute("fee_recipient", admin.to_string())
-        .add_attribute("deactivate_enabled", deactivate_enabled.to_string()))
+        .add_attribute("deactivate_enabled", deactivate_enabled.to_string())
+        .add_attribute("round_signup_fee", fee_config.signup_fee.to_string())
+        .add_attribute("round_message_fee", fee_config.message_fee.to_string())
+        .add_attribute("round_deactivate_fee", fee_config.deactivate_fee.to_string()))
 }
 
 // validator
