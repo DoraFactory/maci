@@ -623,41 +623,14 @@
       "additionalProperties": false
     },
     "SaasFeeConfig": {
-      "description": "Local mirror of fee configuration. ApiSaas admin keeps this in sync with the Registry's FeeConfig manually. This avoids cross-contract queries when proxying user operations.",
+      "description": "Global fee configuration for api-saas. Only base_fee is stored here; per-operation fees (signup/message/deactivate) are captured per-round in ROUND_FEE_CONFIG at round creation time.",
       "type": "object",
       "required": [
-        "base_fee",
-        "deactivate_fee",
-        "message_fee",
-        "signup_fee"
+        "base_fee"
       ],
       "properties": {
         "base_fee": {
           "description": "CreateRound fee forwarded to registry (mirroring registry base_fee)",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint128"
-            }
-          ]
-        },
-        "deactivate_fee": {
-          "description": "Per-message fee for PublishDeactivateMessage (mirroring registry deactivate_fee)",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint128"
-            }
-          ]
-        },
-        "message_fee": {
-          "description": "Per-message fee for PublishMessage (mirroring registry message_fee)",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint128"
-            }
-          ]
-        },
-        "signup_fee": {
-          "description": "Registration fee for SignUp / AddNewKey / PreAddNewKey (mirroring registry signup_fee)",
           "allOf": [
             {
               "$ref": "#/definitions/Uint128"

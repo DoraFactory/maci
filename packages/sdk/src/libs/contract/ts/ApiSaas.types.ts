@@ -162,9 +162,6 @@ export interface VotingTime {
 }
 export interface SaasFeeConfig {
   base_fee: Uint128;
-  deactivate_fee: Uint128;
-  message_fee: Uint128;
-  signup_fee: Uint128;
 }
 export interface EncPubKeyParam {
   x: string;

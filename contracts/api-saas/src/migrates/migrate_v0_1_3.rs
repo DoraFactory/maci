@@ -7,13 +7,12 @@ pub fn migrate_v0_1_3(deps: DepsMut) -> Result<Response, ContractError> {
     // This item did not exist in v0.1.2; it mirrors the Registry's FeeConfig
     // so that api-saas can check fees locally without cross-contract queries.
     if SAAS_FEE_CONFIG.may_load(deps.storage)?.is_none() {
-        let fee_config = SaasFeeConfig {
-            message_fee: Uint128::new(60_000_000_000_000_000),        // 0.06 DORA
-            deactivate_fee: Uint128::new(10_000_000_000_000_000_000), // 10 DORA
-            base_fee: Uint128::new(30_000_000_000_000_000_000),       // 30 DORA
-            signup_fee: Uint128::new(30_000_000_000_000_000),         // 0.03 DORA
-        };
-        SAAS_FEE_CONFIG.save(deps.storage, &fee_config)?;
+        SAAS_FEE_CONFIG.save(
+            deps.storage,
+            &SaasFeeConfig {
+                base_fee: Uint128::new(30_000_000_000_000_000_000), // 30 DORA
+            },
+        )?;
     }
 
     let attributes: Vec<Attribute> = vec![

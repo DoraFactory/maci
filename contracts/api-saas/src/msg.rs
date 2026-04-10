@@ -89,7 +89,9 @@ pub enum ExecuteMsg {
     },
 
     // Update local fee config mirror (admin only)
-    UpdateFeeConfig { config: SaasFeeConfig },
+    UpdateFeeConfig {
+        config: SaasFeeConfig,
+    },
 
     // API MACI management
     SetRoundInfo {
