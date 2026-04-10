@@ -279,6 +279,54 @@ impl SaasContract {
     // Note: Feegrant query functions removed as they're handled by Oracle MACI contract
 
     #[track_caller]
+    pub fn sign_up(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        contract_addr: String,
+        pubkey: EncPubKeyParam,
+        certificate: Option<String>,
+        amount: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::SignUp {
+                contract_addr,
+                pubkey,
+                certificate,
+                amount,
+            },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn add_new_key(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        contract_addr: String,
+        pubkey: EncPubKeyParam,
+        nullifier: String,
+        d: [String; 4],
+        groth16_proof: Groth16ProofParam,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::AddNewKey {
+                contract_addr,
+                pubkey,
+                nullifier,
+                d,
+                groth16_proof,
+            },
+            &[],
+        )
+    }
+
+    #[track_caller]
     pub fn publish_message(
         &self,
         app: &mut App,

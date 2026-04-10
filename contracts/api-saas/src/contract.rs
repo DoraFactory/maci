@@ -5,7 +5,7 @@ use cosmwasm_std::{
     Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, Uint128, Uint256, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw_utils::{may_pay, parse_instantiate_response_data};
+use cw_utils::may_pay;
 
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as SdkCoin;
 use cosmos_sdk_proto::cosmos::feegrant::v1beta1::{
@@ -915,31 +915,14 @@ fn reply_created_amaci_round(
     // Parse SubMsg response from registry
     let response = result.map_err(StdError::generic_err)?;
 
-    // Parse response data using the same method as in api-maci
-    let data = response
-        .data
-        .ok_or(ContractError::Std(StdError::generic_err(
-            "Data missing from response",
-        )))?;
-
-    // Try to parse the instantiation data from Registry response
-    let parsed_response = match parse_instantiate_response_data(&data) {
-        Ok(data) => data,
-        Err(err) => {
-            return Err(ContractError::Std(StdError::generic_err(format!(
-                "Failed to parse instantiate response: {}",
-                err
-            ))))
-        }
-    };
-
-    let amaci_contract_addr = Addr::unchecked(parsed_response.contract_address.clone());
-
-    // Extract information from response events for indexer and fee config capture
+    // Extract information from response events FIRST.
+    // Registry emits "round_addr" which gives us the real AMACI address.
+    // We read this from events instead of parse_instantiate_response_data because
+    // registry's reply handler uses set_data(to_json_binary(...)) (JSON), not protobuf.
     let mut event_attrs = std::collections::HashMap::new();
 
-    for event in response.events {
-        for attr in event.attributes {
+    for event in &response.events {
+        for attr in &event.attributes {
             match attr.key.as_str() {
                 // Store all AMACI-related attributes for indexer
                 "code_id"
@@ -976,6 +959,12 @@ fn reply_created_amaci_round(
             }
         }
     }
+
+    // Get AMACI address from events: registry emits "round_addr" in its reply handler.
+    let amaci_contract_addr = event_attrs
+        .get("round_addr")
+        .map(|a| Addr::unchecked(a))
+        .ok_or(ContractError::RoundAddrNotInReplyEvents {})?;
 
     // Capture per-round fee config from events and persist as round_addr -> RoundFeeConfig.
     // If any fee attribute is missing (old registry version), fall back to legacy defaults.

@@ -1,16 +1,121 @@
-use cosmwasm_std::{coins, Addr, DepsMut, Env, Reply, Response, StdResult, Timestamp, Uint128, Uint256};
+use cosmwasm_std::{coins, Addr, BlockInfo, DepsMut, Env, Reply, Response, StdResult, Timestamp, Uint128, Uint256};
 use cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor, StargateAccepting};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::io::Read as IoRead;
 
 use crate::error::ContractError;
-use crate::msg::{EncPubKeyParam, ExecuteMsg, MessageDataParam};
+use crate::msg::{EncPubKeyParam, Groth16ProofParam, MessageDataParam};
 use crate::multitest::{
     admin, create_app, creator, mock_registry_contract, operator1, operator2, treasury_manager,
     test_round_info, test_voting_time, user1, user2, SaasCodeId, DORA_DEMON,
 };
 use cw_amaci::multitest::{
     test_pubkey1, test_pubkey2, test_pubkey3, uint256_from_decimal_string, DEACTIVATE_FEE,
-    MESSAGE_FEE,
+    MESSAGE_FEE, SIGNUP_FEE,
 };
+use cw_amaci_registry::multitest::operator_pubkey1 as registry_operator_pubkey1;
+
+// ────────────────────────────────────────────────────────────────────────────
+// JSON test-data structures (mirrors registry/src/multitest/tests.rs)
+// ────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UserPubkeyData {
+    pubkeys: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AMaciLogEntry {
+    #[serde(rename = "type")]
+    log_type: String,
+    data: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    inputs: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetStateLeafData {
+    leaf_idx: String,
+    pub_key: Vec<String>,
+    balance: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublishDeactivateMsgData {
+    message: Vec<String>,
+    enc_pub_key: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Groth16ProofFields {
+    pi_a: String,
+    pi_b: String,
+    pi_c: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProofDeactivateData {
+    size: String,
+    new_deactivate_commitment: String,
+    new_deactivate_root: String,
+    proof: Groth16ProofFields,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProofAddNewKeyData {
+    pub_key: Vec<String>,
+    proof: Groth16ProofFields,
+    d: Vec<String>,
+    nullifier: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublishMsgData {
+    message: Vec<String>,
+    enc_pub_key: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProcessMsgData {
+    proof: Groth16ProofFields,
+    new_state_commitment: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProcessTallyData {
+    proof: Groth16ProofFields,
+    new_tally_commitment: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StopTallyingData {
+    results: Vec<String>,
+    salt: String,
+}
+
+fn deserialize_log<T: serde::de::DeserializeOwned>(data: &serde_json::Value) -> T {
+    serde_json::from_value(data.clone()).expect("unable to deserialize log entry data")
+}
+
+fn advance_minutes(block: &mut BlockInfo, minutes: u64) {
+    block.time = block.time.plus_seconds(minutes * 60);
+    block.height += 1;
+}
+
+fn advance_hours(block: &mut BlockInfo, hours: u64) {
+    block.time = block.time.plus_seconds(hours * 3600);
+    block.height += 1;
+}
 
 #[test]
 fn test_instantiate_saas_contract() {
@@ -1218,5 +1323,510 @@ fn test_saas_publish_deactivate_message_unauthorized() {
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::Unauthorized {}
+    );
+}
+
+// ─── SAAS sign_up proxy – unauthorized check ─────────────────────────────────
+
+/// Non-operator must not be able to call `sign_up` through SAAS.
+#[test]
+fn test_saas_sign_up_unauthorized() {
+    let PublishTestEnv { mut app, saas, amaci_addr } =
+        setup_publish_env(100_000_000_000_000_000_000, false);
+
+    let pubkey = test_pubkey1();
+    let err = saas
+        .sign_up(
+            &mut app,
+            user1(), // user1 is NOT an operator in SAAS
+            amaci_addr.clone(),
+            EncPubKeyParam { x: pubkey.x.to_string(), y: pubkey.y.to_string() },
+            None,
+            None,
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+}
+
+/// Non-operator must not be able to call `add_new_key` through SAAS.
+#[test]
+fn test_saas_add_new_key_unauthorized() {
+    let PublishTestEnv { mut app, saas, amaci_addr } =
+        setup_publish_env(100_000_000_000_000_000_000, true);
+
+    let pubkey = test_pubkey1();
+    let err = saas
+        .add_new_key(
+            &mut app,
+            user1(), // user1 is NOT an operator in SAAS
+            amaci_addr.clone(),
+            EncPubKeyParam { x: pubkey.x.to_string(), y: pubkey.y.to_string() },
+            "0".to_string(),
+            ["0".to_string(), "0".to_string(), "0".to_string(), "0".to_string()],
+            Groth16ProofParam {
+                a: "0".to_string(),
+                b: "0".to_string(),
+                c: "0".to_string(),
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+}
+
+// ─── Full round integration test ──────────────────────────────────────────────
+
+/// Full AMACI round lifecycle proxied through SAAS:
+///
+/// 1. Create round via SAAS (deactivate_enabled = true, static whitelist)
+/// 2. Sign up 2 users directly on AMACI (AMACI StaticWhitelist requires sender == whitelist
+///    entry; SAAS contract address is "contractN" so cannot be whitelisted – see comment)
+/// 3. Via SAAS: publish 2 deactivate messages
+/// 4. Directly on AMACI: process deactivate batch (coordinator op, not proxied by SAAS)
+/// 5. Via SAAS: add_new_key with ZK proof (SAAS pays signup_fee from its own balance)
+/// 6. Via SAAS: publish 3 voting messages
+/// 7. Directly on AMACI: process messages, tally, stop tallying (coordinator ops)
+/// 8. Verify final tally results and SAAS balance deduction
+#[test]
+fn test_saas_full_round_signup_addnewkey_tally() {
+    // ── 1. Load test data ────────────────────────────────────────────────────
+    // File paths relative to the api-saas crate root (contracts/api-saas/).
+    let user_pubkey_path = "../registry/src/test/user_pubkey.json";
+    let logs_path = "../registry/src/test/amaci_test/logs.json";
+
+    let pubkey_data: UserPubkeyData = {
+        let mut s = String::new();
+        fs::File::open(user_pubkey_path)
+            .expect("open user_pubkey.json")
+            .read_to_string(&mut s)
+            .expect("read user_pubkey.json");
+        serde_json::from_str(&s).expect("parse user_pubkey.json")
+    };
+
+    let logs_data: Vec<AMaciLogEntry> = {
+        let mut s = String::new();
+        fs::File::open(logs_path)
+            .expect("open logs.json")
+            .read_to_string(&mut s)
+            .expect("read logs.json");
+        serde_json::from_str(&s).expect("parse logs.json")
+    };
+
+    // ── 2. Build App ─────────────────────────────────────────────────────────
+    let initial_balance = 200_000_000_000_000_000_000u128; // 200 DORA
+
+    // Whitelist users need "dora1" prefix (AMACI hardcodes this check).
+    // cw-multi-test contract addresses are "contractN", so SAAS cannot be on the whitelist.
+    // We use manually-crafted "dora1..." addresses for direct signers; SAAS sign_up
+    // authorization is covered by test_saas_sign_up_unauthorized.
+    let signup_user1 = Addr::unchecked("dora1signupuser1aaaa");
+    let signup_user2 = Addr::unchecked("dora1signupuser2bbbb");
+    let dora_op = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug");
+
+    let mut app = AppBuilder::default()
+        .with_stargate(StargateAccepting)
+        .build(|router, _api, storage| {
+            for addr in [
+                user1(),
+                operator1(),
+                admin(),
+                treasury_manager(),
+                dora_op.clone(),
+                signup_user1.clone(),
+                signup_user2.clone(),
+            ] {
+                router
+                    .bank
+                    .init_balance(storage, &addr, coins(initial_balance, DORA_DEMON))
+                    .unwrap();
+            }
+        });
+
+    // ── 3. Store contracts ───────────────────────────────────────────────────
+    let amaci_code_id = app.store_code(real_amaci_contract());
+    let registry_code_id = app.store_code(real_registry_contract());
+    let saas_code_id = SaasCodeId::store_code(&mut app);
+
+    // ── 4. Instantiate registry ──────────────────────────────────────────────
+    let registry_addr = app
+        .instantiate_contract(
+            registry_code_id,
+            admin(),
+            &cw_amaci_registry::msg::InstantiateMsg {
+                admin: admin(),
+                operator: admin(),
+                amaci_code_id,
+            },
+            &[],
+            "Registry",
+            None,
+        )
+        .unwrap();
+
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetValidators {
+            addresses: cw_amaci_registry::state::ValidatorSet {
+                addresses: vec![admin()],
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        admin(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperator {
+            operator: dora_op.clone(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Use the same operator pubkey as the registry test (logs.json proofs were generated with it)
+    app.execute_contract(
+        dora_op.clone(),
+        registry_addr.clone(),
+        &cw_amaci_registry::msg::ExecuteMsg::SetMaciOperatorPubkey {
+            pubkey: registry_operator_pubkey1(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // ── 5. Instantiate SAAS ──────────────────────────────────────────────────
+    let saas = saas_code_id
+        .instantiate(
+            &mut app,
+            creator(),
+            admin(),
+            treasury_manager(),
+            registry_addr.clone(),
+            DORA_DEMON.to_string(),
+            "SaaS",
+        )
+        .unwrap();
+
+    saas.add_operator(&mut app, admin(), operator1()).unwrap();
+
+    // Deposit enough DORA to cover all fees: signup×2 + deactivate×2 + message×3 + base_fee
+    saas.deposit(&mut app, user1(), &coins(100_000_000_000_000_000_000u128, DORA_DEMON))
+        .unwrap();
+
+    // ── 6. Create round via SAAS with signup whitelist ───────────────────────
+    let whitelist = cw_amaci::msg::WhitelistBase {
+        users: vec![
+            cw_amaci::msg::WhitelistBaseConfig {
+                addr: signup_user1.clone(),
+                voice_credit_amount: None,
+            },
+            cw_amaci::msg::WhitelistBaseConfig {
+                addr: signup_user2.clone(),
+                voice_credit_amount: None,
+            },
+        ],
+    };
+
+    let create_result = saas
+        .create_amaci_round(
+            &mut app,
+            operator1(),
+            dora_op.clone(),
+            cw_amaci::state::VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            vec![
+                "A".to_string(),
+                "B".to_string(),
+                "C".to_string(),
+                "D".to_string(),
+                "E".to_string(),
+            ],
+            test_round_info(),
+            test_voting_time(),
+            cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist },
+            Uint256::from_u128(1u128), // circuit_type=1 (QV) – matches logs.json proofs
+            Uint256::zero(),           // certification_system=0 (groth16)
+            true,                      // deactivate_enabled
+            &[],
+        )
+        .unwrap();
+
+    let amaci_addr = Addr::unchecked(
+        create_result
+            .events
+            .iter()
+            .flat_map(|e| &e.attributes)
+            .find(|a| a.key == "round_addr")
+            .expect("round_addr not found")
+            .value
+            .clone(),
+    );
+
+    // ── 7. Advance block into voting period ──────────────────────────────────
+    // test_voting_time: start=1640995200, end=1641081600
+    app.update_block(|b| {
+        b.time = Timestamp::from_seconds(1641000000); // inside voting window
+        b.height += 1;
+    });
+
+    // ── 8. Sign up two users directly on AMACI ───────────────────────────────
+    // AMACI's StaticWhitelist requires sender == whitelist entry. SAAS's contract address
+    // in cw-multi-test is "contractN" (not "dora1..."), so it cannot be whitelisted. Direct
+    // signup is used here. SAAS's sign_up authorization is covered by test_saas_sign_up_unauthorized.
+    let pubkey0 = cw_amaci::state::PubKey {
+        x: uint256_from_decimal_string(&pubkey_data.pubkeys[0][0]),
+        y: uint256_from_decimal_string(&pubkey_data.pubkeys[0][1]),
+    };
+    let pubkey1 = cw_amaci::state::PubKey {
+        x: uint256_from_decimal_string(&pubkey_data.pubkeys[1][0]),
+        y: uint256_from_decimal_string(&pubkey_data.pubkeys[1][1]),
+    };
+
+    app.execute_contract(
+        signup_user1.clone(),
+        amaci_addr.clone(),
+        &cw_amaci::msg::ExecuteMsg::SignUp {
+            pubkey: pubkey0.clone(),
+            certificate: None,
+            amount: None,
+        },
+        &coins(SIGNUP_FEE.u128(), cw_amaci::state::FEE_DENOM),
+    )
+    .unwrap();
+
+    app.execute_contract(
+        signup_user2.clone(),
+        amaci_addr.clone(),
+        &cw_amaci::msg::ExecuteMsg::SignUp {
+            pubkey: pubkey1.clone(),
+            certificate: None,
+            amount: None,
+        },
+        &coins(SIGNUP_FEE.u128(), cw_amaci::state::FEE_DENOM),
+    )
+    .unwrap();
+
+    let num_sign_up: Uint256 = app
+        .wrap()
+        .query_wasm_smart(&amaci_addr, &cw_amaci::msg::QueryMsg::GetNumSignUp {})
+        .unwrap();
+    assert_eq!(num_sign_up, Uint256::from_u128(2));
+
+    // ── 9. Process log entries ───────────────────────────────────────────────
+    for entry in &logs_data {
+        match entry.log_type.as_str() {
+            // Skip setStateLeaf – these are state snapshots, not transactions
+            "setStateLeaf" => {}
+
+            "publishDeactivateMessage" => {
+                let data: PublishDeactivateMsgData = deserialize_log(&entry.data);
+                saas.publish_deactivate_message(
+                    &mut app,
+                    operator1(),
+                    amaci_addr.to_string(),
+                    EncPubKeyParam {
+                        x: data.enc_pub_key[0].clone(),
+                        y: data.enc_pub_key[1].clone(),
+                    },
+                    MessageDataParam { data: data.message.clone() },
+                )
+                .expect("publish_deactivate_message via SAAS should succeed");
+            }
+
+            "proofDeactivate" => {
+                let data: ProofDeactivateData = deserialize_log(&entry.data);
+                // Need ≥ DEACTIVATE_DELAY seconds between deactivate messages and processing
+                app.update_block(|b| advance_minutes(b, 11));
+
+                app.execute_contract(
+                    dora_op.clone(),
+                    amaci_addr.clone(),
+                    &cw_amaci::msg::ExecuteMsg::ProcessDeactivateMessage {
+                        size: uint256_from_decimal_string(&data.size),
+                        new_deactivate_commitment: uint256_from_decimal_string(
+                            &data.new_deactivate_commitment,
+                        ),
+                        new_deactivate_root: uint256_from_decimal_string(
+                            &data.new_deactivate_root,
+                        ),
+                        groth16_proof: cw_amaci::msg::Groth16ProofType {
+                            a: data.proof.pi_a.clone(),
+                            b: data.proof.pi_b.clone(),
+                            c: data.proof.pi_c.clone(),
+                        },
+                    },
+                    &[],
+                )
+                .expect("process_deactivate_message should succeed");
+            }
+
+            "proofAddNewKey" => {
+                // Via SAAS proxy: operator triggers add_new_key, SAAS pays signup_fee
+                // from its balance and forwards the ZK proof to AMACI.
+                let data: ProofAddNewKeyData = deserialize_log(&entry.data);
+                saas.add_new_key(
+                    &mut app,
+                    operator1(),
+                    amaci_addr.to_string(),
+                    EncPubKeyParam {
+                        x: data.pub_key[0].clone(),
+                        y: data.pub_key[1].clone(),
+                    },
+                    data.nullifier.clone(),
+                    [
+                        data.d[0].clone(),
+                        data.d[1].clone(),
+                        data.d[2].clone(),
+                        data.d[3].clone(),
+                    ],
+                    Groth16ProofParam {
+                        a: data.proof.pi_a.clone(),
+                        b: data.proof.pi_b.clone(),
+                        c: data.proof.pi_c.clone(),
+                    },
+                )
+                .expect("add_new_key via SAAS proxy should succeed");
+            }
+
+            "publishMessage" => {
+                let data: PublishMsgData = deserialize_log(&entry.data);
+                saas.publish_message(
+                    &mut app,
+                    operator1(),
+                    amaci_addr.to_string(),
+                    vec![EncPubKeyParam {
+                        x: data.enc_pub_key[0].clone(),
+                        y: data.enc_pub_key[1].clone(),
+                    }],
+                    vec![MessageDataParam { data: data.message.clone() }],
+                )
+                .expect("publish_message via SAAS should succeed");
+            }
+
+            "processMessage" => {
+                let data: ProcessMsgData = deserialize_log(&entry.data);
+                // Advance past end_time so StartProcessPeriod succeeds
+                app.update_block(|b| {
+                    b.time = Timestamp::from_seconds(1641200000); // well past end_time
+                    b.height += 1;
+                });
+
+                app.execute_contract(
+                    dora_op.clone(),
+                    amaci_addr.clone(),
+                    &cw_amaci::msg::ExecuteMsg::StartProcessPeriod {},
+                    &[],
+                )
+                .expect("start_process should succeed");
+
+                app.execute_contract(
+                    dora_op.clone(),
+                    amaci_addr.clone(),
+                    &cw_amaci::msg::ExecuteMsg::ProcessMessage {
+                        new_state_commitment: uint256_from_decimal_string(
+                            &data.new_state_commitment,
+                        ),
+                        groth16_proof: cw_amaci::msg::Groth16ProofType {
+                            a: data.proof.pi_a.clone(),
+                            b: data.proof.pi_b.clone(),
+                            c: data.proof.pi_c.clone(),
+                        },
+                    },
+                    &[],
+                )
+                .expect("process_message should succeed");
+            }
+
+            "processTally" => {
+                let data: ProcessTallyData = deserialize_log(&entry.data);
+
+                app.execute_contract(
+                    dora_op.clone(),
+                    amaci_addr.clone(),
+                    &cw_amaci::msg::ExecuteMsg::StopProcessingPeriod {},
+                    &[],
+                )
+                .expect("stop_processing should succeed");
+
+                app.execute_contract(
+                    dora_op.clone(),
+                    amaci_addr.clone(),
+                    &cw_amaci::msg::ExecuteMsg::ProcessTally {
+                        new_tally_commitment: uint256_from_decimal_string(
+                            &data.new_tally_commitment,
+                        ),
+                        groth16_proof: cw_amaci::msg::Groth16ProofType {
+                            a: data.proof.pi_a.clone(),
+                            b: data.proof.pi_b.clone(),
+                            c: data.proof.pi_c.clone(),
+                        },
+                    },
+                    &[],
+                )
+                .expect("process_tally should succeed");
+            }
+
+            "stopTallyingPeriod" => {
+                let data: StopTallyingData = deserialize_log(&entry.data);
+                // Advance 3 hours for tally delay
+                app.update_block(|b| advance_hours(b, 3));
+
+                let results: Vec<Uint256> = data
+                    .results
+                    .iter()
+                    .map(|s| uint256_from_decimal_string(s))
+                    .collect();
+                let salt = uint256_from_decimal_string(&data.salt);
+
+                app.execute_contract(
+                    dora_op.clone(),
+                    amaci_addr.clone(),
+                    &cw_amaci::msg::ExecuteMsg::StopTallyingPeriod { results, salt },
+                    &[],
+                )
+                .expect("stop_tallying should succeed");
+
+                // ── 10. Verify tally results ─────────────────────────────────
+                let all_result: Uint256 = app
+                    .wrap()
+                    .query_wasm_smart(
+                        &amaci_addr,
+                        &cw_amaci::msg::QueryMsg::GetAllResult {},
+                    )
+                    .unwrap();
+                println!("Final tally all_result: {}", all_result);
+
+                let expected_result = uint256_from_decimal_string(&data.results[2]);
+                assert!(
+                    all_result > Uint256::zero(),
+                    "tally result should be non-zero"
+                );
+                assert_eq!(all_result, expected_result, "tally result should match expected");
+            }
+
+            _ => {}
+        }
+    }
+
+    // ── 11. Final SAAS balance sanity check ──────────────────────────────────
+    let final_balance = saas.query_balance(&app).unwrap();
+    assert!(
+        final_balance < Uint128::from(100_000_000_000_000_000_000u128),
+        "SAAS balance should have decreased from fee deductions: {}",
+        final_balance
+    );
+    println!(
+        "test_saas_full_round_signup_addnewkey_tally passed. Final SAAS balance: {}",
+        final_balance
     );
 }
