@@ -8,15 +8,15 @@ use cosmwasm_std::{
 use maci_utils::is_on_babyjubjub_curve;
 
 use crate::error::ContractError;
-use crate::migrates::migrate_v0_1_5::migrate_v0_1_5;
+use crate::migrates::migrate_v0_1_6::migrate_v0_1_6;
 use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiationData, MigrateMsg, QueryMsg};
 use crate::state::{
-    Admin, CircuitChargeConfig, ValidatorSet, ADDRESS_TO_POLL_ID, ADMIN, AMACI_CODE_ID,
-    CIRCUIT_CHARGE_CONFIG, COORDINATOR_PUBKEY_MAP, MACI_OPERATOR_IDENTITY, MACI_OPERATOR_PUBKEY,
-    MACI_OPERATOR_SET, MACI_VALIDATOR_LIST, MACI_VALIDATOR_OPERATOR_SET, NEXT_POLL_ID, OPERATOR,
-    POLL_ID_TO_ADDRESS,
+    Admin, CircuitChargeConfig, DelayConfig, FeeConfig, ValidatorSet, ADDRESS_TO_POLL_ID, ADMIN,
+    AMACI_CODE_ID, CIRCUIT_CHARGE_CONFIG, COORDINATOR_PUBKEY_MAP, DELAY_CONFIG, FEE_CONFIG,
+    MACI_OPERATOR_IDENTITY, MACI_OPERATOR_PUBKEY, MACI_OPERATOR_SET, MACI_VALIDATOR_LIST,
+    MACI_VALIDATOR_OPERATOR_SET, NEXT_POLL_ID, OPERATOR, POLL_ID_TO_ADDRESS,
 };
-use crate::utils::calculate_round_fee_and_params;
+use crate::utils::get_maci_parameters;
 use cosmwasm_std::Decimal;
 use cw2::set_contract_version;
 use cw_amaci::msg::{
@@ -47,11 +47,29 @@ pub fn instantiate(
 
     AMACI_CODE_ID.save(deps.storage, &msg.amaci_code_id)?;
 
+    // ORIGINAL: fee_rate config
     let circuit_charge_config = CircuitChargeConfig {
         fee_rate: Decimal::from_ratio(1u128, 10u128), // 10%
     };
-
     CIRCUIT_CHARGE_CONFIG.save(deps.storage, &circuit_charge_config)?;
+
+    // NEW: fee amounts config
+    let fee_config = FeeConfig {
+        base_fee: Uint128::new(30_000_000_000_000_000_000),       // 30 DORA
+        message_fee: Uint128::new(60_000_000_000_000_000),        // 0.06 DORA
+        deactivate_fee: Uint128::new(10_000_000_000_000_000_000), // 10 DORA
+        signup_fee: Uint128::new(30_000_000_000_000_000),         // 0.03 DORA
+    };
+    FEE_CONFIG.save(deps.storage, &fee_config)?;
+
+    // NEW: delay config
+    let delay_config = DelayConfig {
+        base_delay: 200u64,       // 200s
+        message_delay: 2u64,      // 2s per message in tally window
+        signup_delay: 1u64,       // 1s per registered user in tally window
+        deactivate_delay: 600u64, // 10 min: operator processing window for deactivate msgs
+    };
+    DELAY_CONFIG.save(deps.storage, &delay_config)?;
 
     // Initialize poll ID counter starting from 1
     NEXT_POLL_ID.save(deps.storage, &1u64)?;
@@ -79,7 +97,6 @@ pub fn execute(
         }
         ExecuteMsg::CreateRound {
             operator,
-            max_voter,
             vote_option_map,
             round_info,
             voting_time,
@@ -93,7 +110,6 @@ pub fn execute(
             env,
             info,
             operator,
-            max_voter,
             vote_option_map,
             round_info,
             voting_time,
@@ -115,6 +131,12 @@ pub fn execute(
         ExecuteMsg::ChangeOperator { address } => execute_change_operator(deps, env, info, address),
         ExecuteMsg::ChangeChargeConfig { config } => {
             execute_change_charge_config(deps, env, info, config)
+        }
+        ExecuteMsg::UpdateFeeConfig { config } => {
+            execute_update_fee_config(deps, env, info, config)
+        }
+        ExecuteMsg::UpdateDelayConfig { config } => {
+            execute_update_delay_config(deps, env, info, config)
         }
     }
 }
@@ -143,7 +165,6 @@ pub fn execute_create_round(
     env: Env,
     info: MessageInfo,
     operator: Addr,
-    max_voter: Uint256,
     vote_option_map: Vec<String>,
     round_info: RoundInfo,
     voting_time: VotingTime,
@@ -155,9 +176,11 @@ pub fn execute_create_round(
 ) -> Result<Response, ContractError> {
     validate_dora_address(operator.as_str())?;
 
-    // Calculate circuit fee and parameters
-    let max_option = Uint256::from_u128(vote_option_map.len() as u128);
-    let (required_fee, maci_parameters) = calculate_round_fee_and_params(max_voter, max_option)?;
+    // Load fee and delay configs
+    let fee_config = FEE_CONFIG.load(deps.storage)?;
+    let delay_config = DELAY_CONFIG.load(deps.storage)?;
+    let required_fee = fee_config.base_fee;
+    let maci_parameters = get_maci_parameters()?;
 
     // Verify payment
     let denom = "peaka".to_string();
@@ -211,6 +234,14 @@ pub fn execute_create_round(
         // Unified MACI Configuration
         voice_credit_mode,
         registration_mode,
+        // Fee & delay configuration injected from registry at round creation time
+        message_fee: fee_config.message_fee,
+        deactivate_fee: fee_config.deactivate_fee,
+        signup_fee: fee_config.signup_fee,
+        base_delay: delay_config.base_delay,
+        message_delay: delay_config.message_delay,
+        signup_delay: delay_config.signup_delay,
+        deactivate_delay: delay_config.deactivate_delay,
     };
 
     let amaci_code_id = AMACI_CODE_ID.load(deps.storage)?;
@@ -446,6 +477,7 @@ pub fn execute_change_operator(
     }
 }
 
+/// ORIGINAL: manages fee_rate only via CIRCUIT_CHARGE_CONFIG.
 pub fn execute_change_charge_config(
     deps: DepsMut,
     _env: Env,
@@ -461,6 +493,47 @@ pub fn execute_change_charge_config(
     Ok(Response::new()
         .add_attribute("action", "change_charge_config")
         .add_attribute("fee_rate", config.fee_rate.to_string()))
+}
+
+/// NEW: manages fee amounts (base_fee, message_fee, deactivate_fee, signup_fee).
+pub fn execute_update_fee_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    config: FeeConfig,
+) -> Result<Response, ContractError> {
+    if !is_operator(deps.as_ref(), info.sender.as_ref())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    FEE_CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "update_fee_config")
+        .add_attribute("base_fee", config.base_fee.to_string())
+        .add_attribute("message_fee", config.message_fee.to_string())
+        .add_attribute("deactivate_fee", config.deactivate_fee.to_string())
+        .add_attribute("signup_fee", config.signup_fee.to_string()))
+}
+
+pub fn execute_update_delay_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    config: DelayConfig,
+) -> Result<Response, ContractError> {
+    if !is_operator(deps.as_ref(), info.sender.as_ref())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    DELAY_CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "update_delay_config")
+        .add_attribute("base_delay", config.base_delay.to_string())
+        .add_attribute("message_delay", config.message_delay.to_string())
+        .add_attribute("signup_delay", config.signup_delay.to_string())
+        .add_attribute("deactivate_delay", config.deactivate_delay.to_string()))
 }
 
 // Only admin can execute
@@ -521,6 +594,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetCircuitChargeConfig {} => {
             to_json_binary(&CIRCUIT_CHARGE_CONFIG.load(deps.storage)?)
+        }
+        QueryMsg::GetFeeConfig {} => {
+            to_json_binary(&FEE_CONFIG.load(deps.storage)?)
+        }
+        QueryMsg::GetDelayConfig {} => {
+            to_json_binary(&DELAY_CONFIG.load(deps.storage)?)
         }
         QueryMsg::GetPollId { address } => {
             to_json_binary(&ADDRESS_TO_POLL_ID.load(deps.storage, &address)?)
@@ -701,5 +780,5 @@ pub fn reply_created_round(
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrate_v0_1_5(deps)
+    migrate_v0_1_6(deps)
 }

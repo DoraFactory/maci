@@ -4,7 +4,7 @@ use crate::state::{
     VoiceCreditMode, VotingTime,
 };
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Timestamp, Uint256};
+use cosmwasm_std::{Addr, Timestamp, Uint128, Uint256};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -42,6 +42,21 @@ pub struct InstantiateMsg {
 
     // Deactivate feature enabled/disabled (default: false)
     pub deactivate_enabled: bool,
+
+    // ── Fee configuration injected by Registry at round creation time ──────────
+    pub message_fee: Uint128,
+    pub deactivate_fee: Uint128,
+    pub signup_fee: Uint128,
+
+    // ── Delay configuration (seconds) injected by Registry ───────────────────
+    // tally base delay: covers first 5^int_state_tree_depth-slot batch
+    pub base_delay: u64,
+    // per-message increment to tally window
+    pub message_delay: u64,
+    // per-registered-user increment to tally window
+    pub signup_delay: u64,
+    // operator window to process deactivate messages (from first msg received)
+    pub deactivate_delay: u64,
 }
 
 #[cw_serde]
@@ -300,6 +315,14 @@ pub enum QueryMsg {
         /// For SignUpWithOracle + Dynamic VoiceCreditMode: the amount included in the signed certificate.
         amount: Option<Uint256>,
     },
+
+    // ── Aggregated fee/delay config getters ──────────────────────────────────
+    #[returns(FeeConfigResponse)]
+    GetFeeConfig {},
+
+    #[returns(DelayConfigResponse)]
+    GetDelayConfig {},
+
 }
 
 // Response type for GetRegistrationConfig query
@@ -328,6 +351,21 @@ pub struct TallyDelayInfo {
     pub num_sign_ups: Uint256,
     pub msg_chain_length: Uint256,
     pub calculated_hours: u64,
+}
+
+#[cw_serde]
+pub struct FeeConfigResponse {
+    pub message_fee: Uint128,
+    pub deactivate_fee: Uint128,
+    pub signup_fee: Uint128,
+}
+
+#[cw_serde]
+pub struct DelayConfigResponse {
+    pub base_delay: u64,
+    pub message_delay: u64,
+    pub signup_delay: u64,
+    pub deactivate_delay: u64,
 }
 
 #[cw_serde]

@@ -10,7 +10,13 @@ import { CertificateEcosystem, ErrorResponse, RoundType } from '../../types';
 import { SignatureResponse } from '../oracle-certificate/types';
 import { getAMaciRoundCircuitFee } from '../contract/utils';
 import { Groth16ProofType, NullableString, RegistrationStatus } from '../contract/ts/AMaci.types';
-import { DEACTIVATE_FEE, FEE_DENOM, MESSAGE_FEE } from './config';
+import {
+  DEFAULT_FEE_CONFIG,
+  DEACTIVATE_FEE,
+  FEE_DENOM,
+  MaciFeeConfig,
+  MESSAGE_FEE
+} from './config';
 
 export function isErrorResponse(response: unknown): response is ErrorResponse {
   return (
@@ -28,6 +34,9 @@ export class MACI {
   public indexer: Indexer;
   public oracleCertificate: OracleCertificate;
   public maciKeypair: Keypair;
+  /** Cached fee config, initialized from defaults. Call fetchFeeConfig() to refresh from registry. */
+  public feeConfig: MaciFeeConfig;
+
   constructor({
     contract,
     indexer,
@@ -44,6 +53,35 @@ export class MACI {
     this.indexer = indexer;
     this.oracleCertificate = oracleCertificate;
     this.maciKeypair = maciKeypair;
+    this.feeConfig = { ...DEFAULT_FEE_CONFIG };
+  }
+
+  /**
+   * Fetch the current fee configuration from the Registry contract and cache it locally.
+   * Call this once after instantiation (or whenever fees may have changed) to ensure
+   * the SDK uses the correct on-chain fee values.
+   */
+  async fetchFeeConfig(): Promise<MaciFeeConfig> {
+    try {
+      const registryClient = await this.contract.registryQueryClient();
+      const [feeConfig, delayConfig] = await Promise.all([
+        registryClient.getFeeConfig(),
+        registryClient.getDelayConfig()
+      ]);
+      this.feeConfig = {
+        baseFee: feeConfig.base_fee,
+        messageFee: feeConfig.message_fee,
+        deactivateFee: feeConfig.deactivate_fee,
+        signupFee: feeConfig.signup_fee,
+        baseDelay: delayConfig.base_delay,
+        messageDelay: delayConfig.message_delay,
+        signupDelay: delayConfig.signup_delay,
+        deactivateDelay: delayConfig.deactivate_delay
+      };
+    } catch {
+      // Fall back to defaults if registry is unreachable
+    }
+    return this.feeConfig;
   }
 
   async getPollId({ contractAddress }: { contractAddress: string }) {
@@ -730,7 +768,7 @@ export class MACI {
             })
           )
         ),
-        funds: [{ denom: FEE_DENOM, amount: MESSAGE_FEE }]
+        funds: [{ denom: FEE_DENOM, amount: this.feeConfig.messageFee }]
       })
     }));
 
@@ -807,8 +845,8 @@ export class MACI {
       y: p.encPubkeys[1].toString()
     }));
 
-    // Total fee: MESSAGE_FEE per message
-    const totalFee = (BigInt(MESSAGE_FEE) * BigInt(payload.length)).toString();
+    // Total fee: messageFee per message (use cached feeConfig, call fetchFeeConfig() to refresh)
+    const totalFee = (BigInt(this.feeConfig.messageFee) * BigInt(payload.length)).toString();
     const batchFunds = [{ denom: FEE_DENOM, amount: totalFee }];
 
     if (gasStation && granter === this.contract.apiSaasAddress) {
@@ -997,7 +1035,7 @@ export class MACI {
         }
       });
 
-      const deactivateFunds = [{ denom: FEE_DENOM, amount: DEACTIVATE_FEE }];
+      const deactivateFunds = [{ denom: FEE_DENOM, amount: this.feeConfig.deactivateFee }];
 
       if (gasStation === true && typeof fee !== 'object') {
         // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
@@ -1097,7 +1135,7 @@ export class MACI {
         }
       });
 
-      const deactivateFunds = [{ denom: FEE_DENOM, amount: DEACTIVATE_FEE }];
+      const deactivateFunds = [{ denom: FEE_DENOM, amount: this.feeConfig.deactivateFee }];
 
       if (gasStation === true && typeof fee !== 'object') {
         // Standard feegrant path: granter covers the operator's gas via feegrant,

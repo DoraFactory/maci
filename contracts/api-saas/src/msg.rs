@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Uint128, Uint256};
 use cw_amaci::msg::RegistrationModeConfig;
 use cw_amaci::state::{RoundInfo, VoiceCreditMode, VotingTime};
 
-use crate::state::{Config, OperatorInfo};
+use crate::state::{Config, OperatorInfo, SaasFeeConfig};
 
 #[cw_serde]
 pub struct EncPubKeyParam {
@@ -14,6 +14,14 @@ pub struct EncPubKeyParam {
 #[cw_serde]
 pub struct MessageDataParam {
     pub data: Vec<String>,
+}
+
+/// Groth16 proof parameters (mirrors cw_amaci::msg::Groth16ProofType).
+#[cw_serde]
+pub struct Groth16ProofParam {
+    pub a: String,
+    pub b: String,
+    pub c: String,
 }
 
 #[cw_serde]
@@ -58,7 +66,6 @@ pub enum ExecuteMsg {
         operator: Addr,
 
         // Round parameters
-        max_voter: Uint256,
         vote_option_map: Vec<String>,
         round_info: RoundInfo,
         voting_time: VotingTime,
@@ -81,6 +88,9 @@ pub enum ExecuteMsg {
         registration_mode: RegistrationModeConfig,
     },
 
+    // Update local fee config mirror (admin only)
+    UpdateFeeConfig { config: SaasFeeConfig },
+
     // API MACI management
     SetRoundInfo {
         contract_addr: String,
@@ -101,6 +111,30 @@ pub enum ExecuteMsg {
         contract_addr: String,
         enc_pub_key: EncPubKeyParam,
         message: MessageDataParam,
+    },
+
+    // Proxy registration operations on behalf of users (SAAS covers signup_fee from its balance)
+    SignUp {
+        contract_addr: String,
+        pubkey: EncPubKeyParam,
+        /// Oracle mode certificate (None for StaticWhitelist mode)
+        certificate: Option<String>,
+        /// Voice credit amount (None for Unified VC mode)
+        amount: Option<String>,
+    },
+    AddNewKey {
+        contract_addr: String,
+        pubkey: EncPubKeyParam,
+        nullifier: String,
+        d: [String; 4],
+        groth16_proof: Groth16ProofParam,
+    },
+    PreAddNewKey {
+        contract_addr: String,
+        pubkey: EncPubKeyParam,
+        nullifier: String,
+        d: [String; 4],
+        groth16_proof: Groth16ProofParam,
     },
 }
 

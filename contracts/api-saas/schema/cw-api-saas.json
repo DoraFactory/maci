@@ -1,6 +1,6 @@
 {
   "contract_name": "cw-api-saas",
-  "contract_version": "0.1.2",
+  "contract_version": "0.1.3",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -188,7 +188,6 @@
               "certification_system",
               "circuit_type",
               "deactivate_enabled",
-              "max_voter",
               "operator",
               "registration_mode",
               "round_info",
@@ -205,9 +204,6 @@
               },
               "deactivate_enabled": {
                 "type": "boolean"
-              },
-              "max_voter": {
-                "$ref": "#/definitions/Uint256"
               },
               "operator": {
                 "$ref": "#/definitions/Addr"
@@ -229,6 +225,27 @@
               },
               "voting_time": {
                 "$ref": "#/definitions/VotingTime"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "update_fee_config"
+        ],
+        "properties": {
+          "update_fee_config": {
+            "type": "object",
+            "required": [
+              "config"
+            ],
+            "properties": {
+              "config": {
+                "$ref": "#/definitions/SaasFeeConfig"
               }
             },
             "additionalProperties": false
@@ -352,6 +369,129 @@
           }
         },
         "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "sign_up"
+        ],
+        "properties": {
+          "sign_up": {
+            "type": "object",
+            "required": [
+              "contract_addr",
+              "pubkey"
+            ],
+            "properties": {
+              "amount": {
+                "description": "Voice credit amount (None for Unified VC mode)",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "certificate": {
+                "description": "Oracle mode certificate (None for StaticWhitelist mode)",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "contract_addr": {
+                "type": "string"
+              },
+              "pubkey": {
+                "$ref": "#/definitions/EncPubKeyParam"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "add_new_key"
+        ],
+        "properties": {
+          "add_new_key": {
+            "type": "object",
+            "required": [
+              "contract_addr",
+              "d",
+              "groth16_proof",
+              "nullifier",
+              "pubkey"
+            ],
+            "properties": {
+              "contract_addr": {
+                "type": "string"
+              },
+              "d": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "minItems": 4
+              },
+              "groth16_proof": {
+                "$ref": "#/definitions/Groth16ProofParam"
+              },
+              "nullifier": {
+                "type": "string"
+              },
+              "pubkey": {
+                "$ref": "#/definitions/EncPubKeyParam"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "pre_add_new_key"
+        ],
+        "properties": {
+          "pre_add_new_key": {
+            "type": "object",
+            "required": [
+              "contract_addr",
+              "d",
+              "groth16_proof",
+              "nullifier",
+              "pubkey"
+            ],
+            "properties": {
+              "contract_addr": {
+                "type": "string"
+              },
+              "d": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "minItems": 4
+              },
+              "groth16_proof": {
+                "$ref": "#/definitions/Groth16ProofParam"
+              },
+              "nullifier": {
+                "type": "string"
+              },
+              "pubkey": {
+                "$ref": "#/definitions/EncPubKeyParam"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
     ],
     "definitions": {
@@ -370,6 +510,27 @@
             "type": "string"
           },
           "y": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Groth16ProofParam": {
+        "description": "Groth16 proof parameters (mirrors cw_amaci::msg::Groth16ProofType).",
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "c"
+        ],
+        "properties": {
+          "a": {
+            "type": "string"
+          },
+          "b": {
+            "type": "string"
+          },
+          "c": {
             "type": "string"
           }
         },
@@ -493,6 +654,51 @@
           },
           "title": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaasFeeConfig": {
+        "description": "Local mirror of fee configuration. ApiSaas admin keeps this in sync with the Registry's FeeConfig manually. This avoids cross-contract queries when proxying user operations.",
+        "type": "object",
+        "required": [
+          "base_fee",
+          "deactivate_fee",
+          "message_fee",
+          "signup_fee"
+        ],
+        "properties": {
+          "base_fee": {
+            "description": "CreateRound fee forwarded to registry (mirroring registry base_fee)",
+            "allOf": [
+              {
+                "$ref": "#/definitions/Uint128"
+              }
+            ]
+          },
+          "deactivate_fee": {
+            "description": "Per-message fee for PublishDeactivateMessage (mirroring registry deactivate_fee)",
+            "allOf": [
+              {
+                "$ref": "#/definitions/Uint128"
+              }
+            ]
+          },
+          "message_fee": {
+            "description": "Per-message fee for PublishMessage (mirroring registry message_fee)",
+            "allOf": [
+              {
+                "$ref": "#/definitions/Uint128"
+              }
+            ]
+          },
+          "signup_fee": {
+            "description": "Registration fee for SignUp / AddNewKey / PreAddNewKey (mirroring registry signup_fee)",
+            "allOf": [
+              {
+                "$ref": "#/definitions/Uint128"
+              }
+            ]
           }
         },
         "additionalProperties": false

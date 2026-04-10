@@ -5,7 +5,8 @@ import {
   createAMaciQueryClientBy,
   createApiSaasClientBy,
   createContractClientByWallet,
-  createRegistryClientBy
+  createRegistryClientBy,
+  createRegistryQueryClientBy
 } from './config';
 import {
   CreateAMaciRoundParams,
@@ -195,6 +196,13 @@ export class Contract {
     return createAMaciQueryClientBy({
       rpcEndpoint: this.rpcEndpoint,
       contractAddress
+    });
+  }
+
+  async registryQueryClient() {
+    return createRegistryQueryClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      contractAddress: this.registryAddress
     });
   }
 

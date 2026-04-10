@@ -390,7 +390,6 @@ pub const MACI_OPERATOR: Item<Addr> = Item::new("maci_operator");
 pub const PENALTY_RATE: Item<Uint256> = Item::new("penalty_rate");
 pub const CREATE_ROUND_WINDOW: Item<Timestamp> = Item::new("create_round_window");
 
-pub const DEACTIVATE_DELAY: Item<Timestamp> = Item::new("deactivate_delay"); // deactivate delay in seconds
 pub const TALLY_DELAY_MAX_HOURS: Item<u64> = Item::new("tally_delay_max_hours"); // tally delay max hours
 
 pub const TALLY_TIMEOUT: Item<Timestamp> = Item::new("tally_timeout"); // tally timeout in seconds
@@ -405,33 +404,36 @@ pub const DEACTIVATE_ENABLED: Item<bool> = Item::new("deactivate_enabled");
 // Shared fee denomination
 pub const FEE_DENOM: &str = "peaka";
 
-// Deactivate fee constants (hard-coded)
-pub const DEACTIVATE_FEE: Uint128 = Uint128::new(10_000_000_000_000_000_000); // 10 DORA = 10 * 10^18 peaka
+#[cw_serde]
+pub struct FeeConfig {
+    // per-message fee for PublishMessage
+    pub message_fee: Uint128,
+    // per-message fee for PublishDeactivateMessage
+    pub deactivate_fee: Uint128,
+    // registration fee for signup / addNewKey / preAddNewKey
+    pub signup_fee: Uint128,
+}
 
-// Per-vote fee: unified across all circuit sizes
-// Pricing: $0.0003 USD / $0.005 per DORA = 0.06 DORA = 6 * 10^16 peaka
-pub const MESSAGE_FEE: Uint128 = Uint128::new(60_000_000_000_000_000); // 0.06 DORA = 0.06 * 10^18 peaka
+#[cw_serde]
+pub struct DelayConfig {
+    // tally base delay: covers first 5^int_state_tree_depth-slot batch
+    pub base_delay: u64,
+    // per-message increment to tally window
+    pub message_delay: u64,
+    // per-registered-user increment to tally window
+    pub signup_delay: u64,
+    // operator window to process deactivate messages (seconds)
+    pub deactivate_delay: u64,
+}
 
-// Registration fee: unified for signup / addNewKey / preAddNewKey
-// 1 DORA = 10^18 peaka
-pub const SIGNUP_FEE: Uint128 = Uint128::new(1_000_000_000_000_000_000); // 1 DORA
+// Fee and delay storage (set at instantiation by Registry, locked for life of round)
+pub const FEE_CONFIG: Item<FeeConfig> = Item::new("amaci_fee_config");
+pub const DELAY_CONFIG: Item<DelayConfig> = Item::new("amaci_delay_config");
 
-// Tally delay constant for the only supported circuit: 9-4-3-125
-// Formula: delay_allowed = (BASE_DELAY + msg_count * PER_VOTE_DELAY) * TALLY_DELAY_MULTIPLIER
-//          tally_timeout  = delay_allowed + TALLY_TIMEOUT_EXTRA_SECONDS
-//
-// First tally batch processes 5^int_state_tree_depth = 5^4 = 625 slots minimum.
-// TODO: update when 9-4-3-125 benchmark is complete
-pub const TALLY_BASE_DELAY_9_4_3_125: u64 = 14400; // 240 min (placeholder, covers first 625-slot batch)
-
-// Per-vote delay: unified across all circuits
-// Reference: 4-2-2-25 ≈ 0.2531s/vote, 6-3-3-125 ≈ 0.2289s/vote → rounded up to 2s for safety margin
-pub const TALLY_PER_VOTE_DELAY: u64 = 2; // 2 seconds per vote
-
-// Multiplier applied to computed delay to give operator adaptation time
+// Multiplier applied to computed tally window to give operator adaptation time
 pub const TALLY_DELAY_MULTIPLIER: u64 = 3;
 
-// Extra seconds added on top of the delay window to form the hard timeout
+// Extra seconds added on top of the tally window to form the hard timeout
 pub const TALLY_TIMEOUT_EXTRA_SECONDS: u64 = 2 * 24 * 60 * 60; // 2 days
 
 #[cw_serde]

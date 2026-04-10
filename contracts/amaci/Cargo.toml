@@ -32,6 +32,9 @@ backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 mt = ["library", "anyhow", "cw-multi-test", "secp256k1", "base64", "num-bigint", "cosmwasm-std/stargate"]
+# enables 2-1-1-5 vkeys for use in dependent crate tests (e.g. registry, api-saas)
+# without this flag, only the 9-4-3-125 production circuit is supported
+test-vkeys = []
 
 
 [package.metadata.scripts]

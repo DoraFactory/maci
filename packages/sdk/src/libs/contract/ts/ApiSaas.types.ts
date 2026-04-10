@@ -47,13 +47,17 @@ export type ExecuteMsg =
         certification_system: Uint256;
         circuit_type: Uint256;
         deactivate_enabled: boolean;
-        max_voter: Uint256;
         operator: Addr;
         registration_mode: RegistrationModeConfig;
         round_info: RoundInfo;
         voice_credit_mode: VoiceCreditMode;
         vote_option_map: string[];
         voting_time: VotingTime;
+      };
+    }
+  | {
+      update_fee_config: {
+        config: SaasFeeConfig;
       };
     }
   | {
@@ -80,6 +84,32 @@ export type ExecuteMsg =
         contract_addr: string;
         enc_pub_key: EncPubKeyParam;
         message: MessageDataParam;
+      };
+    }
+  | {
+      sign_up: {
+        amount?: string | null;
+        certificate?: string | null;
+        contract_addr: string;
+        pubkey: EncPubKeyParam;
+      };
+    }
+  | {
+      add_new_key: {
+        contract_addr: string;
+        d: [string, string, string, string];
+        groth16_proof: Groth16ProofParam;
+        nullifier: string;
+        pubkey: EncPubKeyParam;
+      };
+    }
+  | {
+      pre_add_new_key: {
+        contract_addr: string;
+        d: [string, string, string, string];
+        groth16_proof: Groth16ProofParam;
+        nullifier: string;
+        pubkey: EncPubKeyParam;
       };
     };
 export type Uint128 = string;
@@ -130,12 +160,23 @@ export interface VotingTime {
   end_time: Timestamp;
   start_time: Timestamp;
 }
+export interface SaasFeeConfig {
+  base_fee: Uint128;
+  deactivate_fee: Uint128;
+  message_fee: Uint128;
+  signup_fee: Uint128;
+}
 export interface EncPubKeyParam {
   x: string;
   y: string;
 }
 export interface MessageDataParam {
   data: string[];
+}
+export interface Groth16ProofParam {
+  a: string;
+  b: string;
+  c: string;
 }
 export type QueryMsg =
   | {

@@ -218,7 +218,6 @@ impl SaasContract {
         app: &mut App,
         sender: Addr,
         operator: Addr,
-        max_voter: Uint256,
         voice_credit_mode: cw_amaci::state::VoiceCreditMode,
         vote_option_map: Vec<String>,
         round_info: RoundInfo,
@@ -234,7 +233,6 @@ impl SaasContract {
             self.addr(),
             &ExecuteMsg::CreateAmaciRound {
                 operator,
-                max_voter,
                 vote_option_map,
                 round_info,
                 voting_time,

@@ -7,8 +7,10 @@ use crate::multitest::{
     admin, create_app, creator, mock_registry_contract, operator1, operator2, treasury_manager,
     test_round_info, test_voting_time, user1, user2, SaasCodeId, DORA_DEMON,
 };
-use cw_amaci::multitest::{test_pubkey1, test_pubkey2, test_pubkey3, uint256_from_decimal_string};
-use cw_amaci::state::{DEACTIVATE_FEE, MESSAGE_FEE};
+use cw_amaci::multitest::{
+    test_pubkey1, test_pubkey2, test_pubkey3, uint256_from_decimal_string, DEACTIVATE_FEE,
+    MESSAGE_FEE,
+};
 
 #[test]
 fn test_instantiate_saas_contract() {
@@ -651,7 +653,7 @@ fn test_create_amaci_round_success_real() {
         .unwrap();
 
     // Deposit funds to SaaS contract to pay for the round creation
-    let required_fee = 5_000_000_000_000_000_000u128; // 5 DORA (2-1-1-5 circuit fee)
+    let required_fee = 30_000_000_000_000_000_000u128; // 30 DORA (base_fee)
     contract
         .deposit(
             &mut app,
@@ -662,7 +664,6 @@ fn test_create_amaci_round_success_real() {
 
     // Create AMACI round parameters
     let dora_operator = Addr::unchecked("dora1eu7mhp4ggxd6utnz8uzurw395natgs6jskl4ug"); // Use valid dora address
-    let max_voter = Uint256::from(25u128);
     let voice_credit_amount = Uint256::from(100u128);
     let round_info = test_round_info();
     let voting_time = test_voting_time();
@@ -674,7 +675,6 @@ fn test_create_amaci_round_success_real() {
         &mut app,
         operator1(),   // sender (must be operator in SaaS)
         dora_operator, // operator parameter (must be operator in registry)
-        max_voter,
         cw_amaci::state::VoiceCreditMode::Unified {
             amount: voice_credit_amount,
         },
@@ -806,9 +806,8 @@ fn test_create_amaci_round_unauthorized_real() {
     // Try to create AMACI round as non-operator
     let result = contract.create_amaci_round(
         &mut app,
-        user1(),                // sender (not an operator in SaaS)
-        admin(),                // operator parameter
-        Uint256::from(25u128),  // max_voter
+        user1(),  // sender (not an operator in SaaS)
+        admin(),  // operator parameter
         cw_amaci::state::VoiceCreditMode::Unified {
             amount: Uint256::from(100u128),
         },
@@ -960,7 +959,6 @@ fn setup_publish_env(initial_deposit: u128, deactivate_enabled: bool) -> Publish
             &mut app,
             operator1(),
             dora_operator(),
-            Uint256::from(25u128),
             cw_amaci::state::VoiceCreditMode::Unified {
                 amount: Uint256::from(100u128),
             },
@@ -1121,10 +1119,10 @@ fn test_saas_publish_message_unauthorized() {
 /// rejected with InsufficientBalance before any interaction with the AMACI contract.
 #[test]
 fn test_saas_publish_message_insufficient_balance() {
-    // Deposit 5.03 DORA. Round creation costs 5 DORA, leaving 0.03 DORA which is
+    // Deposit 30.03 DORA. Round creation costs 30 DORA, leaving 0.03 DORA which is
     // less than MESSAGE_FEE (0.06 DORA).
     let PublishTestEnv { mut app, saas, amaci_addr } =
-        setup_publish_env(5_030_000_000_000_000_000, false);
+        setup_publish_env(30_030_000_000_000_000_000, false);
 
     let available = saas.query_balance(&app).unwrap();
     assert!(available < MESSAGE_FEE, "pre-condition: SAAS balance must be < MESSAGE_FEE");

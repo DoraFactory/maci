@@ -7,7 +7,7 @@ use anyhow::Result as AnyResult;
 
 use crate::state::{
     DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VoiceCreditMode,
-    VotingTime, FEE_DENOM, MESSAGE_FEE,
+    VotingTime, FEE_DENOM,
 };
 use crate::{
     contract::{execute, instantiate, query},
@@ -57,6 +57,13 @@ pub type App<ExecC = Empty, QueryC = Empty> = cw_multi_test::App<
 
 // 1000 DORA per test user, enough to cover all publish_message fees in any test
 const TEST_USER_BALANCE: u128 = 1_000_000_000_000_000_000_000u128;
+pub const MESSAGE_FEE: Uint128 = Uint128::new(60_000_000_000_000_000);
+pub const DEACTIVATE_FEE: Uint128 = Uint128::new(10_000_000_000_000_000_000);
+pub const SIGNUP_FEE: Uint128 = Uint128::new(30_000_000_000_000_000);
+pub const BASE_DELAY: u64 = 200;
+pub const PER_MESSAGE_DELAY: u64 = 2;
+pub const PER_SIGNUP_DELAY: u64 = 1;
+pub const DEACTIVATE_DELAY: u64 = 600;
 
 pub fn dora_mock_api() -> MockApi {
     MockApi::default().with_prefix("dora")
@@ -67,7 +74,7 @@ pub fn create_app() -> App {
         .with_api(dora_mock_api())
         .with_stargate(StargateAccepting)
         .build(|router, _, storage| {
-            for addr in [user1(), user2(), user3()] {
+            for addr in [user1(), user2(), user3(), owner(), operator(), fee_recipient()] {
                 router
                     .bank
                     .init_balance(storage, &addr, coins(TEST_USER_BALANCE, "peaka"))
@@ -392,6 +399,13 @@ impl MaciContract {
             registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: whitelist.unwrap_or_else(|| WhitelistBase { users: vec![] }),
             },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false, // Default: disabled
         };
 
@@ -457,6 +471,13 @@ impl MaciContract {
             registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: whitelist.unwrap_or_else(|| WhitelistBase { users: vec![] }),
             },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: true, // ENABLED for deactivate and add_new_key tests
         };
 
@@ -496,7 +517,7 @@ impl MaciContract {
                 certificate: None,
                 amount: None,
             },
-            &[],
+            &coins(SIGNUP_FEE.u128(), FEE_DENOM),
         )
     }
 
@@ -516,7 +537,7 @@ impl MaciContract {
                 certificate: Some(certificate),
                 amount: None,
             },
-            &[],
+            &coins(SIGNUP_FEE.u128(), FEE_DENOM),
         )
     }
 
@@ -699,7 +720,7 @@ impl MaciContract {
                 d,
                 groth16_proof: proof,
             },
-            &[],
+            &coins(SIGNUP_FEE.u128(), FEE_DENOM),
         )
     }
 
@@ -722,7 +743,7 @@ impl MaciContract {
                 d,
                 groth16_proof: proof,
             },
-            &[],
+            &coins(SIGNUP_FEE.u128(), FEE_DENOM),
         )
     }
 
@@ -885,7 +906,7 @@ impl MaciContract {
                 certificate: None,
                 amount: None,
             },
-            &[],
+            &coins(SIGNUP_FEE.u128(), FEE_DENOM),
         )
     }
 
@@ -905,7 +926,7 @@ impl MaciContract {
                 certificate: Some(certificate),
                 amount: None,
             },
-            &[],
+            &coins(SIGNUP_FEE.u128(), FEE_DENOM),
         )
     }
 
@@ -1199,7 +1220,7 @@ impl MaciContract {
                 d,
                 groth16_proof: proof,
             },
-            &[],
+            &coins(SIGNUP_FEE.u128(), FEE_DENOM),
         )
     }
 
@@ -1222,7 +1243,7 @@ impl MaciContract {
                 d,
                 groth16_proof: proof,
             },
-            &[],
+            &coins(SIGNUP_FEE.u128(), FEE_DENOM),
         )
     }
 
@@ -1463,6 +1484,13 @@ impl MaciContract {
             registration_mode: RegistrationModeConfig::SignUpWithOracle {
                 oracle_pubkey: oracle_whitelist_pubkey,
             },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false, // Default: disabled
         };
 
@@ -1593,6 +1621,13 @@ impl MaciContract {
             registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: whitelist_cfg.unwrap_or_else(|| WhitelistBase { users: vec![] }),
             },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: true, // ENABLED!
         };
 

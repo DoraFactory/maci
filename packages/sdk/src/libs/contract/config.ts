@@ -2,7 +2,7 @@ import { OfflineSigner } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient, SigningStargateClientOptions } from '@cosmjs/stargate';
 import { CosmWasmClient, SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { AMaciClient, AMaciQueryClient } from './ts/AMaci.client';
-import { RegistryClient } from './ts/Registry.client';
+import { RegistryClient, RegistryQueryClient } from './ts/Registry.client';
 import { ApiSaasClient } from './ts/ApiSaas.client';
 
 const defaultSigningClientOptions: SigningStargateClientOptions = {
@@ -48,6 +48,17 @@ export async function createRegistryClientBy({
   const signingCosmWasmClient = await createContractClientByWallet(rpcEndpoint, wallet);
   const [{ address }] = await wallet.getAccounts();
   return new RegistryClient(signingCosmWasmClient, address, contractAddress);
+}
+
+export async function createRegistryQueryClientBy({
+  rpcEndpoint,
+  contractAddress
+}: {
+  rpcEndpoint: string;
+  contractAddress: string;
+}) {
+  const cosmWasmClient = await CosmWasmClient.connect(rpcEndpoint);
+  return new RegistryQueryClient(cosmWasmClient, contractAddress);
 }
 
 export async function createApiSaasClientBy({
