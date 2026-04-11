@@ -11,7 +11,7 @@ export class ContractLoader {
   private cache: WasmBytecodeCache;
 
   constructor(artifactsDir?: string) {
-    this.artifactsDir = artifactsDir || path.resolve(__dirname, '..', '..', '..', 'artifacts');
+    this.artifactsDir = artifactsDir || path.resolve(__dirname, '..', '..', 'artifacts');
     this.cache = {};
   }
 

@@ -17,7 +17,7 @@ set -euo pipefail
 
 # e2e/scripts/ -> e2e/ -> repo root
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ARTIFACTS_DIR="$REPO_ROOT/artifacts"
+ARTIFACTS_DIR="$REPO_ROOT/e2e/artifacts"
 WASM_SRC="$REPO_ROOT/target/wasm32-unknown-unknown/release"
 
 # Always write build artifacts to the workspace target directory.

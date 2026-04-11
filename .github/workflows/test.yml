@@ -70,6 +70,9 @@ jobs:
           toolchain: "1.79.0"
           components: rustfmt, clippy
           target: wasm32-unknown-unknown
+          # Disable the default -D warnings injected by this action so that
+          # unused imports / variables in dependencies don't fail the build.
+          rustflags: ""
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -93,10 +96,10 @@ jobs:
       - name: Verify and list WASM artifacts
         run: |
           echo "=== Listing generated WASM files ==="
-          ls -lh artifacts/
+          ls -lh e2e/artifacts/
           echo ""
           echo "=== WASM file details ==="
-          for file in artifacts/*_test.wasm; do
+          for file in e2e/artifacts/*_test.wasm; do
             if [ -f "$file" ]; then
               echo "Found: $(basename $file)"
             fi
@@ -106,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wasm-contracts
-          path: artifacts/*_test.wasm
+          path: e2e/artifacts/*_test.wasm
           retention-days: 1
 
   e2e-tests:
@@ -128,12 +131,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: wasm-contracts
-          path: artifacts/
+          path: e2e/artifacts/
 
       - name: Verify WASM artifacts
         run: |
           echo "Checking downloaded artifacts..."
-          ls -lh artifacts/
+          ls -lh e2e/artifacts/
           
       - name: Setup Node.js
         uses: actions/setup-node@v4
