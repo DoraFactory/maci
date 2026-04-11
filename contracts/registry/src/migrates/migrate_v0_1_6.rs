@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::migrates::migrate_v0_1_5::migrate_v0_1_5;
 use crate::state::{DelayConfig, FeeConfig, DELAY_CONFIG, FEE_CONFIG};
-use cosmwasm_std::{Attribute, Decimal, DepsMut, Response, Uint128};
+use cosmwasm_std::{Attribute, DepsMut, Response, Uint128};
 
 pub fn migrate_v0_1_6(mut deps: DepsMut) -> Result<Response, ContractError> {
     // Chain v0.1.5: initialize NEXT_POLL_ID if not present

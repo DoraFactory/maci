@@ -146,6 +146,33 @@
     {
       "type": "object",
       "required": [
+        "upload_deactivate_message"
+      ],
+      "properties": {
+        "upload_deactivate_message": {
+          "type": "object",
+          "required": [
+            "deactivate_message"
+          ],
+          "properties": {
+            "deactivate_message": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/Uint256"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "process_deactivate_message"
       ],
       "properties": {

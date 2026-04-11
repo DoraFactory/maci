@@ -22,7 +22,7 @@ use cw2::set_contract_version;
 use cw_amaci::msg::{
     InstantiateMsg as AMaciInstantiateMsg, InstantiationData as AMaciInstantiationData,
 };
-use cw_amaci::state::{PubKey, RegistrationMode, RoundInfo, VoiceCreditMode, VotingTime};
+use cw_amaci::state::{PubKey, RoundInfo, VotingTime};
 use cw_utils::parse_instantiate_response_data;
 
 // version info for migration info
