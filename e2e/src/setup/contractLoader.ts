@@ -9,14 +9,10 @@ import { WasmBytecodeCache } from '../types';
 export class ContractLoader {
   private artifactsDir: string;
   private cache: WasmBytecodeCache;
-  private architecture: string;
 
   constructor(artifactsDir?: string) {
-    // Default to ../artifacts from e2e directory
     this.artifactsDir = artifactsDir || path.resolve(__dirname, '..', '..', '..', 'artifacts');
     this.cache = {};
-    // Detect architecture: aarch64 for ARM64 (macOS M1/M2), x86_64 for Intel/AMD
-    this.architecture = process.arch === 'arm64' ? 'aarch64' : 'x86_64';
   }
 
   /**
@@ -82,27 +78,19 @@ export class ContractLoader {
   }
 
   /**
-   * Helper function to load a WASM file with architecture fallback
-   * First tries with architecture suffix (e.g., cw_amaci-aarch64.wasm)
-   * Falls back to without suffix (e.g., cw_amaci.wasm) if not found
+   * Helper function to load a WASM file.
+   * Only _test.wasm files (built via `pnpm build:wasm`) are supported.
+   * Run `pnpm build:wasm` from the e2e directory to generate them.
    */
   private async loadWasmFileWithFallback(baseName: string): Promise<Uint8Array> {
-    // Try with architecture suffix first
-    const wasmPathWithArch = path.join(this.artifactsDir, `${baseName}-${this.architecture}.wasm`);
-    if (fs.existsSync(wasmPathWithArch)) {
-      return this.loadWasmFile(wasmPathWithArch);
+    const wasmPath = path.join(this.artifactsDir, `${baseName}_test.wasm`);
+    if (fs.existsSync(wasmPath)) {
+      return this.loadWasmFile(wasmPath);
     }
 
-    // Fallback to without architecture suffix
-    const wasmPathWithoutArch = path.join(this.artifactsDir, `${baseName}.wasm`);
-    if (fs.existsSync(wasmPathWithoutArch)) {
-      console.log(`[ContractLoader] Using architecture-independent WASM: ${baseName}.wasm`);
-      return this.loadWasmFile(wasmPathWithoutArch);
-    }
-
-    // Neither found, throw error
     throw new Error(
-      `WASM file not found: tried both ${wasmPathWithArch} and ${wasmPathWithoutArch}`
+      `WASM file not found: ${wasmPath}\n` +
+      `Run "pnpm build:wasm" from the e2e directory to build it.`
     );
   }
 

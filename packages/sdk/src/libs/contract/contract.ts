@@ -13,11 +13,12 @@ import {
   CreateApiSaasAmaciRoundParams,
   CreateMaciRoundParams
 } from './types';
-import { getAMaciRoundCircuitFee, getMaciRoundCircuitFee, getContractParams } from './utils';
+import { getMaciRoundCircuitFee, getContractParams } from './utils';
 import { QTR_LIB } from './vars';
 import { MaciRoundType, MaciCertSystemType } from '../../types';
 import { unpackPubKey } from '../crypto';
 import { StdFee, GasPrice, calculateFee } from '@cosmjs/stargate';
+import { DEFAULT_BASE_FEE, FEE_DENOM } from '../maci/config';
 
 export const prefix = 'dora';
 
@@ -72,11 +73,6 @@ export class Contract {
       contractAddress: this.registryAddress
     });
 
-    const requiredFee = getAMaciRoundCircuitFee(
-      this.network,
-      params.maxVoter,
-      params.voteOptionMap.length
-    );
     const fee = params.fee ?? 'auto';
 
     const res = await client.createRound(
@@ -84,7 +80,6 @@ export class Contract {
         certificationSystem: params.certificationSystem ?? '0',
         circuitType: params.circuitType.toString(),
         deactivateEnabled: params.deactivateEnabled,
-        maxVoter: params.maxVoter.toString(),
         operator: params.operator,
         registrationMode: params.registrationMode,
         roundInfo,
@@ -94,7 +89,7 @@ export class Contract {
       },
       fee,
       undefined,
-      [requiredFee]
+      [{ denom: FEE_DENOM, amount: DEFAULT_BASE_FEE }]
     );
 
     let contractAddress = '';
@@ -552,7 +547,6 @@ export class Contract {
       certificationSystem: params.certificationSystem ?? '0',
       circuitType,
       deactivateEnabled: params.deactivateEnabled,
-      maxVoter: params.maxVoter.toString(),
       operator: params.operator,
       registrationMode: params.registrationMode,
       roundInfo,
@@ -573,7 +567,6 @@ export class Contract {
           certification_system: roundParams.certificationSystem,
           circuit_type: roundParams.circuitType,
           deactivate_enabled: roundParams.deactivateEnabled,
-          max_voter: roundParams.maxVoter,
           operator: roundParams.operator,
           registration_mode: roundParams.registrationMode,
           round_info: roundParams.roundInfo,

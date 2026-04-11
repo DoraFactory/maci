@@ -187,7 +187,16 @@ describe('AMACI E2E Test - SignUpWithOracle + Unified VC (MACI Compatible)', fun
       circuit_type: '0', // 1P1V
       certification_system: '0', // Groth16
       poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
-      deactivate_enabled: false // Disable AMACI-specific deactivate feature
+      deactivate_enabled: false, // Disable AMACI-specific deactivate feature
+      // Fee config (set to 0 for e2e testing)
+      message_fee: '0',
+      deactivate_fee: '0',
+      signup_fee: '0',
+      // Delay config (set to 0 for fast e2e test execution)
+      base_delay: 0,
+      message_delay: 0,
+      signup_delay: 0,
+      deactivate_delay: 0
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);

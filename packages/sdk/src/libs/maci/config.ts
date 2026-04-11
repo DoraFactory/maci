@@ -1,8 +1,8 @@
 // Fee denomination used for all MACI contract fees
 export const FEE_DENOM = 'peaka';
 
-// Default/fallback fee values. These are used when the Registry config cannot be fetched.
-// Actual values in production are governed by the Registry's CircuitChargeConfig.
+// Default/fallback fee values. These are used when the round contract cannot be fetched.
+// Actual values in production are stored in each round contract's config.
 
 // ── Default Fees ────────────────────────────────────────────────────────────
 // CreateRound base fee: 30 DORA
@@ -28,25 +28,30 @@ export const DEFAULT_DEACTIVATE_DELAY = 600;
 export const DEACTIVATE_FEE = DEFAULT_DEACTIVATE_FEE;
 export const MESSAGE_FEE = DEFAULT_MESSAGE_FEE;
 
-/** Runtime fee & delay config, overridden by fetchFeeConfig() when connected to a live registry. */
-export interface MaciFeeConfig {
-  // Fees
+/** Runtime fee config, overridden by fetchFeeConfig({ contractAddress }) when querying a live round contract. */
+export interface FeeConfig {
   baseFee: string;
   messageFee: string;
   deactivateFee: string;
   signupFee: string;
-  // Delays (seconds)
+}
+
+export const DEFAULT_FEE_CONFIG: FeeConfig = {
+  baseFee: DEFAULT_BASE_FEE,
+  messageFee: DEFAULT_MESSAGE_FEE,
+  deactivateFee: DEFAULT_DEACTIVATE_FEE,
+  signupFee: DEFAULT_SIGNUP_FEE,
+};
+
+/** Runtime delay config (seconds), overridden by fetchDelayConfig({ contractAddress }) when querying a live round contract. */
+export interface DelayConfig {
   baseDelay: number;
   messageDelay: number;
   signupDelay: number;
   deactivateDelay: number;
 }
 
-export const DEFAULT_FEE_CONFIG: MaciFeeConfig = {
-  baseFee: DEFAULT_BASE_FEE,
-  messageFee: DEFAULT_MESSAGE_FEE,
-  deactivateFee: DEFAULT_DEACTIVATE_FEE,
-  signupFee: DEFAULT_SIGNUP_FEE,
+export const DEFAULT_DELAY_CONFIG: DelayConfig = {
   baseDelay: DEFAULT_BASE_DELAY,
   messageDelay: DEFAULT_MESSAGE_DELAY,
   signupDelay: DEFAULT_SIGNUP_DELAY,

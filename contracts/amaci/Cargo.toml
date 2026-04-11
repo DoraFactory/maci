@@ -35,6 +35,12 @@ mt = ["library", "anyhow", "cw-multi-test", "secp256k1", "base64", "num-bigint",
 # enables 2-1-1-5 vkeys for use in dependent crate tests (e.g. registry, api-saas)
 # without this flag, only the 9-4-3-125 production circuit is supported
 test-vkeys = []
+# required to build the schema binary (native only, not for wasm32 targets)
+schema = []
+
+[[bin]]
+name = "schema"
+required-features = ["schema"]
 
 
 [package.metadata.scripts]

@@ -18,7 +18,6 @@ export type CreateRoundParams = {
 
 export type CreateAMaciRoundParams = {
   operator: string;
-  maxVoter: number;
   voteOptionMap: string[];
   certificationSystem?: string;
   deactivateEnabled: boolean;
@@ -29,7 +28,6 @@ export type CreateAMaciRoundParams = {
 
 export type CreateApiSaasAmaciRoundParams = {
   operator: string;
-  maxVoter: number;
   voteOptionMap: string[];
   certificationSystem?: string;
   deactivateEnabled: boolean;
@@ -40,7 +38,6 @@ export type CreateApiSaasAmaciRoundParams = {
 } & CreateRoundParams;
 
 export type CreateMaciRoundParams = {
-  maxVoter: number;
   voteOptionMap: string[];
   coordinator: PubKey | bigint;
   whitelistBackendPubkey: string;

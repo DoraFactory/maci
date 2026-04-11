@@ -404,13 +404,6 @@ export class MaciClient {
     return await this.maci.queryRoundClaimable({ contractAddress });
   }
 
-  async queryAMaciChargeFee({ maxVoter, maxOption }: { maxVoter: number; maxOption: number }) {
-    return await this.maci.queryAMaciChargeFee({
-      maxVoter,
-      maxOption
-    });
-  }
-
   async queryRoundGasStation({ contractAddress }: { contractAddress: string }) {
     return await this.maci.queryRoundGasStation({ contractAddress });
   }
