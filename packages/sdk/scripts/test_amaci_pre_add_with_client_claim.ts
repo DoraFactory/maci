@@ -5,6 +5,7 @@
  * 1. Create Tenant and API Key
  * 2. Create AMACI Round
  * 3. Claim a pre-generated MACI key pair via saasClaimKey()
+ *    - Requires AMACI_CLAIM_KEY env variable (passed as X-Amaci-Claim-Key header)
  *    - Returns secretKey, leafIndex, coordinatorPubkey, pollId directly — no accounts list needed
  *    - Use getClaimStats() to get the scale (voterScale) for K-anonymous proof requests
  * 4. Pre-Add-New-Key using the claimed key's leafIndex and coordinatorPubkey
@@ -33,8 +34,8 @@ async function main() {
   console.log('='.repeat(80));
 
   // API base configuration
-  // const API_BASE_URL = 'http://localhost:8080';
-  const API_BASE_URL = undefined;
+  const API_BASE_URL = 'http://localhost:8080';
+  // const API_BASE_URL = undefined;
   // const maxVoter = 20000;
   // const circuitPower = '9-4-3-125';
   // const stateTreeDepth = 9;
@@ -60,6 +61,11 @@ async function main() {
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret) {
     throw new Error('ADMIN_SECRET environment variable is not set');
+  }
+
+  const amaciClaimKey = process.env.AMACI_CLAIM_KEY;
+  if (!amaciClaimKey) {
+    throw new Error('AMACI_CLAIM_KEY environment variable is not set');
   }
 
   const tenantData = await adminMaciClient
@@ -128,12 +134,12 @@ async function main() {
   // ==================== 3. Claim Key ====================
   console.log('\n[3/4] Claiming MACI Key (saasClaimKey)');
 
-  // No API key required — ticket is the only credential needed for claimKey
+  // Uses AMACI_CLAIM_KEY as the X-Amaci-Claim-Key header — no ticket required for this step
   const claimVoterClient = new VoterClient({
     network: network,
     saasApiEndpoint: API_BASE_URL
   });
-  const claimedKey = await claimVoterClient.saasClaimKey({ contractAddress, ticket });
+  const claimedKey = await claimVoterClient.saasClaimKey({ contractAddress, amaciClaimKey });
 
   console.log('✓ Key claimed successfully!');
   console.log('  Contract Address:', claimedKey.contractAddress);
@@ -249,6 +255,7 @@ async function main() {
   console.log('✓ Successfully created Tenant and API Key');
   console.log('✓ Successfully created AMACI Round');
   console.log('✓ Claimed MACI key pair via saasClaimKey() (first-come-first-served)');
+  console.log('  - Uses AMACI_CLAIM_KEY (X-Amaci-Claim-Key header) for authentication');
   console.log(
     '  - secretKey, leafIndex, coordinatorPubkey, pollId, root, pathElements, deactivateLeaf'
   );
@@ -265,7 +272,7 @@ async function main() {
   );
   console.log('  - VoterClient:');
   console.log(
-    '    • saasClaimKey({ contractAddress, ticket }): claim pre-generated key + full deactivate Merkle proof'
+    '    • saasClaimKey({ contractAddress, amaciClaimKey }): claim pre-generated key + full deactivate Merkle proof'
   );
   console.log('    • saasPreCreateNewAccount(): pre-computed proof path (preComputedProof)');
   console.log('      uses root/pathElements/deactivateLeaf from claimMaciKey directly');
