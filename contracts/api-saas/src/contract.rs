@@ -5,7 +5,7 @@ use cosmwasm_std::{
     Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, Uint128, Uint256, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw_utils::{may_pay, parse_instantiate_response_data};
+use cw_utils::may_pay;
 
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as SdkCoin;
 use cosmos_sdk_proto::cosmos::feegrant::v1beta1::{
@@ -16,18 +16,22 @@ use prost::Message;
 
 // External contract types with aliases to avoid path conflicts
 use cw_amaci::msg::RegistrationModeConfig;
-use cw_amaci::state::{RoundInfo, VoiceCreditMode, VotingTime, DEACTIVATE_FEE, FEE_DENOM, MESSAGE_FEE};
+use cw_amaci::state::{RoundInfo, VoiceCreditMode, VotingTime, FEE_DENOM};
 
 // use cw_maci::state::VotingPowerMode; // Unused after Unified MACI refactoring
 
 use cosmos_sdk_proto::traits::TypeUrl;
 // Local contract types
 use crate::error::ContractError;
-use crate::msg::{EncPubKeyParam, ExecuteMsg, InstantiateMsg, InstantiationData, MessageDataParam, MigrateMsg, QueryMsg};
+use crate::msg::{
+    EncPubKeyParam, ExecuteMsg, Groth16ProofParam, InstantiateMsg, InstantiationData,
+    MessageDataParam, MigrateMsg, QueryMsg,
+};
 
 use crate::state::{
-    Config, OperatorInfo, CONFIG, OPERATORS, REGISTRY_CONTRACT_ADDR, TOTAL_BALANCE,
-    TREASURY_MANAGER,
+    Config, OperatorInfo, RoundFeeConfig, SaasFeeConfig, CONFIG, LEGACY_DEACTIVATE_FEE,
+    LEGACY_MESSAGE_FEE, LEGACY_SIGNUP_FEE, OPERATORS, REGISTRY_CONTRACT_ADDR, ROUND_FEE_CONFIG,
+    SAAS_FEE_CONFIG, TOTAL_BALANCE, TREASURY_MANAGER,
 };
 
 // Version info for migration
@@ -56,6 +60,13 @@ pub fn instantiate(
     TREASURY_MANAGER.save(deps.storage, &msg.treasury_manager)?;
     TOTAL_BALANCE.save(deps.storage, &Uint128::zero())?;
     REGISTRY_CONTRACT_ADDR.save(deps.storage, &msg.registry_contract)?;
+
+    SAAS_FEE_CONFIG.save(
+        deps.storage,
+        &SaasFeeConfig {
+            base_fee: Uint128::new(30_000_000_000_000_000_000), // 30 DORA
+        },
+    )?;
 
     Ok(Response::new()
         .add_attribute("action", "instantiate")
@@ -107,7 +118,6 @@ pub fn execute(
         } => execute_publish_deactivate_message(deps, info, contract_addr, enc_pub_key, message),
         ExecuteMsg::CreateAmaciRound {
             operator,
-            max_voter,
             vote_option_map,
             round_info,
             voting_time,
@@ -121,7 +131,6 @@ pub fn execute(
             env,
             info,
             operator,
-            max_voter,
             vote_option_map,
             round_info,
             voting_time,
@@ -131,7 +140,63 @@ pub fn execute(
             voice_credit_mode,
             registration_mode,
         ),
+        ExecuteMsg::UpdateFeeConfig { config } => execute_update_fee_config(deps, info, config),
+        ExecuteMsg::SignUp {
+            contract_addr,
+            pubkey,
+            certificate,
+            amount,
+        } => execute_sign_up(deps, info, contract_addr, pubkey, certificate, amount),
+        ExecuteMsg::AddNewKey {
+            contract_addr,
+            pubkey,
+            nullifier,
+            d,
+            groth16_proof,
+        } => execute_add_new_key(
+            deps,
+            info,
+            contract_addr,
+            pubkey,
+            nullifier,
+            d,
+            groth16_proof,
+        ),
+        ExecuteMsg::PreAddNewKey {
+            contract_addr,
+            pubkey,
+            nullifier,
+            d,
+            groth16_proof,
+        } => execute_pre_add_new_key(
+            deps,
+            info,
+            contract_addr,
+            pubkey,
+            nullifier,
+            d,
+            groth16_proof,
+        ),
     }
+}
+
+/// Update the local fee config mirror (admin only).
+/// ApiSaas admin should call this whenever Registry's CircuitChargeConfig is updated.
+pub fn execute_update_fee_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    config: SaasFeeConfig,
+) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+    if !cfg.is_admin(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    SAAS_FEE_CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "update_fee_config")
+        .add_attribute("base_fee", config.base_fee.to_string()))
 }
 
 pub fn execute_update_config(
@@ -456,7 +521,11 @@ pub fn execute_publish_message(
     let target_addr = deps.api.addr_validate(&contract_addr)?;
 
     let message_count = messages.len() as u128;
-    let required = MESSAGE_FEE
+    let message_fee = ROUND_FEE_CONFIG
+        .may_load(deps.storage, &target_addr)?
+        .map(|c| c.message_fee)
+        .unwrap_or(LEGACY_MESSAGE_FEE);
+    let required = message_fee
         .checked_mul(Uint128::from(message_count))
         .map_err(|e| ContractError::Std(cosmwasm_std::StdError::generic_err(e.to_string())))?;
 
@@ -509,7 +578,10 @@ pub fn execute_publish_deactivate_message(
 
     let target_addr = deps.api.addr_validate(&contract_addr)?;
 
-    let required = DEACTIVATE_FEE;
+    let required = ROUND_FEE_CONFIG
+        .may_load(deps.storage, &target_addr)?
+        .map(|c| c.deactivate_fee)
+        .unwrap_or(LEGACY_DEACTIVATE_FEE);
     let mut total_balance = TOTAL_BALANCE.load(deps.storage)?;
     if total_balance < required {
         return Err(ContractError::InsufficientBalance {
@@ -544,13 +616,187 @@ pub fn execute_publish_deactivate_message(
         .add_attribute("fee_paid", required.to_string()))
 }
 
+/// Load signup_fee for a specific round. Falls back to legacy defaults for rounds
+/// created before per-round fee tracking was introduced (signup was free on old rounds).
+fn get_round_signup_fee(deps: &DepsMut, round_addr: &Addr) -> Uint128 {
+    ROUND_FEE_CONFIG
+        .may_load(deps.storage, round_addr)
+        .ok()
+        .flatten()
+        .map(|c| c.signup_fee)
+        .unwrap_or(LEGACY_SIGNUP_FEE)
+}
+
+/// Deduct signup_fee from SAAS balance and forward a signup call to the amaci contract.
+/// Uses per-round fee config; old rounds have signup_fee = 0.
+fn deduct_signup_fee(
+    deps: &mut DepsMut,
+    contract_addr: &str,
+) -> Result<(cosmwasm_std::Addr, Uint128), ContractError> {
+    let target_addr = deps.api.addr_validate(contract_addr)?;
+    let required = get_round_signup_fee(deps, &target_addr);
+    if !required.is_zero() {
+        let mut total_balance = TOTAL_BALANCE.load(deps.storage)?;
+        if total_balance < required {
+            return Err(ContractError::InsufficientBalance {
+                required,
+                available: total_balance,
+            });
+        }
+        total_balance -= required;
+        TOTAL_BALANCE.save(deps.storage, &total_balance)?;
+    }
+    Ok((target_addr, required))
+}
+
+/// Proxy sign_up to amaci contract, paying signup_fee from SAAS balance.
+pub fn execute_sign_up(
+    mut deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: String,
+    pubkey: EncPubKeyParam,
+    certificate: Option<String>,
+    amount: Option<String>,
+) -> Result<Response, ContractError> {
+    if !OPERATORS.has(deps.storage, &info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let (target_addr, required) = deduct_signup_fee(&mut deps, &contract_addr)?;
+
+    let amaci_msg = serde_json::json!({
+        "sign_up": {
+            "pubkey": pubkey,
+            "certificate": certificate,
+            "amount": amount
+        }
+    });
+
+    let funds = if required.is_zero() {
+        vec![]
+    } else {
+        vec![Coin {
+            denom: FEE_DENOM.to_string(),
+            amount: required,
+        }]
+    };
+
+    let execute_msg = WasmMsg::Execute {
+        contract_addr: target_addr.to_string(),
+        msg: to_json_binary(&amaci_msg)?,
+        funds,
+    };
+
+    Ok(Response::new()
+        .add_message(execute_msg)
+        .add_attribute("action", "saas_sign_up")
+        .add_attribute("operator", info.sender.to_string())
+        .add_attribute("target_contract", contract_addr)
+        .add_attribute("fee_paid", required.to_string()))
+}
+
+/// Proxy add_new_key to amaci contract, paying signup_fee from SAAS balance.
+pub fn execute_add_new_key(
+    mut deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: String,
+    pubkey: EncPubKeyParam,
+    nullifier: String,
+    d: [String; 4],
+    groth16_proof: Groth16ProofParam,
+) -> Result<Response, ContractError> {
+    if !OPERATORS.has(deps.storage, &info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let (target_addr, required) = deduct_signup_fee(&mut deps, &contract_addr)?;
+
+    let amaci_msg = serde_json::json!({
+        "add_new_key": {
+            "pubkey": pubkey,
+            "nullifier": nullifier,
+            "d": d,
+            "groth16_proof": groth16_proof
+        }
+    });
+
+    let funds = if required.is_zero() {
+        vec![]
+    } else {
+        vec![Coin {
+            denom: FEE_DENOM.to_string(),
+            amount: required,
+        }]
+    };
+
+    let execute_msg = WasmMsg::Execute {
+        contract_addr: target_addr.to_string(),
+        msg: to_json_binary(&amaci_msg)?,
+        funds,
+    };
+
+    Ok(Response::new()
+        .add_message(execute_msg)
+        .add_attribute("action", "saas_add_new_key")
+        .add_attribute("operator", info.sender.to_string())
+        .add_attribute("target_contract", contract_addr)
+        .add_attribute("fee_paid", required.to_string()))
+}
+
+/// Proxy pre_add_new_key to amaci contract, paying signup_fee from SAAS balance.
+pub fn execute_pre_add_new_key(
+    mut deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: String,
+    pubkey: EncPubKeyParam,
+    nullifier: String,
+    d: [String; 4],
+    groth16_proof: Groth16ProofParam,
+) -> Result<Response, ContractError> {
+    if !OPERATORS.has(deps.storage, &info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let (target_addr, required) = deduct_signup_fee(&mut deps, &contract_addr)?;
+
+    let amaci_msg = serde_json::json!({
+        "pre_add_new_key": {
+            "pubkey": pubkey,
+            "nullifier": nullifier,
+            "d": d,
+            "groth16_proof": groth16_proof
+        }
+    });
+
+    let funds = if required.is_zero() {
+        vec![]
+    } else {
+        vec![Coin {
+            denom: FEE_DENOM.to_string(),
+            amount: required,
+        }]
+    };
+
+    let execute_msg = WasmMsg::Execute {
+        contract_addr: target_addr.to_string(),
+        msg: to_json_binary(&amaci_msg)?,
+        funds,
+    };
+
+    Ok(Response::new()
+        .add_message(execute_msg)
+        .add_attribute("action", "saas_pre_add_new_key")
+        .add_attribute("operator", info.sender.to_string())
+        .add_attribute("target_contract", contract_addr)
+        .add_attribute("fee_paid", required.to_string()))
+}
+
 /// Create AMACI round via registry using Unified MACI API
 pub fn execute_create_amaci_round(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     operator: Addr,
-    max_voter: Uint256,
     vote_option_map: Vec<String>,
     round_info: RoundInfo,
     voting_time: VotingTime,
@@ -569,12 +815,9 @@ pub fn execute_create_amaci_round(
     let registry_contract = REGISTRY_CONTRACT_ADDR.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
 
-    // Calculate required fee using registry's centralized calculation logic
-    let max_option = Uint256::from_u128(vote_option_map.len() as u128);
-    let required_fee = cw_amaci_registry::utils::calculate_round_fee(max_voter, max_option)
-        .map_err(|_| ContractError::InvalidOracleMaciParameters {
-            reason: "No matched size circuit".to_string(),
-        })?;
+    // Use locally mirrored base_fee to avoid cross-contract queries
+    let fee_config = SAAS_FEE_CONFIG.load(deps.storage)?;
+    let required_fee = fee_config.base_fee;
 
     // Check if SaaS contract has sufficient balance
     let total_balance = TOTAL_BALANCE.load(deps.storage)?;
@@ -593,7 +836,6 @@ pub fn execute_create_amaci_round(
     // This now matches the registry's API exactly
     let registry_msg = cw_amaci_registry::msg::ExecuteMsg::CreateRound {
         operator,
-        max_voter,
         vote_option_map: vote_option_map.clone(),
         round_info: round_info.clone(),
         voting_time,
@@ -623,7 +865,6 @@ pub fn execute_create_amaci_round(
         .add_attribute("operator", info.sender.to_string())
         .add_attribute("registry_contract", registry_contract.to_string())
         .add_attribute("round_title", round_info.title)
-        .add_attribute("max_voter", max_voter.to_string())
         .add_attribute("max_option", vote_option_map.len().to_string())
         .add_attribute("fee_paid", required_fee.to_string())
         .add_attribute("saas_balance_after", new_balance.to_string())
@@ -667,38 +908,21 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 }
 
 fn reply_created_amaci_round(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     result: Result<SubMsgResponse, String>,
 ) -> Result<Response, ContractError> {
     // Parse SubMsg response from registry
     let response = result.map_err(StdError::generic_err)?;
 
-    // Parse response data using the same method as in api-maci
-    let data = response
-        .data
-        .ok_or(ContractError::Std(StdError::generic_err(
-            "Data missing from response",
-        )))?;
-
-    // Try to parse the instantiation data from Registry response
-    let parsed_response = match parse_instantiate_response_data(&data) {
-        Ok(data) => data,
-        Err(err) => {
-            return Err(ContractError::Std(StdError::generic_err(format!(
-                "Failed to parse instantiate response: {}",
-                err
-            ))))
-        }
-    };
-
-    let amaci_contract_addr = Addr::unchecked(parsed_response.contract_address.clone());
-
-    // Extract information from response events for indexer
+    // Extract information from response events FIRST.
+    // Registry emits "round_addr" which gives us the real AMACI address.
+    // We read this from events instead of parse_instantiate_response_data because
+    // registry's reply handler uses set_data(to_json_binary(...)) (JSON), not protobuf.
     let mut event_attrs = std::collections::HashMap::new();
 
-    for event in response.events {
-        for attr in event.attributes {
+    for event in &response.events {
+        for attr in &event.attributes {
             match attr.key.as_str() {
                 // Store all AMACI-related attributes for indexer
                 "code_id"
@@ -724,7 +948,11 @@ fn reply_created_amaci_round(
                 | "coordinator_pubkey_x"
                 | "coordinator_pubkey_y"
                 | "caller"
-                | "admin" => {
+                | "admin"
+                // Per-round fee attributes emitted by registry's create_round
+                | "round_signup_fee"
+                | "round_message_fee"
+                | "round_deactivate_fee" => {
                     event_attrs.insert(attr.key.clone(), attr.value.clone());
                 }
                 _ => {}
@@ -732,20 +960,43 @@ fn reply_created_amaci_round(
         }
     }
 
+    // Get AMACI address from events: registry emits "round_addr" in its reply handler.
+    let amaci_contract_addr = event_attrs
+        .get("round_addr")
+        .map(|a| Addr::unchecked(a))
+        .ok_or(ContractError::RoundAddrNotInReplyEvents {})?;
+
+    // Capture per-round fee config from events and persist as round_addr -> RoundFeeConfig.
+    // If any fee attribute is missing (old registry version), fall back to legacy defaults.
+    let round_fee = RoundFeeConfig {
+        signup_fee: event_attrs
+            .get("round_signup_fee")
+            .and_then(|v| v.parse::<u128>().ok())
+            .map(Uint128::new)
+            .unwrap_or(LEGACY_SIGNUP_FEE),
+        message_fee: event_attrs
+            .get("round_message_fee")
+            .and_then(|v| v.parse::<u128>().ok())
+            .map(Uint128::new)
+            .unwrap_or(LEGACY_MESSAGE_FEE),
+        deactivate_fee: event_attrs
+            .get("round_deactivate_fee")
+            .and_then(|v| v.parse::<u128>().ok())
+            .map(Uint128::new)
+            .unwrap_or(LEGACY_DEACTIVATE_FEE),
+    };
+    ROUND_FEE_CONFIG.save(deps.storage, &amaci_contract_addr, &round_fee)?;
+
     // Prepare return data with the AMACI contract address
     let saas_instantiation_data = InstantiationData {
         addr: amaci_contract_addr.clone(),
     };
 
-    // Create a minimal AMACI instantiation data structure
-    // We don't have all the data that the original AMACI contract returned,
-    // but we have enough to continue with the response
-
     let mut attributes = vec![attr("action", "created_amaci_round")];
 
     // Add all extracted event attributes for indexer
-    for (key, value) in event_attrs {
-        attributes.push(attr(&key, &value));
+    for (key, value) in &event_attrs {
+        attributes.push(attr(key, value));
     }
 
     Ok(Response::new()
@@ -757,10 +1008,7 @@ fn reply_created_amaci_round(
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "migrate"),
-        attr("version", CONTRACT_VERSION),
-    ]))
+    crate::migrates::migrate_v0_1_3::migrate_v0_1_3(deps)
 }
 
 // Utility functions

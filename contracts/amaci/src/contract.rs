@@ -2,26 +2,25 @@ use crate::circuit_params::match_vkeys;
 use crate::error::ContractError;
 use crate::groth16_parser::{parse_groth16_proof, parse_groth16_vkey};
 use crate::msg::{
-    ExecuteMsg, Groth16ProofType, InstantiateMsg, InstantiationData, QueryMsg,
-    RegistrationConfigInfo, RegistrationConfigUpdate, RegistrationModeConfig, RegistrationStatus,
-    TallyDelayInfo, WhitelistBaseConfig,
+    DelayConfigResponse, ExecuteMsg, FeeConfigResponse, Groth16ProofType, InstantiateMsg,
+    InstantiationData, QueryMsg, RegistrationConfigInfo, RegistrationConfigUpdate,
+    RegistrationModeConfig, RegistrationStatus, TallyDelayInfo, WhitelistBaseConfig,
 };
 use crate::state::{
-    Admin, DelayRecord, DelayRecords, DelayType, Groth16ProofStr, MaciParameters, MessageData,
-    OracleWhitelistUser, Period, PeriodStatus, PubKey, QuinaryTreeRoot, RegistrationMode,
-    RoundInfo, StateLeaf, VoiceCreditMode, VotingTime, Whitelist, WhitelistConfig, ADMIN,
-    CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH, CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT,
-    CURRENT_STATE_COMMITMENT, CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_DELAY,
-    DEACTIVATE_ENABLED, DEACTIVATE_FEE, DELAY_RECORDS, DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES,
-    FEE_DENOM, FEE_RECIPIENT, FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS, GROTH16_NEWKEY_VKEYS,
-    GROTH16_PROCESS_VKEYS, GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS,
-    MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR, MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MESSAGE_FEE,
-    MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE,
-    PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT,
-    PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB, REGISTRATION_MODE, RESULT, ROUNDINFO,
-    SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG, TALLY_BASE_DELAY_2_1_1_5, TALLY_BASE_DELAY_4_2_2_25,
-    TALLY_BASE_DELAY_6_3_3_125, TALLY_BASE_DELAY_9_4_3_125, TALLY_DELAY_MAX_HOURS,
-    TALLY_DELAY_MULTIPLIER, TALLY_PER_VOTE_DELAY, TALLY_TIMEOUT, TALLY_TIMEOUT_EXTRA_SECONDS,
+    Admin, DelayConfig, DelayRecord, DelayRecords, DelayType, FeeConfig, Groth16ProofStr,
+    MaciParameters, MessageData, OracleWhitelistUser, Period, PeriodStatus, PubKey,
+    QuinaryTreeRoot, RegistrationMode, RoundInfo, StateLeaf, VoiceCreditMode, VotingTime,
+    Whitelist, WhitelistConfig, ADMIN, CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH,
+    CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT, CURRENT_STATE_COMMITMENT,
+    CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_ENABLED, DELAY_CONFIG, DELAY_RECORDS,
+    DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES, FEE_CONFIG, FEE_DENOM, FEE_RECIPIENT,
+    FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS, GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS,
+    GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS, MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR,
+    MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS,
+    NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE, PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH,
+    PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT, PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB,
+    REGISTRATION_MODE, RESULT, ROUNDINFO, SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG,
+    TALLY_DELAY_MAX_HOURS, TALLY_DELAY_MULTIPLIER, TALLY_TIMEOUT, TALLY_TIMEOUT_EXTRA_SECONDS,
     TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE,
     VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
 };
@@ -634,14 +633,32 @@ pub fn instantiate(
 
     DELAY_RECORDS.save(deps.storage, &DelayRecords { records: vec![] })?;
 
-    let deactivate_delay = Timestamp::from_seconds(10 * 60); // 10 minutes
-    DEACTIVATE_DELAY.save(deps.storage, &deactivate_delay)?;
+    let deactivate_delay = Timestamp::from_seconds(msg.deactivate_delay);
 
     let tally_delay_max_hours = 48; // 48 hours
     TALLY_DELAY_MAX_HOURS.save(deps.storage, &tally_delay_max_hours)?;
 
     let tally_timeout = Timestamp::from_seconds(4 * 24 * 60 * 60); // 4 days
     TALLY_TIMEOUT.save(deps.storage, &tally_timeout)?;
+
+    // Save fee and delay configuration injected by Registry at round creation time.
+    FEE_CONFIG.save(
+        deps.storage,
+        &FeeConfig {
+            message_fee: msg.message_fee,
+            deactivate_fee: msg.deactivate_fee,
+            signup_fee: msg.signup_fee,
+        },
+    )?;
+    DELAY_CONFIG.save(
+        deps.storage,
+        &DelayConfig {
+            base_delay: msg.base_delay,
+            message_delay: msg.message_delay,
+            signup_delay: msg.signup_delay,
+            deactivate_delay: msg.deactivate_delay,
+        },
+    )?;
 
     let old_tally_timeout_set = Timestamp::from_seconds(tally_delay_max_hours * 60 * 60);
 
@@ -1235,6 +1252,13 @@ pub fn execute_sign_up(
     }
 
     // ============================================
+    // Step 1.5: Collect Registration Fee
+    // Fee stays in contract balance and is distributed at Claim time.
+    // ============================================
+    let signup_fee = FEE_CONFIG.load(deps.storage)?.signup_fee;
+    let signup_payment = check_fee_payment(&info, signup_fee)?;
+
+    // ============================================
     // Step 2: Calculate Voice Credit Balance
     // ============================================
     let vc_mode = VOICE_CREDIT_MODE.load(deps.storage)?;
@@ -1333,6 +1357,7 @@ pub fn execute_sign_up(
 
     Ok(Response::new()
         .add_attribute("action", "sign_up")
+        .add_attribute("fee_paid", format!("{}{}", signup_payment, FEE_DENOM))
         .add_attribute("state_idx", state_index.to_string())
         .add_attribute(
             "pubkey",
@@ -1362,7 +1387,8 @@ pub fn execute_publish_message(
     }
 
     let batch_size = messages.len();
-    let required_fee = MESSAGE_FEE
+    let message_fee = FEE_CONFIG.load(deps.storage)?.message_fee;
+    let required_fee = message_fee
         .checked_mul(Uint128::from(batch_size as u128))
         .map_err(|_| ContractError::ValueTooLarge {})?;
 
@@ -1446,7 +1472,8 @@ pub fn execute_publish_deactivate_message(
     }
 
     // Check payment: require DEACTIVATE_FEE in FEE_DENOM
-    let payment = check_fee_payment(&info, DEACTIVATE_FEE)?;
+    let deactivate_fee = FEE_CONFIG.load(deps.storage)?.deactivate_fee;
+    let payment = check_fee_payment(&info, deactivate_fee)?;
 
     let mut dmsg_chain_length = DMSG_CHAIN_LENGTH.load(deps.storage)?;
 
@@ -1638,7 +1665,7 @@ pub fn execute_process_deactivate_message(
 
     let different_time: u64 = current_time.seconds() - first_dmsg_time.seconds();
 
-    if different_time > DEACTIVATE_DELAY.load(deps.storage)?.seconds() {
+    if different_time > DELAY_CONFIG.load(deps.storage)?.deactivate_delay {
         let mut delay_records = DELAY_RECORDS.load(deps.storage)?;
         let delay_timestamp = first_dmsg_time;
         let delay_duration = different_time;
@@ -1808,20 +1835,24 @@ fn add_key_internal(
 pub fn execute_add_new_key(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     pubkey: PubKey,
     nullifier: Uint256,
     d: [Uint256; 4],
     groth16_proof: Groth16ProofType,
 ) -> Result<Response, ContractError> {
-    add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, false)
+    // Fee stays in contract balance and is distributed at Claim time.
+    let signup_fee = FEE_CONFIG.load(deps.storage)?.signup_fee;
+    let payment = check_fee_payment(&info, signup_fee)?;
+    let resp = add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, false)?;
+    Ok(resp.add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
 }
 
 // in voting — only allowed in PrePopulated registration mode
 pub fn execute_pre_add_new_key(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     pubkey: PubKey,
     nullifier: Uint256,
     d: [Uint256; 4],
@@ -1831,7 +1862,11 @@ pub fn execute_pre_add_new_key(
     if !matches!(registration_mode, RegistrationMode::PrePopulated { .. }) {
         return Err(ContractError::PreAddNewKeyNotAllowed {});
     }
-    add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, true)
+    // Fee stays in contract balance and is distributed at Claim time.
+    let signup_fee = FEE_CONFIG.load(deps.storage)?.signup_fee;
+    let payment = check_fee_payment(&info, signup_fee)?;
+    let resp = add_key_internal(deps, env, pubkey, nullifier, d, groth16_proof, true)?;
+    Ok(resp.add_attribute("fee_paid", format!("{}{}", payment, FEE_DENOM)))
 }
 
 pub fn execute_start_process_period(
@@ -2726,6 +2761,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             };
             to_json_binary(&status)
         }
+        QueryMsg::GetFeeConfig {} => {
+            let fee_cfg = FEE_CONFIG.load(deps.storage)?;
+            let config = FeeConfigResponse {
+                message_fee: fee_cfg.message_fee,
+                deactivate_fee: fee_cfg.deactivate_fee,
+                signup_fee: fee_cfg.signup_fee,
+            };
+            to_json_binary(&config)
+        }
+        QueryMsg::GetDelayConfig {} => {
+            let delay_cfg = DELAY_CONFIG.load(deps.storage)?;
+            let config = DelayConfigResponse {
+                base_delay: delay_cfg.base_delay,
+                message_delay: delay_cfg.message_delay,
+                signup_delay: delay_cfg.signup_delay,
+                deactivate_delay: delay_cfg.deactivate_delay,
+            };
+            to_json_binary(&config)
+        }
     }
 }
 
@@ -2751,8 +2805,8 @@ pub fn check_operator_process_time(deps: Deps, env: Env) -> Result<bool, Contrac
 
     let time_difference = current_time.seconds() - first_dmsg_time.seconds();
 
-    let deactivate_delay = DEACTIVATE_DELAY.load(deps.storage)?;
-    if time_difference > deactivate_delay.seconds() {
+    let deactivate_delay = DELAY_CONFIG.load(deps.storage)?.deactivate_delay;
+    if time_difference > deactivate_delay {
         return Ok(false);
     }
 
@@ -2815,30 +2869,26 @@ pub fn calculate_tally_delay(deps: Deps) -> Result<TallyDelayInfo, ContractError
         .map(|x: Uint128| x.u128())
         .map_err(|_| ContractError::ValueTooLarge {})?;
 
+    let num_sign_ups_u64: u64 = num_sign_ups
+        .try_into()
+        .map(|x: Uint128| x.u128() as u64)
+        .map_err(|_| ContractError::ValueTooLarge {})?;
+
     let msg_count_u64: u64 = msg_chain_length
         .try_into()
         .map(|x: Uint128| x.u128() as u64)
         .map_err(|_| ContractError::ValueTooLarge {})?;
 
-    let parameter: MaciParameters = MACIPARAMETERS.load(deps.storage)?;
-    let state_tree_depth = parameter.state_tree_depth;
+    // Load delay configuration from storage (set at instantiation by Registry).
+    let delay_cfg = DELAY_CONFIG.load(deps.storage)?;
+    let base_delay = delay_cfg.base_delay;
+    let message_delay = delay_cfg.message_delay;
+    let signup_delay = delay_cfg.signup_delay;
 
-    // Select base delay based on circuit tier
-    let base_delay = if state_tree_depth == Uint256::from_u128(2u128) {
-        TALLY_BASE_DELAY_2_1_1_5
-    } else if state_tree_depth == Uint256::from_u128(4u128) {
-        TALLY_BASE_DELAY_4_2_2_25
-    } else if state_tree_depth == Uint256::from_u128(6u128) {
-        TALLY_BASE_DELAY_6_3_3_125
-    } else if state_tree_depth == Uint256::from_u128(9u128) {
-        TALLY_BASE_DELAY_9_4_3_125 // TODO: update when benchmark is complete
-    } else {
-        return Err(ContractError::ValueTooLarge {});
-    };
-
-    // delay_allowed = (base_delay + msg_count * per_vote_delay) * multiplier
+    // tally_window = (base_delay + num_signups * signup_delay + msg_count * message_delay) * multiplier
     let delay_seconds =
-        (base_delay + msg_count_u64 * TALLY_PER_VOTE_DELAY) * TALLY_DELAY_MULTIPLIER;
+        (base_delay + num_sign_ups_u64 * signup_delay + msg_count_u64 * message_delay)
+            * TALLY_DELAY_MULTIPLIER;
     let calculated_hours = delay_seconds / 3600;
 
     Ok(TallyDelayInfo {

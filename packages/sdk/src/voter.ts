@@ -1375,6 +1375,56 @@ export class VoterClient {
     return await this.saasApiClient.preAddNewKey(params);
   }
 
+  // ==================== Transaction Utilities ====================
+
+  /**
+   * Poll the chain REST endpoint until the given transaction is committed on-chain,
+   * then return its `tx_response` object with an added `status` field.
+   *
+   * @param txHash - On-chain transaction hash to wait for.
+   * @param options.timeout  - Max wait time in milliseconds (default: 60 000 ms).
+   * @param options.interval - Polling interval in milliseconds (default: 2 000 ms).
+   * @returns The Cosmos `tx_response` record plus `status`: `'success'` when `code === 0`, `'failed'` otherwise.
+   * @throws If the transaction is not found within the timeout period.
+   */
+  async waitForTransaction(
+    txHash: string,
+    options: { timeout?: number; interval?: number } = {}
+  ) {
+    const timeout = options.timeout ?? 60_000;
+    const interval = options.interval ?? 2_000;
+    const deadline = Date.now() + timeout;
+
+    while (Date.now() < deadline) {
+      try {
+        const data = await this.http.fetchRest(`/cosmos/tx/v1beta1/txs/${txHash}`);
+        if (data?.tx_response) {
+          const txResponse = data.tx_response as {
+            height: string;
+            txhash: string;
+            code: number;
+            raw_log: string;
+            gas_wanted: string;
+            gas_used: string;
+            timestamp: string;
+            events: { type: string; attributes: { key: string; value: string }[] }[];
+          };
+          return {
+            ...txResponse,
+            status: txResponse.code === 0 ? ('success' as const) : ('failed' as const)
+          };
+        }
+      } catch {
+        // Transaction not yet on chain (404), keep polling
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+
+    throw new Error(
+      `waitForTransaction: transaction ${txHash} not found on chain within ${timeout}ms`
+    );
+  }
+
   // ==================== Maci Voter Methods ====================
   /**
    * Pre-create a new account for AMACI voting (pre-deactivate mode).

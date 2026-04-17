@@ -61,4 +61,7 @@ pub enum ContractError {
     // Conversion and parsing errors
     #[error("Failed to parse numeric value: {value}, reason: {reason}")]
     ParseError { value: String, reason: String },
+
+    #[error("round_addr not found in registry reply events")]
+    RoundAddrNotInReplyEvents {},
 }

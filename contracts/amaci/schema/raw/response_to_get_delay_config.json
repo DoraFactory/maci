@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DelayConfigResponse",
+  "type": "object",
+  "required": [
+    "base_delay",
+    "deactivate_delay",
+    "message_delay",
+    "signup_delay"
+  ],
+  "properties": {
+    "base_delay": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "deactivate_delay": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "message_delay": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "signup_delay": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  },
+  "additionalProperties": false
+}

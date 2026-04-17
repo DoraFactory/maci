@@ -16,7 +16,6 @@
       "type": "string",
       "enum": [
         "pending",
-        "voting",
         "processing",
         "tallying",
         "ended"

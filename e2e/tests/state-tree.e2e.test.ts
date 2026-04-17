@@ -517,7 +517,16 @@ describe('State Tree Update E2E Test', function () {
         },
         circuit_type: '0', // 1P1V
         certification_system: '0', // Groth16
-        deactivate_enabled: false // Deactivate feature disabled (default)
+        deactivate_enabled: false, // Deactivate feature disabled (default)
+        // Fee config (set to 0 for e2e testing)
+        message_fee: '0',
+        deactivate_fee: '0',
+        signup_fee: '0',
+        // Delay config (set to 0 for fast e2e test execution)
+        base_delay: 0,
+        message_delay: 0,
+        signup_delay: 0,
+        deactivate_delay: 0
       };
 
       const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);

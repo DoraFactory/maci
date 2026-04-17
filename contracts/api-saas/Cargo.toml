@@ -1,6 +1,6 @@
 [package]
 name = "cw-api-saas"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Your Name <your.email@example.com>"]
 edition = "2021"
 
@@ -40,8 +40,8 @@ prost-types = "0.11"
 [dev-dependencies]
 cw-multi-test = { version = "0.20.0", features = ["cosmwasm_1_4"] }
 anyhow = "1.0"
-cw-amaci-registry = { path = "../registry", features = ["mt"] }
-cw-amaci = { path = "../amaci", features = ["mt"] }
+cw-amaci-registry = { path = "../registry", features = ["mt", "test-circuit"] }
+cw-amaci = { path = "../amaci", features = ["mt", "test-vkeys"] }
 
 [features]
 # for more explicit tests, cargo test --features=backtraces

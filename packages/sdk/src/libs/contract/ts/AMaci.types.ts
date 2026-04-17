@@ -6,6 +6,7 @@
 
 export type Addr = string;
 export type Uint256 = string;
+export type Uint128 = string;
 export type RegistrationModeConfig =
   | {
       sign_up_with_static_whitelist: {
@@ -34,16 +35,23 @@ export type Timestamp = Uint64;
 export type Uint64 = string;
 export interface InstantiateMsg {
   admin: Addr;
+  base_delay: number;
   certification_system: Uint256;
   circuit_type: Uint256;
   coordinator: PubKey;
+  deactivate_delay: number;
   deactivate_enabled: boolean;
+  deactivate_fee: Uint128;
   fee_recipient: Addr;
+  message_delay: number;
+  message_fee: Uint128;
   operator: Addr;
   parameters: MaciParameters;
   poll_id: number;
   registration_mode: RegistrationModeConfig;
   round_info: RoundInfo;
+  signup_delay: number;
+  signup_fee: Uint128;
   voice_credit_mode: VoiceCreditMode;
   vote_option_map: string[];
   voting_time: VotingTime;
@@ -301,9 +309,21 @@ export type QueryMsg =
         pubkey?: PubKey | null;
         sender?: Addr | null;
       };
+    }
+  | {
+      get_fee_config: {};
+    }
+  | {
+      get_delay_config: {};
     };
 export type ArrayOfUint256 = Uint256[];
 export type Boolean = boolean;
+export interface DelayConfigResponse {
+  base_delay: number;
+  deactivate_delay: number;
+  message_delay: number;
+  signup_delay: number;
+}
 export type DelayType = 'deactivate_delay' | 'tally_delay';
 export interface DelayRecords {
   records: DelayRecord[];
@@ -315,7 +335,12 @@ export interface DelayRecord {
   delay_timestamp: Timestamp;
   delay_type: DelayType;
 }
-export type PeriodStatus = 'pending' | 'voting' | 'processing' | 'tallying' | 'ended';
+export interface FeeConfigResponse {
+  deactivate_fee: Uint128;
+  message_fee: Uint128;
+  signup_fee: Uint128;
+}
+export type PeriodStatus = 'pending' | 'processing' | 'tallying' | 'ended';
 export interface Period {
   status: PeriodStatus;
 }
