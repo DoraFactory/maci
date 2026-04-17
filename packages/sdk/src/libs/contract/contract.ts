@@ -642,6 +642,236 @@ export class Contract {
     };
   }
 
+  async signupViaSaas({
+    signer,
+    contractAddress,
+    pubkey,
+    certificate,
+    amount,
+    granter,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    pubkey: { x: string; y: string };
+    certificate?: string;
+    amount?: string;
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.apiSaasAddress
+    });
+
+    const saasGranter = granter || this.apiSaasAddress;
+    const signUpParams = {
+      contractAddr: contractAddress,
+      pubkey,
+      certificate,
+      amount
+    };
+
+    if (typeof fee !== 'object') {
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        sign_up: {
+          contract_addr: contractAddress,
+          pubkey,
+          certificate: certificate ?? null,
+          amount: amount ?? null
+        }
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.apiSaasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: saasGranter
+      };
+      return client.signUp(signUpParams, grantFee);
+    }
+
+    const grantFee: StdFee = {
+      ...fee,
+      granter: saasGranter
+    };
+    return client.signUp(signUpParams, grantFee);
+  }
+
+  async preAddNewKeyViaSaas({
+    signer,
+    contractAddress,
+    pubkey,
+    nullifier,
+    d,
+    groth16Proof,
+    granter,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    pubkey: { x: string; y: string };
+    nullifier: string;
+    d: string[];
+    groth16Proof: { a: string; b: string; c: string };
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.apiSaasAddress
+    });
+
+    const saasGranter = granter || this.apiSaasAddress;
+    const keyParams = {
+      contractAddr: contractAddress,
+      pubkey,
+      nullifier,
+      d,
+      groth16Proof
+    };
+
+    if (typeof fee !== 'object') {
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        pre_add_new_key: {
+          contract_addr: contractAddress,
+          pubkey,
+          nullifier,
+          d,
+          groth16_proof: groth16Proof
+        }
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.apiSaasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: saasGranter
+      };
+      return client.preAddNewKey(keyParams, grantFee);
+    }
+
+    const grantFee: StdFee = {
+      ...fee,
+      granter: saasGranter
+    };
+    return client.preAddNewKey(keyParams, grantFee);
+  }
+
+  async addNewKeyViaSaas({
+    signer,
+    contractAddress,
+    pubkey,
+    nullifier,
+    d,
+    groth16Proof,
+    granter,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    pubkey: { x: string; y: string };
+    nullifier: string;
+    d: string[];
+    groth16Proof: { a: string; b: string; c: string };
+    granter?: string;
+    fee?: StdFee | 'auto' | number;
+  }) {
+    const client = await createApiSaasClientBy({
+      rpcEndpoint: this.rpcEndpoint,
+      wallet: signer,
+      contractAddress: this.apiSaasAddress
+    });
+
+    const saasGranter = granter || this.apiSaasAddress;
+    const keyParams = {
+      contractAddr: contractAddress,
+      pubkey,
+      nullifier,
+      d,
+      groth16Proof
+    };
+
+    if (typeof fee !== 'object') {
+      const [{ address }] = await signer.getAccounts();
+      const contractClient = await this.contractClient({ signer });
+      const msg = {
+        add_new_key: {
+          contract_addr: contractAddress,
+          pubkey,
+          nullifier,
+          d,
+          groth16_proof: groth16Proof
+        }
+      };
+      const gasEstimation = await contractClient.simulate(
+        address,
+        [
+          {
+            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+            value: {
+              sender: address,
+              contract: this.apiSaasAddress,
+              msg: new TextEncoder().encode(JSON.stringify(msg))
+            }
+          }
+        ],
+        ''
+      );
+      const multiplier = typeof fee === 'number' ? fee : 1.8;
+      const gasPrice = GasPrice.fromString('10000000000peaka');
+      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
+      const grantFee: StdFee = {
+        amount: calculatedFee.amount,
+        gas: calculatedFee.gas,
+        granter: saasGranter
+      };
+      return client.addNewKey(keyParams, grantFee);
+    }
+
+    const grantFee: StdFee = {
+      ...fee,
+      granter: saasGranter
+    };
+    return client.addNewKey(keyParams, grantFee);
+  }
+
   async publishMessageViaSaas({
     signer,
     contractAddress,

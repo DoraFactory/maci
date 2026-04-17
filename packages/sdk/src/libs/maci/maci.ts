@@ -503,7 +503,22 @@ export class MACI {
 
       const signupFunds = [{ denom: FEE_DENOM, amount: this.feeConfig.signupFee }];
 
-      if (gasStation === true && typeof fee !== 'object') {
+      if (gasStation === true && granter === this.contract.apiSaasAddress) {
+        // SAAS path: the SAAS contract covers signup_fee from its own balance;
+        // the operator's gas is covered by feegrant from the SAAS contract.
+        return this.contract.signupViaSaas({
+          signer,
+          contractAddress,
+          pubkey: {
+            x: pubKey[0].toString(),
+            y: pubKey[1].toString()
+          },
+          certificate: oracleCertificate?.signature,
+          amount: oracleCertificate?.amount,
+          granter,
+          fee
+        });
+      } else if (gasStation === true && typeof fee !== 'object') {
         // When gasStation is true and fee is not StdFee, simulate first then add granter
         const gasEstimation = await client.simulate(
           address,
@@ -1314,7 +1329,20 @@ export class MACI {
       }
     };
 
-    if (gasStation === true && typeof fee !== 'object') {
+    if (gasStation === true && granter === this.contract.apiSaasAddress) {
+      // SAAS path: the SAAS contract covers signup_fee from its own balance;
+      // the operator's gas is covered by feegrant from the SAAS contract.
+      return this.contract.addNewKeyViaSaas({
+        signer,
+        contractAddress,
+        pubkey: keyParams.pubkey,
+        nullifier: keyParams.nullifier,
+        d,
+        groth16Proof: proof,
+        granter,
+        fee
+      });
+    } else if (gasStation === true && typeof fee !== 'object') {
       // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
       const [{ address }] = await signer.getAccounts();
       const contractClient = await this.contract.contractClient({ signer });
@@ -1406,7 +1434,20 @@ export class MACI {
       }
     };
 
-    if (gasStation === true && typeof fee !== 'object') {
+    if (gasStation === true && granter === this.contract.apiSaasAddress) {
+      // SAAS path: the SAAS contract covers signup_fee from its own balance;
+      // the operator's gas is covered by feegrant from the SAAS contract.
+      return this.contract.preAddNewKeyViaSaas({
+        signer,
+        contractAddress,
+        pubkey: keyParams.pubkey,
+        nullifier: keyParams.nullifier,
+        d,
+        groth16Proof: proof,
+        granter,
+        fee
+      });
+    } else if (gasStation === true && typeof fee !== 'object') {
       // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
       const [{ address }] = await signer.getAccounts();
       const contractClient = await this.contract.contractClient({ signer });
