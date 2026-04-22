@@ -199,7 +199,7 @@ export class OperatorClient {
   public http: Http;
   public indexer: Indexer;
 
-  public restEndpoint: string;
+  public restEndpoints: string[];
   public apiEndpoint: string;
   public registryAddress: string;
 
@@ -252,23 +252,27 @@ export class OperatorClient {
     mnemonic,
     secretKey,
     apiEndpoint,
-    restEndpoint,
+    restEndpoints,
     registryAddress,
     customFetch,
-    defaultOptions
+    defaultOptions,
+    retries,
+    retryDelay
   }: OperatorClientParams) {
     this.network = network;
     this.accountManager = new MaciAccount({ mnemonic, secretKey });
 
     const defaultParams = getDefaultParams(network);
 
-    this.restEndpoint = restEndpoint || defaultParams.restEndpoint;
+    const restUrls = restEndpoints ?? [defaultParams.restEndpoint];
+
+    this.restEndpoints = restUrls;
     this.apiEndpoint = apiEndpoint || defaultParams.apiEndpoint; // Indexer GraphQL API
     this.registryAddress = registryAddress || defaultParams.registryAddress;
 
-    this.http = new Http(this.apiEndpoint, this.restEndpoint, customFetch, defaultOptions);
+    this.http = new Http(this.apiEndpoint, restUrls, customFetch, defaultOptions, retries, retryDelay);
     this.indexer = new Indexer({
-      restEndpoint: this.restEndpoint,
+      restEndpoint: restUrls[0],
       apiEndpoint: this.apiEndpoint, // Indexer GraphQL API
       registryAddress: this.registryAddress,
       http: this.http
@@ -277,14 +281,16 @@ export class OperatorClient {
     // Initialize Contract instance
     this.contract = new Contract({
       network: this.network,
-      rpcEndpoint: defaultParams.rpcEndpoint,
+      rpcEndpoints: [defaultParams.rpcEndpoint],
       registryAddress: this.registryAddress,
       saasAddress: defaultParams.saasAddress,
       apiSaasAddress: defaultParams.apiSaasAddress,
       maciCodeId: defaultParams.maciCodeId,
       oracleCodeId: defaultParams.oracleCodeId,
       feegrantOperator: defaultParams.oracleFeegrantOperator,
-      whitelistBackendPubkey: defaultParams.oracleWhitelistBackendPubkey
+      whitelistBackendPubkey: defaultParams.oracleWhitelistBackendPubkey,
+      retries,
+      retryDelay
     });
   }
 

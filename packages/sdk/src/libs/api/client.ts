@@ -439,17 +439,6 @@ export class MaciApiClient {
   // ==================== Pre-deactivate APIs ====================
 
   /**
-   * Get pre-deactivate data by contract address
-   */
-  async getPreDeactivate(
-    params: PathParams<paths['/v1/pre-deactivate/{contractAddress}']['get']>
-  ): Promise<ResponseBody<paths['/v1/pre-deactivate/{contractAddress}']['get'], 200>> {
-    return this.fetch(`/v1/pre-deactivate/${params.contractAddress}`, {
-      method: 'GET'
-    });
-  }
-
-  /**
    * Get coordinator public key, deactivate root, and voter scale for a round.
    * Lighter alternative to the full data endpoint when only circuit inputs are needed.
    */

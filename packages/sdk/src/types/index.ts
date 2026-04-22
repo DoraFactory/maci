@@ -25,8 +25,8 @@ export type CertificateEcosystem = 'cosmoshub' | 'doravota';
 export type ClientParams = {
   signer?: OfflineSigner;
   network: 'mainnet' | 'testnet';
-  rpcEndpoint?: string;
-  restEndpoint?: string;
+  rpcEndpoints?: string[];
+  restEndpoints?: string[];
   apiEndpoint?: string; // Indexer GraphQL API endpoint
   saasApiEndpoint?: string; // MACI SaaS API endpoint
   saasApiKey?: string; // MACI SaaS API key
@@ -43,11 +43,13 @@ export type ClientParams = {
   maciKeypair?: Keypair;
   secretKey?: string;
   mnemonic?: string;
+  retries?: number;
+  retryDelay?: number;
 };
 
 export type ContractParams = {
   network: 'mainnet' | 'testnet';
-  rpcEndpoint: string;
+  rpcEndpoints: string[];
   registryAddress: string;
   saasAddress: string;
   apiSaasAddress: string;
@@ -55,6 +57,8 @@ export type ContractParams = {
   oracleCodeId: number;
   whitelistBackendPubkey: string;
   feegrantOperator: string;
+  retries?: number;
+  retryDelay?: number;
 };
 
 export type TransactionType = {
@@ -494,11 +498,14 @@ export type VoterClientParams = {
   secretKey?: string | bigint;
   registryAddress?: string;
   apiEndpoint?: string; // Indexer GraphQL API endpoint
-  restEndpoint?: string; // DoraVota REST API endpoint
+  rpcEndpoints?: string[];
+  restEndpoints?: string[];
   saasApiEndpoint?: string; // MACI SaaS API endpoint
   saasApiKey?: string; // MACI SaaS API key
   customFetch?: typeof fetch;
   defaultOptions?: FetchOptions;
+  retries?: number;
+  retryDelay?: number;
 };
 
 export type OperatorClientParams = {
@@ -507,7 +514,10 @@ export type OperatorClientParams = {
   secretKey?: string | bigint;
   registryAddress?: string;
   apiEndpoint?: string; // Indexer GraphQL API endpoint
-  restEndpoint?: string; // DoraVota REST API endpoint
+  rpcEndpoints?: string[];
+  restEndpoints?: string[];
   customFetch?: typeof fetch;
   defaultOptions?: FetchOptions;
+  retries?: number;
+  retryDelay?: number;
 };

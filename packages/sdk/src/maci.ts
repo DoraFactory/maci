@@ -27,8 +27,8 @@ import { isErrorResponse } from './libs/maci/maci';
  */
 export class MaciClient {
   public network: 'mainnet' | 'testnet';
-  public rpcEndpoint: string;
-  public restEndpoint: string;
+  public rpcEndpoints: string[];
+  public restEndpoints: string[];
   public apiEndpoint: string; // Indexer GraphQL API endpoint
   public saasApiEndpoint?: string; // MACI SaaS API endpoint
   public certificateApiEndpoint: string;
@@ -58,8 +58,8 @@ export class MaciClient {
   constructor({
     signer,
     network,
-    rpcEndpoint,
-    restEndpoint,
+    rpcEndpoints,
+    restEndpoints,
     apiEndpoint,
     saasApiEndpoint,
     saasApiKey,
@@ -73,14 +73,19 @@ export class MaciClient {
     feegrantOperator,
     whitelistBackendPubkey,
     certificateApiEndpoint,
-    maciKeypair
+    maciKeypair,
+    retries,
+    retryDelay
   }: ClientParams) {
     this.signer = signer;
     this.network = network;
     const defaultParams = getDefaultParams(network);
 
-    this.rpcEndpoint = rpcEndpoint || defaultParams.rpcEndpoint;
-    this.restEndpoint = restEndpoint || defaultParams.restEndpoint;
+    const rpcUrls = rpcEndpoints ?? [defaultParams.rpcEndpoint];
+    const restUrls = restEndpoints ?? [defaultParams.restEndpoint];
+
+    this.rpcEndpoints = rpcUrls;
+    this.restEndpoints = restUrls;
     this.apiEndpoint = apiEndpoint || defaultParams.apiEndpoint; // Indexer GraphQL API
     this.saasApiEndpoint = saasApiEndpoint || defaultParams.saasApiEndpoint; // MACI SaaS API
     this.certificateApiEndpoint = certificateApiEndpoint || defaultParams.certificateApiEndpoint;
@@ -94,23 +99,25 @@ export class MaciClient {
       whitelistBackendPubkey || defaultParams.oracleWhitelistBackendPubkey;
     this.maciKeypair = maciKeypair ?? genKeypair();
 
-    this.http = new Http(this.apiEndpoint, this.restEndpoint, customFetch, defaultOptions);
+    this.http = new Http(this.apiEndpoint, restUrls, customFetch, defaultOptions, retries, retryDelay);
     this.indexer = new Indexer({
-      restEndpoint: this.restEndpoint,
+      restEndpoint: restUrls[0],
       apiEndpoint: this.apiEndpoint, // Indexer GraphQL API
       registryAddress: this.registryAddress,
       http: this.http
     });
     this.contract = new Contract({
       network: this.network,
-      rpcEndpoint: this.rpcEndpoint,
+      rpcEndpoints: rpcUrls,
       registryAddress: this.registryAddress,
       saasAddress: this.saasAddress,
       apiSaasAddress: this.apiSaasAddress,
       maciCodeId: this.maciCodeId,
       oracleCodeId: this.oracleCodeId,
       feegrantOperator: this.feegrantOperator,
-      whitelistBackendPubkey: this.whitelistBackendPubkey
+      whitelistBackendPubkey: this.whitelistBackendPubkey,
+      retries,
+      retryDelay
     });
     this.oracleCertificate = new OracleCertificate({
       certificateApiEndpoint: this.certificateApiEndpoint,

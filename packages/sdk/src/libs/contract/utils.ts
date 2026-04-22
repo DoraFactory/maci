@@ -1,6 +1,41 @@
 import { MaciCertSystemType, MaciCircuitType, MaciRoundType } from '../../types';
 import { CIRCUIT_INFO } from './vars';
 
+export type TxEvent = {
+  type: string;
+  attributes: { key: string; value: string }[];
+};
+
+/**
+ * Parse contractAddress and pollId from wasm events after a round creation transaction.
+ */
+export function parseCreatedRoundEvent(events: TxEvent[]): { contractAddress: string; pollId: string } {
+  for (const event of events) {
+    if (event.type === 'wasm') {
+      const action = event.attributes.find((a) => a.key === 'action');
+      if (action?.value === 'created_round') {
+        const contractAddress = event.attributes.find((a) => a.key === 'round_addr')?.value ?? '';
+        const pollId = event.attributes.find((a) => a.key === 'poll_id')?.value ?? '';
+        return { contractAddress, pollId };
+      }
+    }
+  }
+  return { contractAddress: '', pollId: '' };
+}
+
+/**
+ * Find the first attribute value matching the given key inside wasm events.
+ */
+export function parseWasmEventAttribute(events: TxEvent[], key: string): string {
+  for (const event of events) {
+    if (event.type === 'wasm') {
+      const attr = event.attributes.find((a) => a.key === key);
+      if (attr) return attr.value;
+    }
+  }
+  return '';
+}
+
 export function getCircuitType(circuitType: MaciCircuitType) {
   let maciVoteType = null;
   switch (circuitType) {

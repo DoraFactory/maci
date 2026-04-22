@@ -26,6 +26,9 @@ function generateRandomString(length: number) {
 }
 
 async function main() {
+  // const network = 'mainnet';
+  // const operator = 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4';
+
   const network = 'testnet';
   const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
 
@@ -44,13 +47,25 @@ async function main() {
   // const circuitPower = '2-1-1-5';
   // const stateTreeDepth = 2;
 
-  const maxVoter = 26;
-  const circuitPower = '4-2-2-25';
-  const stateTreeDepth = 4;
+  const maxVoter = 25;
+  const circuitPower = '9-4-3-125';
+  const stateTreeDepth = 9;
+
+  // Multi-endpoint config — first endpoint is tried first; subsequent entries act as fallbacks
+  const rpcEndpoints = [
+    'https://vota-testnet-rpc.dorafactory.org',
+    // 'https://vota-testnet-rpc2.dorafactory.org',
+  ];
+  const restEndpoints = [
+    'https://vota-testnet-rest.dorafactory.org',
+    // 'https://vota-testnet-rest2.dorafactory.org',
+  ];
 
   // Create temporary MaciClient (for admin operations, no API key required)
   const adminMaciClient = new MaciClient({
-    network: network,
+    network,
+    rpcEndpoints,
+    restEndpoints,
     saasApiEndpoint: API_BASE_URL
   });
 
@@ -86,7 +101,9 @@ async function main() {
 
   // Create MaciClient with API Key (required for saasClaimKey)
   const maciClient = new MaciClient({
-    network: network,
+    network,
+    rpcEndpoints,
+    restEndpoints,
     saasApiEndpoint: API_BASE_URL,
     saasApiKey: apiKey
   });
@@ -110,6 +127,10 @@ async function main() {
     voiceCreditAmount: 100
   });
 
+  if (createRoundData.status === 'failed') {
+    throw new Error(`Round creation failed: ${createRoundData.error ?? 'unknown error'}`);
+  }
+
   const contractAddress = createRoundData.contractAddress;
   if (!contractAddress) {
     throw new Error('Contract address not returned');
@@ -127,16 +148,14 @@ async function main() {
   console.log('  Ticket:', ticket);
   console.log('  Poll ID:', createRoundData.pollId ?? 'N/A');
 
-  // Wait for transaction confirmation
-  console.log('\nWaiting 6 seconds to ensure transaction confirmation...');
-  await new Promise((resolve) => setTimeout(resolve, 6000));
-
   // ==================== 3. Claim Key ====================
   console.log('\n[3/4] Claiming MACI Key (saasClaimKey)');
 
   // Uses AMACI_CLAIM_KEY as the X-Amaci-Claim-Key header — no ticket required for this step
   const claimVoterClient = new VoterClient({
-    network: network,
+    network,
+    rpcEndpoints,
+    restEndpoints,
     saasApiEndpoint: API_BASE_URL
   });
   const claimedKey = await claimVoterClient.saasClaimKey({ contractAddress, amaciClaimKey });
@@ -169,7 +188,9 @@ async function main() {
 
   // Build VoterClient from the claimed secretKey
   const voterClient = new VoterClient({
-    network: network,
+    network,
+    rpcEndpoints,
+    restEndpoints,
     secretKey: claimedKey.secretKey,
     saasApiEndpoint: API_BASE_URL
   });
@@ -209,13 +230,19 @@ async function main() {
       ticket
     });
 
-    console.log('✓ Pre-Add-New-Key succeeded!', result);
+    if (result.status === 'failed') {
+      throw new Error(`Pre-Add-New-Key failed: ${result.error ?? 'unknown error'}`);
+    }
+
+    console.log('✓ Pre-Add-New-Key succeeded!');
+    console.log('  TX Hash:', result.txHash);
     console.log('  New account pubkey:', account.getPubkey().toPackedData());
     console.log('  New account private key:', account.getSigner().getPrivateKey());
 
-    // Wait for Pre-Add-New-Key transaction confirmation
-    console.log('\nWaiting 6 seconds to ensure Pre-Add-New-Key transaction confirmation...');
-    await new Promise((resolve) => setTimeout(resolve, 6000));
+    // Wait for the Pre-Add-New-Key transaction to be committed on-chain before polling state index
+    console.log('\nWaiting for Pre-Add-New-Key transaction confirmation...');
+    const txConfirmed = await voterClient.waitForTransaction(result.txHash);
+    console.log('  Confirmed at height:', txConfirmed.height, '| status:', txConfirmed.status);
 
     let userIdx = await account.getStateIdx({ contractAddress });
     console.log('  userIdx:', userIdx);
@@ -276,6 +303,7 @@ async function main() {
   );
   console.log('    • saasPreCreateNewAccount(): pre-computed proof path (preComputedProof)');
   console.log('      uses root/pathElements/deactivateLeaf from claimMaciKey directly');
+  console.log('    • waitForTransaction(txHash): wait for tx on-chain before polling state index');
   console.log('    • saasVote(): builds payload + submits vote');
 }
 
