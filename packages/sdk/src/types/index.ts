@@ -82,7 +82,7 @@ export type RoundType = {
   txHash: string;
   caller: string;
   admin: string;
-  operator: string;
+  operatorAddress: string;
   contractAddress: string;
   circuitName: string;
   timestamp: string;
@@ -110,7 +110,7 @@ export type RoundType = {
   maciType: string;
   voiceCreditAmount: string;
   preDeactivateRoot: string;
-  identity: string;
+  operator?: { identity: string };
   // funds: string;
   operatorLogoUrl?: string;
   operatorMoniker?: string;
@@ -142,10 +142,9 @@ export type OperatorDelayType = {
   delayReason: string;
   delayType: string;
   id: string;
-  nodeId: string;
   operatorAddress: string;
   timestamp: string;
-  roundAddress: string;
+  contractAddress: string;
 };
 
 export type OperatorType = {
@@ -477,8 +476,8 @@ export type DeactivateMessage = {
   timestamp: string;
   txHash: string;
   deactivateMessage: string; // '[["0", "1", "2", "3", "4"]]'
-  maciContractAddress: string;
-  maciOperator: string;
+  contractAddress: string;
+  operatorAddress: string;
 };
 
 export type AccountMangerParams = {

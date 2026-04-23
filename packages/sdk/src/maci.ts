@@ -81,8 +81,8 @@ export class MaciClient {
     this.network = network;
     const defaultParams = getDefaultParams(network);
 
-    const rpcUrls = rpcEndpoints ?? [defaultParams.rpcEndpoint];
-    const restUrls = restEndpoints ?? [defaultParams.restEndpoint];
+    const rpcUrls = rpcEndpoints ?? defaultParams.rpcEndpoints;
+    const restUrls = restEndpoints ?? defaultParams.restEndpoints;
 
     this.rpcEndpoints = rpcUrls;
     this.restEndpoints = restUrls;

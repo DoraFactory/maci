@@ -25,6 +25,32 @@ function generateRandomString(length: number) {
     .substring(2, 2 + length);
 }
 
+/**
+ * Retry an indexer (GraphQL / REST) query until it succeeds or the timeout is reached.
+ * Useful when a transaction is confirmed on-chain but the indexer hasn't synced yet.
+ */
+async function waitForIndexer<T>(
+  fn: () => Promise<T>,
+  options: { timeout?: number; interval?: number; label?: string } = {}
+): Promise<T> {
+  const timeout = options.timeout ?? 30_000;
+  const interval = options.interval ?? 2_000;
+  const label = options.label ?? 'indexer query';
+  const deadline = Date.now() + timeout;
+
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (Date.now() + interval > deadline) {
+        throw new Error(`Timeout waiting for ${label}: ${(error as Error).message}`);
+      }
+      console.log(`  [waitForIndexer] ${label} not ready yet, retrying in ${interval}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+  }
+}
+
 async function main() {
   // const network = 'mainnet';
   // const operator = 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4';
@@ -51,15 +77,19 @@ async function main() {
   const circuitPower = '9-4-3-125';
   const stateTreeDepth = 9;
 
+  // // Multi-endpoint config — first endpoint is tried first; subsequent entries act as fallbacks
+  // const rpcEndpoints = [
+  //   'https://vota-testnet-rpc.dorafactory.org',
+  //   // 'https://vota-testnet-rpc2.dorafactory.org',
+  // ];
+  // const restEndpoints = [
+  //   'https://vota-testnet-rest.dorafactory.org',
+  //   // 'https://vota-testnet-rest2.dorafactory.org',
+  // ];
+
   // Multi-endpoint config — first endpoint is tried first; subsequent entries act as fallbacks
-  const rpcEndpoints = [
-    'https://vota-testnet-rpc.dorafactory.org',
-    // 'https://vota-testnet-rpc2.dorafactory.org',
-  ];
-  const restEndpoints = [
-    'https://vota-testnet-rest.dorafactory.org',
-    // 'https://vota-testnet-rest2.dorafactory.org',
-  ];
+  const rpcEndpoints = undefined;
+  const restEndpoints = undefined;
 
   // Create temporary MaciClient (for admin operations, no API key required)
   const adminMaciClient = new MaciClient({
@@ -178,8 +208,13 @@ async function main() {
   console.log('    Available count:', claimStats.availableCount);
 
   // Fetch the round's on-chain coordinator pubkey for voting (may differ from the
-  // pre-deactivate coordinator key used when building the deactivate tree)
-  const roundInfo = await maciClient.getRoundInfo({ contractAddress });
+  // pre-deactivate coordinator key used when building the deactivate tree).
+  // Wrap with waitForIndexer — the indexer may lag a few seconds behind chain confirmation.
+  const roundInfo = await waitForIndexer(() => maciClient.getRoundInfo({ contractAddress }), {
+    label: 'round info',
+    timeout: 30_000,
+    interval: 2_000
+  });
   const roundCoordPubkey: [bigint, bigint] = [
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
@@ -244,13 +279,17 @@ async function main() {
     const txConfirmed = await voterClient.waitForTransaction(result.txHash);
     console.log('  Confirmed at height:', txConfirmed.height, '| status:', txConfirmed.status);
 
-    let userIdx = await account.getStateIdx({ contractAddress });
+    // Wait for the indexer to reflect the new state index
+    console.log('  Waiting for indexer to sync state index...');
+    const userIdx = await waitForIndexer(
+      async () => {
+        const idx = await account.getStateIdx({ contractAddress });
+        if (idx === -1) throw new Error('state index not yet available');
+        return idx;
+      },
+      { label: 'state index', timeout: 30_000, interval: 1_000 }
+    );
     console.log('  userIdx:', userIdx);
-    while (userIdx === -1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      userIdx = await account.getStateIdx({ contractAddress });
-      console.log('  userIdx:', userIdx);
-    }
 
     // Vote with the new account
     console.log('\nVoting...');

@@ -35,10 +35,12 @@
     "watch:tsup": "tsup ./src/index.ts --format esm,cjs --clean --splitting --watch",
     "watch:types": "tsc --watch",
     "watch": "pnpm run clean & pnpm run watch:types & pnpm run watch:tsup",
-    "test": "pnpm test:typecheck && pnpm test:unit",
-    "test:typecheck": "tsc -p ./test",
-    "test:unit": "vitest run --test-timeout=60000",
-    "test:watch": "vitest",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "test:migration": "vitest run --config vitest.config.migration.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:compare": "tsx scripts/compare_graphql_migration.ts",
     "format:fix": "prettier --ignore-path 'dist/* docs/*' --write '**/*.{ts,json,md}'",
     "lint:fix": "eslint . --ignore-pattern dist --ext .ts --fix",
     "commit": "commit",
@@ -96,6 +98,7 @@
     "tsconfig-paths": "^4.2.0",
     "tsup": "^8.0.0",
     "typedoc": "^0.25.2",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "vitest": "^4.1.5"
   }
 }

@@ -264,7 +264,7 @@ export class OperatorClient {
 
     const defaultParams = getDefaultParams(network);
 
-    const restUrls = restEndpoints ?? [defaultParams.restEndpoint];
+    const restUrls = restEndpoints ?? defaultParams.restEndpoints;
 
     this.restEndpoints = restUrls;
     this.apiEndpoint = apiEndpoint || defaultParams.apiEndpoint; // Indexer GraphQL API
@@ -281,7 +281,7 @@ export class OperatorClient {
     // Initialize Contract instance
     this.contract = new Contract({
       network: this.network,
-      rpcEndpoints: [defaultParams.rpcEndpoint],
+      rpcEndpoints: defaultParams.rpcEndpoints,
       registryAddress: this.registryAddress,
       saasAddress: defaultParams.saasAddress,
       apiSaasAddress: defaultParams.apiSaasAddress,

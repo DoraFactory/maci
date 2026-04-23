@@ -136,8 +136,8 @@ export const validator_operator_set = {
 export interface NetworkConfig {
   network: string;
   chainId: string;
-  rpcEndpoint: string;
-  restEndpoint: string;
+  rpcEndpoints: string[];
+  restEndpoints: string[];
   apiEndpoint: string;
   saasApiEndpoint: string;
   certificateApiEndpoint: string;
@@ -157,9 +157,9 @@ export function getDefaultParams(network: 'mainnet' | 'testnet' = 'mainnet'): Ne
       return {
         network: 'mainnet',
         chainId: 'vota-ash',
-        rpcEndpoint: 'https://vota-rpc.dorafactory.org',
-        restEndpoint: 'https://vota-rest.dorafactory.org',
-        apiEndpoint: 'https://vota-api.dorafactory.org',
+        rpcEndpoints: ['https://vota-rpc.dorafactory.org', 'https://vota-archive-rpc.dorafactory.org'],
+        restEndpoints: ['https://vota-rest.dorafactory.org', 'https://vota-archive-rest.dorafactory.org'],
+        apiEndpoint: 'https://maci-graphql.dorafactory.org',
         saasApiEndpoint: 'https://maci-xl-api.dorafactory.org',
         certificateApiEndpoint: 'https://vota-certificate-api.dorafactory.org/api/v1',
         registryAddress: 'dora1smg5qp5trjdkcekdjssqpjehdjf6n4cjss0clyvqcud3t3u3948s8rmgg4',
@@ -176,9 +176,9 @@ export function getDefaultParams(network: 'mainnet' | 'testnet' = 'mainnet'): Ne
       return {
         network: 'testnet',
         chainId: 'vota-testnet',
-        rpcEndpoint: 'https://vota-testnet-rpc.dorafactory.org',
-        restEndpoint: 'https://vota-testnet-rest.dorafactory.org',
-        apiEndpoint: 'https://vota-testnet-api.dorafactory.org',
+        rpcEndpoints: ['https://vota-testnet-rpc.dorafactory.org'],
+        restEndpoints: ['https://vota-testnet-rest.dorafactory.org'],
+        apiEndpoint: 'https://maci-testnet-graphql.dorafactory.org',
         saasApiEndpoint: 'https://maci-xl-testnet-api.dorafactory.org',
         certificateApiEndpoint: 'https://vota-testnet-certificate-api.dorafactory.org/api/v1',
         registryAddress: 'dora13c8aecstyxrhax9znvvh5zey89edrmd2k5va57pxvpe3fxtfsfeqlhsjnd',
