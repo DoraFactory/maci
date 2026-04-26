@@ -770,6 +770,61 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/pre-deactivate/{contractAddress}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Get pre-deactivate data by contract address */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          contractAddress: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** @description Snapshot or tree ID */
+              id: string;
+              /** @description Contract address */
+              contractAddress: string;
+              /** @description Deactivate root */
+              root: string;
+              /** @description Coordinator public key */
+              coordinator: string;
+              /** @description Merkle tree depth used for proof generation (e.g. 2, 4, or 6) */
+              stateTreeDepth: number;
+              /** @description Array of leaf hashes (deactivateLeafHash) */
+              leaves: string[];
+              /** @description Array of deactivate leaf data arrays */
+              deactivates: string[][];
+              /** @description Creation timestamp */
+              createdAt: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/rounds/{contractAddress}/claim-key': {
     parameters: {
       query?: never;

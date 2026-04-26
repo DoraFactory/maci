@@ -52,19 +52,19 @@ async function waitForIndexer<T>(
 }
 
 async function main() {
-  // const network = 'mainnet';
-  // const operator = 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4';
+  const network = 'mainnet';
+  const operator = 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4';
 
-  const network = 'testnet';
-  const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
+  // const network = 'testnet';
+  // const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
 
   console.log('='.repeat(80));
   console.log('Claim Key + Pre-Add-New-Key + Vote Complete Test (MaciClient & VoterClient)');
   console.log('='.repeat(80));
 
   // API base configuration
-  const API_BASE_URL = 'http://localhost:8080';
-  // const API_BASE_URL = undefined;
+  // const API_BASE_URL = 'http://localhost:8080';
+  const API_BASE_URL = undefined;
   // const maxVoter = 20000;
   // const circuitPower = '9-4-3-125';
   // const stateTreeDepth = 9;

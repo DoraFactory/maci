@@ -105,7 +105,14 @@ export class VoterClient {
     this.saasApiEndpoint = saasApiEndpoint || defaultParams.saasApiEndpoint; // MACI SaaS API
     this.registryAddress = registryAddress || defaultParams.registryAddress;
 
-    this.http = new Http(this.apiEndpoint, restUrls, customFetch, defaultOptions, retries, retryDelay);
+    this.http = new Http(
+      this.apiEndpoint,
+      restUrls,
+      customFetch,
+      defaultOptions,
+      retries,
+      retryDelay
+    );
     this.indexer = new Indexer({
       restEndpoint: restUrls[0],
       apiEndpoint: this.apiEndpoint, // Indexer GraphQL API
@@ -431,7 +438,9 @@ export class VoterClient {
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(operatorPubkey);
 
-    let addKeyInput: Awaited<ReturnType<typeof this.genAddKeyInput>> | Awaited<ReturnType<typeof this.legacyGenAddKeyInput>>;
+    let addKeyInput:
+      | Awaited<ReturnType<typeof this.genAddKeyInput>>
+      | Awaited<ReturnType<typeof this.legacyGenAddKeyInput>>;
 
     if (pollId !== undefined) {
       if (!newPubkey) {
@@ -565,7 +574,9 @@ export class VoterClient {
 
     // New-version path: pollId provided.
     if (!newPubkey) {
-      throw new Error('buildPreAddNewKeyPayload: `newPubkey` is required when `pollId` is provided');
+      throw new Error(
+        'buildPreAddNewKeyPayload: `newPubkey` is required when `pollId` is provided'
+      );
     }
 
     const coordPubKey: PubKey = [coordPubkeyX, coordPubkeyY];
@@ -1307,6 +1318,17 @@ export class VoterClient {
   }
 
   /**
+   * Get pre-deactivate data via SaaS API
+   * @param contractAddress - Contract address
+   */
+  async saasGetPreDeactivate(contractAddress: string) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.getPreDeactivate({ contractAddress });
+  }
+
+  /**
    * Signup via SaaS API
    * @param params - Signup parameters (including ticket)
    * @returns Response with transaction details
@@ -1542,7 +1564,9 @@ export class VoterClient {
    * @param params - Parameters including contractAddress and amaciClaimKey
    * @returns Claimed key pair with full deactivate Merkle proof
    */
-  async saasClaimKey(params: operations['claimMaciKey']['parameters']['path'] & { amaciClaimKey: string }) {
+  async saasClaimKey(
+    params: operations['claimMaciKey']['parameters']['path'] & { amaciClaimKey: string }
+  ) {
     if (!this.saasApiClient) {
       throw new Error('SaaS API client not initialized');
     }
