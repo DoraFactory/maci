@@ -144,7 +144,16 @@ describe('AMACI Deactivate E2E Tests', function () {
         circuit_type: '1',
         certification_system: '0',
         poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
-        deactivate_enabled: true // Deactivate feature ENABLED for this deactivate test
+        deactivate_enabled: true, // Deactivate feature ENABLED for this deactivate test
+        // Fee config (set to 0 for e2e testing)
+        message_fee: '0',
+        deactivate_fee: '0',
+        signup_fee: '0',
+        // Delay config (set to 0 for fast e2e test execution)
+        base_delay: 0,
+        message_delay: 0,
+        signup_delay: 0,
+        deactivate_delay: 0
       };
 
       const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);

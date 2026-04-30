@@ -27,8 +27,8 @@ import { isErrorResponse } from './libs/maci/maci';
  */
 export class MaciClient {
   public network: 'mainnet' | 'testnet';
-  public rpcEndpoint: string;
-  public restEndpoint: string;
+  public rpcEndpoints: string[];
+  public restEndpoints: string[];
   public apiEndpoint: string; // Indexer GraphQL API endpoint
   public saasApiEndpoint?: string; // MACI SaaS API endpoint
   public certificateApiEndpoint: string;
@@ -58,8 +58,8 @@ export class MaciClient {
   constructor({
     signer,
     network,
-    rpcEndpoint,
-    restEndpoint,
+    rpcEndpoints,
+    restEndpoints,
     apiEndpoint,
     saasApiEndpoint,
     saasApiKey,
@@ -73,14 +73,19 @@ export class MaciClient {
     feegrantOperator,
     whitelistBackendPubkey,
     certificateApiEndpoint,
-    maciKeypair
+    maciKeypair,
+    retries,
+    retryDelay
   }: ClientParams) {
     this.signer = signer;
     this.network = network;
     const defaultParams = getDefaultParams(network);
 
-    this.rpcEndpoint = rpcEndpoint || defaultParams.rpcEndpoint;
-    this.restEndpoint = restEndpoint || defaultParams.restEndpoint;
+    const rpcUrls = rpcEndpoints ?? defaultParams.rpcEndpoints;
+    const restUrls = restEndpoints ?? defaultParams.restEndpoints;
+
+    this.rpcEndpoints = rpcUrls;
+    this.restEndpoints = restUrls;
     this.apiEndpoint = apiEndpoint || defaultParams.apiEndpoint; // Indexer GraphQL API
     this.saasApiEndpoint = saasApiEndpoint || defaultParams.saasApiEndpoint; // MACI SaaS API
     this.certificateApiEndpoint = certificateApiEndpoint || defaultParams.certificateApiEndpoint;
@@ -94,23 +99,25 @@ export class MaciClient {
       whitelistBackendPubkey || defaultParams.oracleWhitelistBackendPubkey;
     this.maciKeypair = maciKeypair ?? genKeypair();
 
-    this.http = new Http(this.apiEndpoint, this.restEndpoint, customFetch, defaultOptions);
+    this.http = new Http(this.apiEndpoint, restUrls, customFetch, defaultOptions, retries, retryDelay);
     this.indexer = new Indexer({
-      restEndpoint: this.restEndpoint,
+      restEndpoint: restUrls[0],
       apiEndpoint: this.apiEndpoint, // Indexer GraphQL API
       registryAddress: this.registryAddress,
       http: this.http
     });
     this.contract = new Contract({
       network: this.network,
-      rpcEndpoint: this.rpcEndpoint,
+      rpcEndpoints: rpcUrls,
       registryAddress: this.registryAddress,
       saasAddress: this.saasAddress,
       apiSaasAddress: this.apiSaasAddress,
       maciCodeId: this.maciCodeId,
       oracleCodeId: this.oracleCodeId,
       feegrantOperator: this.feegrantOperator,
-      whitelistBackendPubkey: this.whitelistBackendPubkey
+      whitelistBackendPubkey: this.whitelistBackendPubkey,
+      retries,
+      retryDelay
     });
     this.oracleCertificate = new OracleCertificate({
       certificateApiEndpoint: this.certificateApiEndpoint,
@@ -165,6 +172,54 @@ export class MaciClient {
       );
     }
     return this.saasApiClient;
+  }
+
+  /**
+   * Poll the chain REST endpoint until the given transaction is committed on-chain,
+   * then return its `tx_response` object with an added `status` field.
+   *
+   * @param txHash - On-chain transaction hash to wait for.
+   * @param options.timeout  - Max wait time in milliseconds (default: 60 000 ms).
+   * @param options.interval - Polling interval in milliseconds (default: 2 000 ms).
+   * @returns The Cosmos `tx_response` record plus `status`: `'success'` when `code === 0`, `'failed'` otherwise.
+   * @throws If the transaction is not found within the timeout period.
+   */
+  async waitForTransaction(
+    txHash: string,
+    options: { timeout?: number; interval?: number } = {}
+  ) {
+    const timeout = options.timeout ?? 60_000;
+    const interval = options.interval ?? 2_000;
+    const deadline = Date.now() + timeout;
+
+    while (Date.now() < deadline) {
+      try {
+        const data = await this.http.fetchRest(`/cosmos/tx/v1beta1/txs/${txHash}`);
+        if (data?.tx_response) {
+          const txResponse = data.tx_response as {
+            height: string;
+            txhash: string;
+            code: number;
+            raw_log: string;
+            gas_wanted: string;
+            gas_used: string;
+            timestamp: string;
+            events: { type: string; attributes: { key: string; value: string }[] }[];
+          };
+          return {
+            ...txResponse,
+            status: txResponse.code === 0 ? ('success' as const) : ('failed' as const)
+          };
+        }
+      } catch {
+        // Transaction not yet on chain (404), keep polling
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+
+    throw new Error(
+      `waitForTransaction: transaction ${txHash} not found on chain within ${timeout}ms`
+    );
   }
 
   getMaciKeypair() {
@@ -402,13 +457,6 @@ export class MaciClient {
     balance: string | null;
   }> {
     return await this.maci.queryRoundClaimable({ contractAddress });
-  }
-
-  async queryAMaciChargeFee({ maxVoter, maxOption }: { maxVoter: number; maxOption: number }) {
-    return await this.maci.queryAMaciChargeFee({
-      maxVoter,
-      maxOption
-    });
   }
 
   async queryRoundGasStation({ contractAddress }: { contractAddress: string }) {

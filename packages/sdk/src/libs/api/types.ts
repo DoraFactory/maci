@@ -1866,10 +1866,7 @@ export interface operations {
   claimMaciKey: {
     parameters: {
       query?: never;
-      header: {
-        /** @description AMACI claim key for authentication */
-        'X-Amaci-Claim-Key': string;
-      };
+      header?: never;
       path: {
         /** @description Round contract address */
         contractAddress: string;

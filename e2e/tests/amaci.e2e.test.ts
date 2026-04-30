@@ -215,7 +215,16 @@ describe('AMACI End-to-End Test', function () {
       circuit_type: '1', // QV
       certification_system: '0', // Groth16
       poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
-      deactivate_enabled: false // Deactivate feature disabled (default)
+      deactivate_enabled: false, // Deactivate feature disabled (default)
+      // Fee config (set to 0 for e2e testing to avoid fund management in tests)
+      message_fee: '0',
+      deactivate_fee: '0',
+      signup_fee: '0',
+      // Delay config (set to 0 for fast e2e test execution)
+      base_delay: 0,
+      message_delay: 0,
+      signup_delay: 0,
+      deactivate_delay: 0
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -643,7 +652,16 @@ describe('AMACI Dynamic Voice Credit E2E Test', function () {
       circuit_type: '1',
       certification_system: '0',
       poll_id: 10, // Unique poll ID
-      deactivate_enabled: false
+      deactivate_enabled: false,
+      // Fee config (set to 0 for e2e testing)
+      message_fee: '0',
+      deactivate_fee: '0',
+      signup_fee: '0',
+      // Delay config (set to 0 for fast e2e test execution)
+      base_delay: 0,
+      message_delay: 0,
+      signup_delay: 0,
+      deactivate_delay: 0
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);

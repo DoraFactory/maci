@@ -56,27 +56,29 @@ export class BaseContractClient {
 export class AmaciContractClient extends BaseContractClient {
   /**
    * Sign up a user
+   * NOTE: Requires signup_fee if configured in the contract (0 in e2e tests).
    */
-  async signUp(pubkey: { x: string; y: string }, certificate?: string, amount?: string): Promise<any> {
+  async signUp(pubkey: { x: string; y: string }, certificate?: string, amount?: string, signupFee = '0'): Promise<any> {
+    const funds = signupFee !== '0' ? [{ denom: 'peaka', amount: signupFee }] : [];
     return await this.execute({
       sign_up: {
         pubkey,
         certificate,
         amount
       }
-    });
+    }, funds);
   }
 
   /**
    * Publish deactivate message
-   * NOTE: Requires 10 DORA fee (10 * 10^18 peaka)
+   * Sends funds only if deactivateFee is non-zero.
    */
   async publishDeactivateMessage(
     message: string[],
-    encPubKey: { x: string; y: string }
+    encPubKey: { x: string; y: string },
+    deactivateFee = '0'
   ): Promise<any> {
-    // 10 DORA = 10 * 10^18 peaka
-    const deactivateFee = [{ denom: 'peaka', amount: '10000000000000000000' }];
+    const funds = deactivateFee !== '0' ? [{ denom: 'peaka', amount: deactivateFee }] : [];
     return await this.execute(
       {
         publish_deactivate_message: {
@@ -84,7 +86,7 @@ export class AmaciContractClient extends BaseContractClient {
           enc_pub_key: encPubKey
         }
       },
-      deactivateFee
+      funds
     );
   }
 
@@ -109,13 +111,16 @@ export class AmaciContractClient extends BaseContractClient {
 
   /**
    * Add new key
+   * NOTE: Requires signup_fee if configured in the contract (0 in e2e tests).
    */
   async addNewKey(
     pubkey: { x: string; y: string },
     nullifier: string,
     d: [string, string, string, string],
-    proof: { a: string; b: string; c: string }
+    proof: { a: string; b: string; c: string },
+    signupFee = '0'
   ): Promise<any> {
+    const funds = signupFee !== '0' ? [{ denom: 'peaka', amount: signupFee }] : [];
     return await this.execute({
       add_new_key: {
         pubkey,
@@ -123,18 +128,21 @@ export class AmaciContractClient extends BaseContractClient {
         d,
         groth16_proof: proof
       }
-    });
+    }, funds);
   }
 
   /**
    * Pre add new key (uses pre-uploaded deactivate data)
+   * NOTE: Requires signup_fee if configured in the contract (0 in e2e tests).
    */
   async preAddNewKey(
     pubkey: { x: string; y: string },
     nullifier: string,
     d: [string, string, string, string],
-    proof: { a: string; b: string; c: string }
+    proof: { a: string; b: string; c: string },
+    signupFee = '0'
   ): Promise<any> {
+    const funds = signupFee !== '0' ? [{ denom: 'peaka', amount: signupFee }] : [];
     return await this.execute({
       pre_add_new_key: {
         pubkey,
@@ -142,15 +150,19 @@ export class AmaciContractClient extends BaseContractClient {
         d,
         groth16_proof: proof
       }
-    });
+    }, funds);
   }
 
   /**
    * Publish message (vote)
-   * NOTE: Requires 0.06 DORA fee (6 * 10^16 peaka) per message
+   * Sends funds only if messageFee is non-zero.
    */
-  async publishMessage(message: string[], encPubKey: { x: string; y: string }): Promise<any> {
-    const messageFee = [{ denom: 'peaka', amount: '60000000000000000' }];
+  async publishMessage(
+    message: string[],
+    encPubKey: { x: string; y: string },
+    messageFee = '0'
+  ): Promise<any> {
+    const funds = messageFee !== '0' ? [{ denom: 'peaka', amount: messageFee }] : [];
     return await this.execute(
       {
         publish_message: {
@@ -158,22 +170,24 @@ export class AmaciContractClient extends BaseContractClient {
           enc_pub_keys: [encPubKey]
         }
       },
-      messageFee
+      funds
     );
   }
 
   /**
    * Publish multiple messages in one transaction (batch).
-   * NOTE: Requires 0.06 DORA fee per message (batch_size * 6 * 10^16 peaka total).
-   * Uses the unified publish_message endpoint.
+   * Sends funds only if perMessageFee is non-zero.
    */
   async publishMessageBatch(
-    messages: Array<{ message: string[]; encPubKey: { x: string; y: string } }>
+    messages: Array<{ message: string[]; encPubKey: { x: string; y: string } }>,
+    perMessageFee = '0'
   ): Promise<any> {
     const formattedMessages = messages.map((m) => ({ data: m.message }));
     const encPubKeys = messages.map((m) => m.encPubKey);
-    const totalFee = BigInt('60000000000000000') * BigInt(messages.length);
-    const batchFee = [{ denom: 'peaka', amount: totalFee.toString() }];
+    const funds =
+      perMessageFee !== '0'
+        ? [{ denom: 'peaka', amount: (BigInt(perMessageFee) * BigInt(messages.length)).toString() }]
+        : [];
     return await this.execute(
       {
         publish_message: {
@@ -181,7 +195,7 @@ export class AmaciContractClient extends BaseContractClient {
           enc_pub_keys: encPubKeys
         }
       },
-      batchFee
+      funds
     );
   }
 

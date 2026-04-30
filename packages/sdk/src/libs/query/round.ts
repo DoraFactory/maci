@@ -37,7 +37,7 @@ export class Round {
         txHash
         caller
         admin
-        operator
+        operatorAddress
         contractAddress
         circuitName
         timestamp
@@ -65,7 +65,9 @@ export class Round {
         maciType
         voiceCreditAmount
         preDeactivateRoot
-        identity
+        operator {
+          identity
+        }
       }
     }`;
 
@@ -84,7 +86,7 @@ export class Round {
       response.data.round.operatorLogoUrl = '';
       response.data.round.operatorMoniker = '';
 
-      const identity = response.data.round.identity;
+      const identity = response.data.round.operator?.identity ?? '';
       // try {
       const keybaseUrl = `https://keybase.io/_/api/1.0/user/lookup.json?key_suffix=${identity}`;
       const keybaseResponse = await this.http.fetch(keybaseUrl);
@@ -143,7 +145,7 @@ export class Round {
         'txHash',
         'caller',
         'admin',
-        'operator',
+        'operatorAddress',
         'contractAddress',
         'circuitName',
         'timestamp',
@@ -171,7 +173,6 @@ export class Round {
         'maciType',
         'voiceCreditAmount',
         'preDeactivateRoot',
-        'identity'
         // 'funds',
       ];
 
@@ -235,7 +236,7 @@ export class Round {
                   txHash
                   caller
                   admin
-                  operator
+                  operatorAddress
                   contractAddress
                   circuitName
                   timestamp
@@ -320,7 +321,7 @@ export class Round {
                     txHash
                     caller
                     admin
-                    operator
+                    operatorAddress
                     contractAddress
                     circuitName
                     timestamp
@@ -441,7 +442,7 @@ export class Round {
             txHash
             caller
             admin
-            operator
+            operatorAddress
             contractAddress
             circuitName
             timestamp
@@ -516,7 +517,7 @@ export class Round {
 
       const ROUND_HISTORY_QUERY = `query ($limit: Int!, $after: Cursor) {
       rounds(first: $limit, after: $after, filter:{
-        operator:{
+        operatorAddress:{
           equalTo: "${operator}"
         }
        }, orderBy: [TIMESTAMP_DESC]){
@@ -533,7 +534,7 @@ export class Round {
                   txHash
                   caller
                   admin
-                  operator
+                  operatorAddress
                   contractAddress
                   circuitName
                   timestamp

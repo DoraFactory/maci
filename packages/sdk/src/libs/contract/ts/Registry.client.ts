@@ -16,6 +16,7 @@ import {
   Timestamp,
   Uint64,
   Decimal,
+  Uint128,
   PubKey,
   WhitelistBase,
   WhitelistBaseConfig,
@@ -23,6 +24,8 @@ import {
   VotingTime,
   ValidatorSet,
   CircuitChargeConfig,
+  FeeConfig,
+  DelayConfig,
   QueryMsg,
   AdminResponse,
   String,
@@ -40,6 +43,8 @@ export interface RegistryReadOnlyInterface {
   getMaciOperatorPubkey: ({ address }: { address: Addr }) => Promise<PubKey>;
   getMaciOperatorIdentity: ({ address }: { address: Addr }) => Promise<String>;
   getCircuitChargeConfig: () => Promise<CircuitChargeConfig>;
+  getFeeConfig: () => Promise<FeeConfig>;
+  getDelayConfig: () => Promise<DelayConfig>;
   getPollId: ({ address }: { address: Addr }) => Promise<Uint64>;
   getPollAddress: ({ pollId }: { pollId: number }) => Promise<NullableAddr>;
   getNextPollId: () => Promise<Uint64>;
@@ -60,6 +65,8 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
     this.getMaciOperatorPubkey = this.getMaciOperatorPubkey.bind(this);
     this.getMaciOperatorIdentity = this.getMaciOperatorIdentity.bind(this);
     this.getCircuitChargeConfig = this.getCircuitChargeConfig.bind(this);
+    this.getFeeConfig = this.getFeeConfig.bind(this);
+    this.getDelayConfig = this.getDelayConfig.bind(this);
     this.getPollId = this.getPollId.bind(this);
     this.getPollAddress = this.getPollAddress.bind(this);
     this.getNextPollId = this.getNextPollId.bind(this);
@@ -118,6 +125,16 @@ export class RegistryQueryClient implements RegistryReadOnlyInterface {
   getCircuitChargeConfig = async (): Promise<CircuitChargeConfig> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_circuit_charge_config: {}
+    });
+  };
+  getFeeConfig = async (): Promise<FeeConfig> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_fee_config: {}
+    });
+  };
+  getDelayConfig = async (): Promise<DelayConfig> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_delay_config: {}
     });
   };
   getPollId = async ({ address }: { address: Addr }): Promise<Uint64> => {
@@ -183,7 +200,6 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
       certificationSystem,
       circuitType,
       deactivateEnabled,
-      maxVoter,
       operator,
       registrationMode,
       roundInfo,
@@ -194,7 +210,6 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
-      maxVoter: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -256,6 +271,26 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
+  updateFeeConfig: (
+    {
+      config
+    }: {
+      config: FeeConfig;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
+  updateDelayConfig: (
+    {
+      config
+    }: {
+      config: DelayConfig;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
 }
 export class RegistryClient extends RegistryQueryClient implements RegistryInterface {
   client: SigningCosmWasmClient;
@@ -275,6 +310,8 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
     this.updateAmaciCodeId = this.updateAmaciCodeId.bind(this);
     this.changeOperator = this.changeOperator.bind(this);
     this.changeChargeConfig = this.changeChargeConfig.bind(this);
+    this.updateFeeConfig = this.updateFeeConfig.bind(this);
+    this.updateDelayConfig = this.updateDelayConfig.bind(this);
   }
   setMaciOperator = async (
     {
@@ -350,7 +387,6 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
       certificationSystem,
       circuitType,
       deactivateEnabled,
-      maxVoter,
       operator,
       registrationMode,
       roundInfo,
@@ -361,7 +397,6 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
-      maxVoter: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -381,7 +416,6 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
           certification_system: certificationSystem,
           circuit_type: circuitType,
           deactivate_enabled: deactivateEnabled,
-          max_voter: maxVoter,
           operator,
           registration_mode: registrationMode,
           round_info: roundInfo,
@@ -502,6 +536,52 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
       this.contractAddress,
       {
         change_charge_config: {
+          config
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  updateFeeConfig = async (
+    {
+      config
+    }: {
+      config: FeeConfig;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        update_fee_config: {
+          config
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  updateDelayConfig = async (
+    {
+      config
+    }: {
+      config: DelayConfig;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        update_delay_config: {
           config
         }
       },

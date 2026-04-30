@@ -27,7 +27,6 @@ export type ExecuteMsg = {
     certification_system: Uint256;
     circuit_type: Uint256;
     deactivate_enabled: boolean;
-    max_voter: Uint256;
     operator: Addr;
     registration_mode: RegistrationModeConfig;
     round_info: RoundInfo;
@@ -55,6 +54,14 @@ export type ExecuteMsg = {
   change_charge_config: {
     config: CircuitChargeConfig;
   };
+} | {
+  update_fee_config: {
+    config: FeeConfig;
+  };
+} | {
+  update_delay_config: {
+    config: DelayConfig;
+  };
 };
 export type Uint256 = string;
 export type RegistrationModeConfig = {
@@ -79,6 +86,7 @@ export type VoiceCreditMode = "dynamic" | {
 export type Timestamp = Uint64;
 export type Uint64 = number;
 export type Decimal = string;
+export type Uint128 = string;
 export interface PubKey {
   x: Uint256;
   y: Uint256;
@@ -104,6 +112,18 @@ export interface ValidatorSet {
 }
 export interface CircuitChargeConfig {
   fee_rate: Decimal;
+}
+export interface FeeConfig {
+  base_fee: Uint128;
+  deactivate_fee: Uint128;
+  message_fee: Uint128;
+  signup_fee: Uint128;
+}
+export interface DelayConfig {
+  base_delay: number;
+  deactivate_delay: number;
+  message_delay: number;
+  signup_delay: number;
 }
 export type QueryMsg = {
   admin: {};
@@ -133,6 +153,10 @@ export type QueryMsg = {
   };
 } | {
   get_circuit_charge_config: {};
+} | {
+  get_fee_config: {};
+} | {
+  get_delay_config: {};
 } | {
   get_poll_id: {
     address: Addr;

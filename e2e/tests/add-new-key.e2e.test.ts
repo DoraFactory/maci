@@ -326,7 +326,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       circuit_type: '1',
       certification_system: '0',
       poll_id: 1, // Poll ID for this round (防止跨 poll 重放攻击)
-      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
+      deactivate_enabled: true, // Deactivate feature ENABLED (test needs add_new_key)
+      // Fee config (set to 0 for e2e testing)
+      message_fee: '0',
+      deactivate_fee: '0',
+      signup_fee: '0',
+      // Delay config (set to 0 for fast e2e test execution)
+      base_delay: 0,
+      message_delay: 0,
+      signup_delay: 0,
+      deactivate_delay: 0
     };
 
     const contractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -943,7 +952,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       circuit_type: '1',
       certification_system: '0',
       poll_id: 2, // Poll ID for this test round (using different ID to avoid conflicts)
-      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
+      deactivate_enabled: true, // Deactivate feature ENABLED (test needs add_new_key)
+      // Fee config (set to 0 for e2e testing)
+      message_fee: '0',
+      deactivate_fee: '0',
+      signup_fee: '0',
+      // Delay config (set to 0 for fast e2e test execution)
+      base_delay: 0,
+      message_delay: 0,
+      signup_delay: 0,
+      deactivate_delay: 0
     };
 
     const testContractInfo = await deployManager.deployAmaciContract(adminAddress, instantiateMsg);
@@ -1518,7 +1536,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       circuit_type: '1',
       certification_system: '0',
       poll_id: 3, // Poll ID for this test round (using different ID to avoid conflicts)
-      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
+      deactivate_enabled: true, // Deactivate feature ENABLED (test needs add_new_key)
+      // Fee config (set to 0 for e2e testing)
+      message_fee: '0',
+      deactivate_fee: '0',
+      signup_fee: '0',
+      // Delay config (set to 0 for fast e2e test execution)
+      base_delay: 0,
+      message_delay: 0,
+      signup_delay: 0,
+      deactivate_delay: 0
     };
 
     const concurrentContractInfo = await deployManager.deployAmaciContract(
@@ -2073,7 +2100,16 @@ describe('AMACI AddNewKey End-to-End Test', function () {
       circuit_type: '1', // QV
       certification_system: '0', // Groth16
       poll_id: 5, // Poll ID for boundary test (using different ID to avoid conflicts)
-      deactivate_enabled: true // Deactivate feature ENABLED (test needs add_new_key)
+      deactivate_enabled: true, // Deactivate feature ENABLED (test needs add_new_key)
+      // Fee config (set to 0 for e2e testing)
+      message_fee: '0',
+      deactivate_fee: '0',
+      signup_fee: '0',
+      // Delay config (set to 0 for fast e2e test execution)
+      base_delay: 0,
+      message_delay: 0,
+      signup_delay: 0,
+      deactivate_delay: 0
     };
 
     const boundaryContractInfo = await deployManager.deployAmaciContract(

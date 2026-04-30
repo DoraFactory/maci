@@ -25,17 +25,46 @@ function generateRandomString(length: number) {
     .substring(2, 2 + length);
 }
 
+/**
+ * Retry an indexer (GraphQL / REST) query until it succeeds or the timeout is reached.
+ * Useful when a transaction is confirmed on-chain but the indexer hasn't synced yet.
+ */
+async function waitForIndexer<T>(
+  fn: () => Promise<T>,
+  options: { timeout?: number; interval?: number; label?: string } = {}
+): Promise<T> {
+  const timeout = options.timeout ?? 30_000;
+  const interval = options.interval ?? 2_000;
+  const label = options.label ?? 'indexer query';
+  const deadline = Date.now() + timeout;
+
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (Date.now() + interval > deadline) {
+        throw new Error(`Timeout waiting for ${label}: ${(error as Error).message}`);
+      }
+      console.log(`  [waitForIndexer] ${label} not ready yet, retrying in ${interval}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+  }
+}
+
 async function main() {
-  const network = 'testnet';
-  const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
+  const network = 'mainnet';
+  const operator = 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4';
+
+  // const network = 'testnet';
+  // const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
 
   console.log('='.repeat(80));
   console.log('Claim Key + Pre-Add-New-Key + Vote Complete Test (MaciClient & VoterClient)');
   console.log('='.repeat(80));
 
   // API base configuration
-  const API_BASE_URL = 'http://localhost:8080';
-  // const API_BASE_URL = undefined;
+  // const API_BASE_URL = 'http://localhost:8080';
+  const API_BASE_URL = undefined;
   // const maxVoter = 20000;
   // const circuitPower = '9-4-3-125';
   // const stateTreeDepth = 9;
@@ -44,13 +73,29 @@ async function main() {
   // const circuitPower = '2-1-1-5';
   // const stateTreeDepth = 2;
 
-  const maxVoter = 26;
-  const circuitPower = '4-2-2-25';
-  const stateTreeDepth = 4;
+  const maxVoter = 25;
+  const circuitPower = '9-4-3-125';
+  const stateTreeDepth = 9;
+
+  // // Multi-endpoint config — first endpoint is tried first; subsequent entries act as fallbacks
+  // const rpcEndpoints = [
+  //   'https://vota-testnet-rpc.dorafactory.org',
+  //   // 'https://vota-testnet-rpc2.dorafactory.org',
+  // ];
+  // const restEndpoints = [
+  //   'https://vota-testnet-rest.dorafactory.org',
+  //   // 'https://vota-testnet-rest2.dorafactory.org',
+  // ];
+
+  // Multi-endpoint config — first endpoint is tried first; subsequent entries act as fallbacks
+  const rpcEndpoints = undefined;
+  const restEndpoints = undefined;
 
   // Create temporary MaciClient (for admin operations, no API key required)
   const adminMaciClient = new MaciClient({
-    network: network,
+    network,
+    rpcEndpoints,
+    restEndpoints,
     saasApiEndpoint: API_BASE_URL
   });
 
@@ -86,7 +131,9 @@ async function main() {
 
   // Create MaciClient with API Key (required for saasClaimKey)
   const maciClient = new MaciClient({
-    network: network,
+    network,
+    rpcEndpoints,
+    restEndpoints,
     saasApiEndpoint: API_BASE_URL,
     saasApiKey: apiKey
   });
@@ -110,6 +157,10 @@ async function main() {
     voiceCreditAmount: 100
   });
 
+  if (createRoundData.status === 'failed') {
+    throw new Error(`Round creation failed: ${createRoundData.error ?? 'unknown error'}`);
+  }
+
   const contractAddress = createRoundData.contractAddress;
   if (!contractAddress) {
     throw new Error('Contract address not returned');
@@ -127,16 +178,14 @@ async function main() {
   console.log('  Ticket:', ticket);
   console.log('  Poll ID:', createRoundData.pollId ?? 'N/A');
 
-  // Wait for transaction confirmation
-  console.log('\nWaiting 6 seconds to ensure transaction confirmation...');
-  await new Promise((resolve) => setTimeout(resolve, 6000));
-
   // ==================== 3. Claim Key ====================
   console.log('\n[3/4] Claiming MACI Key (saasClaimKey)');
 
   // Uses AMACI_CLAIM_KEY as the X-Amaci-Claim-Key header — no ticket required for this step
   const claimVoterClient = new VoterClient({
-    network: network,
+    network,
+    rpcEndpoints,
+    restEndpoints,
     saasApiEndpoint: API_BASE_URL
   });
   const claimedKey = await claimVoterClient.saasClaimKey({ contractAddress, amaciClaimKey });
@@ -159,8 +208,13 @@ async function main() {
   console.log('    Available count:', claimStats.availableCount);
 
   // Fetch the round's on-chain coordinator pubkey for voting (may differ from the
-  // pre-deactivate coordinator key used when building the deactivate tree)
-  const roundInfo = await maciClient.getRoundInfo({ contractAddress });
+  // pre-deactivate coordinator key used when building the deactivate tree).
+  // Wrap with waitForIndexer — the indexer may lag a few seconds behind chain confirmation.
+  const roundInfo = await waitForIndexer(() => maciClient.getRoundInfo({ contractAddress }), {
+    label: 'round info',
+    timeout: 30_000,
+    interval: 2_000
+  });
   const roundCoordPubkey: [bigint, bigint] = [
     BigInt(roundInfo.coordinatorPubkeyX),
     BigInt(roundInfo.coordinatorPubkeyY)
@@ -169,7 +223,9 @@ async function main() {
 
   // Build VoterClient from the claimed secretKey
   const voterClient = new VoterClient({
-    network: network,
+    network,
+    rpcEndpoints,
+    restEndpoints,
     secretKey: claimedKey.secretKey,
     saasApiEndpoint: API_BASE_URL
   });
@@ -209,21 +265,31 @@ async function main() {
       ticket
     });
 
-    console.log('✓ Pre-Add-New-Key succeeded!', result);
+    if (result.status === 'failed') {
+      throw new Error(`Pre-Add-New-Key failed: ${result.error ?? 'unknown error'}`);
+    }
+
+    console.log('✓ Pre-Add-New-Key succeeded!');
+    console.log('  TX Hash:', result.txHash);
     console.log('  New account pubkey:', account.getPubkey().toPackedData());
     console.log('  New account private key:', account.getSigner().getPrivateKey());
 
-    // Wait for Pre-Add-New-Key transaction confirmation
-    console.log('\nWaiting 6 seconds to ensure Pre-Add-New-Key transaction confirmation...');
-    await new Promise((resolve) => setTimeout(resolve, 6000));
+    // Wait for the Pre-Add-New-Key transaction to be committed on-chain before polling state index
+    console.log('\nWaiting for Pre-Add-New-Key transaction confirmation...');
+    const txConfirmed = await voterClient.waitForTransaction(result.txHash);
+    console.log('  Confirmed at height:', txConfirmed.height, '| status:', txConfirmed.status);
 
-    let userIdx = await account.getStateIdx({ contractAddress });
+    // Wait for the indexer to reflect the new state index
+    console.log('  Waiting for indexer to sync state index...');
+    const userIdx = await waitForIndexer(
+      async () => {
+        const idx = await account.getStateIdx({ contractAddress });
+        if (idx === -1) throw new Error('state index not yet available');
+        return idx;
+      },
+      { label: 'state index', timeout: 30_000, interval: 1_000 }
+    );
     console.log('  userIdx:', userIdx);
-    while (userIdx === -1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      userIdx = await account.getStateIdx({ contractAddress });
-      console.log('  userIdx:', userIdx);
-    }
 
     // Vote with the new account
     console.log('\nVoting...');
@@ -276,6 +342,7 @@ async function main() {
   );
   console.log('    • saasPreCreateNewAccount(): pre-computed proof path (preComputedProof)');
   console.log('      uses root/pathElements/deactivateLeaf from claimMaciKey directly');
+  console.log('    • waitForTransaction(txHash): wait for tx on-chain before polling state index');
   console.log('    • saasVote(): builds payload + submits vote');
 }
 

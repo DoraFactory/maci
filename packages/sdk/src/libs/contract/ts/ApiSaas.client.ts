@@ -21,8 +21,10 @@ import {
   PubKey,
   RoundInfo,
   VotingTime,
+  SaasFeeConfig,
   EncPubKeyParam,
   MessageDataParam,
+  Groth16ProofParam,
   QueryMsg,
   Config,
   Boolean,
@@ -144,7 +146,6 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       certificationSystem,
       circuitType,
       deactivateEnabled,
-      maxVoter,
       operator,
       registrationMode,
       roundInfo,
@@ -155,13 +156,22 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
-      maxVoter: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
       voiceCreditMode: VoiceCreditMode;
       voteOptionMap: string[];
       votingTime: VotingTime;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
+  updateFeeConfig: (
+    {
+      config
+    }: {
+      config: SaasFeeConfig;
     },
     fee?: number | StdFee | 'auto',
     memo?: string,
@@ -219,6 +229,58 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
+  signUp: (
+    {
+      amount,
+      certificate,
+      contractAddr,
+      pubkey
+    }: {
+      amount?: string;
+      certificate?: string;
+      contractAddr: string;
+      pubkey: EncPubKeyParam;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
+  addNewKey: (
+    {
+      contractAddr,
+      d,
+      groth16Proof,
+      nullifier,
+      pubkey
+    }: {
+      contractAddr: string;
+      d: string[];
+      groth16Proof: Groth16ProofParam;
+      nullifier: string;
+      pubkey: EncPubKeyParam;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
+  preAddNewKey: (
+    {
+      contractAddr,
+      d,
+      groth16Proof,
+      nullifier,
+      pubkey
+    }: {
+      contractAddr: string;
+      d: string[];
+      groth16Proof: Groth16ProofParam;
+      nullifier: string;
+      pubkey: EncPubKeyParam;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
 }
 export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterface {
   client: SigningCosmWasmClient;
@@ -236,10 +298,14 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
     this.deposit = this.deposit.bind(this);
     this.withdraw = this.withdraw.bind(this);
     this.createAmaciRound = this.createAmaciRound.bind(this);
+    this.updateFeeConfig = this.updateFeeConfig.bind(this);
     this.setRoundInfo = this.setRoundInfo.bind(this);
     this.setVoteOptionsMap = this.setVoteOptionsMap.bind(this);
     this.publishMessage = this.publishMessage.bind(this);
     this.publishDeactivateMessage = this.publishDeactivateMessage.bind(this);
+    this.signUp = this.signUp.bind(this);
+    this.addNewKey = this.addNewKey.bind(this);
+    this.preAddNewKey = this.preAddNewKey.bind(this);
   }
   updateConfig = async (
     {
@@ -383,7 +449,6 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
       certificationSystem,
       circuitType,
       deactivateEnabled,
-      maxVoter,
       operator,
       registrationMode,
       roundInfo,
@@ -394,7 +459,6 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
-      maxVoter: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -414,13 +478,35 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
           certification_system: certificationSystem,
           circuit_type: circuitType,
           deactivate_enabled: deactivateEnabled,
-          max_voter: maxVoter,
           operator,
           registration_mode: registrationMode,
           round_info: roundInfo,
           voice_credit_mode: voiceCreditMode,
           vote_option_map: voteOptionMap,
           voting_time: votingTime
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  updateFeeConfig = async (
+    {
+      config
+    }: {
+      config: SaasFeeConfig;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        update_fee_config: {
+          config
         }
       },
       fee,
@@ -531,6 +617,108 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
           contract_addr: contractAddr,
           enc_pub_key: encPubKey,
           message
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  signUp = async (
+    {
+      amount,
+      certificate,
+      contractAddr,
+      pubkey
+    }: {
+      amount?: string;
+      certificate?: string;
+      contractAddr: string;
+      pubkey: EncPubKeyParam;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        sign_up: {
+          amount,
+          certificate,
+          contract_addr: contractAddr,
+          pubkey
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  addNewKey = async (
+    {
+      contractAddr,
+      d,
+      groth16Proof,
+      nullifier,
+      pubkey
+    }: {
+      contractAddr: string;
+      d: string[];
+      groth16Proof: Groth16ProofParam;
+      nullifier: string;
+      pubkey: EncPubKeyParam;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        add_new_key: {
+          contract_addr: contractAddr,
+          d,
+          groth16_proof: groth16Proof,
+          nullifier,
+          pubkey
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  preAddNewKey = async (
+    {
+      contractAddr,
+      d,
+      groth16Proof,
+      nullifier,
+      pubkey
+    }: {
+      contractAddr: string;
+      d: string[];
+      groth16Proof: Groth16ProofParam;
+      nullifier: string;
+      pubkey: EncPubKeyParam;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        pre_add_new_key: {
+          contract_addr: contractAddr,
+          d,
+          groth16_proof: groth16Proof,
+          nullifier,
+          pubkey
         }
       },
       fee,

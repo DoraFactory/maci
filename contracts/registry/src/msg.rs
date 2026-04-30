@@ -6,7 +6,7 @@ use cw_amaci::{
     state::{PubKey, RoundInfo, VoiceCreditMode, VotingTime},
 };
 
-use crate::state::{CircuitChargeConfig, ValidatorSet};
+use crate::state::{CircuitChargeConfig, DelayConfig, FeeConfig, ValidatorSet};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -36,7 +36,6 @@ pub enum ExecuteMsg {
         operator: Addr,
 
         // Round parameters
-        max_voter: Uint256,
         vote_option_map: Vec<String>,
         round_info: RoundInfo,
         voting_time: VotingTime,
@@ -48,15 +47,10 @@ pub enum ExecuteMsg {
         // Deactivate feature configuration
         deactivate_enabled: bool,
 
-        // ============================================
-        // Unified MACI Configuration (NEW)
-        // ============================================
-
         // Voice Credit Mode: how voting power is allocated
         voice_credit_mode: VoiceCreditMode,
 
         // Registration Mode: combined access control and state initialization
-        // This prevents invalid configuration combinations
         registration_mode: RegistrationModeConfig,
     },
     SetValidators {
@@ -71,8 +65,19 @@ pub enum ExecuteMsg {
     ChangeOperator {
         address: Addr,
     },
+    /// ORIGINAL: manages fee_rate only. Operator permission.
     ChangeChargeConfig {
         config: CircuitChargeConfig,
+    },
+    /// NEW: manages fee amounts (base_fee, message_fee, deactivate_fee, signup_fee).
+    /// Operator permission.
+    UpdateFeeConfig {
+        config: FeeConfig,
+    },
+    /// NEW: manages delay parameters for tally and deactivate windows.
+    /// Operator permission.
+    UpdateDelayConfig {
+        config: DelayConfig,
     },
 }
 
@@ -106,8 +111,17 @@ pub enum QueryMsg {
     #[returns(String)]
     GetMaciOperatorIdentity { address: Addr },
 
+    /// ORIGINAL query — returns fee_rate.
     #[returns(CircuitChargeConfig)]
     GetCircuitChargeConfig {},
+
+    /// NEW query — returns fee amounts config.
+    #[returns(FeeConfig)]
+    GetFeeConfig {},
+
+    /// NEW query — returns delay config.
+    #[returns(DelayConfig)]
+    GetDelayConfig {},
 
     #[returns(u64)]
     GetPollId { address: Addr },

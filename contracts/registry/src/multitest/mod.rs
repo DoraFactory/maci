@@ -190,7 +190,6 @@ impl AmaciRegistryContract {
         let msg = ExecuteMsg::CreateRound {
             operator,
             round_info,
-            max_voter: Uint256::from_u128(5u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -257,7 +256,6 @@ impl AmaciRegistryContract {
         let msg = ExecuteMsg::CreateRound {
             operator,
             round_info,
-            max_voter: Uint256::from_u128(3u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -322,7 +320,6 @@ impl AmaciRegistryContract {
         let msg = ExecuteMsg::CreateRound {
             operator,
             round_info,
-            max_voter: Uint256::from_u128(3u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -371,7 +368,6 @@ impl AmaciRegistryContract {
         let msg = ExecuteMsg::CreateRound {
             operator,
             round_info,
-            max_voter: Uint256::from_u128(5u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -421,7 +417,6 @@ impl AmaciRegistryContract {
         let msg = ExecuteMsg::CreateRound {
             operator,
             round_info,
-            max_voter: Uint256::from_u128(5u128),
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),
@@ -448,16 +443,15 @@ impl AmaciRegistryContract {
         app.execute_contract(sender, self.addr(), &msg, send_funds)
     }
 
-    /// Generic helper for testing the StaticWhitelist scale restriction.
-    /// Allows full control over max_voter and whitelist so tests can cover
-    /// 2-1-1-5 (≤25), 4-2-2-25 (≤625), and the forbidden 6-3-3-125 (>625) cases.
+    /// Generic helper for testing the StaticWhitelist registration mode.
+    /// Allows full control over whitelist contents so tests can cover both
+    /// allowed and over-capacity cases.
     #[track_caller]
     pub fn create_round_static_whitelist_custom(
         &self,
         app: &mut App,
         sender: Addr,
         operator: Addr,
-        max_voter: Uint256,
         whitelist: WhitelistBase,
         circuit_type: Uint256,
         certification_system: Uint256,
@@ -475,7 +469,6 @@ impl AmaciRegistryContract {
         let msg = ExecuteMsg::CreateRound {
             operator,
             round_info,
-            max_voter,
             vote_option_map: vec![
                 "".to_string(),
                 "".to_string(),

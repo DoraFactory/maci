@@ -68,7 +68,7 @@ export class VoterClient {
   public http: Http;
   public indexer: Indexer;
 
-  public restEndpoint: string;
+  public restEndpoints: string[];
   public apiEndpoint: string;
   public saasApiEndpoint: string;
   public registryAddress: string;
@@ -82,26 +82,39 @@ export class VoterClient {
     mnemonic,
     secretKey,
     apiEndpoint,
-    restEndpoint,
+    rpcEndpoints,
+    restEndpoints,
     saasApiEndpoint,
     saasApiKey,
     registryAddress,
     customFetch,
-    defaultOptions
+    defaultOptions,
+    retries,
+    retryDelay
   }: VoterClientParams) {
     this.network = network;
     this.accountManager = new MaciAccount({ mnemonic, secretKey });
 
     const defaultParams = getDefaultParams(network);
 
-    this.restEndpoint = restEndpoint || defaultParams.restEndpoint;
+    const rpcUrls = rpcEndpoints ?? defaultParams.rpcEndpoints;
+    const restUrls = restEndpoints ?? defaultParams.restEndpoints;
+
+    this.restEndpoints = restUrls;
     this.apiEndpoint = apiEndpoint || defaultParams.apiEndpoint; // Indexer GraphQL API
     this.saasApiEndpoint = saasApiEndpoint || defaultParams.saasApiEndpoint; // MACI SaaS API
     this.registryAddress = registryAddress || defaultParams.registryAddress;
 
-    this.http = new Http(this.apiEndpoint, this.restEndpoint, customFetch, defaultOptions);
+    this.http = new Http(
+      this.apiEndpoint,
+      restUrls,
+      customFetch,
+      defaultOptions,
+      retries,
+      retryDelay
+    );
     this.indexer = new Indexer({
-      restEndpoint: this.restEndpoint,
+      restEndpoint: restUrls[0],
       apiEndpoint: this.apiEndpoint, // Indexer GraphQL API
       registryAddress: this.registryAddress,
       http: this.http
@@ -117,14 +130,16 @@ export class VoterClient {
     // Initialize Contract instance
     this.contract = new Contract({
       network: this.network,
-      rpcEndpoint: defaultParams.rpcEndpoint,
+      rpcEndpoints: rpcUrls,
       registryAddress: this.registryAddress,
       saasAddress: defaultParams.saasAddress,
       apiSaasAddress: defaultParams.apiSaasAddress,
       maciCodeId: defaultParams.maciCodeId,
       oracleCodeId: defaultParams.oracleCodeId,
       feegrantOperator: defaultParams.oracleFeegrantOperator,
-      whitelistBackendPubkey: defaultParams.oracleWhitelistBackendPubkey
+      whitelistBackendPubkey: defaultParams.oracleWhitelistBackendPubkey,
+      retries,
+      retryDelay
     });
   }
 
@@ -423,7 +438,9 @@ export class VoterClient {
   }> {
     const [coordPubkeyX, coordPubkeyY] = this.unpackMaciPubkey(operatorPubkey);
 
-    let addKeyInput: Awaited<ReturnType<typeof this.genAddKeyInput>> | Awaited<ReturnType<typeof this.legacyGenAddKeyInput>>;
+    let addKeyInput:
+      | Awaited<ReturnType<typeof this.genAddKeyInput>>
+      | Awaited<ReturnType<typeof this.legacyGenAddKeyInput>>;
 
     if (pollId !== undefined) {
       if (!newPubkey) {
@@ -557,7 +574,9 @@ export class VoterClient {
 
     // New-version path: pollId provided.
     if (!newPubkey) {
-      throw new Error('buildPreAddNewKeyPayload: `newPubkey` is required when `pollId` is provided');
+      throw new Error(
+        'buildPreAddNewKeyPayload: `newPubkey` is required when `pollId` is provided'
+      );
     }
 
     const coordPubKey: PubKey = [coordPubkeyX, coordPubkeyY];
@@ -1375,6 +1394,70 @@ export class VoterClient {
     return await this.saasApiClient.preAddNewKey(params);
   }
 
+  // ==================== Transaction Utilities ====================
+
+  /**
+   * Poll the chain REST endpoint until the given transaction is committed on-chain,
+   * then return its `tx_response` object with an added `status` field.
+   *
+   * The underlying REST client automatically rotates through all configured
+   * `restEndpoints` on failure, so a single unavailable node will not block polling.
+   *
+   * @param txHash - On-chain transaction hash to wait for.
+   * @param options.timeout  - Max wait time in milliseconds (default: 60 000 ms).
+   * @param options.interval - Polling interval in milliseconds (default: 2 000 ms).
+   * @returns The Cosmos `tx_response` record plus `status`: `'success'` when `code === 0`, `'failed'` otherwise.
+   *          The `events` array can be parsed with helpers such as `parseCreatedRoundEvent`.
+   * @throws If the transaction is not found within the timeout period.
+   */
+  async waitForTransaction(
+    txHash: string,
+    options: { timeout?: number; interval?: number } = {}
+  ): Promise<{
+    height: string;
+    txhash: string;
+    code: number;
+    raw_log: string;
+    gas_wanted: string;
+    gas_used: string;
+    timestamp: string;
+    events: { type: string; attributes: { key: string; value: string }[] }[];
+    status: 'success' | 'failed';
+  }> {
+    const timeout = options.timeout ?? 60_000;
+    const interval = options.interval ?? 2_000;
+    const deadline = Date.now() + timeout;
+
+    while (Date.now() < deadline) {
+      try {
+        const data = await this.http.fetchRest(`/cosmos/tx/v1beta1/txs/${txHash}`);
+        if (data?.tx_response) {
+          const txResponse = data.tx_response as {
+            height: string;
+            txhash: string;
+            code: number;
+            raw_log: string;
+            gas_wanted: string;
+            gas_used: string;
+            timestamp: string;
+            events: { type: string; attributes: { key: string; value: string }[] }[];
+          };
+          return {
+            ...txResponse,
+            status: txResponse.code === 0 ? ('success' as const) : ('failed' as const)
+          };
+        }
+      } catch {
+        // Transaction not yet on chain (404), keep polling
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+
+    throw new Error(
+      `waitForTransaction: transaction ${txHash} not found on chain within ${timeout}ms`
+    );
+  }
+
   // ==================== Maci Voter Methods ====================
   /**
    * Pre-create a new account for AMACI voting (pre-deactivate mode).
@@ -1435,7 +1518,7 @@ export class VoterClient {
   }) {
     const newVoterClient = new VoterClient({
       network: this.network,
-      restEndpoint: this.restEndpoint,
+      restEndpoints: this.restEndpoints,
       apiEndpoint: this.apiEndpoint,
       saasApiEndpoint: this.saasApiEndpoint,
       registryAddress: this.registryAddress
@@ -1481,7 +1564,9 @@ export class VoterClient {
    * @param params - Parameters including contractAddress and amaciClaimKey
    * @returns Claimed key pair with full deactivate Merkle proof
    */
-  async saasClaimKey(params: operations['claimMaciKey']['parameters']['path'] & { amaciClaimKey: string }) {
+  async saasClaimKey(
+    params: operations['claimMaciKey']['parameters']['path'] & { amaciClaimKey: string }
+  ) {
     if (!this.saasApiClient) {
       throw new Error('SaaS API client not initialized');
     }

@@ -37,6 +37,7 @@
     "copy-circuits": "ts-node scripts/copyLatestCircuits.ts",
     "extract-vkeys": "ts-node scripts/extractVkeys.ts",
     "setup-circuits": "pnpm download-zkeys && pnpm extract-vkeys",
+    "build:wasm": "bash scripts/build-wasm-local.sh",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "keywords": [

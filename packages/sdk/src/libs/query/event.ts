@@ -82,12 +82,12 @@ query signUpEvents($limit: Int, $after: Cursor) {
 
   async fetchAllDeactivateLogs(contractAddress: string) {
     const DEACTIVATE_MESSAGE_QUERY = `query ($limit: Int, $offset: Int) {
-  deactivateMessages(
+  uploadedDeactivateMessages(
     first: $limit,
     offset: $offset,
     orderBy: [BLOCK_HEIGHT_ASC],
     filter: {
-      maciContractAddress: { 
+      contractAddress: { 
         equalTo: "${contractAddress}" 
       },
     }
@@ -103,8 +103,8 @@ query signUpEvents($limit: Int, $after: Cursor) {
       timestamp
       txHash
       deactivateMessage
-      maciContractAddress
-      maciOperator
+      contractAddress
+      operatorAddress
     }
   }
 }`;

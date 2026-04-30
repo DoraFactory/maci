@@ -84,14 +84,14 @@ export class Operator {
         const ROUNDS_QUERY = `query {
         activeRoundsCount: rounds(filter: {
           period: {notEqualTo: "Ended"},
-          operator: {equalTo: "${operatorResponse.operatorAddress}"},
+          operatorAddress: {equalTo: "${operatorResponse.operatorAddress}"},
           caller: {equalTo: "${this.amaciRegistryContract}"}
         }) {
           totalCount
         }
         completedRoundsCount: rounds(filter: {
           period: {equalTo: "Ended"},
-          operator: {equalTo: "${operatorResponse.operatorAddress}"},
+          operatorAddress: {equalTo: "${operatorResponse.operatorAddress}"},
           caller: {equalTo: "${this.amaciRegistryContract}"}
         }) {
           totalCount
@@ -169,10 +169,9 @@ export class Operator {
               delayReason
               delayType
               id
-              nodeId
               operatorAddress
               timestamp
-              roundAddress
+              contractAddress
             }
           }
         }
@@ -269,14 +268,14 @@ export class Operator {
           const ROUNDS_QUERY = `query {
               activeRoundsCount: rounds(filter: {
                 period: {notEqualTo: "Ended"},
-                operator: {equalTo: "${operator.operatorAddress}"},
+                operatorAddress: {equalTo: "${operator.operatorAddress}"},
                 caller: {equalTo: "${this.amaciRegistryContract}"}
               }) {
                 totalCount
               }
               completedRoundsCount: rounds(filter: {
                 period: {equalTo: "Ended"},
-                operator: {equalTo: "${operator.operatorAddress}"},
+                operatorAddress: {equalTo: "${operator.operatorAddress}"},
                 caller: {equalTo: "${this.amaciRegistryContract}"}
               }) {
                 totalCount
@@ -371,10 +370,9 @@ export class Operator {
               delayReason
               delayType
               id
-              nodeId
               operatorAddress
               timestamp
-              roundAddress
+              contractAddress
             }
           }
         }
@@ -383,7 +381,7 @@ export class Operator {
       const ROUNDS_QUERY = `query ($limit: Int, $after: Cursor) {
         rounds(first: $limit, after: $after, 
               filter: {
-                operator: {equalTo: "${address}"},
+                operatorAddress: {equalTo: "${address}"},
                 votingEnd: { greaterThanOrEqualTo: "${endNanosTimestamp}" }
               },
               orderBy: [TIMESTAMP_DESC]
@@ -400,7 +398,7 @@ export class Operator {
                   txHash
                   caller
                   admin
-                  operator
+                  operatorAddress
                   contractAddress
                   circuitName
                   timestamp

@@ -57,6 +57,48 @@ jobs:
       - name: Run contract tests
         run: RUSTFLAGS="-A dead_code -A unused_variables" cargo test --lib -- --nocapture
 
+  sdk-tests:
+    name: SDK Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run SDK unit tests
+        working-directory: ./packages/sdk
+        run: pnpm test:unit
+
+      - name: Run SDK integration tests
+        working-directory: ./packages/sdk
+        run: pnpm test:integration
+
   build-wasm:
     name: Build WASM Contracts
     runs-on: ubuntu-latest
@@ -70,6 +112,9 @@ jobs:
           toolchain: "1.79.0"
           components: rustfmt, clippy
           target: wasm32-unknown-unknown
+          # Disable the default -D warnings injected by this action so that
+          # unused imports / variables in dependencies don't fail the build.
+          rustflags: ""
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -87,23 +132,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-index-
 
-      - name: Build contracts with rust-optimizer
-        run: |
-          docker run --rm -v "$(pwd)":/code \
-            --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
-            --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-            cosmwasm/rust-optimizer:0.15.1
+      - name: Build _test.wasm contracts (release + test-vkeys)
+        run: bash e2e/scripts/build-wasm-local.sh
 
       - name: Verify and list WASM artifacts
         run: |
           echo "=== Listing generated WASM files ==="
-          cd artifacts
-          ls -lh
+          ls -lh e2e/artifacts/
           echo ""
           echo "=== WASM file details ==="
-          for file in *.wasm; do
+          for file in e2e/artifacts/*_test.wasm; do
             if [ -f "$file" ]; then
-              echo "Found: $file"
+              echo "Found: $(basename $file)"
             fi
           done
 
@@ -111,7 +151,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wasm-contracts
-          path: artifacts/*.wasm
+          path: e2e/artifacts/*_test.wasm
           retention-days: 1
 
   e2e-tests:
@@ -133,12 +173,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: wasm-contracts
-          path: artifacts/
+          path: e2e/artifacts/
 
       - name: Verify WASM artifacts
         run: |
           echo "Checking downloaded artifacts..."
-          ls -lh artifacts/
+          ls -lh e2e/artifacts/
           
       - name: Setup Node.js
         uses: actions/setup-node@v4

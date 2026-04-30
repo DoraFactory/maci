@@ -39,7 +39,7 @@ schema:
 
 # Generate schema for individual contracts
 schema-amaci:
-	@cd contracts/amaci && cargo schema
+	@cd contracts/amaci && cargo schema --features schema
 
 schema-maci:
 	@cd contracts/maci && cargo schema

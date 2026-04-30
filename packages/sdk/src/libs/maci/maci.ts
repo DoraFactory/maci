@@ -8,9 +8,16 @@ import { GasPrice, calculateFee, StdFee } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 import { CertificateEcosystem, ErrorResponse, RoundType } from '../../types';
 import { SignatureResponse } from '../oracle-certificate/types';
-import { getAMaciRoundCircuitFee } from '../contract/utils';
 import { Groth16ProofType, NullableString, RegistrationStatus } from '../contract/ts/AMaci.types';
-import { DEACTIVATE_FEE, FEE_DENOM, MESSAGE_FEE } from './config';
+import {
+  DEFAULT_FEE_CONFIG,
+  DEFAULT_DELAY_CONFIG,
+  DEACTIVATE_FEE,
+  FEE_DENOM,
+  FeeConfig,
+  DelayConfig,
+  MESSAGE_FEE
+} from './config';
 
 export function isErrorResponse(response: unknown): response is ErrorResponse {
   return (
@@ -28,6 +35,11 @@ export class MACI {
   public indexer: Indexer;
   public oracleCertificate: OracleCertificate;
   public maciKeypair: Keypair;
+  /** Cached fee config, initialized from defaults. Call fetchFeeConfig({ contractAddress }) to refresh from a round contract. */
+  public feeConfig: FeeConfig;
+  /** Cached delay config, initialized from defaults. Call fetchDelayConfig({ contractAddress }) to refresh from a round contract. */
+  public delayConfig: DelayConfig;
+
   constructor({
     contract,
     indexer,
@@ -44,6 +56,50 @@ export class MACI {
     this.indexer = indexer;
     this.oracleCertificate = oracleCertificate;
     this.maciKeypair = maciKeypair;
+    this.feeConfig = { ...DEFAULT_FEE_CONFIG };
+    this.delayConfig = { ...DEFAULT_DELAY_CONFIG };
+  }
+
+  /**
+   * Fetch the fee configuration from the given round contract and cache it locally.
+   * Call this once after instantiation (or whenever fees may have changed) to ensure
+   * the SDK uses the correct on-chain fee values for the specific round.
+   */
+  async fetchFeeConfig({ contractAddress }: { contractAddress: string }): Promise<FeeConfig> {
+    try {
+      const roundClient = await this.contract.amaciQueryClient({ contractAddress });
+      const feeConfig = await roundClient.getFeeConfig();
+      this.feeConfig = {
+        ...this.feeConfig,
+        messageFee: feeConfig.message_fee,
+        deactivateFee: feeConfig.deactivate_fee,
+        signupFee: feeConfig.signup_fee
+      };
+    } catch {
+      // Fall back to cached/default values if round contract is unreachable
+    }
+    return this.feeConfig;
+  }
+
+  /**
+   * Fetch the delay configuration from the given round contract and cache it locally.
+   * Call this once after instantiation (or whenever delays may have changed) to ensure
+   * the SDK uses the correct on-chain delay values for the specific round.
+   */
+  async fetchDelayConfig({ contractAddress }: { contractAddress: string }): Promise<DelayConfig> {
+    try {
+      const roundClient = await this.contract.amaciQueryClient({ contractAddress });
+      const delayConfig = await roundClient.getDelayConfig();
+      this.delayConfig = {
+        baseDelay: delayConfig.base_delay,
+        messageDelay: delayConfig.message_delay,
+        signupDelay: delayConfig.signup_delay,
+        deactivateDelay: delayConfig.deactivate_delay
+      };
+    } catch {
+      // Fall back to cached/default values if round contract is unreachable
+    }
+    return this.delayConfig;
   }
 
   async getPollId({ contractAddress }: { contractAddress: string }) {
@@ -238,11 +294,6 @@ export class MACI {
     }
   }
 
-  async queryAMaciChargeFee({ maxVoter, maxOption }: { maxVoter: number; maxOption: number }) {
-    const fee = getAMaciRoundCircuitFee(this.network, maxVoter, maxOption);
-    return fee;
-  }
-
   async queryRoundGasStation({ contractAddress }: { contractAddress: string }) {
     const roundInfo = await this.getRoundInfo({ contractAddress });
 
@@ -321,7 +372,6 @@ export class MACI {
 
   async signup({
     signer,
-    address,
     contractAddress,
     maciKeypair,
     oracleCertificate,
@@ -340,65 +390,26 @@ export class MACI {
     fee?: StdFee | 'auto' | number;
   }) {
     try {
-      if (!address) {
-        address = (await signer.getAccounts())[0].address;
-      }
-
       if (maciKeypair === undefined) {
         maciKeypair = this.maciKeypair;
       }
 
-      const client = await this.contract.contractClient({
-        signer
+      const signupFunds = [{ denom: FEE_DENOM, amount: this.feeConfig.signupFee }];
+      const granter = gasStation ? contractAddress : undefined;
+
+      return await this.contract.signup({
+        signer,
+        contractAddress,
+        pubkey: {
+          x: maciKeypair.pubKey[0].toString(),
+          y: maciKeypair.pubKey[1].toString()
+        },
+        amount: oracleCertificate?.amount ?? '0',
+        certificate: oracleCertificate?.signature ?? '',
+        granter,
+        funds: signupFunds,
+        fee: fee ?? 'auto'
       });
-
-      // Unified signup using MACI client (supports Oracle whitelist)
-      const msg = {
-        sign_up: {
-          pubkey: {
-            x: maciKeypair.pubKey[0].toString(),
-            y: maciKeypair.pubKey[1].toString()
-          },
-          amount: oracleCertificate?.amount || '0',
-          certificate: oracleCertificate?.signature || ''
-        }
-      };
-
-      if (gasStation === true && typeof fee !== 'object') {
-        // When gasStation is true and fee is not StdFee, simulate first then add granter
-        const gasEstimation = await client.simulate(
-          address,
-          [
-            {
-              typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-              value: {
-                sender: address,
-                contract: contractAddress,
-                msg: new TextEncoder().encode(JSON.stringify(msg))
-              }
-            }
-          ],
-          ''
-        );
-        const multiplier = typeof fee === 'number' ? fee : 1.8;
-        const gasPrice = GasPrice.fromString('10000000000peaka');
-        const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-        const grantFee: StdFee = {
-          amount: calculatedFee.amount,
-          gas: calculatedFee.gas,
-          granter: contractAddress
-        };
-        return client.execute(address, contractAddress, msg, grantFee);
-      } else if (gasStation === true && typeof fee === 'object') {
-        // When gasStation is true and fee is StdFee, add granter
-        const grantFee: StdFee = {
-          ...fee,
-          granter: contractAddress
-        };
-        return client.execute(address, contractAddress, msg, grantFee);
-      }
-
-      return client.execute(address, contractAddress, msg, fee || 'auto');
     } catch (error) {
       throw Error(`Signup failed! ${error}`);
     }
@@ -406,7 +417,6 @@ export class MACI {
 
   async rawSignup({
     signer,
-    address,
     contractAddress,
     pubKey,
     oracleCertificate,
@@ -426,65 +436,37 @@ export class MACI {
     granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
-    try {
-      if (!address) {
-        address = (await signer.getAccounts())[0].address;
-      }
+    const pubkey = {
+      x: pubKey[0].toString(),
+      y: pubKey[1].toString()
+    };
+    const signupFunds = [{ denom: FEE_DENOM, amount: this.feeConfig.signupFee }];
 
-      const client = await this.contract.contractClient({
-        signer
+    if (gasStation === true && granter === this.contract.apiSaasAddress) {
+      console.log('[rawSignup] path: viaSaas (gasStation=true, granter=apiSaasAddress)');
+      return this.contract.signupViaSaas({
+        signer,
+        contractAddress,
+        pubkey,
+        certificate: oracleCertificate?.signature,
+        amount: oracleCertificate?.amount,
+        granter,
+        fee
       });
-
-      // Unified signup using MACI client (supports Oracle whitelist)
-      const msg = {
-        sign_up: {
-          pubkey: {
-            x: pubKey[0].toString(),
-            y: pubKey[1].toString()
-          },
-          amount: oracleCertificate?.amount || '0',
-          certificate: oracleCertificate?.signature || ''
-        }
-      };
-
-      if (gasStation === true && typeof fee !== 'object') {
-        // When gasStation is true and fee is not StdFee, simulate first then add granter
-        const gasEstimation = await client.simulate(
-          address,
-          [
-            {
-              typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-              value: {
-                sender: address,
-                contract: contractAddress,
-                msg: new TextEncoder().encode(JSON.stringify(msg))
-              }
-            }
-          ],
-          ''
-        );
-        const multiplier = typeof fee === 'number' ? fee : 1.8;
-        const gasPrice = GasPrice.fromString('10000000000peaka');
-        const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-        const grantFee: StdFee = {
-          amount: calculatedFee.amount,
-          gas: calculatedFee.gas,
-          granter: granter || contractAddress
-        };
-        return client.execute(address, contractAddress, msg, grantFee);
-      } else if (gasStation === true && typeof fee === 'object') {
-        // When gasStation is true and fee is StdFee, add granter
-        const grantFee: StdFee = {
-          ...fee,
-          granter: granter || contractAddress
-        };
-        return client.execute(address, contractAddress, msg, grantFee);
-      }
-
-      return client.execute(address, contractAddress, msg, fee || 'auto');
-    } catch (error) {
-      throw Error(`Signup failed! ${error}`);
     }
+
+    const effectiveGranter = gasStation ? (granter ?? contractAddress) : undefined;
+    console.log(`[rawSignup] path: direct (gasStation=${gasStation}, granter=${effectiveGranter ?? 'none'})`);
+    return this.contract.signup({
+      signer,
+      contractAddress,
+      pubkey,
+      amount: oracleCertificate?.amount ?? '0',
+      certificate: oracleCertificate?.signature ?? '',
+      granter: effectiveGranter,
+      funds: signupFunds,
+      fee: fee ?? 'auto'
+    });
   }
 
   private async processVoteOptions({
@@ -625,16 +607,35 @@ export class MACI {
         });
       }
 
-      const client = await this.contract.contractClient({
-        signer
-      });
-
-      return await this.publishMessage({
-        client,
+      // Legacy (non-aMACI) path: one publish_message per payload item, sent as a multi-msg tx
+      if (!address) {
+        address = (await signer.getAccounts())[0].address;
+      }
+      const totalFee = (BigInt(this.feeConfig.messageFee) * BigInt(payload.length)).toString();
+      const legacyMsgs: MsgExecuteContractEncodeObject[] = payload.map(({ msg, encPubkeys }) => ({
+        typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+        value: MsgExecuteContract.fromPartial({
+          sender: address as string,
+          contract: contractAddress,
+          msg: new TextEncoder().encode(
+            JSON.stringify(
+              stringizing({
+                publish_message: {
+                  messages: [{ data: msg }],
+                  enc_pub_keys: [{ x: encPubkeys[0], y: encPubkeys[1] }]
+                }
+              })
+            )
+          ),
+          funds: [{ denom: FEE_DENOM, amount: this.feeConfig.messageFee }]
+        })
+      }));
+      const granter = gasStation ? contractAddress : undefined;
+      return await this.contract.executeWithRetry({
+        signer,
         address,
-        payload,
-        contractAddress,
-        gasStation,
+        msgs: legacyMsgs,
+        granter,
         fee
       });
     } catch (error) {
@@ -696,7 +697,7 @@ export class MACI {
   }
 
   async publishMessage({
-    client,
+    signer,
     address,
     payload,
     contractAddress,
@@ -704,8 +705,8 @@ export class MACI {
     granter,
     fee = 1.8
   }: {
-    client: SigningCosmWasmClient;
-    address: string;
+    signer: OfflineSigner;
+    address?: string;
     payload: {
       msg: bigint[];
       encPubkeys: PubKey;
@@ -715,10 +716,14 @@ export class MACI {
     granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
-    const msgs: MsgExecuteContractEncodeObject[] = payload.map(({ msg, encPubkeys }) => ({
+    if (!address) {
+      address = (await signer.getAccounts())[0].address;
+    }
+
+    const legacyMsgs: MsgExecuteContractEncodeObject[] = payload.map(({ msg, encPubkeys }) => ({
       typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
       value: MsgExecuteContract.fromPartial({
-        sender: address,
+        sender: address as string,
         contract: contractAddress,
         msg: new TextEncoder().encode(
           JSON.stringify(
@@ -730,32 +735,12 @@ export class MACI {
             })
           )
         ),
-        funds: [{ denom: FEE_DENOM, amount: MESSAGE_FEE }]
+        funds: [{ denom: FEE_DENOM, amount: this.feeConfig.messageFee }]
       })
     }));
 
-    if (gasStation && typeof fee !== 'object') {
-      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
-      const gasEstimation = await client.simulate(address, msgs, '');
-      const multiplier = typeof fee === 'number' ? fee : 1.8;
-      const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-      const grantFee: StdFee = {
-        amount: calculatedFee.amount,
-        gas: calculatedFee.gas,
-        granter: granter || contractAddress
-      };
-      return client.signAndBroadcast(address, msgs, grantFee);
-    } else if (gasStation && typeof fee === 'object') {
-      // When gasStation is true and fee is StdFee, add granter
-      const grantFee: StdFee = {
-        ...fee,
-        granter: granter || contractAddress
-      };
-      return client.signAndBroadcast(address, msgs, grantFee);
-    }
-
-    return client.signAndBroadcast(address, msgs, fee);
+    const effectiveGranter = gasStation ? (granter ?? contractAddress) : undefined;
+    return this.contract.executeWithRetry({ signer, address, msgs: legacyMsgs, granter: effectiveGranter, fee });
   }
 
   async publishMessageBatch({
@@ -782,11 +767,6 @@ export class MACI {
       address = (await signer.getAccounts())[0].address;
     }
 
-    const amaciClient = await this.contract.amaciClient({
-      signer,
-      contractAddress
-    });
-
     const messages = payload.map((p) => ({
       data: p.msg.map((m) => m.toString()) as [
         string,
@@ -807,13 +787,12 @@ export class MACI {
       y: p.encPubkeys[1].toString()
     }));
 
-    // Total fee: MESSAGE_FEE per message
-    const totalFee = (BigInt(MESSAGE_FEE) * BigInt(payload.length)).toString();
+    // Total fee: messageFee per message (use cached feeConfig, call fetchFeeConfig() to refresh)
+    const totalFee = (BigInt(this.feeConfig.messageFee) * BigInt(payload.length)).toString();
     const batchFunds = [{ denom: FEE_DENOM, amount: totalFee }];
 
     if (gasStation && granter === this.contract.apiSaasAddress) {
-      // SAAS path: the SAAS contract covers message fees from its own balance;
-      // the operator's gas is covered by feegrant from the SAAS contract.
+      console.log('[publishMessageBatch] path: viaSaas (gasStation=true, granter=apiSaasAddress)');
       return this.contract.publishMessageViaSaas({
         signer,
         contractAddress,
@@ -822,41 +801,21 @@ export class MACI {
         granter,
         fee
       });
-    } else if (gasStation && typeof fee !== 'object') {
-      // Standard feegrant path: granter covers the operator's gas via feegrant,
-      // but the caller's account still pays batchFunds directly.
-      const client = await this.contract.contractClient({ signer });
-      const msgForSimulate: MsgExecuteContractEncodeObject = {
-        typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-        value: MsgExecuteContract.fromPartial({
-          sender: address,
-          contract: contractAddress,
-          msg: new TextEncoder().encode(
-            JSON.stringify({ publish_message: { enc_pub_keys: encPubKeys, messages } })
-          ),
-          funds: batchFunds
-        })
-      };
-      const gasEstimation = await client.simulate(address, [msgForSimulate], '');
-      const multiplier = typeof fee === 'number' ? fee : 1.8;
-      const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-      const grantFee: StdFee = {
-        amount: calculatedFee.amount,
-        gas: calculatedFee.gas,
-        granter: granter || contractAddress
-      };
-      return amaciClient.publishMessage({ encPubKeys, messages }, grantFee, undefined, batchFunds);
-    } else if (gasStation && typeof fee === 'object') {
-      // Standard feegrant path with pre-built StdFee.
-      const grantFee: StdFee = {
-        ...fee,
-        granter: granter || contractAddress
-      };
-      return amaciClient.publishMessage({ encPubKeys, messages }, grantFee, undefined, batchFunds);
     }
 
-    return amaciClient.publishMessage({ encPubKeys, messages }, fee, undefined, batchFunds);
+    const effectiveGranter = gasStation ? (granter ?? contractAddress) : undefined;
+    console.log(
+      `[publishMessageBatch] path: direct (gasStation=${gasStation}, granter=${effectiveGranter ?? 'none'})`
+    );
+    return this.contract.publishMessage({
+      signer,
+      contractAddress,
+      encPubKeys,
+      messages,
+      granter: effectiveGranter,
+      funds: batchFunds,
+      fee
+    });
   }
 
   async publishMessageBatchLegacy({
@@ -883,8 +842,6 @@ export class MACI {
       address = (await signer.getAccounts())[0].address;
     }
 
-    const client = await this.contract.contractClient({ signer });
-
     const messages = payload.map((p) => ({
       data: p.msg
     }));
@@ -894,7 +851,10 @@ export class MACI {
       y: p.encPubkeys[1]
     }));
 
-    const msg: MsgExecuteContractEncodeObject = {
+    const totalFee = (BigInt(this.feeConfig.messageFee) * BigInt(payload.length)).toString();
+    const batchFunds = [{ denom: FEE_DENOM, amount: totalFee }];
+
+    const legacyMsg: MsgExecuteContractEncodeObject = {
       typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
       value: MsgExecuteContract.fromPartial({
         sender: address,
@@ -908,30 +868,22 @@ export class MACI {
               }
             })
           )
-        )
+        ),
+        funds: batchFunds
       })
     };
 
-    if (gasStation && typeof fee !== 'object') {
-      const gasEstimation = await client.simulate(address, [msg], '');
-      const multiplier = typeof fee === 'number' ? fee : 1.8;
-      const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-      const grantFee: StdFee = {
-        amount: calculatedFee.amount,
-        gas: calculatedFee.gas,
-        granter: granter || contractAddress
-      };
-      return client.signAndBroadcast(address, [msg], grantFee);
-    } else if (gasStation && typeof fee === 'object') {
-      const grantFee: StdFee = {
-        ...fee,
-        granter: granter || contractAddress
-      };
-      return client.signAndBroadcast(address, [msg], grantFee);
-    }
-
-    return client.signAndBroadcast(address, [msg], fee);
+    const effectiveGranter = gasStation ? (granter ?? contractAddress) : undefined;
+    console.log(
+      `[publishMessageBatchLegacy] path: direct (gasStation=${gasStation}, granter=${effectiveGranter ?? 'none'})`
+    );
+    return this.contract.executeWithRetry({
+      signer,
+      address,
+      msgs: [legacyMsg],
+      granter: effectiveGranter,
+      fee
+    });
   }
 
   async deactivate({
@@ -956,10 +908,6 @@ export class MACI {
         maciKeypair = this.maciKeypair;
       }
 
-      const client = await this.contract.contractClient({
-        signer
-      });
-
       const stateIdx = await this.getStateIdxInc({
         address,
         contractAddress
@@ -969,7 +917,6 @@ export class MACI {
         contractAddress
       });
 
-      // Get poll_id from contract
       const pollId = await this.getPollId({ contractAddress });
 
       const payload = batchGenMessage(
@@ -983,58 +930,13 @@ export class MACI {
         Number(pollId)
       );
 
-      const { msg, encPubkeys } = payload[0];
-
-      const deactivateMsg = stringizing({
-        publish_deactivate_message: {
-          enc_pub_key: {
-            x: encPubkeys[0],
-            y: encPubkeys[1]
-          },
-          message: {
-            data: msg
-          }
-        }
+      return await this.rawDeactivate({
+        signer,
+        contractAddress,
+        payload: payload[0],
+        gasStation,
+        fee
       });
-
-      const deactivateFunds = [{ denom: FEE_DENOM, amount: DEACTIVATE_FEE }];
-
-      if (gasStation === true && typeof fee !== 'object') {
-        // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
-        const gasEstimation = await client.simulate(
-          address,
-          [
-            {
-              typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-              value: MsgExecuteContract.fromPartial({
-                sender: address,
-                contract: contractAddress,
-                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg)),
-                funds: deactivateFunds
-              })
-            }
-          ],
-          ''
-        );
-        const multiplier = typeof fee === 'number' ? fee : 1.8;
-        const gasPrice = GasPrice.fromString('10000000000peaka');
-        const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-        const grantFee: StdFee = {
-          amount: calculatedFee.amount,
-          gas: calculatedFee.gas,
-          granter: contractAddress
-        };
-        return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
-      } else if (gasStation === true && typeof fee === 'object') {
-        // When gasStation is true and fee is StdFee, add granter
-        const grantFee: StdFee = {
-          ...fee,
-          granter: contractAddress
-        };
-        return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
-      }
-
-      return client.execute(address, contractAddress, deactivateMsg, fee, undefined, deactivateFunds);
     } catch (error) {
       throw Error(`Submit deactivate failed! ${error}`);
     }
@@ -1042,7 +944,6 @@ export class MACI {
 
   async rawDeactivate({
     signer,
-    address,
     contractAddress,
     payload,
     gasStation = false,
@@ -1060,85 +961,44 @@ export class MACI {
     granter?: string;
     fee?: StdFee | 'auto' | number;
   }) {
-    try {
-      address = address || (await signer.getAccounts())[0].address;
+    const { msg, encPubkeys } = payload;
 
-      const { msg, encPubkeys } = payload;
-
-      if (gasStation === true && granter === this.contract.apiSaasAddress) {
-        // SAAS path: the SAAS contract covers the deactivate fee from its own balance;
-        // the operator's gas is covered by feegrant from the SAAS contract.
-        return this.contract.publishDeactivateMessageViaSaas({
-          signer,
-          contractAddress,
-          encPubKey: {
-            x: encPubkeys[0].toString(),
-            y: encPubkeys[1].toString()
-          },
-          message: {
-            data: msg.map((m) => m.toString())
-          },
-          granter,
-          fee
-        });
-      }
-
-      const client = await this.contract.contractClient({ signer });
-
-      const deactivateMsg = stringizing({
-        publish_deactivate_message: {
-          enc_pub_key: {
-            x: encPubkeys[0],
-            y: encPubkeys[1]
-          },
-          message: {
-            data: msg
-          }
-        }
+    if (gasStation === true && granter === this.contract.apiSaasAddress) {
+      console.log('[rawDeactivate] path: viaSaas (gasStation=true, granter=apiSaasAddress)');
+      return this.contract.publishDeactivateMessageViaSaas({
+        signer,
+        contractAddress,
+        encPubKey: {
+          x: encPubkeys[0].toString(),
+          y: encPubkeys[1].toString()
+        },
+        message: {
+          data: msg.map((m) => m.toString())
+        },
+        granter,
+        fee
       });
-
-      const deactivateFunds = [{ denom: FEE_DENOM, amount: DEACTIVATE_FEE }];
-
-      if (gasStation === true && typeof fee !== 'object') {
-        // Standard feegrant path: granter covers the operator's gas via feegrant,
-        // but the caller's account still pays deactivateFunds directly.
-        const gasEstimation = await client.simulate(
-          address,
-          [
-            {
-              typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-              value: MsgExecuteContract.fromPartial({
-                sender: address,
-                contract: contractAddress,
-                msg: new TextEncoder().encode(JSON.stringify(deactivateMsg)),
-                funds: deactivateFunds
-              })
-            }
-          ],
-          ''
-        );
-        const multiplier = typeof fee === 'number' ? fee : 1.8;
-        const gasPrice = GasPrice.fromString('10000000000peaka');
-        const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-        const grantFee: StdFee = {
-          amount: calculatedFee.amount,
-          gas: calculatedFee.gas,
-          granter: granter || contractAddress
-        };
-        return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
-      } else if (gasStation === true && typeof fee === 'object') {
-        // Standard feegrant path with pre-built StdFee.
-        const grantFee: StdFee = {
-          ...fee,
-          granter: granter || contractAddress
-        };
-        return client.execute(address, contractAddress, deactivateMsg, grantFee, undefined, deactivateFunds);
-      }
-
-      return client.execute(address, contractAddress, deactivateMsg, fee, undefined, deactivateFunds);
-    } catch (error) {
-      throw Error(`Submit deactivate failed! ${error}`);
     }
+
+    const effectiveGranter = gasStation ? (granter ?? contractAddress) : undefined;
+    console.log(
+      `[rawDeactivate] path: direct (gasStation=${gasStation}, granter=${effectiveGranter ?? 'none'})`
+    );
+    const deactivateFunds = [{ denom: FEE_DENOM, amount: this.feeConfig.deactivateFee }];
+    return this.contract.publishDeactivateMessage({
+      signer,
+      contractAddress,
+      encPubKey: {
+        x: encPubkeys[0].toString(),
+        y: encPubkeys[1].toString()
+      },
+      message: {
+        data: msg.map((m) => m.toString())
+      },
+      granter: effectiveGranter,
+      funds: deactivateFunds,
+      fee
+    });
   }
 
   async fetchAllDeactivateLogs({ contractAddress }: { contractAddress: string }) {
@@ -1194,23 +1054,15 @@ export class MACI {
     newMaciKeypair: Keypair;
     fee?: number | StdFee | 'auto';
   }) {
-    const client = await this.contract.amaciClient({
+    return this.rawAddNewKey({
       signer,
-      contractAddress
-    });
-
-    return await client.addNewKey(
-      {
-        d,
-        groth16Proof: proof,
-        nullifier: nullifier.toString(),
-        pubkey: {
-          x: newMaciKeypair.pubKey[0].toString(),
-          y: newMaciKeypair.pubKey[1].toString()
-        }
-      },
+      contractAddress,
+      d,
+      proof,
+      nullifier,
+      newPubkey: newMaciKeypair.pubKey,
       fee
-    );
+    });
   }
 
   async rawAddNewKey({
@@ -1234,96 +1086,42 @@ export class MACI {
     granter?: string;
     fee?: number | StdFee | 'auto';
   }) {
-    const client = await this.contract.amaciClient({
-      signer,
-      contractAddress
-    });
+    const signupFunds = [{ denom: FEE_DENOM, amount: this.feeConfig.signupFee }];
+    const pubkey = {
+      x: newPubkey[0].toString(),
+      y: newPubkey[1].toString()
+    };
+    const nullifierStr = nullifier.toString();
 
-    if (gasStation === true && typeof fee !== 'object') {
-      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
-      const [{ address }] = await signer.getAccounts();
-      const contractClient = await this.contract.contractClient({ signer });
-
-      const msg = {
-        add_new_key: {
-          d,
-          groth16_proof: proof,
-          nullifier: nullifier.toString(),
-          pubkey: {
-            x: newPubkey[0].toString(),
-            y: newPubkey[1].toString()
-          }
-        }
-      };
-
-      const gasEstimation = await contractClient.simulate(
-        address,
-        [
-          {
-            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-            value: {
-              sender: address,
-              contract: contractAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg))
-            }
-          }
-        ],
-        ''
-      );
-      const multiplier = typeof fee === 'number' ? fee : 1.8;
-      const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-      const grantFee: StdFee = {
-        amount: calculatedFee.amount,
-        gas: calculatedFee.gas,
-        granter: granter || contractAddress
-      };
-
-      return await client.addNewKey(
-        {
-          d,
-          groth16Proof: proof,
-          nullifier: nullifier.toString(),
-          pubkey: {
-            x: newPubkey[0].toString(),
-            y: newPubkey[1].toString()
-          }
-        },
-        grantFee
-      );
-    } else if (gasStation === true && typeof fee === 'object') {
-      // When gasStation is true and fee is StdFee, add granter
-      const grantFee: StdFee = {
-        ...fee,
-        granter: granter || contractAddress
-      };
-
-      return await client.addNewKey(
-        {
-          d,
-          groth16Proof: proof,
-          nullifier: nullifier.toString(),
-          pubkey: {
-            x: newPubkey[0].toString(),
-            y: newPubkey[1].toString()
-          }
-        },
-        grantFee
-      );
-    }
-
-    return await client.addNewKey(
-      {
+    if (gasStation === true && granter === this.contract.apiSaasAddress) {
+      console.log('[rawAddNewKey] path: viaSaas (gasStation=true, granter=apiSaasAddress)');
+      return this.contract.addNewKeyViaSaas({
+        signer,
+        contractAddress,
+        pubkey,
+        nullifier: nullifierStr,
         d,
         groth16Proof: proof,
-        nullifier: nullifier.toString(),
-        pubkey: {
-          x: newPubkey[0].toString(),
-          y: newPubkey[1].toString()
-        }
-      },
-      fee
+        granter,
+        fee
+      });
+    }
+
+    const effectiveGranter = gasStation ? (granter ?? contractAddress) : undefined;
+    console.log(
+      `[rawAddNewKey] path: direct (gasStation=${gasStation}, granter=${effectiveGranter ?? 'none'})`
     );
+    return this.contract.addNewKey({
+      signer,
+      contractAddress,
+      pubkey,
+      nullifier: nullifierStr,
+      d,
+      groth16Proof: proof,
+      granter: effectiveGranter,
+      funds: signupFunds,
+      fee
+    });
   }
 
   async rawPreAddNewKey({
@@ -1347,96 +1145,44 @@ export class MACI {
     granter?: string;
     fee?: number | StdFee | 'auto';
   }) {
-    const client = await this.contract.amaciClient({
-      signer,
-      contractAddress
-    });
+    const signupFunds = [{ denom: FEE_DENOM, amount: this.feeConfig.signupFee }];
+    const pubkey = {
+      x: newPubkey[0].toString(),
+      y: newPubkey[1].toString()
+    };
+    const nullifierStr = nullifier.toString();
 
-    if (gasStation === true && typeof fee !== 'object') {
-      // When gasStation is true and fee is not StdFee, we need to simulate first then add granter
-      const [{ address }] = await signer.getAccounts();
-      const contractClient = await this.contract.contractClient({ signer });
-
-      const msg = {
-        pre_add_new_key: {
-          d,
-          groth16_proof: proof,
-          nullifier: nullifier.toString(),
-          pubkey: {
-            x: newPubkey[0].toString(),
-            y: newPubkey[1].toString()
-          }
-        }
-      };
-
-      const gasEstimation = await contractClient.simulate(
-        address,
-        [
-          {
-            typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-            value: {
-              sender: address,
-              contract: contractAddress,
-              msg: new TextEncoder().encode(JSON.stringify(msg))
-            }
-          }
-        ],
-        ''
-      );
-      const multiplier = typeof fee === 'number' ? fee : 1.8;
-      const gasPrice = GasPrice.fromString('10000000000peaka');
-      const calculatedFee = calculateFee(Math.round(gasEstimation * multiplier), gasPrice);
-      const grantFee: StdFee = {
-        amount: calculatedFee.amount,
-        gas: calculatedFee.gas,
-        granter: granter || contractAddress
-      };
-
-      return await client.preAddNewKey(
-        {
-          d,
-          groth16Proof: proof,
-          nullifier: nullifier.toString(),
-          pubkey: {
-            x: newPubkey[0].toString(),
-            y: newPubkey[1].toString()
-          }
-        },
-        grantFee
-      );
-    } else if (gasStation === true && typeof fee === 'object') {
-      // When gasStation is true and fee is StdFee, add granter
-      const grantFee: StdFee = {
-        ...fee,
-        granter: granter || contractAddress
-      };
-
-      return await client.preAddNewKey(
-        {
-          d,
-          groth16Proof: proof,
-          nullifier: nullifier.toString(),
-          pubkey: {
-            x: newPubkey[0].toString(),
-            y: newPubkey[1].toString()
-          }
-        },
-        grantFee
-      );
-    }
-
-    return await client.preAddNewKey(
-      {
+    if (gasStation === true && granter === this.contract.apiSaasAddress) {
+      console.log('[rawPreAddNewKey] path: viaSaas (gasStation=true, granter=apiSaasAddress)');
+      return this.contract.preAddNewKeyViaSaas({
+        signer,
+        contractAddress,
+        pubkey,
+        nullifier: nullifierStr,
         d,
         groth16Proof: proof,
-        nullifier: nullifier.toString(),
-        pubkey: {
-          x: newPubkey[0].toString(),
-          y: newPubkey[1].toString()
-        }
-      },
-      fee
+        granter,
+        fee
+      });
+    }
+
+    // Direct path — sends to contractAddress (not the SAAS proxy).
+    // effectiveGranter is set when gasStation is true but granter is not the SAAS address.
+    const effectiveGranter = gasStation ? (granter ?? contractAddress) : undefined;
+    console.log(
+      `[rawPreAddNewKey] path: direct (gasStation=${gasStation}, granter=${effectiveGranter ?? 'none'})`
     );
+    return this.contract.preAddNewKey({
+      signer,
+      contractAddress,
+      pubkey,
+      nullifier: nullifierStr,
+      d,
+      groth16Proof: proof,
+      granter: effectiveGranter,
+      funds: signupFunds,
+      fee
+    });
   }
 
   async claimAMaciRound({
@@ -1448,12 +1194,7 @@ export class MACI {
     contractAddress: string;
     fee?: number | StdFee | 'auto';
   }) {
-    const client = await this.contract.amaciClient({
-      signer,
-      contractAddress
-    });
-
-    return client.claim(fee);
+    return this.contract.claim({ signer, contractAddress, fee });
   }
 
   async getOracleCertificateConfig() {
@@ -1482,10 +1223,6 @@ export class MACI {
     address?: string;
     fee?: number | StdFee | 'auto';
   }) {
-    const client = await this.contract.contractClient({
-      signer
-    });
-
     if (!address) {
       address = (await signer.getAccounts())[0].address;
     }
@@ -1529,12 +1266,7 @@ export class MACI {
       }
     ];
 
-    try {
-      const result = await client.signAndBroadcast(address, msgs, fee);
-      return result;
-    } catch (err) {
-      throw err;
-    }
+    return this.contract.executeWithRetry({ signer, address, msgs, fee });
   }
 
   /**
@@ -1555,10 +1287,6 @@ export class MACI {
     address?: string;
     fee?: number | StdFee | 'auto';
   }) {
-    const client = await this.contract.contractClient({
-      signer
-    });
-
     if (!address) {
       address = (await signer.getAccounts())[0].address;
     }
@@ -1594,11 +1322,6 @@ export class MACI {
       }
     ];
 
-    try {
-      const result = await client.signAndBroadcast(address, msgs, fee);
-      return result;
-    } catch (err) {
-      throw err;
-    }
+    return this.contract.executeWithRetry({ signer, address, msgs, fee });
   }
 }

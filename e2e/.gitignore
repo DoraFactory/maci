@@ -2,6 +2,9 @@
 dist/
 *.tsbuildinfo
 
+# WASM artifacts (built locally via pnpm build:wasm)
+artifacts/
+
 # Node modules
 node_modules/
 

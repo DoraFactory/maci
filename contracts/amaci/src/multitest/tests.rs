@@ -9,7 +9,9 @@ mod test {
     use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
     use crate::multitest::{
         create_app, owner, test_oracle_pubkey, test_pubkey1, test_pubkey2, test_pubkey3,
-        uint256_from_decimal_string, user1, user2, user3, MaciCodeId, MaciContract,
+        uint256_from_decimal_string, user1, user2, user3, BASE_DELAY, DEACTIVATE_DELAY,
+        DEACTIVATE_FEE, MESSAGE_FEE, PER_MESSAGE_DELAY, PER_SIGNUP_DELAY, SIGNUP_FEE, MaciCodeId,
+        MaciContract,
     };
     use crate::state::{
         DelayRecord, DelayRecords, DelayType, MaciParameters, MessageData, Period, PeriodStatus,
@@ -3109,6 +3111,13 @@ mod test {
                 pre_deactivate_root: Uint256::from_u128(12345),
                 pre_deactivate_coordinator: test_pubkey2(),
             },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false,
         };
 
@@ -3444,7 +3453,8 @@ mod test {
     /// on the second call with EncPubKeyAlreadyUsed.
     #[test]
     fn test_enc_pub_key_duplicate_across_calls() {
-        use crate::state::{FEE_DENOM, MESSAGE_FEE};
+        use crate::multitest::MESSAGE_FEE;
+        use crate::state::FEE_DENOM;
         use cosmwasm_std::coins;
 
         let mut app = create_app();
@@ -3498,7 +3508,8 @@ mod test {
     /// must fail with EncPubKeyAlreadyUsed on the second occurrence.
     #[test]
     fn test_enc_pub_key_duplicate_within_batch() {
-        use crate::state::{FEE_DENOM, MESSAGE_FEE};
+        use crate::multitest::MESSAGE_FEE;
+        use crate::state::FEE_DENOM;
         use cosmwasm_std::coins;
 
         let mut app = create_app();

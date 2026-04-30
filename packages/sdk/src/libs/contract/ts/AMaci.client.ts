@@ -9,6 +9,7 @@ import { Coin, StdFee } from '@cosmjs/amino';
 import {
   Addr,
   Uint256,
+  Uint128,
   RegistrationModeConfig,
   VoiceCreditMode,
   Timestamp,
@@ -27,9 +28,11 @@ import {
   QueryMsg,
   ArrayOfUint256,
   Boolean,
+  DelayConfigResponse,
   DelayType,
   DelayRecords,
   DelayRecord,
+  FeeConfigResponse,
   PeriodStatus,
   Period,
   RegistrationMode,
@@ -89,6 +92,8 @@ export interface AMaciReadOnlyInterface {
     pubkey?: PubKey;
     sender?: Addr;
   }) => Promise<RegistrationStatus>;
+  getFeeConfig: () => Promise<FeeConfigResponse>;
+  getDelayConfig: () => Promise<DelayConfigResponse>;
 }
 export class AMaciQueryClient implements AMaciReadOnlyInterface {
   client: CosmWasmClient;
@@ -133,6 +138,8 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getDeactivateEnabled = this.getDeactivateEnabled.bind(this);
     this.getRegistrationConfig = this.getRegistrationConfig.bind(this);
     this.queryRegistrationStatus = this.queryRegistrationStatus.bind(this);
+    this.getFeeConfig = this.getFeeConfig.bind(this);
+    this.getDelayConfig = this.getDelayConfig.bind(this);
   }
   admin = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -344,6 +351,16 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
         pubkey,
         sender
       }
+    });
+  };
+  getFeeConfig = async (): Promise<FeeConfigResponse> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_fee_config: {}
+    });
+  };
+  getDelayConfig = async (): Promise<DelayConfigResponse> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_delay_config: {}
     });
   };
 }
