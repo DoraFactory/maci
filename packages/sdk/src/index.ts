@@ -28,6 +28,8 @@ export { circuits, getDefaultParams, type NetworkConfig } from './libs/const';
 export { stringizing, destringizing, bigInt2Buffer } from './libs/crypto/bigintUtils';
 export { isValidAddress } from './utils';
 export { getAMaciRoundCircuitFee, getMaciRoundCircuitFee } from './libs/contract/utils';
+export { CIRCUIT_INFO } from './libs/contract/vars';
+export type { Groth16VkeyType, CircuitInfoType } from './libs/contract/vars';
 
 export { EdDSAPoseidonKeypair, EdDSAPoseidonPublicKey } from './libs/keypairs/eddsa-poseidon';
 
