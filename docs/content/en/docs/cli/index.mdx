@@ -1,0 +1,77 @@
+# MACI CLI
+
+`@dorafactory/maci-cli` is a public command-line tool for independently verifying aMACI (Anonymous Minimal Anti-Collusion Infrastructure) rounds and circuit registries on Dora Vota.
+
+Anyone can run this tool to confirm that a MACI round's proofs were accepted on-chain and that commitments are consistent — **no private key or special permissions required**.
+
+## Installation
+
+**Requirements**: Node.js >= 18.0.0
+
+```bash
+npm install -g @dorafactory/maci-cli
+# or
+pnpm add -g @dorafactory/maci-cli
+```
+
+After installation, the `maci` binary is available globally:
+
+```bash
+maci --help
+```
+
+## Quick Start
+
+```bash
+# Verify all proofs for a round on mainnet (fast, no local computation)
+maci round dora1abc...xyz
+
+# Verify on testnet
+maci round dora1abc...xyz --network testnet
+
+# Fully re-verify proofs locally with snarkjs
+maci round dora1abc...xyz --recheck
+
+# List all circuits bundled in the CLI
+maci registry list
+
+# Compare on-chain vkeys against the bundled registry
+maci registry check dora1abc...xyz
+```
+
+## What This Tool Verifies
+
+### Round Verification (`maci round`)
+
+Given an aMACI round contract address, the CLI audits:
+
+- All submitted proofs were **accepted by the smart contract** (`verifyResult = true`)
+- On-chain `MSG_CHAIN_LENGTH` matches the count of **indexed messages**
+- **Batch coverage**: total processed messages ≥ chain length
+- Last message proof's **state commitment** matches on-chain `QueryCurrentStateCommitment`
+- Last tally proof's **tally commitment** matches on-chain `current_tally_commitment`
+
+With `--recheck`, it additionally:
+
+- Rebuilds the `MSG_HASHES` chain locally from indexed messages
+- Reconstructs public signals (`input_hash`) from on-chain vkeys
+- Runs `snarkjs.groth16.verify()` for **every** processMessage and tally proof
+
+### Circuit Registry Verification (`maci registry check`)
+
+- Fetches vkeys stored on-chain for a round contract
+- Compares them against the CLI's **bundled circuit registry**
+- Reports `MATCH` or `MISMATCH` per vkey type (processMessages, tally, deactivate, addNewKey)
+
+## Trust Model
+
+| Component | Source of Truth |
+|-----------|----------------|
+| Circuit registry | Version-controlled vkeys bundled in the package, sourced from `contracts/amaci/src/circuit_params.rs` |
+| Round data | CosmWasm RPC (chain) + MACI GraphQL indexer |
+| Layer 2 re-verification | Local `snarkjs.groth16.verify()` — independent of the on-chain verifier |
+
+## Next Steps
+
+- [Command Reference](/docs/cli/commands) — full documentation for every command and flag
+- [Verification Guide](/docs/cli/verification) — deep dive into Layer 1 vs Layer 2 verification

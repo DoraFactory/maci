@@ -24,6 +24,7 @@ MACI (Minimal Anti-Collusion Infrastructure) is a set of smart contracts, crypto
 |---------|---------|-------------|
 | [@dorafactory/maci-sdk](https://www.npmjs.com/package/@dorafactory/maci-sdk) | ![npm](https://img.shields.io/npm/v/@dorafactory/maci-sdk) | Complete MACI client SDK for voting, round management, operator management, circuit configuration, transaction monitoring, and proof verification |
 | [@dorafactory/maci-operator](https://www.npmjs.com/package/@dorafactory/maci-operator) | ![npm](https://img.shields.io/npm/v/@dorafactory/maci-operator) | Dedicated MACI/AMACI operator system for processing encrypted messages, generating ZK proofs, and tallying rounds |
+| [@dorafactory/maci-cli](https://www.npmjs.com/package/@dorafactory/maci-cli) | ![npm](https://img.shields.io/npm/v/@dorafactory/maci-cli) | Public CLI tool for independently verifying aMACI round proofs and circuit registry vkeys on Dora Vota — no private key required |
 
 ### Rust
 

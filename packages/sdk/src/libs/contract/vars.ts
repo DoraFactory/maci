@@ -1,4 +1,4 @@
-type Groth16VkeyType = {
+export type Groth16VkeyType = {
   vk_alpha1: string;
   vk_beta_2: string;
   vk_gamma_2: string;
@@ -7,7 +7,7 @@ type Groth16VkeyType = {
   vk_ic1: string;
 };
 
-type CircuitInfoType = {
+export type CircuitInfoType = {
   [key: string]: {
     parameter: {
       state_tree_depth: string;

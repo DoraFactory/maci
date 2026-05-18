@@ -1,0 +1,114 @@
+# 验证机制详解
+
+`maci round` 命令支持两种验证层级。本页详细介绍每个层级的检查内容、适用场景，以及如何解读结果。
+
+## 概览
+
+| 层级 | 参数 | 速度 | 信任假设 |
+|------|------|------|---------|
+| Layer 1 | *(默认)* | 快速（秒级） | 信任链上 Groth16 验证器 |
+| Layer 2 | `--recheck` | 较慢（分钟级） | 在本地独立重新执行验证 |
+
+---
+
+## Layer 1 — 承诺审计
+
+**默认模式。** 从 CosmWasm RPC 和 MACI GraphQL 索引器读取数据，无需本地密码学计算。
+
+### 检查内容
+
+1. **证明接受情况** — 所有已提交的证明在链上均为 `verifyResult = true`。智能合约在接收证明时会对每个 Groth16 证明进行验证。
+
+2. **消息数量一致性** — 链上 `MSG_CHAIN_LENGTH` 与 MACI 索引器记录的消息数量相等，确认没有消息被静默丢弃。
+
+3. **批次覆盖率** — 所有已处理消息批次的总数 ≥ `MSG_CHAIN_LENGTH`，确保每条消息至少被纳入一个处理批次。
+
+4. **状态承诺** — 最后一条 processMessages 证明的状态承诺与链上 `QueryCurrentStateCommitment` 一致，确认 Operator 从正确的状态处理了消息。
+
+5. **计票承诺** — 最后一条 tally 证明的计票承诺与链上 `current_tally_commitment` 一致，确认公布的计票结果就是经过验证的那个。
+
+### 适用场景
+
+- 需要**快速审计**一个轮次，不想下载证明数据
+- 信任链上 Groth16 验证器的正确性
+- 同时检查多个轮次或进行自动化监控
+
+```bash
+maci round dora1abc...xyz
+maci round dora1abc...xyz --network testnet
+```
+
+---
+
+## Layer 2 — 本地 ZK 重验证
+
+**`--recheck` 模式。** 下载所有证明数据，使用 snarkjs 在本地重新执行 Groth16 验证，独立于链上验证器。
+
+### 额外检查内容（在 Layer 1 基础上）
+
+1. **本地重建 MSG_HASHES 链** — 下载所有已索引消息，在本地重新计算 `MSG_HASHES` 链，确认索引的消息数据与链上承诺一致。
+
+2. **重新构造公开信号** — 从链上 vkeys 出发，从零重新构造每个证明批次的 `input_hash` 公开信号。
+
+3. **本地 Groth16 验证** — 使用重新构造的公开信号，对**每一条** processMessages 和 tally 证明运行 `snarkjs.groth16.verify()`，所用库与 Operator 生成证明时相同。
+
+### 适用场景
+
+- 需要**最高级别的保证**，不想依赖链上验证器
+- 对轮次进行安全审计或争议仲裁
+- 验证 Operator 没有提交被篡改的证明
+
+```bash
+maci round dora1abc...xyz --recheck
+maci round dora1abc...xyz --network testnet --recheck
+```
+
+> **提示**：Layer 2 验证需要下载该轮次的全部证明数据并在本地执行 ZK 验证，根据消息数量不同可能需要数分钟。
+
+---
+
+## 信任模型
+
+### Layer 1 中你信任的内容
+
+- CosmWasm 智能合约的 Groth16 验证器在接收证明时能正确验证
+- MACI GraphQL 索引器准确反映了链上消息数据
+- RPC 节点返回诚实的链上状态
+
+### Layer 2 中你信任的内容
+
+- `snarkjs` 库正确实现了 Groth16 验证
+- CLI 内置的 vkeys 是可信的（版本控制，源自 `contracts/amaci/src/circuit_params.rs`）
+- MACI GraphQL 索引器准确反映了链上消息数据
+
+### 电路注册表可信度
+
+`@dorafactory/maci-cli` 内置的 vkeys 经过版本控制管理，直接源自链上合约参数。使用 `maci registry check` 可以确认指定轮次合约中存储的 vkeys 与内置注册表一致。
+
+---
+
+## 结果解读
+
+### 所有检查通过
+
+```
+✔ All 5 Layer 1 checks passed for dora1abc...xyz
+```
+
+该轮次的证明和承诺一致，Operator 正确处理了消息并完成了计票。
+
+### 某项检查失败
+
+```
+✗ Tally commitment mismatch
+  On-chain:  0x1a2b3c...
+  From proof: 0xdeadbe...
+```
+
+出现不匹配可能意味着：
+
+- Operator 提交了承诺值不正确的证明
+- 索引数据与链上承诺不一致（可能是索引器问题）
+- 轮次仍在进行中，最终计票尚未提交
+
+在运行验证前，请确认轮次状态为 `Ended`。进行中的轮次尚未提交最终计票承诺，验证将无法通过。

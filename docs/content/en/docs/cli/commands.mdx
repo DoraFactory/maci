@@ -1,0 +1,173 @@
+# Command Reference
+
+Complete reference for all `maci` CLI commands and flags.
+
+## `maci registry list`
+
+Lists all aMACI circuits bundled in this CLI, including their power string, status, and description.
+
+```bash
+maci registry list
+```
+
+**Example output:**
+
+```
+┌─────────────┬────────────┬──────────────────────────────────────────────────────────────────┐
+│ Power       │ Status     │ Description                                                      │
+├─────────────┼────────────┼──────────────────────────────────────────────────────────────────┤
+│ 9-4-3-125   │ Production │ The only circuit accepted by the live aMACI contract              │
+│ 2-1-1-5     │ Test-only  │ Accepted only when compiled with feature="test-vkeys"             │
+└─────────────┴────────────┴──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## `maci registry show <power>`
+
+Shows detailed parameters, verification key fingerprints, and zkey download information for a specific circuit.
+
+```bash
+maci registry show <power>
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `power` | Circuit power string, e.g. `9-4-3-125` or `2-1-1-5` |
+
+**Examples:**
+
+```bash
+maci registry show 9-4-3-125
+maci registry show 2-1-1-5
+```
+
+**Output includes:**
+
+- Circuit parameters (state tree depth, message batch size, vote option tree depth, etc.)
+- SHA-256 fingerprints of each vkey (processMessages, tally, deactivate, addNewKey)
+- Links to download the corresponding `.zkey` files
+
+---
+
+## `maci registry check <contract>`
+
+Fetches the verification keys stored on-chain for a round contract and compares them against the bundled circuit registry. Reports `MATCH` or `MISMATCH` for each vkey type.
+
+```bash
+maci registry check <contract> [--network <network>]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `contract` | The aMACI round contract address (e.g. `dora1abc...xyz`) |
+
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--network` | `mainnet` | Network to connect to: `mainnet` or `testnet` |
+
+**Examples:**
+
+```bash
+# Mainnet (default)
+maci registry check dora1abc...xyz
+
+# Testnet
+maci registry check dora1abc...xyz --network testnet
+```
+
+**Example output:**
+
+```
+Checking vkeys for dora1abc...xyz on mainnet...
+
+  processMessages  ✔ MATCH    (9-4-3-125)
+  tally            ✔ MATCH    (9-4-3-125)
+  deactivate       ✔ MATCH    (9-4-3-125)
+  addNewKey        ✔ MATCH    (9-4-3-125)
+
+All vkeys match the bundled registry.
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| `0` | All vkeys match |
+| `1` | One or more vkeys do not match the registry |
+
+---
+
+## `maci round <contract>`
+
+Verifies all proofs and commitments for an aMACI round. Supports two verification levels — see [Verification Guide](/docs/cli/verification) for a detailed explanation.
+
+```bash
+maci round <contract> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `contract` | The aMACI round contract address (e.g. `dora1abc...xyz`) |
+
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--network` | `mainnet` | Network to connect to: `mainnet` or `testnet` |
+| `--rpc` | *(network default)* | Override the CosmWasm RPC endpoint URL |
+| `--indexer` | *(network default)* | Override the MACI GraphQL indexer endpoint URL |
+| `--recheck` | `false` | Enable Layer 2 local ZK re-verification using snarkjs |
+
+**Examples:**
+
+```bash
+# Layer 1 — mainnet (default)
+maci round dora1abc...xyz
+
+# Layer 1 — testnet
+maci round dora1abc...xyz --network testnet
+
+# Override specific endpoints
+maci round dora1abc...xyz \
+  --rpc https://vota-rpc.dorafactory.org \
+  --indexer https://maci-graphql.dorafactory.org
+
+# Layer 2 — local ZK re-verification
+maci round dora1abc...xyz --recheck
+
+# Layer 2 — testnet
+maci round dora1abc...xyz --network testnet --recheck
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| `0` | All checks passed |
+| `1` | One or more checks failed (mismatch, rejected proof, etc.) |
+| `2` | Invalid arguments or usage error |
+
+---
+
+## Network Defaults
+
+| Network | RPC Endpoint | Indexer Endpoint |
+|---------|-------------|-----------------|
+| `mainnet` (default) | `https://vota-rpc.dorafactory.org` | `https://maci-graphql.dorafactory.org` |
+| `testnet` | `https://vota-testnet-rpc.dorafactory.org` | `https://maci-testnet-graphql.dorafactory.org` |
+
+## Supported Circuits
+
+| Power | Status | Description |
+|-------|--------|-------------|
+| `9-4-3-125` | Production | The only circuit accepted by the live aMACI contract |
+| `2-1-1-5` | Test-only | Accepted only when the contract is compiled with `feature="test-vkeys"` |

@@ -1,0 +1,173 @@
+# 命令参考
+
+`maci` CLI 所有命令和参数的完整说明。
+
+## `maci registry list`
+
+列出此 CLI 内置的所有 aMACI 电路，包括电路规格字符串、状态及描述。
+
+```bash
+maci registry list
+```
+
+**示例输出：**
+
+```
+┌─────────────┬────────────┬──────────────────────────────────────────────────────────────────┐
+│ Power       │ Status     │ Description                                                      │
+├─────────────┼────────────┼──────────────────────────────────────────────────────────────────┤
+│ 9-4-3-125   │ Production │ The only circuit accepted by the live aMACI contract              │
+│ 2-1-1-5     │ Test-only  │ Accepted only when compiled with feature="test-vkeys"             │
+└─────────────┴────────────┴──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## `maci registry show <power>`
+
+显示指定电路的详细参数、验证密钥指纹及 zkey 下载信息。
+
+```bash
+maci registry show <power>
+```
+
+**参数：**
+
+| 参数 | 说明 |
+|------|------|
+| `power` | 电路规格字符串，如 `9-4-3-125` 或 `2-1-1-5` |
+
+**示例：**
+
+```bash
+maci registry show 9-4-3-125
+maci registry show 2-1-1-5
+```
+
+**输出内容包括：**
+
+- 电路参数（状态树深度、消息批次大小、投票选项树深度等）
+- 各 vkey 的 SHA-256 指纹（processMessages、tally、deactivate、addNewKey）
+- 对应 `.zkey` 文件的下载链接
+
+---
+
+## `maci registry check <contract>`
+
+从链上获取指定轮次合约存储的验证密钥，并与内置电路注册表进行比对，逐项报告每种 vkey 类型的 `MATCH` 或 `MISMATCH`。
+
+```bash
+maci registry check <contract> [--network <network>]
+```
+
+**参数：**
+
+| 参数 | 说明 |
+|------|------|
+| `contract` | aMACI 轮次合约地址（如 `dora1abc...xyz`） |
+
+**选项：**
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--network` | `mainnet` | 连接的网络：`mainnet` 或 `testnet` |
+
+**示例：**
+
+```bash
+# 主网（默认）
+maci registry check dora1abc...xyz
+
+# 测试网
+maci registry check dora1abc...xyz --network testnet
+```
+
+**示例输出：**
+
+```
+Checking vkeys for dora1abc...xyz on mainnet...
+
+  processMessages  ✔ MATCH    (9-4-3-125)
+  tally            ✔ MATCH    (9-4-3-125)
+  deactivate       ✔ MATCH    (9-4-3-125)
+  addNewKey        ✔ MATCH    (9-4-3-125)
+
+All vkeys match the bundled registry.
+```
+
+**退出码：**
+
+| 退出码 | 含义 |
+|--------|------|
+| `0` | 所有 vkeys 均匹配 |
+| `1` | 存在一个或多个 vkeys 与注册表不符 |
+
+---
+
+## `maci round <contract>`
+
+验证一个 aMACI 轮次的所有证明和承诺。支持两种验证层级，详见[验证机制详解](/docs/cli/verification)。
+
+```bash
+maci round <contract> [options]
+```
+
+**参数：**
+
+| 参数 | 说明 |
+|------|------|
+| `contract` | aMACI 轮次合约地址（如 `dora1abc...xyz`） |
+
+**选项：**
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--network` | `mainnet` | 连接的网络：`mainnet` 或 `testnet` |
+| `--rpc` | *(网络默认值)* | 覆盖 CosmWasm RPC 端点 URL |
+| `--indexer` | *(网络默认值)* | 覆盖 MACI GraphQL 索引器端点 URL |
+| `--recheck` | `false` | 启用 Layer 2 本地 ZK 重验证（使用 snarkjs） |
+
+**示例：**
+
+```bash
+# Layer 1 — 主网（默认）
+maci round dora1abc...xyz
+
+# Layer 1 — 测试网
+maci round dora1abc...xyz --network testnet
+
+# 覆盖指定端点
+maci round dora1abc...xyz \
+  --rpc https://vota-rpc.dorafactory.org \
+  --indexer https://maci-graphql.dorafactory.org
+
+# Layer 2 — 本地 ZK 重验证
+maci round dora1abc...xyz --recheck
+
+# Layer 2 — 测试网
+maci round dora1abc...xyz --network testnet --recheck
+```
+
+**退出码：**
+
+| 退出码 | 含义 |
+|--------|------|
+| `0` | 所有检查通过 |
+| `1` | 一项或多项检查失败（不匹配、证明被拒绝等） |
+| `2` | 参数无效或使用错误 |
+
+---
+
+## 网络默认配置
+
+| 网络 | RPC 端点 | 索引器端点 |
+|------|---------|-----------|
+| `mainnet`（默认） | `https://vota-rpc.dorafactory.org` | `https://maci-graphql.dorafactory.org` |
+| `testnet` | `https://vota-testnet-rpc.dorafactory.org` | `https://maci-testnet-graphql.dorafactory.org` |
+
+## 支持的电路
+
+| 规格 | 状态 | 说明 |
+|------|------|------|
+| `9-4-3-125` | 生产环境 | 线上 aMACI 合约唯一接受的电路 |
+| `2-1-1-5` | 仅限测试 | 仅在合约以 `feature="test-vkeys"` 编译时可用 |

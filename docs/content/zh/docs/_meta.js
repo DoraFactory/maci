@@ -20,6 +20,11 @@ export default {
     title: 'SDK 使用指南'
   },
   sdk: 'SDK 使用指南',
+  '---cli-separator': {
+    type: 'separator',
+    title: 'CLI 工具'
+  },
+  cli: 'CLI 工具',
   '---examples-separator': {
     type: 'separator',
     title: '示例代码'
