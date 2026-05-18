@@ -1,0 +1,77 @@
+# MACI CLI
+
+`@dorafactory/maci-cli` 是一款公开的命令行工具，用于在 Dora Vota 上独立验证 aMACI（匿名最小抗合谋基础设施）轮次的零知识证明和电路注册表。
+
+任何人都可以运行此工具，确认 MACI 轮次的证明已在链上通过验证、各项承诺保持一致——**无需私钥或任何特殊权限**。
+
+## 安装
+
+**环境要求**：Node.js >= 18.0.0
+
+```bash
+npm install -g @dorafactory/maci-cli
+# 或使用 pnpm
+pnpm add -g @dorafactory/maci-cli
+```
+
+安装完成后，`maci` 命令即可在全局使用：
+
+```bash
+maci --help
+```
+
+## 快速上手
+
+```bash
+# 验证主网上某轮次的所有证明（快速，无需本地计算）
+maci round dora1abc...xyz
+
+# 验证测试网上的轮次
+maci round dora1abc...xyz --network testnet
+
+# 使用 snarkjs 在本地完整重验证证明
+maci round dora1abc...xyz --recheck
+
+# 列出 CLI 内置的所有电路
+maci registry list
+
+# 对比链上 vkeys 与内置电路注册表
+maci registry check dora1abc...xyz
+```
+
+## 验证内容说明
+
+### 轮次验证（`maci round`）
+
+给定一个 aMACI 轮次合约地址，CLI 将审计以下内容：
+
+- 所有已提交的证明均被智能合约**接受**（`verifyResult = true`）
+- 链上 `MSG_CHAIN_LENGTH` 与**已索引消息数**一致
+- **批次覆盖率**：已处理消息总数 ≥ 链长度
+- 最后一条消息证明的**状态承诺**与链上 `QueryCurrentStateCommitment` 一致
+- 最后一条 tally 证明的**计票承诺**与链上 `current_tally_commitment` 一致
+
+启用 `--recheck` 时，还将额外执行：
+
+- 从已索引消息本地重建 `MSG_HASHES` 链
+- 从链上 vkeys 重新构造公开信号（`input_hash`）
+- 对**每一条** processMessage 和 tally 证明运行 `snarkjs.groth16.verify()`
+
+### 电路注册表验证（`maci registry check`）
+
+- 从链上获取指定轮次合约存储的 vkeys
+- 与 CLI 内置的**电路注册表**进行比对
+- 逐项报告 `MATCH` 或 `MISMATCH`（processMessages、tally、deactivate、addNewKey）
+
+## 信任模型
+
+| 组件 | 信任来源 |
+|------|---------|
+| 电路注册表 | 版本控制的内置 vkeys，源自 `contracts/amaci/src/circuit_params.rs` |
+| 轮次数据 | CosmWasm RPC（链）+ MACI GraphQL 索引器 |
+| Layer 2 重验证 | 本地 `snarkjs.groth16.verify()`，独立于链上验证器 |
+
+## 下一步
+
+- [命令参考](/docs/cli/commands) — 所有命令和参数的完整文档
+- [验证机制详解](/docs/cli/verification) — Layer 1 与 Layer 2 验证的深度解析

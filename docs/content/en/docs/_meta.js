@@ -20,6 +20,11 @@ export default {
     title: 'SDK'
   },
   sdk: 'SDK',
+  '---cli-separator': {
+    type: 'separator',
+    title: 'CLI'
+  },
+  cli: 'CLI',
   '---examples-separator': {
     type: 'separator',
     title: 'Examples'

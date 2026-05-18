@@ -1,0 +1,113 @@
+# Verification Guide
+
+The `maci round` command supports two verification levels. This page explains what each level checks, when to use it, and how to interpret the results.
+
+## Overview
+
+| Level | Flag | Speed | Trust Assumptions |
+|-------|------|-------|-------------------|
+| Layer 1 | *(default)* | Fast (seconds) | Trusts the on-chain Groth16 verifier |
+| Layer 2 | `--recheck` | Slower (minutes) | Independently re-runs verification locally |
+
+---
+
+## Layer 1 — Commitment Audit
+
+**Default mode.** Reads data from the CosmWasm RPC and the MACI GraphQL indexer. No local cryptographic computation.
+
+### What it checks
+
+1. **Proof acceptance** — All submitted proofs have `verifyResult = true` on-chain. The smart contract itself verifies each Groth16 proof at submission time.
+
+2. **Message count consistency** — On-chain `MSG_CHAIN_LENGTH` equals the number of messages indexed by the MACI indexer. This confirms no messages were silently dropped.
+
+3. **Batch coverage** — The sum of all processed message batches is ≥ `MSG_CHAIN_LENGTH`. This ensures every message was included in at least one processing batch.
+
+4. **State commitment** — The state commitment from the last processMessages proof matches on-chain `QueryCurrentStateCommitment`. This confirms the operator processed messages from the correct state.
+
+5. **Tally commitment** — The tally commitment from the last tally proof matches on-chain `current_tally_commitment`. This confirms the published tally result is the one that was verified.
+
+### When to use
+
+- You want a **quick audit** of a round without downloading proof data
+- You trust that the on-chain Groth16 verifier is correct
+- You are checking many rounds or running automated monitoring
+
+```bash
+maci round dora1abc...xyz
+maci round dora1abc...xyz --network testnet
+```
+
+---
+
+## Layer 2 — Local ZK Re-verification
+
+**`--recheck` mode.** Downloads all proof data and re-runs Groth16 verification locally using snarkjs. Independent of the on-chain verifier.
+
+### What it checks (in addition to Layer 1)
+
+1. **MSG_HASHES chain rebuild** — Downloads all indexed messages and recomputes the `MSG_HASHES` chain locally. Confirms that the message data indexed matches what was committed on-chain.
+
+2. **Public signal reconstruction** — Fetches on-chain vkeys and reconstructs the `input_hash` public signal for each proof batch from scratch.
+
+3. **Local Groth16 verification** — Runs `snarkjs.groth16.verify()` for **every** processMessages and tally proof using the reconstructed public signals. This is the same library the operator used to generate the proofs.
+
+### When to use
+
+- You want **maximum assurance** and do not want to rely on the on-chain verifier
+- You are auditing a round for a security review or dispute resolution
+- You want to verify the operator did not submit manipulated proofs
+
+```bash
+maci round dora1abc...xyz --recheck
+maci round dora1abc...xyz --network testnet --recheck
+```
+
+> **Note**: Layer 2 verification downloads all proof data for the round and runs local ZK verification, which may take several minutes depending on the number of messages.
+
+---
+
+## Trust Model
+
+### What you are trusting in Layer 1
+
+- The CosmWasm smart contract's Groth16 verifier correctly validates proofs at submission time
+- The MACI GraphQL indexer accurately reflects on-chain message data
+- The RPC node returns honest chain state
+
+### What you are trusting in Layer 2
+
+- The `snarkjs` library correctly implements Groth16 verification
+- The bundled vkeys in the CLI are authentic (version-controlled and sourced from `contracts/amaci/src/circuit_params.rs`)
+- The MACI GraphQL indexer accurately reflects on-chain message data
+
+### Circuit registry trust
+
+The vkeys bundled in `@dorafactory/maci-cli` are version-controlled in the package's git history and sourced directly from the on-chain contract parameters. Use `maci registry check` to confirm the vkeys stored in a specific round contract match the bundled registry.
+
+---
+
+## Interpreting Results
+
+### All checks pass
+
+```
+✔ All 5 Layer 1 checks passed for dora1abc...xyz
+```
+
+The round's proofs and commitments are consistent. The operator processed messages and computed the tally correctly.
+
+### A check fails
+
+```
+✗ Tally commitment mismatch
+  On-chain:  0x1a2b3c...
+  From proof: 0xdeadbe...
+```
+
+A mismatch indicates either:
+- The operator submitted a proof with an incorrect commitment
+- The indexed data does not match what was committed on-chain (possible indexer issue)
+- The round is still in progress and the final tally has not been submitted yet
+
+Check that the round status is `Ended` before running verification. Rounds in progress will not have a final tally commitment.
