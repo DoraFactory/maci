@@ -1,5 +1,5 @@
 {
-  "name": "@dorafactory/maci-verify",
+  "name": "@dorafactory/maci-cli",
   "version": "0.1.0",
   "description": "Public CLI tool for MACI circuit registry and proof verification",
   "type": "module",

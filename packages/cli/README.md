@@ -1,4 +1,4 @@
-# @dorafactory/maci-verify
+# @dorafactory/maci-cli
 
 A public CLI tool for verifying aMACI (Anonymous Minimal Anti-Collusion Infrastructure) rounds and circuit registries on Dora Vota.
 
@@ -7,9 +7,9 @@ Anyone can run this tool to independently verify that a MACI round's proofs were
 ## Installation
 
 ```bash
-npm install -g @dorafactory/maci-verify
+npm install -g @dorafactory/maci-cli
 # or
-pnpm add -g @dorafactory/maci-verify
+pnpm add -g @dorafactory/maci-cli
 ```
 
 ## Commands
