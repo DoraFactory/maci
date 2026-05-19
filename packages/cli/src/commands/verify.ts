@@ -391,7 +391,7 @@ export const roundCommand: CommandModule = {
       .option('recheck', {
         type: 'boolean',
         description:
-          'Layer 2: re-verify ZK proofs locally using snarkjs (experimental)',
+          'Layer 2: re-verify ZK proofs locally using snarkjs',
         default: false,
       }),
   handler: (args) =>

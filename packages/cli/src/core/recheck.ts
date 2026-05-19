@@ -269,9 +269,6 @@ export async function runLayer2(
 
       // Next tally's prevTallyCommitment = this batch's newTallyCommitment
       currentTallyCommitment = newTallyCommitment;
-
-      // tally batch size sanity check (informational)
-      void tallyBS;
     } catch (err) {
       results.push({
         proofType: 'tally',
@@ -282,6 +279,17 @@ export async function runLayer2(
       });
     }
   }
+
+  // Tally batch coverage: tallyBS × tallyProofCount must cover all sign-ups
+  const tallyBatchesCovered = tallyBS * BigInt(tallyProofs.length);
+  const tallyCoverageOk = tallyBatchesCovered >= chainCfg.numSignUps;
+  results.push({
+    proofType: 'tally',
+    proofIndex: -1,
+    batchLabel: `tally coverage (${tallyProofs.length}×${tallyBS})`,
+    passed: tallyCoverageOk,
+    detail: `${tallyBatchesCovered} ${tallyCoverageOk ? '≥' : '<'} ${chainCfg.numSignUps} sign-ups`,
+  });
 
   return results;
 }

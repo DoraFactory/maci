@@ -46,16 +46,18 @@ maci registry check dora1abc...xyz
 给定一个 aMACI 轮次合约地址，CLI 将审计以下内容：
 
 - 所有已提交的证明均被智能合约**接受**（`verifyResult = true`）
+- 链上**报名数**与已索引报名数一致
 - 链上 `MSG_CHAIN_LENGTH` 与**已索引消息数**一致
-- **批次覆盖率**：已处理消息总数 ≥ 链长度
+- **消息批次覆盖率**：`msgProofCount × batchSize ≥ MSG_CHAIN_LENGTH`
 - 最后一条消息证明的**状态承诺**与链上 `QueryCurrentStateCommitment` 一致
 - 最后一条 tally 证明的**计票承诺**与链上 `current_tally_commitment` 一致
 
 启用 `--recheck` 时，还将额外执行：
 
 - 从已索引消息本地重建 `MSG_HASHES` 链
-- 从链上 vkeys 重新构造公开信号（`input_hash`）
-- 对**每一条** processMessage 和 tally 证明运行 `snarkjs.groth16.verify()`
+- 从链上配置（coordinatorHash、stateRoot、pollId 等）重新构造公开信号（`input_hash = SHA256(inputs) mod p`）
+- 从链上读取 vkeys，对**每一条** processMessage 和 tally 证明运行 `snarkjs.groth16.verify()`
+- **tally 批次覆盖率**：`tallyProofCount × 5^intStateTreeDepth ≥ numSignUps`
 
 ### 电路注册表验证（`maci registry check`）
 

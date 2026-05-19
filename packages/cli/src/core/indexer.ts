@@ -99,16 +99,21 @@ export async function getProofs(
   endpoint: string,
   contractAddress: string
 ): Promise<ProofEntry[]> {
-  const data = await graphql<{
-    proofData: { nodes: ProofEntry[] };
+  const PAGE_SIZE = 500;
+  const proofs: ProofEntry[] = [];
+
+  const first = await graphql<{
+    proofData: { totalCount: number; nodes: ProofEntry[] };
   }>(
     endpoint,
     `query {
       proofData(
-        first: 10000
+        first: ${PAGE_SIZE}
+        offset: 0
         filter: { contractAddress: { equalTo: "${contractAddress}" } }
         orderBy: [TIMESTAMP_ASC]
       ) {
+        totalCount
         nodes {
           id
           txHash
@@ -121,7 +126,40 @@ export async function getProofs(
       }
     }`
   );
-  return data.proofData.nodes;
+
+  const total = first.proofData.totalCount;
+  proofs.push(...first.proofData.nodes);
+
+  let offset = PAGE_SIZE;
+  while (proofs.length < total) {
+    const page = await graphql<{
+      proofData: { nodes: ProofEntry[] };
+    }>(
+      endpoint,
+      `query {
+        proofData(
+          first: ${PAGE_SIZE}
+          offset: ${offset}
+          filter: { contractAddress: { equalTo: "${contractAddress}" } }
+          orderBy: [TIMESTAMP_ASC]
+        ) {
+          nodes {
+            id
+            txHash
+            timestamp
+            actionType
+            commitment
+            proof
+            verifyResult
+          }
+        }
+      }`
+    );
+    proofs.push(...page.proofData.nodes);
+    offset += PAGE_SIZE;
+  }
+
+  return proofs;
 }
 
 export async function getMessageCount(
