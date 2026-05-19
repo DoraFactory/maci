@@ -46,16 +46,18 @@ maci registry check dora1abc...xyz
 Given an aMACI round contract address, the CLI audits:
 
 - All submitted proofs were **accepted by the smart contract** (`verifyResult = true`)
+- On-chain **sign-up count** matches the indexed sign-up count
 - On-chain `MSG_CHAIN_LENGTH` matches the count of **indexed messages**
-- **Batch coverage**: total processed messages ≥ chain length
+- **Message batch coverage**: `msgProofCount × batchSize ≥ MSG_CHAIN_LENGTH`
 - Last message proof's **state commitment** matches on-chain `QueryCurrentStateCommitment`
 - Last tally proof's **tally commitment** matches on-chain `current_tally_commitment`
 
 With `--recheck`, it additionally:
 
 - Rebuilds the `MSG_HASHES` chain locally from indexed messages
-- Reconstructs public signals (`input_hash`) from on-chain vkeys
-- Runs `snarkjs.groth16.verify()` for **every** processMessage and tally proof
+- Reconstructs public signals (`input_hash = SHA256(inputs) mod p`) from on-chain config (coordinatorHash, stateRoot, pollId, etc.)
+- Fetches on-chain vkeys and runs `snarkjs.groth16.verify()` for **every** processMessage and tally proof
+- **Tally batch coverage**: `tallyProofCount × 5^intStateTreeDepth ≥ numSignUps`
 
 ### Circuit Registry Verification (`maci registry check`)
 
