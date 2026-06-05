@@ -829,10 +829,15 @@ pub fn execute(
 
 pub fn execute_set_round_info(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     round_info: RoundInfo,
 ) -> Result<Response, ContractError> {
+    let voting_time = VOTINGTIME.load(deps.storage)?;
+    if env.block.time >= voting_time.start_time {
+        return Err(ContractError::PeriodError {});
+    }
+
     if !is_admin(deps.as_ref(), info.sender.as_ref())? {
         Err(ContractError::Unauthorized {})
     } else {

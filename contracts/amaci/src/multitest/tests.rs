@@ -3933,4 +3933,120 @@ mod test {
              InvalidProof, not NewKeyExist — confirms the nullifier was rolled back"
         );
     }
+
+    // ── set_round_info permission tests ──────────────────────────────────────
+
+    #[test]
+    fn test_set_round_info_success_before_voting() {
+        let mut app = create_app();
+
+        // Block time is before voting start (default start: 1571797424879000000 ns)
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        let result = maci_contract.set_round_info(&mut app, owner());
+        assert!(result.is_ok(), "Admin should be able to set round info before voting starts");
+    }
+
+    #[test]
+    fn test_set_round_info_fails_after_voting_starts() {
+        let mut app = create_app();
+
+        // Block time is before voting start so instantiate succeeds
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Advance to after voting start
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 + 60_000_000_000);
+        });
+
+        let err = maci_contract
+            .set_round_info(&mut app, owner())
+            .unwrap_err();
+
+        let contract_err: ContractError = err.downcast().unwrap();
+        assert_eq!(
+            contract_err,
+            ContractError::PeriodError {},
+            "Should not be able to set round info after voting starts"
+        );
+    }
+
+    #[test]
+    fn test_set_round_info_fails_exactly_at_voting_start() {
+        let mut app = create_app();
+
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Set block time exactly to voting start_time
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000);
+        });
+
+        let err = maci_contract
+            .set_round_info(&mut app, owner())
+            .unwrap_err();
+
+        let contract_err: ContractError = err.downcast().unwrap();
+        assert_eq!(
+            contract_err,
+            ContractError::PeriodError {},
+            "Should not be able to set round info at exact voting start time"
+        );
+    }
+
+    #[test]
+    fn test_set_round_info_unauthorized() {
+        let mut app = create_app();
+
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        let err = maci_contract
+            .set_round_info(&mut app, user1())
+            .unwrap_err();
+
+        let contract_err: ContractError = err.downcast().unwrap();
+        assert_eq!(
+            contract_err,
+            ContractError::Unauthorized {},
+            "Non-admin should not be able to set round info"
+        );
+    }
+
+    #[test]
+    fn test_set_round_info_empty_title_fails() {
+        let mut app = create_app();
+
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        let err = maci_contract
+            .set_empty_round_info(&mut app, owner())
+            .unwrap_err();
+
+        let contract_err: ContractError = err.downcast().unwrap();
+        assert_eq!(
+            contract_err,
+            ContractError::TitleIsEmpty {},
+            "Empty title should be rejected even before voting starts"
+        );
+    }
 }
