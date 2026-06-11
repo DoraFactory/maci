@@ -107,17 +107,6 @@ export class MACI {
     return client.getPollId();
   }
 
-  async getStateIdxInc({
-    address,
-    contractAddress
-  }: {
-    address: string;
-    contractAddress: string;
-  }) {
-    const client = await this.contract.amaciQueryClient({ contractAddress });
-    return client.getStateIdxInc({ address });
-  }
-
   async getVoiceCreditBalance({
     stateIdx,
     contractAddress
@@ -908,10 +897,16 @@ export class MACI {
         maciKeypair = this.maciKeypair;
       }
 
-      const stateIdx = await this.getStateIdxInc({
-        address,
-        contractAddress
+      // In aMACI the dora address is not the identity; resolve the state index
+      // from the maci pubkey instead.
+      const stateIdx = await this.getStateIdxByPubKey({
+        contractAddress,
+        pubKey: maciKeypair.pubKey
       });
+
+      if (stateIdx === -1) {
+        throw new Error('State index is not set, Please signup or addNewKey first');
+      }
 
       const operatorCoordPubKey = await this.getRoundInfo({
         contractAddress

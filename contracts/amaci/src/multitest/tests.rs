@@ -4049,4 +4049,139 @@ mod test {
             "Empty title should be rejected even before voting starts"
         );
     }
+
+    // ============================================================
+    // Edge-case behavioral tests
+    // ============================================================
+
+    // instantiate must reject start_time >= end_time.
+    #[test]
+    fn instantiate_should_reject_start_after_end() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let err = code_id
+            .instantiate_with_wrong_voting_time(&mut app, owner(), user1(), user2(), "Group")
+            .unwrap_err();
+        assert_eq!(ContractError::WrongTimeSet {}, err.downcast().unwrap());
+    }
+
+    // StaticWhitelist must reject a second signup reusing an existing pubkey,
+    // even from a different (whitelisted) address.
+    #[test]
+    fn signup_should_reject_duplicate_pubkey_in_static_whitelist() {
+        let mut app = create_app();
+        let contract = MaciContract::instantiate_default(&mut app, true).unwrap();
+
+        // Enter the voting window.
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000).plus_minutes(1);
+        });
+
+        let pubkey = test_pubkey1();
+        contract.sign_up(&mut app, user1(), pubkey.clone()).unwrap();
+
+        // A different whitelisted address tries to reuse the same pubkey.
+        let err = contract
+            .sign_up(&mut app, user2(), pubkey.clone())
+            .unwrap_err();
+        assert_eq!(
+            ContractError::UserAlreadyRegistered {},
+            err.downcast().unwrap()
+        );
+
+        // The original mapping must still point to user1's leaf (index 0).
+        assert_eq!(
+            contract.signuped(&app, pubkey).unwrap(),
+            Some(Uint256::from_u128(0u128))
+        );
+        assert_eq!(contract.num_sign_up(&app).unwrap(), Uint256::from_u128(1u128));
+    }
+
+    // A round with zero signups must not be finalizable with non-zero
+    // results, but an all-zero finalize is allowed.
+    #[test]
+    fn empty_round_should_reject_nonzero_results() {
+        let mut app = create_app();
+        // Empty whitelist => nobody can sign up => num_sign_ups stays 0.
+        let contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Move past the voting window (start + 12 minutes; window is 11 minutes).
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000).plus_minutes(12);
+        });
+
+        contract.start_process(&mut app, owner()).unwrap();
+        contract.stop_processing(&mut app, owner()).unwrap();
+
+        assert_eq!(contract.num_sign_up(&app).unwrap(), Uint256::zero());
+
+        // Non-zero results must be rejected.
+        let err = contract
+            .stop_tallying(
+                &mut app,
+                owner(),
+                vec![
+                    Uint256::from_u128(100u128),
+                    Uint256::zero(),
+                    Uint256::zero(),
+                    Uint256::zero(),
+                    Uint256::zero(),
+                ],
+                Uint256::zero(),
+            )
+            .unwrap_err();
+        assert_eq!(
+            ContractError::InvalidEmptyRoundResult {},
+            err.downcast().unwrap()
+        );
+
+        // All-zero results are accepted and the round ends.
+        contract
+            .stop_tallying(
+                &mut app,
+                owner(),
+                vec![Uint256::zero(); 5],
+                Uint256::zero(),
+            )
+            .unwrap();
+        assert_eq!(
+            contract.get_period(&app).unwrap(),
+            Period {
+                status: PeriodStatus::Ended
+            }
+        );
+    }
+
+    // stop_tallying computes the elapsed time since end_time with saturating_sub.
+    // If the block time is earlier than end_time it must still finalize cleanly
+    // without panicking.
+    #[test]
+    fn stop_tallying_does_not_panic_when_block_time_before_end_time() {
+        let mut app = create_app();
+        let contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Advance past the voting window so the round can be processed.
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000).plus_minutes(12);
+        });
+        contract.start_process(&mut app, owner()).unwrap();
+        contract.stop_processing(&mut app, owner()).unwrap();
+
+        // Rewind the block time to BEFORE end_time (end_time = start + 11 min),
+        // exercising the saturating path where current_time < end_time.
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000).plus_minutes(5);
+        });
+
+        // Must not panic; empty round finalizes with all-zero results.
+        contract
+            .stop_tallying(&mut app, owner(), vec![Uint256::zero(); 5], Uint256::zero())
+            .unwrap();
+        assert_eq!(
+            contract.get_period(&app).unwrap(),
+            Period {
+                status: PeriodStatus::Ended
+            }
+        );
+    }
 }

@@ -235,11 +235,6 @@ export type QueryMsg =
       get_all_results: {};
     }
   | {
-      get_state_idx_inc: {
-        address: Addr;
-      };
-    }
-  | {
       get_voice_credit_balance: {
         index: Uint256;
       };

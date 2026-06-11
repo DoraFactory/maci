@@ -298,21 +298,6 @@ export class MaciClient {
     });
   }
 
-  async getStateIdxInc({
-    signer,
-    address,
-    contractAddress
-  }: {
-    signer?: OfflineSigner;
-    address?: string;
-    contractAddress: string;
-  }) {
-    if (!address) {
-      address = await this.getAddress(signer);
-    }
-    return await this.maci.getStateIdxInc({ address, contractAddress });
-  }
-
   async getVoiceCreditBalance({
     signer,
     stateIdx,

@@ -14,7 +14,7 @@ template Uint32to96() {
     signal input in[3];
     signal output out;
 
-    out <== in[2] + in[1] * 4294967296 + in[0] * 18446744073709552000;
+    out <== in[2] + in[1] * 4294967296 + in[0] * 18446744073709551616;
 }
 
 /**

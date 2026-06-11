@@ -1354,6 +1354,15 @@ impl MaciContract {
             .query_wasm_smart(self.addr(), &QueryMsg::Signuped { pubkey })
     }
 
+    pub fn amaci_voice_credit_balance(
+        &self,
+        app: &DefaultApp,
+        index: Uint256,
+    ) -> StdResult<Uint256> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetVoiceCreditBalance { index })
+    }
+
     pub fn amaci_vote_option_map(&self, app: &DefaultApp) -> StdResult<Vec<String>> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::VoteOptionMap {})

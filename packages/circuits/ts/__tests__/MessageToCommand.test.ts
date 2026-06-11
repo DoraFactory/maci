@@ -322,6 +322,78 @@ describe('MessageToCommand circuit', function test() {
     expect(outputVotes).to.equal(votes);
   });
 
+  it('should reconstruct vote weight when the high 32-bit chunk is non-zero (>= 2^64)', async () => {
+    /**
+     * Test Case: High-chunk (in[0]) coverage for Uint32to96
+     *
+     * Uint32to96 reconstructs a 96-bit weight from three 32-bit chunks:
+     *   out = low + mid * 2^32 + high * 2^64
+     *
+     * The high chunk `in[0]` is only non-zero when the vote weight is >= 2^64.
+     * Other MessageToCommand tests (including the "2^60" case) keep the high
+     * chunk at 0, so this test specifically covers the high-chunk path.
+     *
+     * It picks a weight that sets all three chunks, including the high chunk,
+     * and asserts:
+     *   - circuit newVoteWeight == the true packed value
+     *   - circuit newVoteWeight == SDK unpackElement().newVotes
+     */
+    // 2^70 sets the high chunk (bits 160-191 of the packed element); the extra
+    // terms light up the mid and low chunks so all three are exercised.
+    const votes = 2n ** 70n + (2n ** 40n) + 12345n;
+    expect(votes >> 64n > 0n).to.equal(true); // sanity: high chunk is non-zero
+
+    const stateIdx = 12;
+    const voIdx = 6;
+    const nonce = 8;
+    const pollId = 1;
+    const salt = 24681357n;
+
+    const coordPubKey = coordinatorClient.getSigner().getPublicKey().toPoints();
+
+    const packaged = packElement({ nonce, stateIdx, voIdx, newVotes: votes, pollId });
+
+    // SDK must unpack the exact same value (math-correct reference)
+    const sdkUnpacked = unpackElement(packaged);
+    expect(sdkUnpacked.newVotes).to.equal(votes, 'SDK unpackElement should round-trip the weight');
+
+    const voterSigner = voterClient.getSigner();
+    const voterPubKey = voterSigner.getPublicKey().toPoints();
+
+    const msgHash = poseidon([packaged, voterPubKey[0], voterPubKey[1]]);
+    const signature = voterSigner.sign(msgHash);
+
+    const command = [
+      packaged,
+      voterPubKey[0],
+      voterPubKey[1],
+      salt,
+      signature.R8[0],
+      signature.R8[1],
+      signature.S
+    ];
+
+    const ephemeralKeypair = voterClient.getSigner();
+    const ephemeralPubKey = ephemeralKeypair.getPublicKey().toPoints();
+    const sharedKey = ephemeralKeypair.genEcdhSharedKey(coordPubKey);
+    const encryptedMessage = poseidonEncrypt(command, sharedKey, 0n);
+
+    const circuitInputs = {
+      message: encryptedMessage,
+      encPrivKey: coordinatorClient.getSigner().getFormatedPrivKey(),
+      encPubKey: ephemeralPubKey
+    };
+
+    const witness = await circuit.calculateWitness(circuitInputs);
+    await circuit.expectConstraintPass(witness);
+
+    const outputVotes = await getSignal(circuit, witness, 'newVoteWeight');
+
+    // Circuit must match the true value AND the SDK reference exactly.
+    expect(outputVotes).to.equal(votes, 'circuit newVoteWeight mismatch');
+    expect(outputVotes).to.equal(sdkUnpacked.newVotes, 'circuit vs SDK newVotes mismatch');
+  });
+
   it('should handle maximum 32-bit values for indices', async () => {
     /**
      * Test Case: Maximum index values
