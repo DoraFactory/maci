@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>maci ui — aMACI Verifier</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">maci</span>
+      <span class="brand-sub">aMACI round verifier · read-only</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="verify">Round Verification</button>
+      <button class="tab" data-tab="registry">Circuit Registry</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ── Round Verification ─────────────────────────────────────────── -->
+    <section id="tab-verify" class="tab-panel active">
+      <form id="verify-form" class="card form-card" autocomplete="off">
+        <div class="form-row">
+          <label for="contract">Contract address</label>
+          <input id="contract" name="contract" type="text" spellcheck="false"
+                 placeholder="dora1..." required />
+        </div>
+        <div class="form-row form-row-inline">
+          <div class="field">
+            <label for="network">Network</label>
+            <select id="network" name="network">
+              <option value="mainnet" selected>mainnet</option>
+              <option value="testnet">testnet</option>
+            </select>
+          </div>
+          <div class="field field-checkbox">
+            <label class="checkbox-label">
+              <input id="recheck" name="recheck" type="checkbox" />
+              <span>Layer 2 re-check <span class="dim">(local snarkjs, slower)</span></span>
+            </label>
+          </div>
+        </div>
+        <details class="advanced">
+          <summary>Advanced endpoints</summary>
+          <div class="form-row">
+            <label for="rpc">RPC override</label>
+            <input id="rpc" name="rpc" type="text" spellcheck="false" placeholder="(network default)" />
+          </div>
+          <div class="form-row">
+            <label for="indexer">Indexer override</label>
+            <input id="indexer" name="indexer" type="text" spellcheck="false" placeholder="(network default)" />
+          </div>
+        </details>
+        <div class="form-actions">
+          <button id="verify-btn" type="submit" class="btn-primary">Verify round</button>
+        </div>
+      </form>
+
+      <div id="verify-banner" class="banner hidden"></div>
+
+      <div id="verify-error" class="card error-card hidden"></div>
+
+      <div id="steps-card" class="card hidden">
+        <h2>Progress</h2>
+        <ol id="steps" class="steps"></ol>
+      </div>
+
+      <div id="summary-card" class="card hidden">
+        <h2>Round Summary</h2>
+        <dl id="summary" class="summary-grid"></dl>
+      </div>
+
+      <div id="report-card" class="card hidden">
+        <div class="card-head">
+          <h2>Verification Checks</h2>
+          <button id="export-btn" class="btn-ghost" type="button">Export JSON</button>
+        </div>
+        <table class="checks-table">
+          <thead>
+            <tr><th>Check</th><th class="col-status">Status</th></tr>
+          </thead>
+          <tbody id="checks"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Circuit Registry ───────────────────────────────────────────── -->
+    <section id="tab-registry" class="tab-panel">
+      <div class="card">
+        <h2>Known aMACI Circuits</h2>
+        <p class="dim small">vkeys built into this CLI, sourced from <code>circuit_params.rs</code>. Click a row for details.</p>
+        <table class="registry-table">
+          <thead>
+            <tr>
+              <th>Power</th><th>Status</th>
+              <th>state</th><th>int</th><th>vote</th><th>batch</th>
+            </tr>
+          </thead>
+          <tbody id="registry-rows"></tbody>
+        </table>
+        <div id="circuit-detail" class="circuit-detail hidden"></div>
+      </div>
+
+      <form id="check-form" class="card form-card" autocomplete="off">
+        <h2>Check a contract's vkeys</h2>
+        <p class="dim small">Reads vkeys from the contract on-chain and compares them against the registry.</p>
+        <div class="form-row">
+          <label for="check-contract">Contract address</label>
+          <input id="check-contract" type="text" spellcheck="false" placeholder="dora1..." required />
+        </div>
+        <div class="form-row form-row-inline">
+          <div class="field">
+            <label for="check-network">Network</label>
+            <select id="check-network">
+              <option value="mainnet" selected>mainnet</option>
+              <option value="testnet">testnet</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button id="check-btn" type="submit" class="btn-primary">Check vkeys</button>
+        </div>
+        <div id="check-result" class="check-result hidden"></div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="footer dim small">
+    Local read-only verifier — no private keys, no transactions. Anyone can audit.
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

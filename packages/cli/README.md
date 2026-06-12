@@ -28,6 +28,9 @@ maci registry list
 
 # Compare on-chain vkeys against the bundled registry
 maci registry check dora1abc...xyz
+
+# Launch the local web UI (visual verification dashboard)
+maci ui
 ```
 
 ## Commands
@@ -147,6 +150,27 @@ maci round dora1abc...xyz --network testnet --recheck
 
 ---
 
+### `maci ui`
+
+Starts a local web UI for round verification and registry browsing — the same checks as `maci round` and `maci registry`, rendered as a visual dashboard with live progress.
+
+```bash
+maci ui                 # serve on http://127.0.0.1:7766 and open the browser
+maci ui --port 8080     # custom port (auto-increments if busy)
+maci ui --no-open       # don't open the browser automatically
+```
+
+Features:
+
+- Run Layer 1 / Layer 2 round verification with real-time step progress (streamed via SSE)
+- Structured verification report: per-check PASS/FAIL, commitment comparisons, result banner
+- Export the full verification result as JSON
+- Browse bundled circuits (parameters, vkey fingerprints, zkey links) and check a contract's on-chain vkeys against the registry
+
+The server binds to `127.0.0.1` only and performs the same read-only queries as the CLI commands — no private keys, no transactions.
+
+---
+
 ## Options Reference
 
 | Option | Commands | Default | Description |
@@ -155,6 +179,8 @@ maci round dora1abc...xyz --network testnet --recheck
 | `--rpc` | `round` | *(see Network Defaults)* | Override the CosmWasm RPC endpoint |
 | `--indexer` | `round` | *(see Network Defaults)* | Override the MACI GraphQL indexer endpoint |
 | `--recheck` | `round` | `false` | Enable Layer 2 local ZK re-verification |
+| `--port` | `ui` | `7766` | Port for the local web UI (auto-increments if busy) |
+| `--no-open` | `ui` | — | Don't open the browser automatically |
 
 ## Verification Levels
 
