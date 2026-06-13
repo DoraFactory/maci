@@ -84,6 +84,12 @@ code { font-family: var(--mono); font-size: 12.5px; }
   border-color: var(--border);
 }
 
+.tab-link {
+  text-decoration: none;
+  display: inline-block;
+  line-height: 1.5;
+}
+
 /* ── Cards ── */
 
 .card {
