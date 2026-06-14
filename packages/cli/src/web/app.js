@@ -29,6 +29,31 @@
     return `<span class="badge ${kind}">${label}</span>`;
   }
 
+  // Animate any standalone integers inside `text` from 0 to their final value.
+  function countUp(node, text, dur = 700) {
+    const final = String(text);
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const parts = final.split(/(\d[\d,]*)/);
+    const targets = parts.map((p) =>
+      /^\d/.test(p) ? parseInt(p.replace(/,/g, ''), 10) : null
+    );
+    if (reduced || !targets.some((t) => t !== null && t > 0)) {
+      node.textContent = final;
+      return;
+    }
+    const start = performance.now();
+    function frame(now) {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      node.textContent = parts
+        .map((p, i) => (targets[i] === null ? p : String(Math.round(targets[i] * eased))))
+        .join('');
+      if (t < 1) requestAnimationFrame(frame);
+      else node.textContent = final;
+    }
+    requestAnimationFrame(frame);
+  }
+
   function matchBadge(value) {
     if (value === null || value === undefined) return badge('na', 'N/A');
     return value ? badge('pass', 'MATCH') : badge('fail', 'MISMATCH');
@@ -89,7 +114,10 @@
     summaryEl.innerHTML = '';
     for (const [k, v] of fields) {
       summaryEl.appendChild(el('dt', null, k));
-      summaryEl.appendChild(el('dd', null, v));
+      const dd = el('dd');
+      if (k === 'Sign-ups' || k === 'Messages') countUp(dd, v);
+      else dd.textContent = v;
+      summaryEl.appendChild(dd);
     }
     summaryCard.classList.remove('hidden');
   }

@@ -7,6 +7,13 @@
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const I18N = window.PROTOCOL_I18N;
 
+  // Honor reduced-motion for SMIL-driven particle animations (CSS can't reach them)
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    $$('svg').forEach((svg) => {
+      if (typeof svg.pauseAnimations === 'function') svg.pauseAnimations();
+    });
+  }
+
   // ── i18n ──────────────────────────────────────────────────────────────────
 
   let lang = localStorage.getItem('maci-proto-lang') || 'en';
@@ -47,6 +54,31 @@
     { threshold: 0.25 }
   );
   $$('.reveal').forEach((sec) => observer.observe(sec));
+
+  // ── Section 3: add-key animation (play once on view, replayable) ───────────
+
+  const addkeySvg = $('.addkey-svg');
+  function playAddkey() {
+    if (!addkeySvg) return;
+    addkeySvg.classList.remove('play');
+    void addkeySvg.getBoundingClientRect(); // force reflow to restart animations
+    addkeySvg.classList.add('play');
+  }
+  if (addkeySvg) {
+    const addkeyObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            playAddkey();
+            addkeyObserver.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.4 }
+    );
+    addkeyObserver.observe(addkeySvg);
+    $('#addkey-replay').addEventListener('click', playAddkey);
+  }
 
   // ── Section 4: phase stepper ──────────────────────────────────────────────
 
@@ -172,13 +204,13 @@
   // ── Section 7: anonymity-set slider ───────────────────────────────────────
 
   const slider = $('#anon-slider');
-  // Marker positions sampled along the timing-risk curve in the SVG
+  // Marker positions sampled along the rising effective-anonymity curve
   const MARKER_POS = [
-    { x: 60, y: 70 },
-    { x: 227, y: 105 },
-    { x: 395, y: 180 },
-    { x: 562, y: 219 },
-    { x: 730, y: 229 },
+    { x: 60, y: 205 },
+    { x: 215, y: 182 },
+    { x: 370, y: 128 },
+    { x: 560, y: 78 },
+    { x: 730, y: 62 },
   ];
 
   function renderAnon() {

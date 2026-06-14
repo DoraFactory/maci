@@ -43,6 +43,7 @@ window.PROTOCOL_I18N = {
     's3.stateTree': 'State tree',
     's3.dkey': 'deactivated key',
     's3.nullifier': '+ nullifier: each deactivated key usable once',
+    's3.replay': 'Replay',
     's3.cut':
       'The ZK proof\u2019s hiding property severs the link: no observer \u2014 not even the coordinator \u2014 can map the new K_i back to the deactivated key it came from.',
     's3.compare.maci':
@@ -132,8 +133,11 @@ window.PROTOCOL_I18N = {
     's7.title': 'Anonymity set: how strong in practice?',
     's7.lead':
       'The ZK guarantee is constant, but timing-correlation risk depends on how many people vote concurrently. The gap between the two curves is what trust configuration must cover. Drag the slider.',
-    's7.crypto': 'Cryptographic anonymity (ZK proof) \u2014 constant',
+    's7.crypto': 'Cryptographic anonymity (ZK proof) \u2014 ceiling',
     's7.timing': 'Timing-correlation risk \u2014 fades with scale',
+    's7.effective': 'Effective anonymity \u2014 rises with set size',
+    's7.gap': 'timing-correlation risk (the gap)',
+    's7.ylabel': 'participation anonymity',
     's7.xlabel': 'anonymity set size (concurrent voters)',
     's7.scenario': 'Scenario',
     's7.risk': 'Timing risk',
@@ -218,6 +222,7 @@ window.PROTOCOL_I18N = {
     's3.stateTree': 'State tree',
     's3.dkey': 'deactivated key',
     's3.nullifier': '+ nullifier\uff1a\u6bcf\u4e2a deactivated key \u53ea\u80fd\u7528\u4e00\u6b21',
+    's3.replay': '\u91cd\u64ad',
     's3.cut':
       'ZK proof \u7684\u9690\u85cf\u5c5e\u6027\u526a\u65ad\u4e86\u8fd9\u6761\u5173\u8054\uff1a\u4efb\u4f55\u89c2\u5bdf\u8005\u2014\u2014\u5305\u62ec coordinator\u2014\u2014\u90fd\u65e0\u6cd5\u4ece\u65b0\u7684 K_i \u53cd\u63a8\u51fa\u5b83\u5bf9\u5e94\u54ea\u4e2a deactivated key\u3002',
     's3.compare.maci':
@@ -307,8 +312,11 @@ window.PROTOCOL_I18N = {
     's7.title': '\u533f\u540d\u96c6\uff1a\u5b9e\u9645\u533f\u540d\u6027\u6709\u591a\u5f3a\uff1f',
     's7.lead':
       'ZK \u4fdd\u8bc1\u662f\u6052\u5b9a\u7684\uff0c\u4f46\u65f6\u95f4\u5173\u8054\u98ce\u9669\u53d6\u51b3\u4e8e\u540c\u65f6\u6bb5\u6709\u591a\u5c11\u4eba\u6295\u7968\u3002\u4e24\u6761\u66f2\u7ebf\u4e4b\u95f4\u7684\u5dee\u8ddd\uff0c\u5c31\u662f\u9700\u8981\u7528\u4fe1\u4efb\u914d\u7f6e\u6765\u5f25\u8865\u7684\u7a7a\u95f4\u3002\u62d6\u52a8\u6ed1\u5757\u8bd5\u8bd5\u3002',
-    's7.crypto': '\u5bc6\u7801\u5b66\u533f\u540d\u4fdd\u8bc1\uff08ZK proof\uff09\u2014 \u6052\u5b9a',
+    's7.crypto': '\u5bc6\u7801\u5b66\u533f\u540d\u4fdd\u8bc1\uff08ZK proof\uff09\u2014 \u4e0a\u9650',
     's7.timing': '\u65f6\u95f4\u5173\u8054\u98ce\u9669 \u2014 \u968f\u89c4\u6a21\u6d88\u9000',
+    's7.effective': '\u6709\u6548\u533f\u540d\u6027 \u2014 \u968f\u89c4\u6a21\u4e0a\u5347',
+    's7.gap': '\u65f6\u95f4\u5173\u8054\u98ce\u9669\uff08\u5dee\u8ddd\uff09',
+    's7.ylabel': '\u53c2\u4e0e\u533f\u540d\u6027',
     's7.xlabel': '\u533f\u540d\u96c6\u5927\u5c0f\uff08\u540c\u65f6\u6bb5\u6295\u7968\u4eba\u6570\uff09',
     's7.scenario': '\u4ee3\u8868\u573a\u666f',
     's7.risk': '\u65f6\u95f4\u5173\u8054\u98ce\u9669',

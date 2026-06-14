@@ -87,6 +87,9 @@
       <p class="sec-lead" data-i18n="s3.lead">…</p>
 
       <div class="scene addkey">
+        <button id="addkey-replay" class="replay-btn" type="button">
+          ↻ <span data-i18n="s3.replay">Replay</span>
+        </button>
         <svg viewBox="0 0 760 300" class="addkey-svg" aria-hidden="true">
           <!-- deactivate tree -->
           <g class="deact-tree">
@@ -98,24 +101,27 @@
             <g class="slot"><rect x="50" y="190" width="110" height="30" rx="4" /><text x="105" y="210">enc(·)</text></g>
           </g>
 
-          <!-- traveling deactivated key -->
+          <!-- the traceable link dkey ↔ K_i, severed by the proof underneath -->
+          <line x1="160" y1="128" x2="380" y2="206" class="link-line half1" />
+          <line x1="380" y1="206" x2="580" y2="165" class="link-line half2" />
+          <text x="380" y="232" class="cut-mark">✂</text>
+
+          <!-- ZK shield -->
+          <g class="zk-shield">
+            <path d="M380 92 L422 108 L422 162 Q422 194 380 210 Q338 194 338 162 L338 108 Z" />
+            <text x="380" y="142" class="zk-text">ZK</text>
+            <text x="380" y="160" class="zk-sub">proof</text>
+          </g>
+          <text x="380" y="258" class="svg-note" data-i18n="s3.nullifier">+ nullifier: each deactivated key usable once</text>
+
+          <!-- deactivated key fed in, then absorbed by the proof -->
           <g class="dkey">
             <circle cx="0" cy="0" r="9" />
             <text x="0" y="-16" class="dkey-label" data-i18n="s3.dkey">deactivated key</text>
           </g>
 
-          <!-- link line (gets cut) -->
-          <line x1="180" y1="125" x2="330" y2="150" class="link-line half1" />
-          <line x1="330" y1="150" x2="470" y2="150" class="link-line half2" />
-          <text x="330" y="190" class="cut-mark">✂</text>
-
-          <!-- ZK shield -->
-          <g class="zk-shield">
-            <path d="M380 100 L420 115 L420 165 Q420 195 380 210 Q340 195 340 165 L340 115 Z" />
-            <text x="380" y="150" class="zk-text">ZK</text>
-            <text x="380" y="168" class="zk-sub">proof</text>
-          </g>
-          <text x="380" y="240" class="svg-note" data-i18n="s3.nullifier">+ nullifier: each deactivated key usable once</text>
+          <!-- legitimate output: a fresh K_i is registered -->
+          <line x1="420" y1="150" x2="566" y2="165" class="emit-line" />
 
           <!-- state tree -->
           <g class="state-tree">
@@ -125,7 +131,6 @@
             <g class="slot"><rect x="580" y="110" width="130" height="30" rx="4" /><text x="645" y="130">K_b</text></g>
             <g class="slot newkey"><rect x="580" y="150" width="130" height="30" rx="4" /><text x="645" y="170">K_i  ✨</text></g>
           </g>
-          <line x1="470" y1="150" x2="560" y2="165" class="emit-line" />
         </svg>
         <p class="caption" data-i18n="s3.cut">…</p>
       </div>
@@ -168,24 +173,29 @@
 
             <!-- flows -->
             <g class="flow flow-setup">
-              <path d="M580 110 C 520 70, 520 70, 458 110" />
+              <path id="fp-setup" d="M580 110 C 520 70, 520 70, 458 110" />
               <text x="519" y="64" data-i18n="s4.flow.setup">K_c · deactivate root · T_start/T_end</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-setup" /></animateMotion></circle>
             </g>
             <g class="flow flow-addkey">
-              <path d="M180 110 C 240 70, 240 70, 302 110" />
+              <path id="fp-addkey" d="M180 110 C 240 70, 240 70, 302 110" />
               <text x="241" y="64" data-i18n="s4.flow.addkey">ZK proof + new K_i</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-addkey" /></animateMotion></circle>
             </g>
             <g class="flow flow-vote">
-              <path d="M180 130 C 240 170, 240 170, 302 130" />
+              <path id="fp-vote" d="M180 130 C 240 170, 240 170, 302 130" />
               <text x="241" y="186" data-i18n="s4.flow.vote">enc(sign(vote, k_i), K_c)</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-vote" /></animateMotion></circle>
             </g>
             <g class="flow flow-read">
-              <path d="M458 110 C 520 70, 520 70, 580 110" />
+              <path id="fp-read" d="M458 110 C 520 70, 520 70, 580 110" />
               <text x="519" y="64" data-i18n="s4.flow.read">read all messages, decrypt with k_c</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-read" /></animateMotion></circle>
             </g>
             <g class="flow flow-proofs">
-              <path d="M580 130 C 520 170, 520 170, 458 130" />
+              <path id="fp-proofs" d="M580 130 C 520 170, 520 170, 458 130" />
               <text x="519" y="186" data-i18n="s4.flow.proofs">process proof + tally proof</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-proofs" /></animateMotion></circle>
             </g>
             <g class="flow flow-verify">
               <circle cx="380" cy="60" r="18" class="verify-ring" />
@@ -318,25 +328,34 @@
       <p class="sec-lead" data-i18n="s7.lead">…</p>
 
       <div class="anon" id="anon">
-        <svg viewBox="0 0 760 280" class="anon-svg" aria-hidden="true">
+        <svg viewBox="0 0 760 290" class="anon-svg" aria-hidden="true">
           <!-- axes -->
-          <line x1="60" y1="20" x2="60" y2="230" class="axis" />
-          <line x1="60" y1="230" x2="730" y2="230" class="axis" />
-          <!-- constant crypto guarantee -->
-          <line x1="60" y1="45" x2="730" y2="45" class="curve-crypto" />
-          <text x="395" y="34" class="curve-label crypto" data-i18n="s7.crypto">Cryptographic anonymity (ZK proof) — constant</text>
-          <!-- timing risk decay: high at small set, decays -->
-          <path d="M60 70 C 220 80, 300 170, 450 205 C 560 226, 660 228, 730 229" class="curve-timing" />
-          <text x="430" y="130" class="curve-label timing" data-i18n="s7.timing">Timing-correlation risk — fades with scale</text>
-          <!-- moving marker -->
-          <circle id="anon-marker" cx="60" cy="70" r="8" class="marker" />
+          <line x1="60" y1="20" x2="60" y2="235" class="axis" />
+          <line x1="60" y1="235" x2="730" y2="235" class="axis" />
+          <text x="22" y="128" class="axis-label" transform="rotate(-90 22 128)" data-i18n="s7.ylabel">participation anonymity</text>
+
+          <!-- residual timing-correlation risk = gap between ceiling and effective curve -->
+          <path d="M60 50 L730 50 L730 62 C 620 66, 470 88, 370 128 C 280 165, 200 198, 60 205 Z" class="gap-area" />
+
+          <!-- constant cryptographic ceiling -->
+          <line x1="60" y1="50" x2="730" y2="50" class="curve-crypto" />
+          <text x="305" y="40" class="curve-label crypto" data-i18n="s7.crypto">Cryptographic anonymity (ZK proof) — ceiling</text>
+
+          <!-- effective participation anonymity: rises toward the ceiling with scale -->
+          <path d="M60 205 C 200 198, 280 165, 370 128 C 470 88, 620 66, 730 62" class="curve-effective" />
+          <text x="500" y="185" class="curve-label effective" data-i18n="s7.effective">Effective anonymity — rises with set size</text>
+          <text x="220" y="98" class="curve-label gap" data-i18n="s7.gap">timing-correlation risk (the gap)</text>
+
+          <!-- moving marker rides the effective curve -->
+          <circle id="anon-marker" cx="60" cy="205" r="8" class="marker" />
+
           <!-- x tick labels -->
-          <text x="60" y="252" class="tick">≤5</text>
-          <text x="227" y="252" class="tick">~10</text>
-          <text x="395" y="252" class="tick">~60</text>
-          <text x="562" y="252" class="tick">500+</text>
-          <text x="730" y="252" class="tick">100k+</text>
-          <text x="395" y="274" class="tick dim-tick" data-i18n="s7.xlabel">anonymity set size (concurrent voters)</text>
+          <text x="60" y="256" class="tick">≤5</text>
+          <text x="215" y="256" class="tick">~10</text>
+          <text x="370" y="256" class="tick">~60</text>
+          <text x="560" y="256" class="tick">500+</text>
+          <text x="730" y="256" class="tick">100k+</text>
+          <text x="395" y="280" class="tick dim-tick" data-i18n="s7.xlabel">anonymity set size (concurrent voters)</text>
         </svg>
 
         <input type="range" id="anon-slider" min="0" max="4" step="1" value="0" />

@@ -52,19 +52,23 @@
 
 /* ── Scroll reveal ── */
 
-.reveal {
+.reveal > * {
   opacity: 0;
-  transform: translateY(28px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
+  transform: translateY(18px);
+  transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
 }
 
-.reveal.in-view {
-  opacity: 1;
-  transform: none;
-}
+.reveal.in-view > * { opacity: 1; transform: none; }
+
+.reveal.in-view > *:nth-child(1) { transition-delay: 0.04s; }
+.reveal.in-view > *:nth-child(2) { transition-delay: 0.12s; }
+.reveal.in-view > *:nth-child(3) { transition-delay: 0.2s; }
+.reveal.in-view > *:nth-child(4) { transition-delay: 0.28s; }
+.reveal.in-view > *:nth-child(5) { transition-delay: 0.36s; }
+.reveal.in-view > *:nth-child(n + 6) { transition-delay: 0.42s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal { opacity: 1; transform: none; transition: none; }
+  .reveal > * { opacity: 1; transform: none; transition: none; }
   .proto * { animation: none !important; transition: none !important; }
 }
 
@@ -90,6 +94,10 @@
   line-height: 1.25;
   margin: 0 auto 18px;
   max-width: 640px;
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .hero .lead {
@@ -122,12 +130,15 @@
 
 .tension-card {
   flex: 1;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   padding: 20px;
+  box-shadow: var(--shadow-1);
   opacity: 0;
-  transition: opacity 0.6s ease 0.25s, transform 0.6s ease 0.25s;
+  transition: opacity 0.6s var(--ease-out) 0.25s, transform 0.6s var(--ease-out) 0.25s;
 }
 
 .tension-card:first-child { transform: translateX(-24px); }
@@ -183,10 +194,13 @@
 /* ── Section 2: key change scene ── */
 
 .scene {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   padding: 28px 24px;
+  box-shadow: var(--shadow-1);
 }
 
 .keychange { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
@@ -323,12 +337,12 @@
 .addkey-svg .slot.newkey rect { stroke: var(--green); opacity: 0; }
 .addkey-svg .slot.newkey text { fill: var(--green); opacity: 0; }
 
-.in-view .addkey-svg .slot.newkey rect,
-.in-view .addkey-svg .slot.newkey text {
+.addkey-svg.play .slot.newkey rect,
+.addkey-svg.play .slot.newkey text {
   animation: fadein 0.6s ease 3s forwards;
 }
 
-/* traveling key dot */
+/* traveling key dot — fed in, then absorbed (shrinks + fades) by the proof */
 .addkey-svg .dkey { opacity: 0; }
 .addkey-svg .dkey circle { fill: var(--yellow); }
 .addkey-svg .dkey .dkey-label {
@@ -338,17 +352,18 @@
   font-family: var(--mono);
 }
 
-.in-view .addkey-svg .dkey {
-  animation: travel 1.6s ease 0.6s forwards;
+.addkey-svg.play .dkey {
+  animation: travel 2s ease 0.5s forwards;
 }
 
 @keyframes travel {
-  0% { opacity: 0; transform: translate(160px, 125px); }
-  15% { opacity: 1; }
-  100% { opacity: 1; transform: translate(380px, 155px); }
+  0% { opacity: 0; transform: translate(160px, 128px) scale(1); }
+  12% { opacity: 1; }
+  70% { opacity: 1; transform: translate(380px, 150px) scale(1); }
+  100% { opacity: 0; transform: translate(380px, 150px) scale(0.15); }
 }
 
-/* link line that gets cut */
+/* the traceable link, severed at the shield */
 .addkey-svg .link-line {
   stroke: var(--text-dim);
   stroke-width: 1.5;
@@ -356,22 +371,22 @@
   opacity: 0;
 }
 
-.in-view .addkey-svg .link-line { animation: fadein 0.4s ease 1s forwards; }
+.addkey-svg.play .link-line { animation: fadein 0.4s ease 0.9s forwards; }
 
-.in-view .addkey-svg .link-line.half1 {
-  animation: fadein 0.4s ease 1s forwards, cutleft 0.8s ease 2.4s forwards;
+.addkey-svg.play .link-line.half1 {
+  animation: fadein 0.4s ease 0.9s forwards, cutleft 0.8s ease 2.4s forwards;
 }
 
-.in-view .addkey-svg .link-line.half2 {
-  animation: fadein 0.4s ease 1s forwards, cutright 0.8s ease 2.4s forwards;
+.addkey-svg.play .link-line.half2 {
+  animation: fadein 0.4s ease 0.9s forwards, cutright 0.8s ease 2.4s forwards;
 }
 
 @keyframes cutleft {
-  to { transform: translate(-9px, -7px) rotate(-4deg); stroke: var(--red); opacity: 0.45; }
+  to { transform: translate(-8px, 7px) rotate(-3deg); stroke: var(--red); opacity: 0.5; }
 }
 
 @keyframes cutright {
-  to { transform: translate(9px, 7px) rotate(-4deg); stroke: var(--red); opacity: 0.45; }
+  to { transform: translate(8px, -7px) rotate(-3deg); stroke: var(--red); opacity: 0.5; }
 }
 
 .addkey-svg .cut-mark {
@@ -381,14 +396,25 @@
   opacity: 0;
 }
 
-.in-view .addkey-svg .cut-mark { animation: fadein 0.4s ease 2.5s forwards; }
+.addkey-svg.play .cut-mark { animation: fadein 0.4s ease 2.5s forwards; }
 
 /* ZK shield */
 .addkey-svg .zk-shield path {
   fill: rgba(88, 166, 255, 0.12);
   stroke: var(--accent);
   stroke-width: 1.5;
+  filter: drop-shadow(0 0 6px rgba(88, 166, 255, 0.45));
+  animation: shieldpulse 3s ease-in-out infinite;
 }
+
+@keyframes shieldpulse {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(88, 166, 255, 0.35)); }
+  50% { filter: drop-shadow(0 0 11px rgba(88, 166, 255, 0.6)); }
+}
+
+/* slot hover micro-interaction */
+.addkey-svg .slot rect { transition: stroke 0.2s var(--ease-out); }
+.addkey-svg .slot:hover rect { stroke: var(--accent); }
 
 .addkey-svg .zk-text {
   fill: var(--accent);
@@ -413,20 +439,52 @@
   opacity: 0;
 }
 
-.in-view .addkey-svg .svg-note { animation: fadein 0.5s ease 2.8s forwards; }
+.addkey-svg.play .svg-note { animation: fadein 0.5s ease 2.8s forwards; }
 
 .addkey-svg .emit-line {
   stroke: var(--green);
   stroke-width: 1.5;
-  stroke-dasharray: 90;
-  stroke-dashoffset: 90;
+  stroke-dasharray: 150;
+  stroke-dashoffset: 150;
 }
 
-.in-view .addkey-svg .emit-line {
-  animation: draw 0.7s ease 2.6s forwards;
+.addkey-svg.play .emit-line {
+  animation: draw 0.7s ease 2.7s forwards;
 }
 
 @keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* replay control */
+.addkey { position: relative; }
+
+.replay-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-family: var(--mono);
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.replay-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* reduced motion: skip the animation but keep the explanatory end state */
+@media (prefers-reduced-motion: reduce) {
+  .addkey-svg .link-line,
+  .addkey-svg .cut-mark,
+  .addkey-svg .emit-line,
+  .addkey-svg .slot.newkey rect,
+  .addkey-svg .slot.newkey text { opacity: 1; }
+  .addkey-svg .emit-line { stroke-dashoffset: 0; }
+  .addkey-svg .dkey { opacity: 0; }
+}
 
 .compare { margin-top: 20px; }
 
@@ -457,10 +515,13 @@
 /* ── Section 4: phase stepper ── */
 
 .stepper {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   padding: 20px;
+  box-shadow: var(--shadow-1);
 }
 
 .phase-tabs {
@@ -484,8 +545,11 @@
   font-size: 13px;
   padding: 9px 10px;
   cursor: pointer;
-  transition: border-color 0.25s ease, color 0.25s ease;
+  transition: border-color 0.25s var(--ease-out), color 0.25s var(--ease-out),
+    background 0.25s var(--ease-out), transform 0.2s var(--ease-spring);
 }
+
+.phase-tab:hover { transform: translateY(-1px); color: var(--text); }
 
 .phase-tab b {
   font-family: var(--mono);
@@ -500,8 +564,10 @@
 }
 
 .phase-tab.active {
-  border-color: var(--accent);
+  border-color: rgba(88, 166, 255, 0.5);
   color: var(--text);
+  background: var(--accent-soft);
+  box-shadow: var(--glow-accent);
 }
 
 .phase-tab.active b {
@@ -540,10 +606,21 @@
   stroke-width: 1.8;
   marker-end: none;
   stroke-dasharray: 6 5;
+  filter: drop-shadow(0 0 4px rgba(88, 166, 255, 0.5));
   animation: flowdash 1.2s linear infinite;
 }
 
 @keyframes flowdash { to { stroke-dashoffset: -22; } }
+
+.phase-stage .flow-particle {
+  fill: #cfe6ff;
+  filter: drop-shadow(0 0 5px var(--accent));
+}
+
+.phase-stage .flow-proofs .flow-particle,
+.phase-stage .flow-read .flow-particle {
+  fill: #fff;
+}
 
 .phase-stage .flow text {
   fill: var(--accent);
@@ -556,6 +633,16 @@
   fill: none;
   stroke: var(--green);
   stroke-width: 2;
+}
+
+.phase-stage[data-phase="4"] .verify-ring {
+  filter: drop-shadow(0 0 6px rgba(63, 185, 80, 0.55));
+  animation: verifypulse 2s ease-in-out infinite;
+}
+
+@keyframes verifypulse {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(63, 185, 80, 0.4)); }
+  50% { filter: drop-shadow(0 0 12px rgba(63, 185, 80, 0.7)); }
 }
 
 .phase-stage .verify-check {
@@ -598,18 +685,21 @@
 /* ── Section 5: V1→V3 acts ── */
 
 .acts {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 24px;
+  box-shadow: var(--shadow-1);
 }
 
 .act-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
 
 .act-tab {
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   color: var(--text-dim);
   font-family: var(--mono);
@@ -617,9 +707,17 @@
   font-weight: 700;
   padding: 7px 22px;
   cursor: pointer;
+  transition: border-color 0.25s var(--ease-out), color 0.25s var(--ease-out),
+    background 0.25s var(--ease-out), transform 0.2s var(--ease-spring);
 }
 
-.act-tab.active { border-color: var(--accent); color: var(--accent); }
+.act-tab:hover { transform: translateY(-1px); color: var(--text); }
+
+.act-tab.active {
+  border-color: rgba(88, 166, 255, 0.5);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
 
 .act-panel { display: none; }
 .act-stage[data-act="0"] .act-v1 { display: block; }
@@ -745,11 +843,17 @@
 .e2e-box {
   flex: 1;
   min-width: 220px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   padding: 16px;
+  box-shadow: var(--shadow-1);
+  transition: transform 0.35s var(--ease-out), border-color 0.35s var(--ease-out);
 }
+
+.e2e-box:hover { transform: translateY(-2px); border-color: rgba(88, 166, 255, 0.25); }
 
 .e2e-box h4 { margin: 0 0 6px; font-size: 13.5px; font-family: var(--mono); color: var(--accent); }
 .e2e-box p { margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
@@ -773,10 +877,13 @@
 /* ── Section 6: collusion explorer ── */
 
 .collusion {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   padding: 20px;
+  box-shadow: var(--shadow-1);
 }
 
 .role-cards {
@@ -789,15 +896,21 @@
 .role-card {
   flex: 1;
   min-width: 190px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   padding: 14px;
   cursor: pointer;
-  transition: border-color 0.25s ease, background 0.25s ease;
+  transition: border-color 0.25s var(--ease-out), background 0.25s var(--ease-out),
+    transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-out);
   position: relative;
 }
 
-.role-card:hover { border-color: var(--text-dim); }
+.role-card:hover {
+  border-color: rgba(88, 166, 255, 0.4);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-1);
+}
 
 .role-card.checked {
   border-color: var(--red);
@@ -937,15 +1050,25 @@
 /* ── Section 7: anonymity set ── */
 
 .anon {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   padding: 20px;
+  box-shadow: var(--shadow-1);
 }
 
 .anon-svg { width: 100%; height: auto; display: block; }
 
 .anon-svg .axis { stroke: var(--border); stroke-width: 1.5; }
+
+.anon-svg .axis-label {
+  fill: var(--text-dim);
+  font-size: 11px;
+  font-family: var(--mono);
+  text-anchor: middle;
+}
 
 .anon-svg .curve-crypto {
   stroke: var(--green);
@@ -953,9 +1076,15 @@
   stroke-dasharray: 2 5;
 }
 
-.anon-svg .curve-timing {
+/* shaded residual-risk region between ceiling and effective curve */
+.anon-svg .gap-area {
+  fill: rgba(248, 81, 73, 0.13);
+  stroke: none;
+}
+
+.anon-svg .curve-effective {
   fill: none;
-  stroke: var(--red);
+  stroke: var(--green);
   stroke-width: 2;
 }
 
@@ -966,13 +1095,15 @@
 }
 
 .anon-svg .curve-label.crypto { fill: var(--green); }
-.anon-svg .curve-label.timing { fill: var(--red); }
+.anon-svg .curve-label.effective { fill: var(--green); }
+.anon-svg .curve-label.gap { fill: var(--red); }
 
 .anon-svg .marker {
   fill: var(--accent);
   stroke: var(--bg);
   stroke-width: 2;
-  transition: cx 0.45s ease, cy 0.45s ease;
+  filter: drop-shadow(0 0 6px rgba(88, 166, 255, 0.6));
+  transition: cx 0.5s var(--ease-spring), cy 0.5s var(--ease-spring);
 }
 
 .anon-svg .tick {
@@ -999,11 +1130,14 @@
 .readout-item {
   flex: 1;
   min-width: 200px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   padding: 12px 14px;
+  transition: transform 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
 }
+
+.readout-item:hover { transform: translateY(-2px); border-color: rgba(88, 166, 255, 0.3); }
 
 .readout-label {
   display: block;
