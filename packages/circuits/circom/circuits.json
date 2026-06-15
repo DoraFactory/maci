@@ -34,5 +34,29 @@
     "template": "TallyVotes",
     "params": [2, 1, 1],
     "pubs": ["inputHash"]
+  },
+  "AddNewKey_amaci_9": {
+    "file": "./amaci/power/addNewKey",
+    "template": "AddNewKey",
+    "params": [9],
+    "pubs": ["inputHash"]
+  },
+  "ProcessDeactivateMessages_amaci_9-125": {
+    "file": "./amaci/power/processDeactivate",
+    "template": "ProcessDeactivateMessages",
+    "params": [9, 125],
+    "pubs": ["inputHash"]
+  },
+  "ProcessMessages_amaci_9-3-125": {
+    "file": "./amaci/power/processMessages",
+    "template": "ProcessMessages",
+    "params": [9, 3, 125],
+    "pubs": ["inputHash"]
+  },
+  "TallyVotes_amaci_9-4-3": {
+    "file": "./amaci/power/tallyVotes",
+    "template": "TallyVotes",
+    "params": [9, 4, 3],
+    "pubs": ["inputHash"]
   }
 }
