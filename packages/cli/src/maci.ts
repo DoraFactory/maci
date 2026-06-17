@@ -2,6 +2,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { registryCommand } from './commands/registry.js';
 import { roundCommand } from './commands/verify.js';
+import { uiCommand } from './commands/ui.js';
 
 yargs(hideBin(process.argv))
   .scriptName('maci')
@@ -10,6 +11,7 @@ yargs(hideBin(process.argv))
   .demandCommand(1, 'Please specify a command. Run "maci --help" for usage.')
   .command(registryCommand)
   .command(roundCommand)
+  .command(uiCommand)
   .help()
   .version()
   .wrap(Math.min(100, process.stdout.columns ?? 80))

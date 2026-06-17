@@ -13,4 +13,7 @@ export default defineConfig({
   outDir: 'dist',
   // Keep heavy ZK libraries external (installed as runtime deps, not bundled)
   external: ['snarkjs', 'ffjavascript', '@zk-kit/poseidon-cipher'],
+  // Copy the static web UI (served by `maci ui`) next to the bundle
+  onSuccess:
+    'node -e "require(\'node:fs\').cpSync(\'src/web\', \'dist/web\', { recursive: true })"',
 });
