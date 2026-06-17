@@ -200,6 +200,25 @@ fn validate_and_process_whitelist(
     Ok(processed_users)
 }
 
+/// Deactivate / AddNewKey assigns the rotated key the global VOICE_CREDIT_AMOUNT,
+/// which is only well-defined when every user shares the same amount (Unified mode).
+/// In Dynamic mode per-user balances would be silently mis-assigned on key rotation,
+/// so enabling deactivate together with Dynamic VC mode is rejected here.
+fn validate_deactivate_vc_compatibility(
+    deactivate_enabled: bool,
+    voice_credit_mode: &VoiceCreditMode,
+) -> Result<(), ContractError> {
+    if deactivate_enabled && !matches!(voice_credit_mode, VoiceCreditMode::Unified { .. }) {
+        return Err(ContractError::InvalidRegistrationConfig {
+            reason: "Deactivate feature requires Unified VoiceCreditMode. The AddNewKey flow \
+                     assigns the global voice credit amount to the rotated key, which is only \
+                     well-defined when all users share the same amount (Unified mode)."
+                .to_string(),
+        });
+    }
+    Ok(())
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -608,6 +627,9 @@ pub fn instantiate(
 
     FEE_RECIPIENT.save(deps.storage, &msg.fee_recipient)?;
 
+    // Deactivate is only compatible with Unified VC mode (see AddNewKey balance handling).
+    validate_deactivate_vc_compatibility(msg.deactivate_enabled, &msg.voice_credit_mode)?;
+
     // Save deactivate_enabled flag (default: false)
     DEACTIVATE_ENABLED.save(deps.storage, &msg.deactivate_enabled)?;
 
@@ -957,6 +979,19 @@ fn validate_registration_config_update(
             }
         }
     }
+
+    // Deactivate feature is only compatible with Unified VC mode. Validate the
+    // effective post-update combination so that enabling deactivate (or switching
+    // to Dynamic VC) can never leave the round in an incompatible state.
+    let effective_deactivate_enabled = config
+        .deactivate_enabled
+        .unwrap_or(DEACTIVATE_ENABLED.load(deps.storage)?);
+    let effective_vc_mode = if let Some(ref vc) = config.voice_credit_mode {
+        vc.clone()
+    } else {
+        VOICE_CREDIT_MODE.load(deps.storage)?
+    };
+    validate_deactivate_vc_compatibility(effective_deactivate_enabled, &effective_vc_mode)?;
 
     Ok(())
 }
@@ -2922,9 +2957,15 @@ pub fn calculate_tally_delay(deps: Deps) -> Result<TallyDelayInfo, ContractError
     let signup_delay = delay_cfg.signup_delay;
 
     // tally_window = (base_delay + num_signups * signup_delay + msg_count * message_delay) * multiplier
-    let delay_seconds =
-        (base_delay + num_sign_ups_u64 * signup_delay + msg_count_u64 * message_delay)
-            * TALLY_DELAY_MULTIPLIER;
+    //
+    // Use saturating arithmetic: msg_chain_length is unbounded (PublishMessage can be called
+    // arbitrarily many times), so with overflow-checks enabled a naive multiplication could
+    // panic and brick the claim / stop-tally paths that depend on this function. Saturating to
+    // u64::MAX keeps those paths live; the resulting window is already astronomically large.
+    let delay_seconds = base_delay
+        .saturating_add(num_sign_ups_u64.saturating_mul(signup_delay))
+        .saturating_add(msg_count_u64.saturating_mul(message_delay))
+        .saturating_mul(TALLY_DELAY_MULTIPLIER);
     let calculated_hours = delay_seconds / 3600;
 
     Ok(TallyDelayInfo {

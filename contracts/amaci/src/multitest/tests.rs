@@ -3004,9 +3004,14 @@ mod test {
             },
         ];
 
+        // Deactivate is only compatible with Unified VC mode, so a combined update that
+        // enables deactivate must also use Unified VC mode. Per-user amounts in the
+        // whitelist are ignored in Unified mode (the unified amount applies to everyone).
         let config = RegistrationConfigUpdate {
             deactivate_enabled: Some(true),
-            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
+            voice_credit_mode: Some(VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100),
+            }),
             registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: WhitelistBase {
                     users: whitelist_users,
@@ -3025,7 +3030,8 @@ mod test {
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should be enabled");
 
-        // Verify whitelist users and their VC balances via QueryRegistrationStatus
+        // Verify whitelist users and their VC balances via QueryRegistrationStatus.
+        // Unified mode: every whitelisted user gets the same unified amount (100).
         let status1: RegistrationStatus = app
             .wrap()
             .query_wasm_smart(
@@ -3042,7 +3048,7 @@ mod test {
         assert_eq!(
             status1.balance,
             Uint256::from_u128(100),
-            "User1 should have 100 VC"
+            "User1 should have the unified 100 VC"
         );
 
         let status2: RegistrationStatus = app
@@ -3060,8 +3066,8 @@ mod test {
         assert!(status2.can_sign_up, "user2 should be in whitelist");
         assert_eq!(
             status2.balance,
-            Uint256::from_u128(200),
-            "User2 should have 200 VC"
+            Uint256::from_u128(100),
+            "User2 should have the unified 100 VC"
         );
     }
 
@@ -3352,9 +3358,10 @@ mod test {
             "Should be SignUpWithStaticWhitelist mode"
         );
 
-        // Update configuration
+        // Update configuration. Deactivate is only compatible with Unified VC mode, so
+        // switching to Dynamic is done with deactivate left disabled.
         let update_config = RegistrationConfigUpdate {
-            deactivate_enabled: Some(true),
+            deactivate_enabled: Some(false),
             voice_credit_mode: Some(VoiceCreditMode::Dynamic),
             registration_mode: None,
         };
@@ -3371,8 +3378,8 @@ mod test {
 
         // Verify updated state
         assert!(
-            updated_config.deactivate_enabled,
-            "Deactivate should be enabled"
+            !updated_config.deactivate_enabled,
+            "Deactivate should remain disabled (incompatible with Dynamic VC mode)"
         );
 
         assert!(
@@ -3386,6 +3393,60 @@ mod test {
                 RegistrationMode::SignUpWithStaticWhitelist
             ),
             "Should still be SignUpWithStaticWhitelist mode"
+        );
+    }
+
+    // Deactivate / AddNewKey assigns the rotated key the global voice credit amount,
+    // which is only well-defined in Unified VC mode. The contract must reject any
+    // effective combination of deactivate_enabled + Dynamic VC mode.
+    #[test]
+    fn test_deactivate_requires_unified_vc_mode() {
+        let mut app = create_app();
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Combined update enabling deactivate while switching to Dynamic must be rejected.
+        let bad = RegistrationConfigUpdate {
+            deactivate_enabled: Some(true),
+            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
+            registration_mode: None,
+        };
+        let err = maci_contract
+            .update_registration_config(&mut app, owner(), bad)
+            .unwrap_err();
+        assert!(
+            matches!(
+                err.downcast::<ContractError>().unwrap(),
+                ContractError::InvalidRegistrationConfig { .. }
+            ),
+            "deactivate + Dynamic must be rejected"
+        );
+
+        // Enabling deactivate while staying in Unified mode is allowed.
+        let good = RegistrationConfigUpdate {
+            deactivate_enabled: Some(true),
+            voice_credit_mode: None,
+            registration_mode: None,
+        };
+        maci_contract
+            .update_registration_config(&mut app, owner(), good)
+            .expect("enabling deactivate in Unified mode should succeed");
+
+        // With deactivate already enabled, switching to Dynamic alone must also be rejected
+        // because the effective post-update combination would be incompatible.
+        let bad2 = RegistrationConfigUpdate {
+            deactivate_enabled: None,
+            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
+            registration_mode: None,
+        };
+        let err2 = maci_contract
+            .update_registration_config(&mut app, owner(), bad2)
+            .unwrap_err();
+        assert!(
+            matches!(
+                err2.downcast::<ContractError>().unwrap(),
+                ContractError::InvalidRegistrationConfig { .. }
+            ),
+            "switching to Dynamic while deactivate is enabled must be rejected"
         );
     }
 
