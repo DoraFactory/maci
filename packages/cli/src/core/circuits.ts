@@ -73,7 +73,7 @@ const CIRCUIT_9_4_3_125: AmaciCircuitEntry = {
   production: true,
   source: 'vkeys_9_4_3_125() — maci/contracts/amaci/src/circuit_params.rs',
   zkeyUrl: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_9-4-3-125_v5_zkeys.tar.gz',
-  zkeyTarSha256: '7859912709321d51bbc90043558140c20b7bfe9a5693c1e40dcd5ccac0a35aa9',
+  zkeyTarSha256: '792352fddaaaab9ac16befe8dbabff1757598b55640f0476be1d2f8b935f9904',
   params: { stateTreeDepth: 9, intStateTreeDepth: 4, voteOptionTreeDepth: 3, messageBatchSize: 125 },
   vkeys: {
     process: vkey(
@@ -92,9 +92,9 @@ const CIRCUIT_9_4_3_125: AmaciCircuitEntry = {
       '04c3cdc1e32f4e6eae21adb419ed037dcd5daa9012bc9fe31e4ebedba31c101b00f8483d686d64d0eb7d1c3278b4409f4717dea169970f62505a52e3c08b6d4d'
     ),
     addNewKey: vkey(
-      '02a72a80dfde6ca948dbeea458e76020c8627d39c60c5077d5404c5819bc08a11df56452318c35ef47cb92c9f435361a7c818e0f626f50e0dd6892c27b8536381b9996a4730c9fef7e0a9c8ac83927dd46bbfa9efc51ac1602fd53d0b496550e2d585463428f4fb1e060123a6c95ec263ae487f19c315395eb5b40b79793bb0b',
-      '0255c90c4ab912fa162f9edb0d1f40a20559db7660fe597a7b1b2a9d5194dce402312ed702216f0c29e34e2b7d0f173e1ddc0ae4dabb255682e53d6264807c1e',
-      '20f68fe36f8690c6e09b199cdea1e5f59c6fdb01edbdd1b7b9950aa790b9f4ce2d39c2e8fe6e99f5681543f2264ce07697b51c2ed8e6f7e66533c59eba716764'
+      '1c94083c2b90d4f41d7e83000647860bb278e98705f0c9553b790ba4556d88451b2e0741e3cba46801412cff620bb191ab358604fff432bf073a325c9f19a1860cb0286d5261f5e0214f11320d740fee711f78575a8f3b47bebecad7e16a301c0b0d80535eb8f30fd18c2627e9f08d1b1bf3f7210994465489722587bba1487f',
+      '0eb39e5aa053d6676afa84d88c23996669b18eda44eb6d97420176ff55c276290ae7df9c85d77b9aef313093fdeada3c53cd1b0cfd7ed04460a719cfff4e5925',
+      '200467c396f31ec6b2f3324d5fa38a28e18ce24c1a92742486553e2375204fc82e4feff4af5e2c2ac4acd05af4a64d161edee15e1feef61d2f4977860643c94b'
     ),
   },
 };
@@ -108,7 +108,7 @@ const CIRCUIT_2_1_1_5: AmaciCircuitEntry = {
   production: false,
   source: 'vkeys_2_1_1_5() — maci/contracts/amaci/src/circuit_params.rs (test-only)',
   zkeyUrl: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v5_zkeys.tar.gz',
-  zkeyTarSha256: '098189ab917de8bbbb5265b4117a447aeb56dac4773868acbd4c11efc9252ea2',
+  zkeyTarSha256: '8cbe3e77c5126d203054869dc93f21db0409e0403aedd5f33b690eccccb9e494',
   params: { stateTreeDepth: 2, intStateTreeDepth: 1, voteOptionTreeDepth: 1, messageBatchSize: 5 },
   vkeys: {
     process: vkey(
@@ -127,9 +127,9 @@ const CIRCUIT_2_1_1_5: AmaciCircuitEntry = {
       '2c1289b05f9093a1d4c7536093702b08d57654fae20ae871de2598565c43c8611d5bc6caad360c2b6f68480aa71efbcc506524104152bb73f79d9cb0f3d12180'
     ),
     addNewKey: vkey(
-      '10bec445edf1f289fe3155b575ea44b1c6a7324c5caa49e2844e6ac2a64a9760214bb37d2681588e017eafb3df83b4ab723ad7cec885795bdde199ce4ab84b672cce9d642cca67c76e5429f7688cc9488fd11e961ee40d475b9b4e5c9f4d6150227215df67b855ff3624fc15bb21c061f5f776e855f1ed4c17f3f009bb62cd1c',
-      '24e55d47c4c673366c206d869261c291c3d81af0c4fdb04d2dfb7d0d630311320c1746039c41e1faba6b0426f065f8da677d7947921927ce07672d3ff5f8c576',
-      '07a3d995030b94273cfa93d73c154f897e3b7192e6a49c3a17b3852f93894cd62c26b813d69e5b59ecffeda588fd3762c772ac5f290920ee0865902765cf8e3a'
+      '2b135a96b33686a78339372bd40e3bef10aea0554c15a4770aeecdea0ce74b65265875823bf58d64d42fdf4ab9b8dba0a8b71dc2c1a140c68069d013a661c6a4150290c14390c9f212516d006b2b67012db77104bb20f3b980e924069a27c725119f442673a5ead331dfdfbbb1963ff41eca2f0a518e535f7b6b44cea1efd3df',
+      '29639aea06acd9b07e36d2456153d4e81581d65efb2fc93f0d54618398be1c471f49496bce6f344badecd9493d07faaaa2d09c7216734488f3ce2e2d0bd25be9',
+      '20ccb32cbbbb10099ab8ef2bfd196ec22b3c07c8c7eba7076bb8d16be4aa69ad0b0ff4e2a298219ef216024cd65a8b26470a7daa2e8ce55af41038a74d5d589f'
     ),
   },
 };
