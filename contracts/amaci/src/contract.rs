@@ -4,7 +4,7 @@ use crate::groth16_parser::{parse_groth16_proof, parse_groth16_vkey};
 use crate::msg::{
     DelayConfigResponse, ExecuteMsg, FeeConfigResponse, Groth16ProofType, InstantiateMsg,
     InstantiationData, QueryMsg, RegistrationConfigInfo, RegistrationConfigUpdate,
-    RegistrationModeConfig, RegistrationStatus, TallyDelayInfo, WhitelistBaseConfig,
+    RegistrationModeConfig, RegistrationStatus, TallyDelayInfo, VkeysResponse, WhitelistBaseConfig,
 };
 use crate::state::{
     Admin, DelayConfig, DelayRecord, DelayRecords, DelayType, FeeConfig, Groth16ProofStr,
@@ -12,14 +12,14 @@ use crate::state::{
     QuinaryTreeRoot, RegistrationMode, RoundInfo, StateLeaf, VoiceCreditMode, VotingTime,
     Whitelist, WhitelistConfig, ADMIN, CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH,
     CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT, CURRENT_STATE_COMMITMENT,
-    CURRENT_TALLY_COMMITMENT, DEACTIVATE_COUNT, DEACTIVATE_ENABLED, DELAY_CONFIG, DELAY_RECORDS,
+    CURRENT_TALLY_COMMITMENT, DEACTIVATE_ENABLED, DELAY_CONFIG, DELAY_RECORDS,
     DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES, FEE_CONFIG, FEE_DENOM, FEE_RECIPIENT,
     FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS, GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS,
-    GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS, MACI_DEACTIVATE_MESSAGE, MACI_OPERATOR,
+    GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS, MACI_OPERATOR,
     MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS,
     NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE, PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH,
     PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT, PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB,
-    REGISTRATION_MODE, RESULT, ROUNDINFO, SIGNUPED, STATEIDXINC, STATE_ROOT_BY_DMSG,
+    REGISTRATION_MODE, RESULT, ROUNDINFO, SIGNUPED, STATE_ROOT_BY_DMSG,
     TALLY_DELAY_MAX_HOURS, TALLY_DELAY_MULTIPLIER, TALLY_TIMEOUT, TALLY_TIMEOUT_EXTRA_SECONDS,
     TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE,
     VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
@@ -200,6 +200,25 @@ fn validate_and_process_whitelist(
     Ok(processed_users)
 }
 
+/// Deactivate / AddNewKey assigns the rotated key the global VOICE_CREDIT_AMOUNT,
+/// which is only well-defined when every user shares the same amount (Unified mode).
+/// In Dynamic mode per-user balances would be silently mis-assigned on key rotation,
+/// so enabling deactivate together with Dynamic VC mode is rejected here.
+fn validate_deactivate_vc_compatibility(
+    deactivate_enabled: bool,
+    voice_credit_mode: &VoiceCreditMode,
+) -> Result<(), ContractError> {
+    if deactivate_enabled && !matches!(voice_credit_mode, VoiceCreditMode::Unified { .. }) {
+        return Err(ContractError::InvalidRegistrationConfig {
+            reason: "Deactivate feature requires Unified VoiceCreditMode. The AddNewKey flow \
+                     assigns the global voice credit amount to the rotated key, which is only \
+                     well-defined when all users share the same amount (Unified mode)."
+                .to_string(),
+        });
+    }
+    Ok(())
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -238,14 +257,14 @@ pub fn instantiate(
         return Err(ContractError::WrongTimeSet {});
     }
 
-    // if msg.voting_time.start_time >= msg.voting_time.end_time {
-    //     return Err(ContractError::WrongTimeSet {});
-    // }
+    if msg.voting_time.start_time >= msg.voting_time.end_time {
+        return Err(ContractError::WrongTimeSet {});
+    }
 
     let create_round_window = Timestamp::from_seconds(10 * 60); // 10 minutes
     CREATE_ROUND_WINDOW.save(deps.storage, &create_round_window)?;
 
-    // TODO: check apart time.
+    // Ensure start and end are at least the create-round window apart.
     if msg
         .voting_time
         .start_time
@@ -284,19 +303,21 @@ pub fn instantiate(
 
     let registration_mode = match &msg.registration_mode {
         RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
-            // Static whitelist mode is limited to 625 max voters (state_tree_depth <= 4).
-            // For larger scales (e.g. 6-3-3-125 with 15625 voters), use SignUpWithOracle
-            // or PrePopulated mode instead.
+            // Static whitelist stores every voter on-chain, so the limit applies to the
+            // WHITELIST SIZE (not the tree capacity): cap it at 625 for gas/storage safety.
+            // This is independent of state_tree_depth, so the mode stays usable under the
+            // production 9-4-3-125 circuit as long as the whitelist is small.
             let static_whitelist_max_voters = Uint256::from_u128(625u128);
-            if max_leaves_count > static_whitelist_max_voters {
+            let whitelist_len = Uint256::from_u128(whitelist.users.len() as u128);
+            if whitelist_len > static_whitelist_max_voters {
                 return Err(ContractError::StaticWhitelistScaleExceeded {
                     max_allowed: static_whitelist_max_voters,
                 });
             }
 
-            if Uint256::from_u128(whitelist.users.len() as u128) > max_leaves_count {
+            if whitelist_len > max_leaves_count {
                 return Err(ContractError::MaxVoterExceeded {
-                    current: Uint256::from_u128(whitelist.users.len() as u128),
+                    current: whitelist_len,
                     max_allowed: max_leaves_count,
                 });
             }
@@ -554,7 +575,6 @@ pub fn instantiate(
 
     PROCESSED_DMSG_COUNT.save(deps.storage, &Uint256::from_u128(0u128))?;
     DMSG_CHAIN_LENGTH.save(deps.storage, &Uint256::from_u128(0u128))?;
-    DEACTIVATE_COUNT.save(deps.storage, &0u128)?;
 
     let current_dcommitment = &hash2([
         zeros[msg
@@ -606,6 +626,9 @@ pub fn instantiate(
     MACI_OPERATOR.save(deps.storage, &msg.operator)?;
 
     FEE_RECIPIENT.save(deps.storage, &msg.fee_recipient)?;
+
+    // Deactivate is only compatible with Unified VC mode (see AddNewKey balance handling).
+    validate_deactivate_vc_compatibility(msg.deactivate_enabled, &msg.voice_credit_mode)?;
 
     // Save deactivate_enabled flag (default: false)
     DEACTIVATE_ENABLED.save(deps.storage, &msg.deactivate_enabled)?;
@@ -957,6 +980,19 @@ fn validate_registration_config_update(
         }
     }
 
+    // Deactivate feature is only compatible with Unified VC mode. Validate the
+    // effective post-update combination so that enabling deactivate (or switching
+    // to Dynamic VC) can never leave the round in an incompatible state.
+    let effective_deactivate_enabled = config
+        .deactivate_enabled
+        .unwrap_or(DEACTIVATE_ENABLED.load(deps.storage)?);
+    let effective_vc_mode = if let Some(ref vc) = config.voice_credit_mode {
+        vc.clone()
+    } else {
+        VOICE_CREDIT_MODE.load(deps.storage)?
+    };
+    validate_deactivate_vc_compatibility(effective_deactivate_enabled, &effective_vc_mode)?;
+
     Ok(())
 }
 
@@ -989,15 +1025,24 @@ fn apply_registration_config_update(
     if let Some(registration_mode_config) = config.registration_mode {
         let new_mode = match registration_mode_config {
             RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist } => {
-                let max_voter_amount = MAX_LEAVES_COUNT.load(deps.storage)?;
+                let max_leaves_count = MAX_LEAVES_COUNT.load(deps.storage)?;
 
-                // Static whitelist mode is limited to 625 max voters (state_tree_depth <= 4).
-                // For larger scales (e.g. 6-3-3-125 with 15625 voters), use SignUpWithOracle
-                // or PrePopulated mode instead.
+                // Static whitelist stores every voter on-chain, so the limit applies to the
+                // WHITELIST SIZE (not the tree capacity): cap it at 625 for gas/storage safety.
+                // This is independent of state_tree_depth, so the mode stays usable under the
+                // production 9-4-3-125 circuit as long as the whitelist is small.
                 let static_whitelist_max_voters = Uint256::from_u128(625u128);
-                if max_voter_amount > static_whitelist_max_voters {
+                let whitelist_len = Uint256::from_u128(whitelist.users.len() as u128);
+                if whitelist_len > static_whitelist_max_voters {
                     return Err(ContractError::StaticWhitelistScaleExceeded {
                         max_allowed: static_whitelist_max_voters,
+                    });
+                }
+
+                if whitelist_len > max_leaves_count {
+                    return Err(ContractError::MaxVoterExceeded {
+                        current: whitelist_len,
+                        max_allowed: max_leaves_count,
                     });
                 }
 
@@ -1254,6 +1299,14 @@ pub fn execute_sign_up(
                 return Err(ContractError::AlreadySignedUp {});
             }
         }
+    }
+
+    // Enforce pubkey uniqueness across all registration modes. SIGNUPED is the
+    // canonical pubkey -> stateIdx map written by every registration path
+    // (direct signup and AddNewKey), so checking it here rejects any pubkey that
+    // is already in use and prevents overwriting an existing mapping.
+    if SIGNUPED.has(deps.storage, &pubkey_key(&pubkey)) {
+        return Err(ContractError::UserAlreadyRegistered {});
     }
 
     // ============================================
@@ -1536,10 +1589,6 @@ pub fn execute_publish_deactivate_message(
     dmsg_chain_length += Uint256::from_u128(1u128);
     DMSG_CHAIN_LENGTH.save(deps.storage, &dmsg_chain_length)?;
 
-    let mut deactivate_count = DEACTIVATE_COUNT.load(deps.storage)?;
-    deactivate_count += 1u128;
-    DEACTIVATE_COUNT.save(deps.storage, &deactivate_count)?;
-
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
 
     Ok(Response::new()
@@ -1573,12 +1622,6 @@ pub fn execute_upload_deactivate_message(
             .iter()
             .map(|input| input.iter().map(|f| f.to_string()).collect())
             .collect();
-        MACI_DEACTIVATE_MESSAGE.save(
-            deps.storage,
-            &env.contract.address,
-            &deactivate_format_data,
-        )?;
-        // MACI_DEACTIVATE_OPERATOR.save(deps.storage, &contract_address, &info.sender)?;
 
         Ok(Response::new()
             .add_attribute("action", "upload_deactivate_message")
@@ -1668,7 +1711,9 @@ pub fn execute_process_deactivate_message(
     let first_dmsg_time: Timestamp = FIRST_DMSG_TIMESTAMP.load(deps.storage)?;
     let current_time = env.block.time;
 
-    let different_time: u64 = current_time.seconds() - first_dmsg_time.seconds();
+    let different_time: u64 = current_time
+        .seconds()
+        .saturating_sub(first_dmsg_time.seconds());
 
     if different_time > DELAY_CONFIG.load(deps.storage)?.deactivate_delay {
         let mut delay_records = DELAY_RECORDS.load(deps.storage)?;
@@ -1812,6 +1857,12 @@ fn add_key_internal(
     num_sign_ups += Uint256::from_u128(1u128);
     NUMSIGNUPS.save(deps.storage, &num_sign_ups)?;
     SIGNUPED.save(deps.storage, &pubkey_key(&pubkey), &state_index)?;
+    // Keep the GetVoiceCreditBalance query view consistent with the state leaf.
+    VOICECREDITBALANCE.save(
+        deps.storage,
+        state_index.to_be_bytes().to_vec(),
+        &voice_credit_amount,
+    )?;
 
     let action = if is_pre_populated {
         "pre_add_new_key"
@@ -2144,7 +2195,9 @@ fn execute_stop_tallying_period(
     let actual_delay: TallyDelayInfo = calculate_tally_delay(deps.as_ref())?;
     let voting_time = VOTINGTIME.load(deps.storage)?;
     let current_time = env.block.time;
-    let different_time = current_time.seconds() - voting_time.end_time.seconds();
+    let different_time = current_time
+        .seconds()
+        .saturating_sub(voting_time.end_time.seconds());
 
     let mut attributes = vec![
         attr("total_work", total_work_u128.to_string()),
@@ -2212,9 +2265,16 @@ fn execute_stop_tallying_period(
 
     // Load the current tally commitment and verify if needed
     let current_tally_commitment = CURRENT_TALLY_COMMITMENT.load(deps.storage)?;
-    if current_tally_commitment != Uint256::from_u128(0u128)
-        && tally_commitment != current_tally_commitment
-    {
+    if num_sign_ups == Uint256::zero() {
+        // With no signups, ProcessTally never runs and the tally commitment stays 0.
+        // There is nothing to tally, so the only acceptable result is all-zero.
+        if results.iter().any(|r| *r != Uint256::zero()) {
+            return Err(ContractError::InvalidEmptyRoundResult {});
+        }
+    } else if tally_commitment != current_tally_commitment {
+        // With at least one signup, StopTallying is only reachable after the user
+        // count was fully processed, so CURRENT_TALLY_COMMITMENT is the non-zero
+        // value chained by ProcessTally; require the submitted commitment to match.
         return Err(ContractError::TallyCommitmentMismatch {});
     }
 
@@ -2591,11 +2651,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
             to_json_binary::<Vec<Uint256>>(&results)
         }
-        QueryMsg::GetStateIdxInc { address } => to_json_binary::<Uint256>(
-            &STATEIDXINC
-                .may_load(deps.storage, &address)?
-                .unwrap_or_default(),
-        ),
         QueryMsg::GetVoiceCreditBalance { index } => to_json_binary::<Uint256>(
             &VOICECREDITBALANCE
                 .may_load(deps.storage, index.to_be_bytes().to_vec())?
@@ -2785,6 +2840,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             };
             to_json_binary(&config)
         }
+        QueryMsg::GetVkeys {} => {
+            let vkeys = VkeysResponse {
+                process_vkey: GROTH16_PROCESS_VKEYS.load(deps.storage)?,
+                tally_vkey: GROTH16_TALLY_VKEYS.load(deps.storage)?,
+                deactivate_vkey: GROTH16_DEACTIVATE_VKEYS.load(deps.storage)?,
+                add_key_vkey: GROTH16_NEWKEY_VKEYS.load(deps.storage)?,
+            };
+            to_json_binary(&vkeys)
+        }
     }
 }
 
@@ -2808,7 +2872,9 @@ pub fn check_operator_process_time(deps: Deps, env: Env) -> Result<bool, Contrac
         return Ok(true);
     }
 
-    let time_difference = current_time.seconds() - first_dmsg_time.seconds();
+    let time_difference = current_time
+        .seconds()
+        .saturating_sub(first_dmsg_time.seconds());
 
     let deactivate_delay = DELAY_CONFIG.load(deps.storage)?.deactivate_delay;
     if time_difference > deactivate_delay {
@@ -2891,9 +2957,15 @@ pub fn calculate_tally_delay(deps: Deps) -> Result<TallyDelayInfo, ContractError
     let signup_delay = delay_cfg.signup_delay;
 
     // tally_window = (base_delay + num_signups * signup_delay + msg_count * message_delay) * multiplier
-    let delay_seconds =
-        (base_delay + num_sign_ups_u64 * signup_delay + msg_count_u64 * message_delay)
-            * TALLY_DELAY_MULTIPLIER;
+    //
+    // Use saturating arithmetic: msg_chain_length is unbounded (PublishMessage can be called
+    // arbitrarily many times), so with overflow-checks enabled a naive multiplication could
+    // panic and brick the claim / stop-tally paths that depend on this function. Saturating to
+    // u64::MAX keeps those paths live; the resulting window is already astronomically large.
+    let delay_seconds = base_delay
+        .saturating_add(num_sign_ups_u64.saturating_mul(signup_delay))
+        .saturating_add(msg_count_u64.saturating_mul(message_delay))
+        .saturating_mul(TALLY_DELAY_MULTIPLIER);
     let calculated_hours = delay_seconds / 3600;
 
     Ok(TallyDelayInfo {

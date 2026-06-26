@@ -7,6 +7,7 @@ include "../../utils/privToPubKey.circom";
 include "../../utils/trees/incrementalQuinTree.circom";
 include "./lib/rerandomize.circom";
 include "../../../node_modules/circomlib/circuits/mux1.circom";
+include "../../../node_modules/circomlib/circuits/comparators.circom";
 
 /*
  * Proves the correctness of processing a batch of messages.
@@ -51,6 +52,22 @@ template AddNewKey(
     signal input newPubKey[2];
 
     signal input pollId;
+
+    // The prime sub-group order of BabyJubJub.
+    var SUBGROUP_ORDER = 2736030358979909402780800718157159386076813972158567259200215660948447373041;
+
+    // 0. Constrain oldPrivateKey to the canonical range [0, SUBGROUP_ORDER).
+    // Without this, oldPrivateKey is only bounded by Num2Bits(253) inside Ecdh(),
+    // so an attacker can submit oldPrivateKey + k * SUBGROUP_ORDER: the ECDH
+    // shared key (and thus the deactivateLeaf membership proof) is unchanged
+    // because coordPubKey has order SUBGROUP_ORDER, yet the nullifier
+    // Poseidon(oldPrivateKey, pollId) differs for every k. That would let a
+    // single deactivation be redeemed as multiple new keys. Mirrors the range
+    // check in PrivToPubKey.
+    component oldPrivKeyRange = LessThan(251);
+    oldPrivKeyRange.in[0] <== oldPrivateKey;
+    oldPrivKeyRange.in[1] <== SUBGROUP_ORDER;
+    oldPrivKeyRange.out === 1;
 
     // 1.
     component nullifierHasher = HashLeftRight();

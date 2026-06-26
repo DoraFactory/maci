@@ -229,27 +229,6 @@
     {
       "type": "object",
       "required": [
-        "get_state_idx_inc"
-      ],
-      "properties": {
-        "get_state_idx_inc": {
-          "type": "object",
-          "required": [
-            "address"
-          ],
-          "properties": {
-            "address": {
-              "$ref": "#/definitions/Addr"
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "get_voice_credit_balance"
       ],
       "properties": {
@@ -593,6 +572,20 @@
       ],
       "properties": {
         "get_delay_config": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns the stored Groth16 verifying keys for all circuits.",
+      "type": "object",
+      "required": [
+        "get_vkeys"
+      ],
+      "properties": {
+        "get_vkeys": {
           "type": "object",
           "additionalProperties": false
         }

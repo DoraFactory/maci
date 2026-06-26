@@ -199,7 +199,7 @@ pub enum ContractError {
     #[error("Invalid registration config: {reason}")]
     InvalidRegistrationConfig { reason: String },
 
-    #[error("SignUpWithStaticWhitelist mode only supports up to {max_allowed} voters (state_tree_depth <= 4). For larger scales, use SignUpWithOracle or PrePopulated mode instead.")]
+    #[error("SignUpWithStaticWhitelist mode only supports a whitelist of up to {max_allowed} voters. For larger scales, use SignUpWithOracle or PrePopulated mode instead.")]
     StaticWhitelistScaleExceeded { max_allowed: Uint256 },
 
     #[error("State tree is full, cannot register more users")]
@@ -230,4 +230,7 @@ pub enum ContractError {
         "Tally commitment mismatch: submitted results do not match the verified tally commitment"
     )]
     TallyCommitmentMismatch {},
+
+    #[error("A round with no signups must finalize with all-zero results")]
+    InvalidEmptyRoundResult {},
 }

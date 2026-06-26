@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aMACI Protocol Explainer — maci ui</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/protocol.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">maci</span>
+      <span class="brand-sub" data-i18n="nav.subtitle">aMACI protocol explainer</span>
+    </div>
+    <nav class="tabs">
+      <a class="tab tab-link" href="/" data-i18n="nav.back">Dashboard</a>
+      <button id="lang-toggle" class="tab" type="button">中文</button>
+    </nav>
+  </header>
+
+  <main class="proto">
+
+    <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+    <section class="hero reveal" id="hero">
+      <p class="kicker" data-i18n="hero.kicker">Protocol Explainer</p>
+      <h1 data-i18n="hero.title">aMACI: Anonymous, Anti-Collusion On-Chain Voting</h1>
+      <p class="lead" data-i18n="hero.lead">…</p>
+      <p class="scroll-hint dim" data-i18n="hero.scroll">Scroll to explore ↓</p>
+    </section>
+
+    <!-- ── 1. The tension ───────────────────────────────────────────────── -->
+    <section class="reveal" id="s1">
+      <h2><span class="sec-num">01</span> <span data-i18n="s1.title">Why on-chain voting is hard to get right</span></h2>
+      <p class="sec-lead" data-i18n="s1.lead">…</p>
+
+      <div class="tension">
+        <div class="tension-card good">
+          <h3 data-i18n="s1.cardA.title">Blockchain guarantees</h3>
+          <p data-i18n="s1.cardA.body">…</p>
+        </div>
+        <div class="vs">VS</div>
+        <div class="tension-card good">
+          <h3 data-i18n="s1.cardB.title">Anti-collusion</h3>
+          <p data-i18n="s1.cardB.body">…</p>
+        </div>
+      </div>
+
+      <div class="bribe-line">
+        <span class="bribe-step" data-i18n="s1.bribe1">Every vote is public on a transparent chain</span>
+        <span class="bribe-arrow">→</span>
+        <span class="bribe-step" data-i18n="s1.bribe2">“You voted A” is verifiable by anyone</span>
+        <span class="bribe-arrow">→</span>
+        <span class="bribe-step bad" data-i18n="s1.bribe3">Bribery becomes enforceable</span>
+      </div>
+    </section>
+
+    <!-- ── 2. MACI key-change ───────────────────────────────────────────── -->
+    <section class="reveal" id="s2">
+      <h2><span class="sec-num">02</span> <span data-i18n="s2.title">MACI’s answer: a deniable key change</span></h2>
+      <p class="sec-lead" data-i18n="s2.lead">…</p>
+
+      <div class="scene keychange">
+        <div class="chain-strip">
+          <div class="chain-label" data-i18n="s2.chainLabel">on-chain messages (encrypted)</div>
+          <div class="msg-block voteA">
+            <span class="msg-text">enc(“vote A”)</span>
+            <span class="void-mark" data-i18n="s2.voided">invalidated</span>
+          </div>
+          <div class="msg-block keychg">
+            <span class="msg-text" data-i18n="s2.keyMsg">enc(key change)</span>
+            <span class="key-icon">⟳</span>
+          </div>
+        </div>
+        <div class="briber">
+          <div class="briber-face">👁</div>
+          <div class="briber-bubble" data-i18n="s2.briber">Was that the final vote? Impossible to tell.</div>
+        </div>
+      </div>
+
+      <p class="note warn" data-i18n="s2.note">…</p>
+    </section>
+
+    <!-- ── 3. aMACI add-key ─────────────────────────────────────────────── -->
+    <section class="reveal" id="s3">
+      <h2><span class="sec-num">03</span> <span data-i18n="s3.title">aMACI’s core move: deactivate &amp; add-key</span></h2>
+      <p class="sec-lead" data-i18n="s3.lead">…</p>
+
+      <div class="scene addkey">
+        <button id="addkey-replay" class="replay-btn" type="button">
+          ↻ <span data-i18n="s3.replay">Replay</span>
+        </button>
+        <svg viewBox="0 0 760 300" class="addkey-svg" aria-hidden="true">
+          <!-- deactivate tree -->
+          <g class="deact-tree">
+            <rect x="30" y="50" width="150" height="200" rx="8" class="panel" />
+            <text x="105" y="36" class="svg-title" data-i18n="s3.deactTree">Deactivate tree</text>
+            <g class="slot"><rect x="50" y="70" width="110" height="30" rx="4" /><text x="105" y="90">enc(·)</text></g>
+            <g class="slot picked"><rect x="50" y="110" width="110" height="30" rx="4" /><text x="105" y="130">enc(·)</text></g>
+            <g class="slot"><rect x="50" y="150" width="110" height="30" rx="4" /><text x="105" y="170">enc(·)</text></g>
+            <g class="slot"><rect x="50" y="190" width="110" height="30" rx="4" /><text x="105" y="210">enc(·)</text></g>
+          </g>
+
+          <!-- the traceable link dkey ↔ K_i, severed by the proof underneath -->
+          <line x1="160" y1="128" x2="380" y2="206" class="link-line half1" />
+          <line x1="380" y1="206" x2="580" y2="165" class="link-line half2" />
+          <text x="380" y="232" class="cut-mark">✂</text>
+
+          <!-- ZK shield -->
+          <g class="zk-shield">
+            <path d="M380 92 L422 108 L422 162 Q422 194 380 210 Q338 194 338 162 L338 108 Z" />
+            <text x="380" y="142" class="zk-text">ZK</text>
+            <text x="380" y="160" class="zk-sub">proof</text>
+          </g>
+          <text x="380" y="258" class="svg-note" data-i18n="s3.nullifier">+ nullifier: each deactivated key usable once</text>
+
+          <!-- deactivated key fed in, then absorbed by the proof -->
+          <g class="dkey">
+            <circle cx="0" cy="0" r="9" />
+            <text x="0" y="-16" class="dkey-label" data-i18n="s3.dkey">deactivated key</text>
+          </g>
+
+          <!-- legitimate output: a fresh K_i is registered -->
+          <line x1="420" y1="150" x2="566" y2="165" class="emit-line" />
+
+          <!-- state tree -->
+          <g class="state-tree">
+            <rect x="560" y="50" width="170" height="200" rx="8" class="panel" />
+            <text x="645" y="36" class="svg-title" data-i18n="s3.stateTree">State tree</text>
+            <g class="slot"><rect x="580" y="70" width="130" height="30" rx="4" /><text x="645" y="90">K_a</text></g>
+            <g class="slot"><rect x="580" y="110" width="130" height="30" rx="4" /><text x="645" y="130">K_b</text></g>
+            <g class="slot newkey"><rect x="580" y="150" width="130" height="30" rx="4" /><text x="645" y="170">K_i  ✨</text></g>
+          </g>
+        </svg>
+        <p class="caption" data-i18n="s3.cut">…</p>
+      </div>
+
+      <div class="compare">
+        <div class="compare-row old"><span class="tag">MACI</span><span data-i18n="s3.compare.maci">…</span></div>
+        <div class="compare-row new"><span class="tag">aMACI</span><span data-i18n="s3.compare.amaci">…</span></div>
+      </div>
+    </section>
+
+    <!-- ── 4. Five phases ───────────────────────────────────────────────── -->
+    <section class="reveal" id="s4">
+      <h2><span class="sec-num">04</span> <span data-i18n="s4.title">One round, five phases</span></h2>
+      <p class="sec-lead" data-i18n="s4.lead">…</p>
+
+      <div class="stepper" id="phase-stepper">
+        <div class="phase-tabs">
+          <button class="phase-tab active" data-phase="0"><b>1</b><span data-i18n="s4.p0.name">Setup</span></button>
+          <button class="phase-tab" data-phase="1"><b>2</b><span data-i18n="s4.p1.name">Add-key</span></button>
+          <button class="phase-tab" data-phase="2"><b>3</b><span data-i18n="s4.p2.name">Vote</span></button>
+          <button class="phase-tab" data-phase="3"><b>4</b><span data-i18n="s4.p3.name">Tally</span></button>
+          <button class="phase-tab" data-phase="4"><b>5</b><span data-i18n="s4.p4.name">Result</span></button>
+        </div>
+
+        <div class="phase-stage" data-phase="0">
+          <svg viewBox="0 0 760 240" aria-hidden="true">
+            <g class="actor actor-voter">
+              <rect x="30" y="90" width="150" height="60" rx="8" />
+              <text x="105" y="125" data-i18n="s4.actor.voter">Voter</text>
+            </g>
+            <g class="actor actor-chain">
+              <rect x="305" y="90" width="150" height="60" rx="8" />
+              <text x="380" y="118" data-i18n="s4.actor.chain">aMACI contract</text>
+              <text x="380" y="136" class="actor-sub">Dora Vota</text>
+            </g>
+            <g class="actor actor-coord">
+              <rect x="580" y="90" width="150" height="60" rx="8" />
+              <text x="655" y="125" data-i18n="s4.actor.coord">Coordinator</text>
+            </g>
+
+            <!-- flows -->
+            <g class="flow flow-setup">
+              <path id="fp-setup" d="M580 110 C 520 70, 520 70, 458 110" />
+              <text x="519" y="64" data-i18n="s4.flow.setup">K_c · deactivate root · T_start/T_end</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-setup" /></animateMotion></circle>
+            </g>
+            <g class="flow flow-addkey">
+              <path id="fp-addkey" d="M180 110 C 240 70, 240 70, 302 110" />
+              <text x="241" y="64" data-i18n="s4.flow.addkey">ZK proof + new K_i</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-addkey" /></animateMotion></circle>
+            </g>
+            <g class="flow flow-vote">
+              <path id="fp-vote" d="M180 130 C 240 170, 240 170, 302 130" />
+              <text x="241" y="186" data-i18n="s4.flow.vote">enc(sign(vote, k_i), K_c)</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-vote" /></animateMotion></circle>
+            </g>
+            <g class="flow flow-read">
+              <path id="fp-read" d="M458 110 C 520 70, 520 70, 580 110" />
+              <text x="519" y="64" data-i18n="s4.flow.read">read all messages, decrypt with k_c</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-read" /></animateMotion></circle>
+            </g>
+            <g class="flow flow-proofs">
+              <path id="fp-proofs" d="M580 130 C 520 170, 520 170, 458 130" />
+              <text x="519" y="186" data-i18n="s4.flow.proofs">process proof + tally proof</text>
+              <circle class="flow-particle" r="3.5"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#fp-proofs" /></animateMotion></circle>
+            </g>
+            <g class="flow flow-verify">
+              <circle cx="380" cy="60" r="18" class="verify-ring" />
+              <text x="380" y="65" class="verify-check">✓</text>
+              <text x="380" y="206" data-i18n="s4.flow.verify">contract verifies proofs with built-in vkeys</text>
+            </g>
+          </svg>
+        </div>
+
+        <p class="phase-desc" id="phase-desc" data-i18n="s4.p0.desc">…</p>
+      </div>
+    </section>
+
+    <!-- ── 5. V1 → V3 ───────────────────────────────────────────────────── -->
+    <section class="reveal" id="s5">
+      <h2><span class="sec-num">05</span> <span data-i18n="s5.title">From protocol to infrastructure: V1 → V3</span></h2>
+      <p class="sec-lead" data-i18n="s5.lead">…</p>
+
+      <div class="acts" id="acts">
+        <div class="act-tabs">
+          <button class="act-tab active" data-act="0">V1</button>
+          <button class="act-tab" data-act="1">V2</button>
+          <button class="act-tab" data-act="2">V3</button>
+        </div>
+
+        <div class="act-stage" data-act="0">
+          <!-- V1 -->
+          <div class="act-panel act-v1">
+            <div class="iso-box">
+              <div class="iso-title" data-i18n="s5.v1.box">User wallet address</div>
+              <div class="iso-chip id">dora1xy…z</div>
+              <div class="bind-line"></div>
+              <div class="iso-chip key">MACI key (derived)</div>
+            </div>
+            <p class="act-caption" data-i18n="s5.v1.desc">…</p>
+          </div>
+          <!-- V2 -->
+          <div class="act-panel act-v2">
+            <div class="iso-box leaky">
+              <div class="iso-title" data-i18n="s5.v2.box">User browser — same environment</div>
+              <div class="iso-row">
+                <div class="iso-chip id" data-i18n="s5.v2.session">login session (email)</div>
+                <div class="leak-line"></div>
+                <div class="iso-chip key">aMACI key</div>
+              </div>
+            </div>
+            <p class="act-caption" data-i18n="s5.v2.desc">…</p>
+          </div>
+          <!-- V3 -->
+          <div class="act-panel act-v3">
+            <div class="iso-pair">
+              <div class="iso-box safe">
+                <div class="iso-title" data-i18n="s5.v3.boxA">User browser</div>
+                <div class="iso-chip id" data-i18n="s5.v2.session">login session (email)</div>
+              </div>
+              <div class="iso-gap">
+                <span class="gap-label" data-i18n="s5.v3.isolated">isolated</span>
+              </div>
+              <div class="iso-box safe">
+                <div class="iso-title">Voting Sandbox</div>
+                <div class="iso-chip key">aMACI key</div>
+              </div>
+            </div>
+            <p class="act-caption" data-i18n="s5.v3.desc">…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="e2e">
+        <div class="e2e-box">
+          <h4>Web App</h4>
+          <p data-i18n="s5.e2e.webapp">…</p>
+        </div>
+        <div class="e2e-lock">🔒<span data-i18n="s5.e2e.lock">E2E-encrypted option</span></div>
+        <div class="e2e-box">
+          <h4>Voting Sandbox</h4>
+          <p data-i18n="s5.e2e.sandbox">…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 6. Collusion explorer ────────────────────────────────────────── -->
+    <section class="reveal" id="s6">
+      <h2><span class="sec-num">06</span> <span data-i18n="s6.title">Trust model: who can learn what?</span></h2>
+      <p class="sec-lead" data-i18n="s6.lead">…</p>
+
+      <div class="collusion" id="collusion">
+        <div class="role-cards">
+          <label class="role-card" data-role="webapp">
+            <input type="checkbox" />
+            <h4>Web App</h4>
+            <p data-i18n="s6.role.webapp">…</p>
+          </label>
+          <label class="role-card" data-role="relay">
+            <input type="checkbox" />
+            <h4>Relay / API</h4>
+            <p data-i18n="s6.role.relay">…</p>
+          </label>
+          <label class="role-card" data-role="operator">
+            <input type="checkbox" />
+            <h4>Operator</h4>
+            <p data-i18n="s6.role.operator">…</p>
+          </label>
+        </div>
+        <label class="user-coop">
+          <input type="checkbox" id="user-coop-box" />
+          <span data-i18n="s6.user">User actively cooperates (tries to reveal their voting key)</span>
+        </label>
+
+        <div class="kchain">
+          <div class="kchain-node" data-node="email">email</div>
+          <div class="kchain-link" data-link="1"><span class="kchain-link-label"></span></div>
+          <div class="kchain-node" data-node="dkey">deactivated key</div>
+          <div class="kchain-link" data-link="2"><span class="kchain-link-label"></span></div>
+          <div class="kchain-node" data-node="ki">K_i</div>
+          <div class="kchain-link" data-link="3"><span class="kchain-link-label"></span></div>
+          <div class="kchain-node" data-node="vote" data-i18n="s6.node.vote">vote content</div>
+        </div>
+
+        <div class="verdict" id="verdict">
+          <p id="verdict-text" data-i18n="s6.v.none">…</p>
+          <p id="verdict-user" class="verdict-user hidden" data-i18n="s6.v.user">…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 7. Anonymity set ─────────────────────────────────────────────── -->
+    <section class="reveal" id="s7">
+      <h2><span class="sec-num">07</span> <span data-i18n="s7.title">Anonymity set: how strong in practice?</span></h2>
+      <p class="sec-lead" data-i18n="s7.lead">…</p>
+
+      <div class="anon" id="anon">
+        <svg viewBox="0 0 760 290" class="anon-svg" aria-hidden="true">
+          <!-- axes -->
+          <line x1="60" y1="20" x2="60" y2="235" class="axis" />
+          <line x1="60" y1="235" x2="730" y2="235" class="axis" />
+          <text x="22" y="128" class="axis-label" transform="rotate(-90 22 128)" data-i18n="s7.ylabel">participation anonymity</text>
+
+          <!-- residual timing-correlation risk = gap between ceiling and effective curve -->
+          <path d="M60 50 L730 50 L730 62 C 620 66, 470 88, 370 128 C 280 165, 200 198, 60 205 Z" class="gap-area" />
+
+          <!-- constant cryptographic ceiling -->
+          <line x1="60" y1="50" x2="730" y2="50" class="curve-crypto" />
+          <text x="305" y="40" class="curve-label crypto" data-i18n="s7.crypto">Cryptographic anonymity (ZK proof) — ceiling</text>
+
+          <!-- effective participation anonymity: rises toward the ceiling with scale -->
+          <path d="M60 205 C 200 198, 280 165, 370 128 C 470 88, 620 66, 730 62" class="curve-effective" />
+          <text x="500" y="185" class="curve-label effective" data-i18n="s7.effective">Effective anonymity — rises with set size</text>
+          <text x="220" y="98" class="curve-label gap" data-i18n="s7.gap">timing-correlation risk (the gap)</text>
+
+          <!-- moving marker rides the effective curve -->
+          <circle id="anon-marker" cx="60" cy="205" r="8" class="marker" />
+
+          <!-- x tick labels -->
+          <text x="60" y="256" class="tick">≤5</text>
+          <text x="215" y="256" class="tick">~10</text>
+          <text x="370" y="256" class="tick">~60</text>
+          <text x="560" y="256" class="tick">500+</text>
+          <text x="730" y="256" class="tick">100k+</text>
+          <text x="395" y="280" class="tick dim-tick" data-i18n="s7.xlabel">anonymity set size (concurrent voters)</text>
+        </svg>
+
+        <input type="range" id="anon-slider" min="0" max="4" step="1" value="0" />
+
+        <div class="anon-readout">
+          <div class="readout-item">
+            <span class="readout-label" data-i18n="s7.scenario">Scenario</span>
+            <span class="readout-value" id="anon-scenario">…</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label" data-i18n="s7.risk">Timing risk</span>
+            <span class="readout-value" id="anon-risk">…</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label" data-i18n="s7.config">Recommended setup</span>
+            <span class="readout-value" id="anon-config">…</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 8. Summary ───────────────────────────────────────────────────── -->
+    <section class="reveal" id="s8">
+      <h2><span class="sec-num">08</span> <span data-i18n="s8.title">Choosing a trust configuration</span></h2>
+      <p class="sec-lead" data-i18n="s8.lead">…</p>
+
+      <table class="config-table">
+        <thead>
+          <tr>
+            <th data-i18n="s8.th.config">Configuration</th>
+            <th>Web App</th>
+            <th>Relay/API</th>
+            <th>Operator</th>
+            <th data-i18n="s8.th.collude">Parties needed to collude</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-i18n="s8.row1.name">Standard (Dora full-stack)</td>
+            <td>Dora</td><td>Dora</td><td>Dora</td>
+            <td><span class="badge warn">1</span></td>
+          </tr>
+          <tr>
+            <td data-i18n="s8.row2.name">Independent operator</td>
+            <td>Dora</td><td>Dora</td><td data-i18n="s8.thirdparty">3rd party</td>
+            <td><span class="badge na">2</span></td>
+          </tr>
+          <tr>
+            <td data-i18n="s8.row3.name">Three-way independent</td>
+            <td data-i18n="s8.opA">Operator A</td><td data-i18n="s8.opB">Operator B</td><td data-i18n="s8.thirdparty">3rd party</td>
+            <td><span class="badge pass">3</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="final-note" data-i18n="s8.final">…</p>
+
+      <div class="cta">
+        <a class="btn-primary cta-btn" href="/" data-i18n="s8.cta">Verify a round yourself →</a>
+      </div>
+
+      <div class="reading">
+        <h3 data-i18n="s8.reading">Further reading</h3>
+        <ul>
+          <li><a href="https://vitalik.ca/general/2019/04/03/collusion.html" target="_blank" rel="noopener">Vitalik Buterin — On Collusion (2019)</a></li>
+          <li><a href="https://ethresear.ch/t/minimal-anti-collusion-infrastructure/5413" target="_blank" rel="noopener">Vitalik Buterin — Minimal Anti-Collusion Infrastructure (2019)</a></li>
+          <li><a href="https://ethresear.ch/t/adding-anonymization-to-maci/6329" target="_blank" rel="noopener">Vitalik Buterin — Adding Anonymization to MACI (2019)</a></li>
+          <li><a href="https://ethresear.ch/t/maci-anonymization-using-rerandomizable-encryption/7054" target="_blank" rel="noopener">Kobi Gurk — MACI Anonymization using Rerandomizable Encryption (2020)</a></li>
+          <li><a href="https://research.dorahacks.io/2022/04/30/light-weight-maci-anonymization/" target="_blank" rel="noopener">Felix Cai, Eric Zhang — Light-weight MACI Anonymization (2022)</a></li>
+          <li><a href="https://research.dorahacks.io/2023/05/21/rerandomizable-encryption-maci-anonymization-notes/" target="_blank" rel="noopener">Benjamin Lei — Implementation Notes on MACI Anonymization (2023)</a></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer dim small" data-i18n="footer">
+    Local read-only verifier — no private keys, no transactions. Anyone can audit.
+  </footer>
+
+  <script src="/protocol-i18n.js"></script>
+  <script src="/protocol.js"></script>
+</body>
+</html>

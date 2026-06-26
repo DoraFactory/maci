@@ -33,11 +33,6 @@ export interface AMaciReadOnlyInterface {
   }) => Promise<Uint256>;
   getAllResult: () => Promise<Uint256>;
   getAllResults: () => Promise<ArrayOfUint256>;
-  getStateIdxInc: ({
-    address
-  }: {
-    address: Addr;
-  }) => Promise<Uint256>;
   getVoiceCreditBalance: ({
     index
   }: {
@@ -105,7 +100,6 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.getResult = this.getResult.bind(this);
     this.getAllResult = this.getAllResult.bind(this);
     this.getAllResults = this.getAllResults.bind(this);
-    this.getStateIdxInc = this.getStateIdxInc.bind(this);
     this.getVoiceCreditBalance = this.getVoiceCreditBalance.bind(this);
     this.getVoiceCreditAmount = this.getVoiceCreditAmount.bind(this);
     this.signuped = this.signuped.bind(this);
@@ -219,17 +213,6 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
   getAllResults = async (): Promise<ArrayOfUint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_all_results: {}
-    });
-  };
-  getStateIdxInc = async ({
-    address
-  }: {
-    address: Addr;
-  }): Promise<Uint256> => {
-    return this.client.queryContractSmart(this.contractAddress, {
-      get_state_idx_inc: {
-        address
-      }
     });
   };
   getVoiceCreditBalance = async ({

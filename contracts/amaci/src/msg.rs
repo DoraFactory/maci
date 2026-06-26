@@ -1,7 +1,7 @@
 #[allow(unused_imports)] // DelayRecords is used by the #[returns] proc-macro attribute
 use crate::state::{
-    DelayRecords, MaciParameters, MessageData, PeriodStatus, PubKey, RegistrationMode, RoundInfo,
-    VoiceCreditMode, VotingTime,
+    DelayRecords, Groth16VkeyStr, MaciParameters, MessageData, PeriodStatus, PubKey,
+    RegistrationMode, RoundInfo, VoiceCreditMode, VotingTime,
 };
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Timestamp, Uint128, Uint256};
@@ -245,9 +245,6 @@ pub enum QueryMsg {
     GetAllResults {},
 
     #[returns(Uint256)]
-    GetStateIdxInc { address: Addr },
-
-    #[returns(Uint256)]
     GetVoiceCreditBalance { index: Uint256 },
 
     #[returns(Uint256)]
@@ -322,6 +319,10 @@ pub enum QueryMsg {
 
     #[returns(DelayConfigResponse)]
     GetDelayConfig {},
+
+    /// Returns the stored Groth16 verifying keys for all circuits.
+    #[returns(VkeysResponse)]
+    GetVkeys {},
 }
 
 // Response type for GetRegistrationConfig query
@@ -357,6 +358,14 @@ pub struct FeeConfigResponse {
     pub message_fee: Uint128,
     pub deactivate_fee: Uint128,
     pub signup_fee: Uint128,
+}
+
+#[cw_serde]
+pub struct VkeysResponse {
+    pub process_vkey: Groth16VkeyStr,
+    pub tally_vkey: Groth16VkeyStr,
+    pub deactivate_vkey: Groth16VkeyStr,
+    pub add_key_vkey: Groth16VkeyStr,
 }
 
 #[cw_serde]

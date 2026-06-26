@@ -1,69 +1,13 @@
 import type { CommandModule, Argv, ArgumentsCamelCase } from 'yargs';
-import { getOnChainVkeys, type Groth16VkeyOnChain } from '../core/chain.js';
-import {
-  resolveEndpoints,
-  NETWORK_CHOICES,
-  type NetworkName,
-} from '../core/network.js';
-import {
-  AMACI_CIRCUITS,
-  type AmaciCircuitEntry,
-  type AmaciVkeySet,
-} from '../core/circuits.js';
+import { NETWORK_CHOICES, type NetworkName } from '../core/network.js';
+import { AMACI_CIRCUITS } from '../core/circuits.js';
+import { runRegistryCheck } from '../core/pipeline.js';
 import {
   printRegistryList,
   printCircuitDetail,
   printVkeyCheckResult,
   printError,
 } from '../core/report.js';
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function vkeysMatch(onChain: Groth16VkeyOnChain, registered: AmaciVkeySet): boolean {
-  const fields = [
-    'vk_alpha1',
-    'vk_beta_2',
-    'vk_gamma_2',
-    'vk_delta_2',
-    'vk_ic0',
-    'vk_ic1',
-  ] as const;
-  return fields.every((f) => onChain[f] === registered[f]);
-}
-
-type VkeyMatchResult = {
-  power: string;
-  entry: AmaciCircuitEntry;
-  processMatch: boolean;
-  tallyMatch: boolean;
-  deactivateMatch: boolean | null;
-  addNewKeyMatch: boolean | null;
-};
-
-/**
- * Scan all known aMACI circuits to find one whose vkeys match the on-chain values.
- */
-function findMatchingCircuit(
-  processVkey: Groth16VkeyOnChain,
-  tallyVkey: Groth16VkeyOnChain,
-  deactivateVkey: Groth16VkeyOnChain | undefined,
-  addNewKeyVkey: Groth16VkeyOnChain | undefined
-): VkeyMatchResult | null {
-  for (const [power, entry] of Object.entries(AMACI_CIRCUITS)) {
-    const pm = vkeysMatch(processVkey, entry.vkeys.process);
-    const tm = vkeysMatch(tallyVkey, entry.vkeys.tally);
-    if (pm || tm) {
-      const dm = deactivateVkey !== undefined
-        ? vkeysMatch(deactivateVkey, entry.vkeys.deactivate)
-        : null;
-      const am = addNewKeyVkey !== undefined
-        ? vkeysMatch(addNewKeyVkey, entry.vkeys.addNewKey)
-        : null;
-      return { power, entry, processMatch: pm, tallyMatch: tm, deactivateMatch: dm, addNewKeyMatch: am };
-    }
-  }
-  return null;
-}
 
 // ─── Subcommand handlers ─────────────────────────────────────────────────────
 
@@ -92,40 +36,20 @@ function handleShow(args: ArgumentsCamelCase<{ power: string }>) {
 async function handleCheck(
   args: ArgumentsCamelCase<{ contract: string; network: NetworkName; rpc?: string }>
 ) {
-  const { rpc } = resolveEndpoints(args.network, { rpc: args.rpc });
   try {
-    const vkeys = await getOnChainVkeys(rpc, args.contract);
-    const match = findMatchingCircuit(
-      vkeys.processVkey,
-      vkeys.tallyVkey,
-      vkeys.deactivateVkey,
-      vkeys.addNewKeyVkey
-    );
-
-    if (!match) {
-      printVkeyCheckResult({
-        power: 'UNKNOWN',
-        source: 'not found in registry',
-        production: false,
-        processMatch: null,
-        tallyMatch: null,
-        deactivateMatch: null,
-        addNewKeyMatch: null,
-      });
-      process.exit(1);
-    }
+    const result = await runRegistryCheck(args.contract, args.network, args.rpc);
 
     printVkeyCheckResult({
-      power: match.power,
-      source: match.entry.source,
-      production: match.entry.production,
-      processMatch: match.processMatch,
-      tallyMatch: match.tallyMatch,
-      deactivateMatch: match.deactivateMatch,
-      addNewKeyMatch: match.addNewKeyMatch,
+      power: result.power,
+      source: result.source,
+      production: result.production,
+      processMatch: result.processMatch,
+      tallyMatch: result.tallyMatch,
+      deactivateMatch: result.deactivateMatch,
+      addNewKeyMatch: result.addNewKeyMatch,
     });
 
-    if (!match.processMatch || !match.tallyMatch) {
+    if (!result.passed) {
       process.exit(1);
     }
   } catch (err) {

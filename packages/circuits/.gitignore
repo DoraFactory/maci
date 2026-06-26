@@ -3,3 +3,6 @@ input.json
 circom/main
 circom/test
 zkeys/
+ts/__tests__/ElGamalDecryptTallyAttack.test.ts
+ts/__tests__/ElGamalDecryptMalleability.test.ts
+ts/__tests__/AddNewKeyNullifierMalleability.test.ts

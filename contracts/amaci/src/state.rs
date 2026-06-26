@@ -56,7 +56,6 @@ pub struct MaciParameters {
 }
 
 pub const VOICE_CREDIT_AMOUNT: Item<Uint256> = Item::new("voice_credit_amount");
-pub const STATEIDXINC: Map<&Addr, Uint256> = Map::new("state_idx_inc");
 pub const ADMIN: Item<Admin> = Item::new("admin");
 pub const PERIOD: Item<Period> = Item::new("period");
 pub const MACIPARAMETERS: Item<MaciParameters> = Item::new("maci_param");
@@ -237,7 +236,6 @@ pub const DMSG_HASHES: Map<Vec<u8>, Uint256> = Map::new("dmsg_hashes");
 pub const STATE_ROOT_BY_DMSG: Map<Vec<u8>, Uint256> = Map::new("state_root_by_dmsg");
 pub const PROCESSED_DMSG_COUNT: Item<Uint256> = Item::new("processed_dmsg_count");
 pub const DNODES: Map<Vec<u8>, Uint256> = Map::new("dnodes");
-pub const DEACTIVATED_COUNT: Item<Uint256> = Item::new("deactivated_count");
 pub const NULLIFIERS: Map<Vec<u8>, bool> = Map::new("nullifiers");
 pub const CURRENT_DEACTIVATE_COMMITMENT: Item<Uint256> = Item::new("current_deactivate_commitment");
 // Map (pubkey.x, pubkey.y) to stateIdx for signup tracking
@@ -246,8 +244,6 @@ pub const SIGNUPED: Map<&(Vec<u8>, Vec<u8>), Uint256> = Map::new("signuped");
 pub const PRE_DEACTIVATE_ROOT: Item<Uint256> = Item::new("pre_deactivate_root");
 pub const PRE_DEACTIVATE_COORDINATOR_HASH: Item<Uint256> =
     Item::new("pre_deactivate_coordinator_hash");
-
-pub const DEACTIVATE_COUNT: Item<u128> = Item::new("deactivate_count");
 
 #[cw_serde]
 pub struct Groth16ProofStr {
@@ -379,11 +375,6 @@ pub const GROTH16_PROCESS_VKEYS: Item<Groth16VkeyStr> = Item::new("groth16_proce
 pub const GROTH16_TALLY_VKEYS: Item<Groth16VkeyStr> = Item::new("groth16_tally_vkeys");
 pub const GROTH16_DEACTIVATE_VKEYS: Item<Groth16VkeyStr> = Item::new("groth16_deactivate_vkeys");
 pub const GROTH16_NEWKEY_VKEYS: Item<Groth16VkeyStr> = Item::new("groth16_newkey_vkeys");
-
-// registry operator data
-pub const MACI_DEACTIVATE_MESSAGE: Map<&Addr, Vec<Vec<String>>> =
-    // contract_address - [["", "", "", "", ""]]
-    Map::new("maci_deactivate_message");
 
 // registry operator data
 pub const MACI_OPERATOR: Item<Addr> = Item::new("maci_operator");

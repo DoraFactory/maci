@@ -117,7 +117,11 @@ template ElGamalDecrypt() {
 
     out <== decryptedPoint.xout;
 
-    component decryptedBits = Num2Bits(254);
+    // C-01 fix: use the strict variant so the bit decomposition is constrained
+    // to be < p (via AliasCheck). The non-strict Num2Bits(254) allowed both `x`
+    // and `x + p` decompositions, letting a malicious prover flip the parity bit
+    // `isOdd` (active/deactivated). The strict version makes `isOdd` unique.
+    component decryptedBits = Num2Bits_strict();
     decryptedBits.in <== decryptedPoint.xout;
     isOdd <== decryptedBits.out[0];
 }

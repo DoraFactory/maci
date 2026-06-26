@@ -3004,9 +3004,14 @@ mod test {
             },
         ];
 
+        // Deactivate is only compatible with Unified VC mode, so a combined update that
+        // enables deactivate must also use Unified VC mode. Per-user amounts in the
+        // whitelist are ignored in Unified mode (the unified amount applies to everyone).
         let config = RegistrationConfigUpdate {
             deactivate_enabled: Some(true),
-            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
+            voice_credit_mode: Some(VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100),
+            }),
             registration_mode: Some(RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist: WhitelistBase {
                     users: whitelist_users,
@@ -3025,7 +3030,8 @@ mod test {
             .unwrap();
         assert!(deactivate_enabled, "Deactivate should be enabled");
 
-        // Verify whitelist users and their VC balances via QueryRegistrationStatus
+        // Verify whitelist users and their VC balances via QueryRegistrationStatus.
+        // Unified mode: every whitelisted user gets the same unified amount (100).
         let status1: RegistrationStatus = app
             .wrap()
             .query_wasm_smart(
@@ -3042,7 +3048,7 @@ mod test {
         assert_eq!(
             status1.balance,
             Uint256::from_u128(100),
-            "User1 should have 100 VC"
+            "User1 should have the unified 100 VC"
         );
 
         let status2: RegistrationStatus = app
@@ -3060,8 +3066,8 @@ mod test {
         assert!(status2.can_sign_up, "user2 should be in whitelist");
         assert_eq!(
             status2.balance,
-            Uint256::from_u128(200),
-            "User2 should have 200 VC"
+            Uint256::from_u128(100),
+            "User2 should have the unified 100 VC"
         );
     }
 
@@ -3352,9 +3358,10 @@ mod test {
             "Should be SignUpWithStaticWhitelist mode"
         );
 
-        // Update configuration
+        // Update configuration. Deactivate is only compatible with Unified VC mode, so
+        // switching to Dynamic is done with deactivate left disabled.
         let update_config = RegistrationConfigUpdate {
-            deactivate_enabled: Some(true),
+            deactivate_enabled: Some(false),
             voice_credit_mode: Some(VoiceCreditMode::Dynamic),
             registration_mode: None,
         };
@@ -3371,8 +3378,8 @@ mod test {
 
         // Verify updated state
         assert!(
-            updated_config.deactivate_enabled,
-            "Deactivate should be enabled"
+            !updated_config.deactivate_enabled,
+            "Deactivate should remain disabled (incompatible with Dynamic VC mode)"
         );
 
         assert!(
@@ -3386,6 +3393,60 @@ mod test {
                 RegistrationMode::SignUpWithStaticWhitelist
             ),
             "Should still be SignUpWithStaticWhitelist mode"
+        );
+    }
+
+    // Deactivate / AddNewKey assigns the rotated key the global voice credit amount,
+    // which is only well-defined in Unified VC mode. The contract must reject any
+    // effective combination of deactivate_enabled + Dynamic VC mode.
+    #[test]
+    fn test_deactivate_requires_unified_vc_mode() {
+        let mut app = create_app();
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Combined update enabling deactivate while switching to Dynamic must be rejected.
+        let bad = RegistrationConfigUpdate {
+            deactivate_enabled: Some(true),
+            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
+            registration_mode: None,
+        };
+        let err = maci_contract
+            .update_registration_config(&mut app, owner(), bad)
+            .unwrap_err();
+        assert!(
+            matches!(
+                err.downcast::<ContractError>().unwrap(),
+                ContractError::InvalidRegistrationConfig { .. }
+            ),
+            "deactivate + Dynamic must be rejected"
+        );
+
+        // Enabling deactivate while staying in Unified mode is allowed.
+        let good = RegistrationConfigUpdate {
+            deactivate_enabled: Some(true),
+            voice_credit_mode: None,
+            registration_mode: None,
+        };
+        maci_contract
+            .update_registration_config(&mut app, owner(), good)
+            .expect("enabling deactivate in Unified mode should succeed");
+
+        // With deactivate already enabled, switching to Dynamic alone must also be rejected
+        // because the effective post-update combination would be incompatible.
+        let bad2 = RegistrationConfigUpdate {
+            deactivate_enabled: None,
+            voice_credit_mode: Some(VoiceCreditMode::Dynamic),
+            registration_mode: None,
+        };
+        let err2 = maci_contract
+            .update_registration_config(&mut app, owner(), bad2)
+            .unwrap_err();
+        assert!(
+            matches!(
+                err2.downcast::<ContractError>().unwrap(),
+                ContractError::InvalidRegistrationConfig { .. }
+            ),
+            "switching to Dynamic while deactivate is enabled must be rejected"
         );
     }
 
@@ -4047,6 +4108,141 @@ mod test {
             contract_err,
             ContractError::TitleIsEmpty {},
             "Empty title should be rejected even before voting starts"
+        );
+    }
+
+    // ============================================================
+    // Edge-case behavioral tests
+    // ============================================================
+
+    // instantiate must reject start_time >= end_time.
+    #[test]
+    fn instantiate_should_reject_start_after_end() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+        let err = code_id
+            .instantiate_with_wrong_voting_time(&mut app, owner(), user1(), user2(), "Group")
+            .unwrap_err();
+        assert_eq!(ContractError::WrongTimeSet {}, err.downcast().unwrap());
+    }
+
+    // StaticWhitelist must reject a second signup reusing an existing pubkey,
+    // even from a different (whitelisted) address.
+    #[test]
+    fn signup_should_reject_duplicate_pubkey_in_static_whitelist() {
+        let mut app = create_app();
+        let contract = MaciContract::instantiate_default(&mut app, true).unwrap();
+
+        // Enter the voting window.
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000).plus_minutes(1);
+        });
+
+        let pubkey = test_pubkey1();
+        contract.sign_up(&mut app, user1(), pubkey.clone()).unwrap();
+
+        // A different whitelisted address tries to reuse the same pubkey.
+        let err = contract
+            .sign_up(&mut app, user2(), pubkey.clone())
+            .unwrap_err();
+        assert_eq!(
+            ContractError::UserAlreadyRegistered {},
+            err.downcast().unwrap()
+        );
+
+        // The original mapping must still point to user1's leaf (index 0).
+        assert_eq!(
+            contract.signuped(&app, pubkey).unwrap(),
+            Some(Uint256::from_u128(0u128))
+        );
+        assert_eq!(contract.num_sign_up(&app).unwrap(), Uint256::from_u128(1u128));
+    }
+
+    // A round with zero signups must not be finalizable with non-zero
+    // results, but an all-zero finalize is allowed.
+    #[test]
+    fn empty_round_should_reject_nonzero_results() {
+        let mut app = create_app();
+        // Empty whitelist => nobody can sign up => num_sign_ups stays 0.
+        let contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Move past the voting window (start + 12 minutes; window is 11 minutes).
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000).plus_minutes(12);
+        });
+
+        contract.start_process(&mut app, owner()).unwrap();
+        contract.stop_processing(&mut app, owner()).unwrap();
+
+        assert_eq!(contract.num_sign_up(&app).unwrap(), Uint256::zero());
+
+        // Non-zero results must be rejected.
+        let err = contract
+            .stop_tallying(
+                &mut app,
+                owner(),
+                vec![
+                    Uint256::from_u128(100u128),
+                    Uint256::zero(),
+                    Uint256::zero(),
+                    Uint256::zero(),
+                    Uint256::zero(),
+                ],
+                Uint256::zero(),
+            )
+            .unwrap_err();
+        assert_eq!(
+            ContractError::InvalidEmptyRoundResult {},
+            err.downcast().unwrap()
+        );
+
+        // All-zero results are accepted and the round ends.
+        contract
+            .stop_tallying(
+                &mut app,
+                owner(),
+                vec![Uint256::zero(); 5],
+                Uint256::zero(),
+            )
+            .unwrap();
+        assert_eq!(
+            contract.get_period(&app).unwrap(),
+            Period {
+                status: PeriodStatus::Ended
+            }
+        );
+    }
+
+    // stop_tallying computes the elapsed time since end_time with saturating_sub.
+    // If the block time is earlier than end_time it must still finalize cleanly
+    // without panicking.
+    #[test]
+    fn stop_tallying_does_not_panic_when_block_time_before_end_time() {
+        let mut app = create_app();
+        let contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Advance past the voting window so the round can be processed.
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000).plus_minutes(12);
+        });
+        contract.start_process(&mut app, owner()).unwrap();
+        contract.stop_processing(&mut app, owner()).unwrap();
+
+        // Rewind the block time to BEFORE end_time (end_time = start + 11 min),
+        // exercising the saturating path where current_time < end_time.
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000).plus_minutes(5);
+        });
+
+        // Must not panic; empty round finalizes with all-zero results.
+        contract
+            .stop_tallying(&mut app, owner(), vec![Uint256::zero(); 5], Uint256::zero())
+            .unwrap();
+        assert_eq!(
+            contract.get_period(&app).unwrap(),
+            Period {
+                status: PeriodStatus::Ended
+            }
         );
     }
 }

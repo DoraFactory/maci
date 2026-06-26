@@ -936,8 +936,24 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
 
                 println!("add_new_key proof {:?}", proof);
                 _ = maci_contract
-                    .amaci_add_key(&mut app, creator(), new_key_pub, nullifier, d, proof)
+                    .amaci_add_key(&mut app, creator(), new_key_pub.clone(), nullifier, d, proof)
                     .unwrap();
+
+                // AddNewKey must persist a VOICECREDITBALANCE entry consistent
+                // with the new state leaf, so GetVoiceCreditBalance returns the
+                // correct balance for rotated keys.
+                let new_state_idx = maci_contract
+                    .amaci_signuped(&app, new_key_pub.clone())
+                    .unwrap()
+                    .expect("added key must be registered in SIGNUPED");
+                let new_key_balance = maci_contract
+                    .amaci_voice_credit_balance(&app, new_state_idx)
+                    .unwrap();
+                assert_eq!(
+                    new_key_balance,
+                    Uint256::from_u128(100u128),
+                    "AddNewKey must persist the unified voice credit balance (100)"
+                );
             }
             "publishMessage" => {
                 let data: PublishMessageData = deserialize_data(&entry.data);
@@ -1580,8 +1596,24 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
 
                 println!("add_new_key proof {:?}", proof);
                 _ = maci_contract
-                    .amaci_add_key(&mut app, creator(), new_key_pub, nullifier, d, proof)
+                    .amaci_add_key(&mut app, creator(), new_key_pub.clone(), nullifier, d, proof)
                     .unwrap();
+
+                // AddNewKey must persist a VOICECREDITBALANCE entry consistent
+                // with the new state leaf, so GetVoiceCreditBalance returns the
+                // correct balance for rotated keys.
+                let new_state_idx = maci_contract
+                    .amaci_signuped(&app, new_key_pub.clone())
+                    .unwrap()
+                    .expect("added key must be registered in SIGNUPED");
+                let new_key_balance = maci_contract
+                    .amaci_voice_credit_balance(&app, new_state_idx)
+                    .unwrap();
+                assert_eq!(
+                    new_key_balance,
+                    Uint256::from_u128(100u128),
+                    "AddNewKey must persist the unified voice credit balance (100)"
+                );
             }
             "publishMessage" => {
                 let data: PublishMessageData = deserialize_data(&entry.data);
@@ -2204,8 +2236,24 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
 
                 println!("add_new_key proof {:?}", proof);
                 _ = maci_contract
-                    .amaci_add_key(&mut app, creator(), new_key_pub, nullifier, d, proof)
+                    .amaci_add_key(&mut app, creator(), new_key_pub.clone(), nullifier, d, proof)
                     .unwrap();
+
+                // AddNewKey must persist a VOICECREDITBALANCE entry consistent
+                // with the new state leaf, so GetVoiceCreditBalance returns the
+                // correct balance for rotated keys.
+                let new_state_idx = maci_contract
+                    .amaci_signuped(&app, new_key_pub.clone())
+                    .unwrap()
+                    .expect("added key must be registered in SIGNUPED");
+                let new_key_balance = maci_contract
+                    .amaci_voice_credit_balance(&app, new_state_idx)
+                    .unwrap();
+                assert_eq!(
+                    new_key_balance,
+                    Uint256::from_u128(100u128),
+                    "AddNewKey must persist the unified voice credit balance (100)"
+                );
             }
             "publishMessage" => {
                 let data: PublishMessageData = deserialize_data(&entry.data);
