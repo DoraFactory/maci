@@ -2,27 +2,30 @@ use crate::circuit_params::match_vkeys;
 use crate::error::ContractError;
 use crate::groth16_parser::{parse_groth16_proof, parse_groth16_vkey};
 use crate::msg::{
-    DelayConfigResponse, ExecuteMsg, FeeConfigResponse, Groth16ProofType, InstantiateMsg,
-    InstantiationData, QueryMsg, RegistrationConfigInfo, RegistrationConfigUpdate,
-    RegistrationModeConfig, RegistrationStatus, TallyDelayInfo, VkeysResponse, WhitelistBaseConfig,
+    DelayConfigResponse, ExecuteMsg, FeeConfigResponse, Groth16ProofType, HybridAggResponse,
+    HybridKcConfirmationEntry, InstantiateMsg, InstantiationData, QueryMsg, RegistrationConfigInfo,
+    RegistrationConfigUpdate, RegistrationModeConfig, RegistrationStatus, TallyDelayInfo,
+    VkeysResponse, WhitelistBaseConfig,
 };
 use crate::state::{
     Admin, DelayConfig, DelayRecord, DelayRecords, DelayType, FeeConfig, Groth16ProofStr,
-    MaciParameters, MessageData, OracleWhitelistUser, Period, PeriodStatus, PubKey,
-    QuinaryTreeRoot, RegistrationMode, RoundInfo, StateLeaf, VoiceCreditMode, VotingTime,
-    Whitelist, WhitelistConfig, ADMIN, CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH,
-    CREATE_ROUND_WINDOW, CURRENT_DEACTIVATE_COMMITMENT, CURRENT_STATE_COMMITMENT,
-    CURRENT_TALLY_COMMITMENT, DEACTIVATE_ENABLED, DELAY_CONFIG, DELAY_RECORDS,
-    DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES, FEE_CONFIG, FEE_DENOM, FEE_RECIPIENT,
-    FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS, GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS,
-    GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS, MACI_OPERATOR,
-    MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS,
-    NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE, PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH,
-    PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT, PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB,
-    REGISTRATION_MODE, RESULT, ROUNDINFO, SIGNUPED, STATE_ROOT_BY_DMSG,
-    TALLY_DELAY_MAX_HOURS, TALLY_DELAY_MULTIPLIER, TALLY_TIMEOUT, TALLY_TIMEOUT_EXTRA_SECONDS,
-    TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE, VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE,
-    VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
+    HybridCiphertext, HybridCommitteeConfig, HybridPublishedMessage, HybridTally, MaciParameters,
+    MessageData, OracleWhitelistUser, Period, PeriodStatus, PubKey, QuinaryTreeRoot,
+    RegistrationMode, RoundInfo, StateLeaf, VoiceCreditMode, VotingTime, Whitelist,
+    WhitelistConfig, ADMIN, CERTSYSTEM, CIRCUITTYPE, COORDINATORHASH, CREATE_ROUND_WINDOW,
+    CURRENT_DEACTIVATE_COMMITMENT, CURRENT_STATE_COMMITMENT, CURRENT_TALLY_COMMITMENT,
+    DEACTIVATE_ENABLED, DELAY_CONFIG, DELAY_RECORDS, DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES,
+    FEE_CONFIG, FEE_DENOM, FEE_RECIPIENT, FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS,
+    GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS, GROTH16_TALLY_VKEYS, HYBRID_AGG_C1, HYBRID_AGG_C2,
+    HYBRID_COMMITTEE, HYBRID_KC, HYBRID_KC_CONFIRMATIONS, HYBRID_MESSAGES, HYBRID_MSG_CHAIN_LENGTH,
+    HYBRID_MSG_HASHES, HYBRID_NONCE_STATE_ROOT, HYBRID_PROCESSED_COUNT, HYBRID_TALLY, LEAF_IDX_0, MACIPARAMETERS,
+    MACI_OPERATOR, MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH, MSG_HASHES, NODES,
+    NULLIFIERS, NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE, PERIOD, POLL_ID,
+    PRE_DEACTIVATE_COORDINATOR_HASH, PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT,
+    PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB, REGISTRATION_MODE, RESULT, ROUNDINFO,
+    SIGNUPED, STATE_ROOT_BY_DMSG, TALLY_DELAY_MAX_HOURS, TALLY_DELAY_MULTIPLIER, TALLY_TIMEOUT,
+    TALLY_TIMEOUT_EXTRA_SECONDS, TOTAL_RESULT, USED_ENC_PUB_KEYS, VOICECREDITBALANCE,
+    VOICE_CREDIT_AMOUNT, VOICE_CREDIT_MODE, VOTEOPTIONMAP, VOTINGTIME, WHITELIST, ZEROS, ZEROS_H10,
 };
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
@@ -100,6 +103,50 @@ fn run_groth16_verify(
         });
     }
     Ok(())
+}
+
+/// Hybrid MACI + AHE: verify a voter's on-chain ballotValidity proof.
+///
+/// Rebuilds the single SHA256 input hash from the committed public values in the
+/// exact order the circuit folds them, then runs the Groth16 verifier with the
+/// hybrid ballot verifying key. Returns Ok(true) iff the proof is valid. Any
+/// verification/structural failure maps to Ok(false) so this is query-safe.
+///
+/// `state_idx`/`pub_key` are deliberately NOT parameters here any more: the
+/// circuit keeps them private and only outputs `nullifier` (see
+/// `ballotValidity.circom`'s anonymity note), so the contract never learns
+/// which registered voter a ballot belongs to.
+fn verify_hybrid_ballot(
+    kc: &[Uint256; 2],
+    state_root: &Uint256,
+    coord_pub_key: &[Uint256; 2],
+    poll_id: &Uint256,
+    routing_commitment: &Uint256,
+    ahe_commitment: &Uint256,
+    nullifier: &Uint256,
+    proof: &Groth16ProofType,
+) -> Result<bool, ContractError> {
+    let input = [
+        kc[0],
+        kc[1],
+        *state_root,
+        coord_pub_key[0],
+        coord_pub_key[1],
+        *poll_id,
+        *routing_commitment,
+        *ahe_commitment,
+        *nullifier,
+    ];
+    let input_hash = compute_input_hash(&input);
+
+    let vkey_str = crate::circuit_params::hybrid_ballot_vkey()?;
+    let vkey = parse_groth16_vkey::<Bn256>(vkey_str)?;
+    let pvk = prepare_verifying_key(&vkey);
+
+    let proof_str = decode_groth16_proof(proof)?;
+    let pof = parse_groth16_proof::<Bn256>(proof_str)?;
+
+    Ok(groth16_verify(&pvk, &pof, &[uint256_to_field(&input_hash)?]).unwrap_or(false))
 }
 
 /// Convert a contract address to Uint256 format
@@ -250,6 +297,15 @@ pub fn instantiate(
         return Err(ContractError::MaxVoteOptionsExceeded {
             current: actual_vote_options,
             max_allowed: vote_option_max_amount,
+        });
+    }
+    // The hybrid circuits (ProcessHybridMessages, RevealVerify) hard-code
+    // HYBRID_M vote-option slots.  A mismatch would cause the ZK proofs to be
+    // uncomputable at processing time, so we reject it eagerly at instantiate.
+    if msg.vote_option_map.len() != HYBRID_M {
+        return Err(ContractError::HybridVoteOptionMapMismatch {
+            got: msg.vote_option_map.len(),
+            expected: HYBRID_M,
         });
     }
 
@@ -543,6 +599,62 @@ pub fn instantiate(
     MSG_CHAIN_LENGTH.save(deps.storage, &Uint256::from_u128(0u128))?;
     PROCESSED_MSG_COUNT.save(deps.storage, &Uint256::from_u128(0u128))?;
     CURRENT_TALLY_COMMITMENT.save(deps.storage, &Uint256::from_u128(0u128))?;
+
+    // Hybrid MACI + AHE on-chain flow: independent hash chain/state, genesis hash
+    // = 0 (same convention as the classic MSG_HASHES chain above).
+    HYBRID_MSG_HASHES.save(
+        deps.storage,
+        Uint256::from_u128(0u128).to_be_bytes().to_vec(),
+        &Uint256::from_u128(0u128),
+    )?;
+    HYBRID_MSG_CHAIN_LENGTH.save(deps.storage, &Uint256::from_u128(0u128))?;
+    HYBRID_PROCESSED_COUNT.save(deps.storage, &Uint256::from_u128(0u128))?;
+
+    // Optional hybrid committee roster: if provided, ConfirmHybridKc becomes
+    // the only way to finalize Kc (SetHybridKc is disabled for this round).
+    if let Some(committee) = &msg.hybrid_committee {
+        if committee.members.is_empty() {
+            return Err(ContractError::HybridCommitteeConfigInvalid {
+                reason: "members list must not be empty".to_string(),
+            });
+        }
+        if committee.threshold == 0 || (committee.threshold as usize) > committee.members.len() {
+            return Err(ContractError::HybridCommitteeConfigInvalid {
+                reason: format!(
+                    "threshold must be between 1 and {} (member count), got {}",
+                    committee.members.len(),
+                    committee.threshold
+                ),
+            });
+        }
+        // The compiled RevealVerifyOnchain_hybrid_1-2 circuit hard-codes
+        // exactly HYBRID_REVEAL_THRESHOLD partial-decryption shares per
+        // reveal proof. If committee.threshold (the number of members who
+        // must confirm Kc before it's finalized) doesn't match, either fewer
+        // members confirm Kc than the circuit needs at reveal time (reveal
+        // becomes uncompletable), or more members confirm than the circuit
+        // consumes (governance intent and cryptographic enforcement diverge).
+        if (committee.threshold as usize) != HYBRID_REVEAL_THRESHOLD {
+            return Err(ContractError::HybridCommitteeThresholdMismatch {
+                committee_threshold: committee.threshold,
+                circuit_threshold: HYBRID_REVEAL_THRESHOLD,
+            });
+        }
+        let mut seen_addrs = std::collections::BTreeSet::new();
+        for member in &committee.members {
+            if !is_on_babyjubjub_curve(member.pubkey.x, member.pubkey.y) {
+                return Err(ContractError::HybridCommitteeConfigInvalid {
+                    reason: format!("member {} has an invalid pubkey", member.addr),
+                });
+            }
+            if !seen_addrs.insert(member.addr.clone()) {
+                return Err(ContractError::HybridCommitteeConfigInvalid {
+                    reason: format!("duplicate member address {}", member.addr),
+                });
+            }
+        }
+        HYBRID_COMMITTEE.save(deps.storage, committee)?;
+    }
     PROCESSED_USER_COUNT.save(deps.storage, &Uint256::from_u128(0u128))?;
     NUMSIGNUPS.save(deps.storage, &Uint256::from_u128(0u128))?;
     MAX_VOTE_OPTIONS.save(
@@ -847,6 +959,60 @@ pub fn execute(
             execute_stop_tallying_period(deps, env, info, results, salt)
         }
         ExecuteMsg::Claim {} => execute_claim(deps, env, info),
+        ExecuteMsg::SetHybridKc { kc } => execute_set_hybrid_kc(deps, env, info, kc),
+        ExecuteMsg::ConfirmHybridKc { kc } => execute_confirm_hybrid_kc(deps, env, info, kc),
+        ExecuteMsg::PublishHybridMessage {
+            routing,
+            enc_pub_key,
+            ciphertext,
+            coord_pub_key,
+            nullifier,
+            ballot_proof,
+        } => execute_publish_hybrid_message(
+            deps,
+            env,
+            info,
+            routing,
+            enc_pub_key,
+            ciphertext,
+            coord_pub_key,
+            nullifier,
+            ballot_proof,
+        ),
+        ExecuteMsg::ProcessHybridBatch {
+            coord_pub_key,
+            actual_count,
+            new_agg_c1,
+            new_agg_c2,
+            new_nonce_state_root,
+            groth16_proof,
+        } => execute_process_hybrid_batch(
+            deps,
+            env,
+            info,
+            coord_pub_key,
+            actual_count,
+            new_agg_c1,
+            new_agg_c2,
+            new_nonce_state_root,
+            groth16_proof,
+        ),
+        ExecuteMsg::RevealHybridTally {
+            results,
+            salt,
+            participant_pub_keys,
+            participant_indices,
+            reveal_proof,
+        } => execute_reveal_hybrid_tally(
+            deps,
+            env,
+            info,
+            results,
+            salt,
+            participant_pub_keys,
+            participant_indices,
+            reveal_proof,
+        ),
     }
 }
 
@@ -1510,6 +1676,679 @@ pub fn execute_publish_message(
     Ok(Response::new().add_attributes(attributes))
 }
 
+// ============================================
+// Hybrid MACI + AHE on-chain flow
+// ============================================
+//
+// Demo scope (frozen, see maci/contracts/amaci/DEPLOYMENT_TESTNET.md and the
+// hybrid_ahe plan): fixed per-call batch shape against the compiled
+// ProcessHybridMessagesOnchain_hybrid_2-1-5 circuit (voteOptionTreeDepth=1 ->
+// HYBRID_M=5 options, batchSize=5 message slots per call). A round's total
+// published message count need not be a multiple of HYBRID_BATCH_SIZE_U128 —
+// `ProcessHybridBatch` supports partial batches (the circuit pads unused
+// slots, gated off by `actual_count`) and multi-batch chaining (call it
+// repeatedly; each call picks up exactly where the previous one's
+// `HYBRID_PROCESSED_COUNT`/aggregate left off).
+//
+// Cross-batch last-write-wins (LWW) is fully implemented via a persistent
+// *nonce tree* and reverse processing order:
+//
+//   • The contract processes batches newest-first (chain-tail → chain-head).
+//     Within each batch the circuit also processes messages newest-first.
+//   • An independent quinary Merkle tree ("nonce tree", depth 2) tracks each
+//     voter's claimed nonce across calls.  Its root is stored in
+//     `HYBRID_NONCE_STATE_ROOT` and handed to each successive batch as
+//     `currentNonceRoot`; the circuit's output `newNonceRoot` is written back.
+//   • Rule: a message for stateIdx is a *survivor* iff
+//       nonce_tree.leaf(stateIdx) + 1 == cmdNonce
+//     When processing a voter's first (newest) message the leaf is 0 and
+//     cmdNonce is 1 → it passes and the leaf advances to 1.  Any older
+//     message for the same voter (same cmdNonce=1, leaf already 1) fails
+//     1+1 ≠ 1 and is discarded — even if it falls in a different batch.
+//
+// See `processHybridMessages.circom` and `exportHybridMultiBatchFixture.ts`
+// for the cross-batch LWW test scenario.
+//
+// PRIVACY NOTE: The coordinator constructs the ZK proof and therefore
+// *decrypts the routing envelope* for each message (stateIdx, nonce,
+// aheCommitment, EdDSA signature).  The coordinator can learn which
+// stateIdx (i.e. which registered voter slot) each message came from
+// during the Processing phase.  The *vote content* (optionIdx, weight) is
+// encrypted under Kc (the committee key) and remains sealed from the
+// coordinator at all times — this is the B-line guarantee.  Observers
+// on-chain see only the nullifier at publish time, so voter identity is
+// hidden from the chain and from third parties.
+const HYBRID_M: usize = 5;
+const HYBRID_BATCH_SIZE_U128: u128 = 5;
+// Fixed by the compiled RevealVerifyOnchain_hybrid_1-2 circuit: exactly this
+// many committee partial-decryption shares are combined per reveal proof.
+// A deployment's `hybrid_committee.threshold` must match this for
+// RevealHybridTally proofs to be constructible.
+const HYBRID_REVEAL_THRESHOLD: usize = 2;
+
+fn hybrid_batch_size() -> Uint256 {
+    Uint256::from_u128(HYBRID_BATCH_SIZE_U128)
+}
+
+// The homomorphic-aggregate identity: M copies of the BabyJubjub identity point
+// (0, 1), i.e. "nothing aggregated yet". Matches the circuit's `AHE_IDENTITY`.
+fn hybrid_identity_agg() -> Vec<[Uint256; 2]> {
+    vec![[Uint256::zero(), Uint256::from_u128(1u128)]; HYBRID_M]
+}
+
+// Fold an aggregate ciphertext vector into ONE Poseidon commitment, exactly the
+// way the circuit's `AheCommit(M)` does: flatten each option as
+// [c1.x, c1.y, c2.x, c2.y], then acc_0 = 0; acc_{k+1} = hash2([acc_k, elem_k]).
+fn hybrid_ahe_commit(c1: &[[Uint256; 2]], c2: &[[Uint256; 2]]) -> Uint256 {
+    let mut acc = Uint256::zero();
+    for i in 0..c1.len() {
+        acc = hash2([acc, c1[i][0]]);
+        acc = hash2([acc, c1[i][1]]);
+        acc = hash2([acc, c2[i][0]]);
+        acc = hash2([acc, c2[i][1]]);
+    }
+    acc
+}
+
+// Fold revealed results + salt into ONE Poseidon commitment, exactly the way
+// RevealVerifyOnchain's circuit does: acc_0 = 0; acc_{k+1} = hash2([acc_k, elem_k])
+// over results[0..M-1], then salt.
+fn hybrid_results_commit(results: &[Uint256], salt: Uint256) -> Uint256 {
+    let mut acc = Uint256::zero();
+    for r in results {
+        acc = hash2([acc, *r]);
+    }
+    hash2([acc, salt])
+}
+
+// Fold the reveal proof's claimed (pubKey.x, pubKey.y, index) per participant
+// into ONE Poseidon commitment, matching the circuit exactly.
+fn hybrid_participant_commit(pub_keys: &[[Uint256; 2]], indices: &[Uint256]) -> Uint256 {
+    let mut acc = Uint256::zero();
+    for i in 0..pub_keys.len() {
+        acc = hash2([acc, pub_keys[i][0]]);
+        acc = hash2([acc, pub_keys[i][1]]);
+        acc = hash2([acc, indices[i]]);
+    }
+    acc
+}
+
+// Admin-only, one-time setup: bind the threshold committee's AHE public key
+// (Kc) into contract storage. Must happen before any PublishHybridMessage, so
+// the contract has a fixed value to check every submitted ballotValidity
+// proof against (Kc is otherwise never persisted on-chain elsewhere).
+pub fn execute_set_hybrid_kc(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    kc: [Uint256; 2],
+) -> Result<Response, ContractError> {
+    if !is_admin(deps.as_ref(), info.sender.as_ref())? {
+        return Err(ContractError::Unauthorized {});
+    }
+    // If a committee roster was configured at Instantiate, Kc can only be
+    // finalized via threshold-many ConfirmHybridKc confirmations -- a single
+    // admin unilaterally setting Kc would defeat the whole point of having a
+    // committee (any one of them, or a compromised admin key, could pick a
+    // Kc whose corresponding private shares only they control).
+    if HYBRID_COMMITTEE.may_load(deps.storage)?.is_some() {
+        return Err(ContractError::HybridCommitteeConfirmationRequired {});
+    }
+    if HYBRID_KC.may_load(deps.storage)?.is_some() {
+        return Err(ContractError::HybridKcAlreadySet {});
+    }
+    if !is_on_babyjubjub_curve(kc[0], kc[1]) {
+        return Err(ContractError::InvalidPubKey {});
+    }
+
+    HYBRID_KC.save(deps.storage, &kc)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "set_hybrid_kc"),
+        attr("kc", format!("{},{}", kc[0], kc[1])),
+    ]))
+}
+
+// Committee-confirmed alternative to execute_set_hybrid_kc. Each member's own
+// on-chain wallet address is their authentication -- the tx signature that
+// got this message here already IS a cryptographic signature over `kc`
+// (produced by that member's key, verified by the chain), so there is no
+// need for a separate application-level (e.g. BabyJubjub EdDSA) signature
+// field. Kc is finalized the moment `threshold` distinct members have all
+// confirmed the SAME value.
+pub fn execute_confirm_hybrid_kc(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    kc: [Uint256; 2],
+) -> Result<Response, ContractError> {
+    let committee = HYBRID_COMMITTEE
+        .may_load(deps.storage)?
+        .ok_or(ContractError::HybridCommitteeNotConfigured {})?;
+
+    if !committee.members.iter().any(|m| m.addr == info.sender) {
+        return Err(ContractError::HybridNotCommitteeMember {});
+    }
+    if HYBRID_KC.may_load(deps.storage)?.is_some() {
+        return Err(ContractError::HybridKcAlreadySet {});
+    }
+    if !is_on_babyjubjub_curve(kc[0], kc[1]) {
+        return Err(ContractError::InvalidPubKey {});
+    }
+
+    HYBRID_KC_CONFIRMATIONS.save(deps.storage, info.sender.clone(), &kc)?;
+
+    let confirmed_count = committee
+        .members
+        .iter()
+        .filter(|m| {
+            HYBRID_KC_CONFIRMATIONS
+                .may_load(deps.storage, m.addr.clone())
+                .ok()
+                .flatten()
+                == Some(kc)
+        })
+        .count();
+
+    let finalized = confirmed_count >= committee.threshold as usize;
+    if finalized {
+        HYBRID_KC.save(deps.storage, &kc)?;
+    }
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "confirm_hybrid_kc"),
+        attr("sender", info.sender.to_string()),
+        attr("kc", format!("{},{}", kc[0], kc[1])),
+        attr("confirmed_count", confirmed_count.to_string()),
+        attr("threshold", committee.threshold.to_string()),
+        attr("finalized", finalized.to_string()),
+    ]))
+}
+
+// Publish one Hybrid routing envelope + its separately-published AHE ballot
+// ciphertext. The envelope is format-identical to classic MessageData, so it
+// reuses the same hash-chain algorithm (`hash_message_and_enc_pub_key`) — just
+// stored in its own hybrid chain so it never interferes with the classic flow.
+// Mirrors execute_publish_message's fee/voting-time checks; the vote content
+// inside `ciphertext` (optionIdx/weight) is never inspected by the contract
+// (or the coordinator) — only its *validity* is, via `ballot_proof`.
+//
+// Before this check existed, a voter could publish an arbitrary, over-budget
+// ciphertext: the coordinator's ProcessHybridBatch proof only attests to
+// faithful decryption/aggregation of WHATEVER was published, it never
+// re-derives each voter's real voice-credit balance. `ballot_proof` (a real
+// Groth16 proof of `BallotValidityOnchain`) closes that gap: it Merkle-
+// authenticates `voice_credit_balance` for `(pub_key, state_idx)` against the
+// contract's OWN, live state root, and proves one-hot + `weight^2 <=
+// voice_credit_balance` — all without revealing optionIdx/weight to anyone,
+// including this contract.
+pub fn execute_publish_hybrid_message(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    routing: MessageData,
+    enc_pub_key: PubKey,
+    ciphertext: HybridCiphertext,
+    coord_pub_key: [Uint256; 2],
+    nullifier: Uint256,
+    ballot_proof: Groth16ProofType,
+) -> Result<Response, ContractError> {
+    let voting_time = VOTINGTIME.load(deps.storage)?;
+    check_voting_time(env, voting_time)?;
+
+    // No artificial cap on total published messages any more: `ProcessHybridBatch`
+    // now supports partial batches + multi-batch chaining (see its doc comment),
+    // so it can consume any number of published messages across however many
+    // calls it takes — same as classic PublishMessage/ProcessMessage, where the
+    // message fee is the only economic limiter.
+    let msg_chain_length = HYBRID_MSG_CHAIN_LENGTH.load(deps.storage)?;
+
+    if ciphertext.c1.len() != HYBRID_M || ciphertext.c2.len() != HYBRID_M {
+        return Err(ContractError::HybridAggLengthMismatch {
+            expected: HYBRID_M,
+            actual: ciphertext.c1.len().max(ciphertext.c2.len()),
+        });
+    }
+
+    if !is_on_babyjubjub_curve(enc_pub_key.x, enc_pub_key.y) {
+        return Err(ContractError::InvalidEncPubKey {});
+    }
+
+    // Every published ciphertext point feeds straight into homomorphic
+    // aggregation (point addition); an off-curve point would let a malicious
+    // publisher corrupt the aggregate (or crash aggregation) without ever
+    // touching the Groth16-verified ballot_proof, since ballot_proof only
+    // attests to the *plaintext* being one-hot/in-budget, not that the
+    // *ciphertext points themselves* are valid curve points.
+    for i in 0..ciphertext.c1.len() {
+        if !is_on_babyjubjub_curve(ciphertext.c1[i][0], ciphertext.c1[i][1])
+            || !is_on_babyjubjub_curve(ciphertext.c2[i][0], ciphertext.c2[i][1])
+        {
+            return Err(ContractError::HybridInvalidCiphertextPoint {});
+        }
+    }
+
+    // The coordinator identity the proof used to decrypt-check `routing`
+    // in-circuit is bound into inputHash but not persisted anywhere else on
+    // -chain; verify the caller-supplied key matches the round's registered
+    // coordinator (same pattern as `execute_process_hybrid_batch`) before
+    // trusting it — otherwise a prover could bind the routing-consistency
+    // check to a fake coordinator key it controls and the check would be
+    // vacuous.
+    let coordinator_hash = COORDINATORHASH.load(deps.storage)?;
+    if hash2(coord_pub_key) != coordinator_hash {
+        return Err(ContractError::HybridCoordinatorMismatch {});
+    }
+
+    // NOTE (intentionally NOT rejecting replayed nullifiers): unlike classic
+    // MACI's `USED_ENC_PUB_KEYS`, `nullifier = Poseidon(stateIdx, pubKey,
+    // pollId)` is scoped to (voter, round) only, NOT to message content —
+    // see `hybridNullifier` in the SDK. A voter changing their vote (the
+    // whole point of MACI-style revotable ballots, resolved by LWW in
+    // `ProcessHybridMessages`) legitimately resubmits the SAME nullifier
+    // with different routing/ciphertext content every time. Rejecting
+    // repeat nullifiers here would silently disable revoting. Exact
+    // byte-for-byte replay of an already-accepted submission is a much
+    // smaller concern (bounded by the message fee, doesn't change the
+    // tally) and is intentionally out of scope for this demo — see
+    // hybrid_maci_ahe_fix_plan.md's own equivalent deferral for classic
+    // MACI's replay surface.
+
+    // Cheap fee check BEFORE the expensive Groth16 verification below: an
+    // attacker who holds a valid ballot proof but sends the wrong fee would
+    // otherwise force the chain to pay for a full proof verification (tens
+    // of thousands of constraints) before being rejected.
+    let message_fee = FEE_CONFIG.load(deps.storage)?.message_fee;
+    let payment = check_fee_payment(&info, message_fee)?;
+
+    // Verify the ballot is legal — one-hot, within the voter's real,
+    // Merkle-authenticated voice-credit budget, AND bound to THIS exact
+    // routing envelope — WITHOUT decrypting it or learning which voter it
+    // belongs to. `kc`, the state root and `poll_id` are read from contract
+    // state (never caller-supplied) so this check cannot be spoofed by
+    // claiming a different committee key, round, or a forged tree.
+    // `routing_commitment` folds `routing`/`enc_pub_key` the SAME way the
+    // hash chain below does (just with prevHash = 0, since this is a
+    // standalone per-message identity commitment, not a chain position).
+    let kc = HYBRID_KC
+        .may_load(deps.storage)?
+        .ok_or(ContractError::HybridKcNotSet {})?;
+    let state_root = state_root(deps.as_ref())?;
+    let poll_id = Uint256::from(POLL_ID.load(deps.storage)?);
+    let routing_commitment = hash_message_and_enc_pub_key(&routing, &enc_pub_key, Uint256::zero());
+    let ahe_commitment = hybrid_ahe_commit(&ciphertext.c1, &ciphertext.c2);
+    let ballot_ok = verify_hybrid_ballot(
+        &kc,
+        &state_root,
+        &coord_pub_key,
+        &poll_id,
+        &routing_commitment,
+        &ahe_commitment,
+        &nullifier,
+        &ballot_proof,
+    )?;
+    if !ballot_ok {
+        return Err(ContractError::InvalidProof {
+            step: "ballot_validity".to_string(),
+        });
+    }
+
+    let old_hash = HYBRID_MSG_HASHES.load(deps.storage, msg_chain_length.to_be_bytes().to_vec())?;
+    let new_hash = hash_message_and_enc_pub_key(&routing, &enc_pub_key, old_hash);
+    let new_chain_length = msg_chain_length
+        .checked_add(Uint256::from_u128(1u128))
+        .map_err(|_| ContractError::HybridCounterOverflow {})?;
+
+    HYBRID_MSG_HASHES.save(
+        deps.storage,
+        new_chain_length.to_be_bytes().to_vec(),
+        &new_hash,
+    )?;
+    HYBRID_MESSAGES.save(
+        deps.storage,
+        new_chain_length.to_be_bytes().to_vec(),
+        &HybridPublishedMessage {
+            routing: routing.clone(),
+            enc_pub_key: enc_pub_key.clone(),
+            ciphertext,
+        },
+    )?;
+    HYBRID_MSG_CHAIN_LENGTH.save(deps.storage, &new_chain_length)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "publish_hybrid_message"),
+        attr("index", new_chain_length.to_string()),
+        attr("fee_paid", format!("{}{}", payment, FEE_DENOM)),
+        attr(
+            "enc_pub_key",
+            format!("{},{}", enc_pub_key.x, enc_pub_key.y),
+        ),
+        attr("nullifier", nullifier.to_string()),
+    ]))
+}
+
+// Coordinator submits the batch process proof: one Groth16 proof covering
+// routing decryption + last-write-wins + homomorphic aggregation for the WHOLE
+// (demo-scoped, single) batch, without ever revealing a single vote. The
+// contract re-derives the exact inputHash the circuit folded its public values
+// into and lets the Groth16 verifier be the sole access-control gate — same
+// pattern as classic ProcessMessage (permissionless at the message-sender
+// level; only a holder of the coordinator's private key can produce a valid
+// proof, and `coord_pub_key` is checked against the round's registered
+// coordinator before it is trusted).
+pub fn execute_process_hybrid_batch(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    coord_pub_key: [Uint256; 2],
+    actual_count: Uint256,
+    new_agg_c1: Vec<[Uint256; 2]>,
+    new_agg_c2: Vec<[Uint256; 2]>,
+    new_nonce_state_root: Uint256,
+    groth16_proof: Groth16ProofType,
+) -> Result<Response, ContractError> {
+    // Same lifecycle gate as classic ProcessMessage: only after voting has ended
+    // and StartProcessPeriod has been called.
+    require_period_status(deps.as_ref(), PeriodStatus::Processing)?;
+
+    let processed_count = HYBRID_PROCESSED_COUNT
+        .may_load(deps.storage)?
+        .unwrap_or_else(Uint256::zero);
+    let msg_chain_length = HYBRID_MSG_CHAIN_LENGTH.load(deps.storage)?;
+
+    if processed_count >= msg_chain_length {
+        return Err(ContractError::HybridBatchAlreadyProcessed {});
+    }
+
+    // Deterministic batch shape: this call must consume exactly
+    // min(remaining unprocessed messages, HYBRID_BATCH_SIZE_U128), so there is
+    // exactly one valid `actual_count` at any point in a processing run.
+    let remaining = msg_chain_length - processed_count;
+    let expected_count = if remaining < hybrid_batch_size() {
+        remaining
+    } else {
+        hybrid_batch_size()
+    };
+    if actual_count != expected_count {
+        return Err(ContractError::HybridBatchNotReady {
+            expected: expected_count,
+            actual: actual_count,
+        });
+    }
+
+    if new_agg_c1.len() != HYBRID_M || new_agg_c2.len() != HYBRID_M {
+        return Err(ContractError::HybridAggLengthMismatch {
+            expected: HYBRID_M,
+            actual: new_agg_c1.len().max(new_agg_c2.len()),
+        });
+    }
+
+    // The new aggregate is persisted verbatim and folded into the NEXT
+    // ProcessHybridBatch's `current_agg_commitment` (and ultimately into
+    // RevealHybridTally's decryption input) — an off-curve point here would
+    // poison every downstream step, and the Groth16 proof alone does not rule
+    // this out (it only attests the aggregation *arithmetic* was followed
+    // faithfully starting from whatever points were supplied).
+    for i in 0..new_agg_c1.len() {
+        if !is_on_babyjubjub_curve(new_agg_c1[i][0], new_agg_c1[i][1])
+            || !is_on_babyjubjub_curve(new_agg_c2[i][0], new_agg_c2[i][1])
+        {
+            return Err(ContractError::HybridInvalidAggregatePoint {});
+        }
+    }
+
+    // The coordinator identity is bound into inputHash but not persisted anywhere
+    // else on-chain (classic MACI only persists COORDINATORHASH); verify the
+    // caller-supplied key matches it before trusting it in the proof check.
+    let coordinator_hash = COORDINATORHASH.load(deps.storage)?;
+    if hash2(coord_pub_key) != coordinator_hash {
+        return Err(ContractError::HybridCoordinatorMismatch {});
+    }
+
+    let new_processed_count = processed_count
+        .checked_add(actual_count)
+        .map_err(|_| ContractError::HybridCounterOverflow {})?;
+
+    // Reverse-order batch selection (matching classic aMACI's newest-first
+    // processing): the FIRST call processes the LAST `actual_count` messages
+    // (highest chain indices), the NEXT call processes the batch just before
+    // those, and so on — mirrors execute_process_message's chain-tail-first
+    // batch enumeration.
+    //
+    //   batch_end_index   = msg_chain_length - processed_count
+    //   batch_start_index = batch_end_index  - actual_count
+    //
+    // `processed_count` here counts how many messages have been processed in
+    // total across all previous calls (monotonically increasing), so the
+    // remaining unprocessed messages are the OLDEST ones (lowest indices) and
+    // the current batch peels off the freshest unprocessed slice.
+    let batch_end_index = msg_chain_length - processed_count;
+    let batch_start_index = batch_end_index - actual_count;
+    let batch_start_hash =
+        HYBRID_MSG_HASHES.load(deps.storage, batch_start_index.to_be_bytes().to_vec())?;
+    let batch_end_hash =
+        HYBRID_MSG_HASHES.load(deps.storage, batch_end_index.to_be_bytes().to_vec())?;
+
+    let current_agg_c1 = HYBRID_AGG_C1
+        .may_load(deps.storage)?
+        .unwrap_or_else(hybrid_identity_agg);
+    let current_agg_c2 = HYBRID_AGG_C2
+        .may_load(deps.storage)?
+        .unwrap_or_else(hybrid_identity_agg);
+    let current_agg_commitment = hybrid_ahe_commit(&current_agg_c1, &current_agg_c2);
+    let new_agg_commitment = hybrid_ahe_commit(&new_agg_c1, &new_agg_c2);
+
+    let poll_id = Uint256::from(POLL_ID.load(deps.storage)?);
+    // Same live state root every BallotValidityOnchain proof this round was
+    // checked against (frozen once voting ends, since Processing implies the
+    // publish window is closed) — binds `voterPubKey` Merkle authentication
+    // inside the circuit to the SAME root, not a caller-supplied one.
+    let state_root_val = state_root(deps.as_ref())?;
+
+    let current_nonce_root = HYBRID_NONCE_STATE_ROOT
+        .may_load(deps.storage)?
+        .unwrap_or_else(Uint256::zero);
+
+    // inputHash covers 11 fields (expanded from 9 to include nonce tree roots).
+    let input = [
+        coord_pub_key[0],
+        coord_pub_key[1],
+        batch_start_hash,
+        batch_end_hash,
+        current_agg_commitment,
+        new_agg_commitment,
+        poll_id,
+        state_root_val,
+        actual_count,
+        current_nonce_root,
+        new_nonce_state_root,
+    ];
+    let input_hash = compute_input_hash(&input);
+
+    let vkey_str = crate::circuit_params::hybrid_process_vkey()?;
+    run_groth16_verify(vkey_str, &groth16_proof, input_hash, "process_hybrid_batch")?;
+
+    HYBRID_AGG_C1.save(deps.storage, &new_agg_c1)?;
+    HYBRID_AGG_C2.save(deps.storage, &new_agg_c2)?;
+    HYBRID_PROCESSED_COUNT.save(deps.storage, &new_processed_count)?;
+    HYBRID_NONCE_STATE_ROOT.save(deps.storage, &new_nonce_state_root)?;
+
+    let is_final = new_processed_count == msg_chain_length;
+    if is_final {
+        // Mirrors classic MACI's Processing -> Tallying transition
+        // (execute_stop_processing_period), folded into this call since there
+        // is no separate stop-processing step for hybrid rounds: once every
+        // published message has been consumed by some ProcessHybridBatch
+        // call, move on to Tallying.
+        PERIOD.save(
+            deps.storage,
+            &Period {
+                status: PeriodStatus::Tallying,
+            },
+        )?;
+    }
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "process_hybrid_batch"),
+        attr("actual_count", actual_count.to_string()),
+        attr("processed_count", new_processed_count.to_string()),
+        attr("msg_chain_length", msg_chain_length.to_string()),
+        attr("final", is_final.to_string()),
+        attr("new_agg_commitment", new_agg_commitment.to_string()),
+        attr("new_nonce_state_root", new_nonce_state_root.to_string()),
+    ]))
+}
+
+// Verified reveal, like classic StopTallyingPeriod but with an actual proof
+// backing it: the threshold committee combines T partial decryption shares
+// off-chain and submits plaintext results + salt PLUS a `reveal_proof`
+// (RevealVerifyOnchain) attesting those T shares Lagrange-combine into a
+// decryption factor consistent with `results` for the on-chain aggregate
+// ciphertext (HYBRID_AGG_C1/HYBRID_AGG_C2). Anyone can call this
+// (permissionless), same as StopTallyingPeriod; the proof is what prevents a
+// dishonest caller from submitting made-up results.
+pub fn execute_reveal_hybrid_tally(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    results: Vec<Uint256>,
+    salt: Uint256,
+    participant_pub_keys: Vec<PubKey>,
+    participant_indices: Vec<Uint256>,
+    reveal_proof: Groth16ProofType,
+) -> Result<Response, ContractError> {
+    // Mirrors classic StopTallyingPeriod's Tallying-only gate; hybrid rounds
+    // enter Tallying as soon as execute_process_hybrid_batch succeeds (see
+    // above).
+    require_period_status(deps.as_ref(), PeriodStatus::Tallying)?;
+
+    let processed_count = HYBRID_PROCESSED_COUNT
+        .may_load(deps.storage)?
+        .unwrap_or_else(Uint256::zero);
+    let msg_chain_length = HYBRID_MSG_CHAIN_LENGTH.load(deps.storage)?;
+    if processed_count != msg_chain_length {
+        return Err(ContractError::HybridNotProcessedYet {});
+    }
+    if HYBRID_TALLY.may_load(deps.storage)?.is_some() {
+        return Err(ContractError::HybridTallyAlreadyRevealed {});
+    }
+
+    if results.len() != HYBRID_M {
+        return Err(ContractError::HybridResultsLengthMismatch {
+            expected: HYBRID_M,
+            actual: results.len(),
+        });
+    }
+
+    if participant_pub_keys.len() != participant_indices.len() {
+        return Err(ContractError::HybridRevealParticipantLengthMismatch {});
+    }
+    if participant_pub_keys.is_empty() {
+        return Err(ContractError::HybridRevealNoParticipants {});
+    }
+    // Fixed by the compiled circuit (see HYBRID_REVEAL_THRESHOLD) — the proof
+    // literally cannot exist for a different participant count.
+    if participant_pub_keys.len() != HYBRID_REVEAL_THRESHOLD {
+        return Err(ContractError::HybridRevealParticipantCountMismatch {
+            expected: HYBRID_REVEAL_THRESHOLD,
+            actual: participant_pub_keys.len(),
+        });
+    }
+    for k in 0..participant_indices.len() {
+        for l in (k + 1)..participant_indices.len() {
+            if participant_indices[k] == participant_indices[l] {
+                return Err(ContractError::HybridRevealDuplicateParticipant {});
+            }
+        }
+    }
+
+    // Validate every participant pubkey is a genuine curve point BEFORE it
+    // feeds into `hybrid_participant_commit`/the Groth16 public input. When
+    // a committee roster IS configured this is redundant (members were
+    // already validated on-curve at instantiate time), but in the legacy
+    // no-committee path nothing else checks these values — an off-curve
+    // point wouldn't corrupt the proof (the circuit's own arithmetic would
+    // simply fail to match), but rejecting it here cheaply, before ever
+    // reaching Groth16 verification, is still the correct defensive check.
+    for pk in participant_pub_keys.iter() {
+        if !is_on_babyjubjub_curve(pk.x, pk.y) {
+            return Err(ContractError::HybridInvalidParticipantPubKey {});
+        }
+    }
+
+    // If a committee roster is configured, every (index, pub_key) pair must
+    // match a REGISTERED member at that position (1-based position in
+    // `HYBRID_COMMITTEE.members` == its Shamir/Lagrange x-coordinate) — the
+    // proof alone only attests the decryption arithmetic for whichever T
+    // pairs are supplied, so membership/threshold POLICY is enforced here.
+    if let Some(committee) = HYBRID_COMMITTEE.may_load(deps.storage)? {
+        for k in 0..participant_pub_keys.len() {
+            let mut found = false;
+            for (pos, member) in committee.members.iter().enumerate() {
+                let expected_index = Uint256::from_u128((pos + 1) as u128);
+                if participant_indices[k] == expected_index
+                    && participant_pub_keys[k] == member.pubkey
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return Err(ContractError::HybridRevealUnknownParticipant {});
+            }
+        }
+    }
+
+    let kc = HYBRID_KC.load(deps.storage)?;
+    let agg_c1 = HYBRID_AGG_C1
+        .may_load(deps.storage)?
+        .unwrap_or_else(hybrid_identity_agg);
+    let agg_c2 = HYBRID_AGG_C2
+        .may_load(deps.storage)?
+        .unwrap_or_else(hybrid_identity_agg);
+    let agg_commitment = hybrid_ahe_commit(&agg_c1, &agg_c2);
+    let results_commitment = hybrid_results_commit(&results, salt);
+    let participant_pub_keys_uint: Vec<[Uint256; 2]> =
+        participant_pub_keys.iter().map(|k| [k.x, k.y]).collect();
+    let participant_commitment =
+        hybrid_participant_commit(&participant_pub_keys_uint, &participant_indices);
+    let poll_id = Uint256::from(POLL_ID.load(deps.storage)?);
+
+    let input = [
+        kc[0],
+        kc[1],
+        agg_commitment,
+        results_commitment,
+        participant_commitment,
+        poll_id,
+    ];
+    let input_hash = compute_input_hash(&input);
+
+    let vkey_str = crate::circuit_params::hybrid_reveal_vkey()?;
+    run_groth16_verify(vkey_str, &reveal_proof, input_hash, "reveal_hybrid_tally")?;
+
+    HYBRID_TALLY.save(
+        deps.storage,
+        &HybridTally {
+            results: results.clone(),
+            salt,
+        },
+    )?;
+
+    PERIOD.save(
+        deps.storage,
+        &Period {
+            status: PeriodStatus::Ended,
+        },
+    )?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "reveal_hybrid_tally"),
+        attr("results", to_json_or(&results, "[]")),
+        attr("zk_verify", "true"),
+    ]))
+}
+
 // in voting
 pub fn execute_publish_deactivate_message(
     deps: DepsMut,
@@ -1965,6 +2804,21 @@ pub fn execute_start_process_period(
         &hash2([state_root, Uint256::from_u128(0u128)]),
     )?;
 
+    // Initialize the hybrid nonce tree root to the all-zero quinary tree root
+    // (depth=2, all leaves=0).  This constant is Poseidon5([Poseidon5([0,0,0,0,0])^5]).
+    // The circuit `ProcessHybridMessages` uses `currentNonceRoot` to authenticate
+    // each message's voter nonce for cross-batch LWW.
+    const HYBRID_NONCE_ZERO_ROOT: &str =
+        "19261153649140605024552417994922546473530072875902678653210025980873274131905";
+    HYBRID_NONCE_STATE_ROOT.save(
+        deps.storage,
+        &HYBRID_NONCE_ZERO_ROOT.parse::<Uint256>().map_err(|_| {
+            ContractError::Std(cosmwasm_std::StdError::generic_err(
+                "invalid HYBRID_NONCE_ZERO_ROOT constant",
+            ))
+        })?,
+    )?;
+
     // Return a success response
     Ok(Response::new().add_attribute("action", "start_process_period"))
 }
@@ -2088,6 +2942,30 @@ pub fn execute_stop_processing_period(
         }
     }
 
+    // Classic and hybrid rounds share this same PERIOD state machine, but
+    // hybrid messages are processed via a SEPARATE counter
+    // (HYBRID_MSG_CHAIN_LENGTH/HYBRID_PROCESSED_COUNT) that the check above
+    // knows nothing about. Without this guard, a round with signups but zero
+    // CLASSIC messages (num_sign_ups != 0 check above trivially passes with
+    // 0 == 0) would let this permissionless call advance straight to
+    // Tallying while hybrid messages are still unprocessed — permanently
+    // stranding the round, since ProcessHybridBatch then rejects (wrong
+    // Period) and RevealHybridTally rejects (HybridNotProcessedYet), with no
+    // way back to Processing.
+    let hybrid_msg_chain_length = HYBRID_MSG_CHAIN_LENGTH
+        .may_load(deps.storage)?
+        .unwrap_or_else(Uint256::zero);
+    if hybrid_msg_chain_length != Uint256::zero() {
+        let hybrid_processed_count = HYBRID_PROCESSED_COUNT
+            .may_load(deps.storage)?
+            .unwrap_or_else(Uint256::zero);
+        if hybrid_processed_count != hybrid_msg_chain_length {
+            return Err(ContractError::HybridMsgLeftProcess {
+                remaining: hybrid_msg_chain_length - hybrid_processed_count,
+            });
+        }
+    }
+
     let period = Period {
         status: PeriodStatus::Tallying,
     };
@@ -2178,6 +3056,23 @@ fn execute_stop_tallying_period(
     salt: Uint256,
 ) -> Result<Response, ContractError> {
     require_period_status(deps.as_ref(), PeriodStatus::Tallying)?;
+
+    // Classic StopTallyingPeriod is permissionless, same as StopProcessingPeriod.
+    // Once execute_process_hybrid_batch finishes the last batch it moves this
+    // round straight to Tallying (see below) — but that result is only final
+    // once RevealHybridTally's Groth16 proof lands HYBRID_TALLY (which also
+    // advances PERIOD to Ended itself). If this round published ANY hybrid
+    // messages, it must be finalized through RevealHybridTally: allowing the
+    // classic path here would let anyone reach Ended with classic (possibly
+    // all-zero) RESULT/TOTAL_RESULT, discarding the AHE-protected hybrid
+    // aggregate and making RevealHybridTally permanently unreachable (it
+    // requires PeriodStatus::Tallying too).
+    let hybrid_msg_chain_length = HYBRID_MSG_CHAIN_LENGTH
+        .may_load(deps.storage)?
+        .unwrap_or_else(Uint256::zero);
+    if hybrid_msg_chain_length != Uint256::zero() {
+        return Err(ContractError::HybridTallyNotYetRevealed {});
+    }
 
     // Get the final signup count and message count
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
@@ -2849,11 +3744,234 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             };
             to_json_binary(&vkeys)
         }
+        QueryMsg::VerifyHybridBallot {
+            kc,
+            state_root,
+            coord_pub_key,
+            poll_id,
+            routing_commitment,
+            ahe_commitment,
+            nullifier,
+            proof,
+        } => {
+            let ok = verify_hybrid_ballot(
+                &kc,
+                &state_root,
+                &coord_pub_key,
+                &poll_id,
+                &routing_commitment,
+                &ahe_commitment,
+                &nullifier,
+                &proof,
+            )
+            .map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?;
+            to_json_binary::<bool>(&ok)
+        }
+        QueryMsg::GetHybridKc {} => {
+            to_json_binary::<Option<[Uint256; 2]>>(&HYBRID_KC.may_load(deps.storage)?)
+        }
+        QueryMsg::GetHybridMsgChainLength {} => to_json_binary::<Uint256>(
+            &HYBRID_MSG_CHAIN_LENGTH
+                .may_load(deps.storage)?
+                .unwrap_or_default(),
+        ),
+        QueryMsg::GetHybridMessage { index } => {
+            let message = HYBRID_MESSAGES.may_load(deps.storage, index.to_be_bytes().to_vec())?;
+            to_json_binary::<Option<HybridPublishedMessage>>(&message)
+        }
+        QueryMsg::GetHybridProcessed {} => {
+            let processed_count = HYBRID_PROCESSED_COUNT
+                .may_load(deps.storage)?
+                .unwrap_or_default();
+            let msg_chain_length = HYBRID_MSG_CHAIN_LENGTH
+                .may_load(deps.storage)?
+                .unwrap_or_default();
+            to_json_binary::<bool>(&(processed_count == msg_chain_length))
+        }
+        QueryMsg::GetHybridProcessedCount {} => to_json_binary::<Uint256>(
+            &HYBRID_PROCESSED_COUNT
+                .may_load(deps.storage)?
+                .unwrap_or_default(),
+        ),
+        QueryMsg::GetHybridAggCiphertext {} => {
+            let agg_c1 = HYBRID_AGG_C1
+                .may_load(deps.storage)?
+                .unwrap_or_else(hybrid_identity_agg);
+            let agg_c2 = HYBRID_AGG_C2
+                .may_load(deps.storage)?
+                .unwrap_or_else(hybrid_identity_agg);
+            to_json_binary(&HybridAggResponse { agg_c1, agg_c2 })
+        }
+        QueryMsg::GetHybridTally {} => {
+            to_json_binary::<Option<HybridTally>>(&HYBRID_TALLY.may_load(deps.storage)?)
+        }
+        QueryMsg::GetHybridCommittee {} => to_json_binary::<Option<HybridCommitteeConfig>>(
+            &HYBRID_COMMITTEE.may_load(deps.storage)?,
+        ),
+        QueryMsg::GetHybridKcConfirmations {} => {
+            let entries = match HYBRID_COMMITTEE.may_load(deps.storage)? {
+                Some(committee) => committee
+                    .members
+                    .into_iter()
+                    .filter_map(|m| {
+                        HYBRID_KC_CONFIRMATIONS
+                            .may_load(deps.storage, m.addr.clone())
+                            .ok()
+                            .flatten()
+                            .map(|kc| HybridKcConfirmationEntry { addr: m.addr, kc })
+                    })
+                    .collect(),
+                None => vec![],
+            };
+            to_json_binary::<Vec<HybridKcConfirmationEntry>>(&entries)
+        }
+        QueryMsg::GetHybridNonceStateRoot {} => {
+            const HYBRID_NONCE_ZERO_ROOT: &str =
+                "19261153649140605024552417994922546473530072875902678653210025980873274131905";
+            let root = HYBRID_NONCE_STATE_ROOT
+                .may_load(deps.storage)?
+                .unwrap_or_else(|| {
+                    HYBRID_NONCE_ZERO_ROOT
+                        .parse::<Uint256>()
+                        .unwrap_or(Uint256::zero())
+                });
+            to_json_binary::<Uint256>(&root)
+        }
     }
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use crate::msg::Groth16ProofType;
+    use std::str::FromStr;
+
+    // Fixture generated by mpc-coordinator-demo/scripts/exportHybridVkeyProof.ts:
+    // a REAL BallotValidityOnchain_hybrid_2-1 proof (voter 0, balance 20, weight 4)
+    // plus the committed public values it binds. This exercises the exact on-chain
+    // Groth16 verification path (compute_input_hash + hybrid ballot vkey). `stateIdx`
+    // and `pubKey` are private witnesses inside the circuit now -- only `nullifier`
+    // (and `routingCommitment`, binding this proof to the published routing message)
+    // leak out as public signals.
+    fn fixture() -> (
+        [Uint256; 2],
+        Uint256,
+        [Uint256; 2],
+        Uint256,
+        Uint256,
+        Uint256,
+        Uint256,
+        Groth16ProofType,
+    ) {
+        let kc = [
+            Uint256::from_str(
+                "12638030528432806444680310326288043858520366543569780948011195983100888895424",
+            )
+            .unwrap(),
+            Uint256::from_str(
+                "2874222432609678237186489396330648906556209135055008837139779509259876658697",
+            )
+            .unwrap(),
+        ];
+        let state_root = Uint256::from_str(
+            "5678080290181519019462063264557879497227859626642914837890549155568452727972",
+        )
+        .unwrap();
+        let coord_pub_key = [
+            Uint256::from_str(
+                "17818764514199701705904019818885983240053494442260857190906103833655526972635",
+            )
+            .unwrap(),
+            Uint256::from_str(
+                "20375192377076156497071259932898465702799792208881711741092920179651260965396",
+            )
+            .unwrap(),
+        ];
+        let poll_id = Uint256::from_str("1").unwrap();
+        let routing_commitment = Uint256::from_str(
+            "545801352749069181543411248051632631362783976751764448836496158801522369895",
+        )
+        .unwrap();
+        let ahe_commitment = Uint256::from_str(
+            "20990238927326986410874817686633306890997895366666698647275523482875779866434",
+        )
+        .unwrap();
+        let nullifier = Uint256::from_str(
+            "2580633464407632082114628746467550975790407483227975409759994334022189489676",
+        )
+        .unwrap();
+        let proof = Groth16ProofType {
+            a: "2819f51368bc29c2c763ed1272dc872916180b662fbe943aee78aea8e87c2238201b4c077ac54d7d5ebdaa1c7a096bfcf6cab5af90784b795b490d56b53a200f".to_string(),
+            b: "2e35dafe0bac4f0fe23ceff1b5b90e13357dcae977994b1044941249285849842ea4ce0fd8529f345f3e6bb37bb6738a7ddf43511072250549063e386906fb47268809c6c6b23aede6bdbe58e5b043161a257fe39173d380c8d41ddc37a9afab01962b1401b32124d29fa0669d63436ecbf83ae5d8bc5ac6e4af6595c56094b7".to_string(),
+            c: "1bef1f9801dfe73635bfebe1f7086d19979d4bd1f7d75a7f8c9aa595c092960d027265baf4d1d35ea22bad8fba70c18405f18f7757630714ef3ac76175bc2027".to_string(),
+        };
+        (
+            kc,
+            state_root,
+            coord_pub_key,
+            poll_id,
+            routing_commitment,
+            ahe_commitment,
+            nullifier,
+            proof,
+        )
+    }
+
+    #[test]
+    fn hybrid_ballot_proof_verifies_on_chain() {
+        let (
+            kc,
+            state_root,
+            coord_pub_key,
+            poll_id,
+            routing_commitment,
+            ahe_commitment,
+            nullifier,
+            proof,
+        ) = fixture();
+        let ok = verify_hybrid_ballot(
+            &kc,
+            &state_root,
+            &coord_pub_key,
+            &poll_id,
+            &routing_commitment,
+            &ahe_commitment,
+            &nullifier,
+            &proof,
+        )
+        .unwrap();
+        assert!(ok, "a valid hybrid ballot proof must verify on-chain");
+    }
+
+    #[test]
+    fn hybrid_ballot_proof_rejects_tampered_public_input() {
+        // Flip the committed balance-bearing state root: input hash no longer
+        // matches the proof, so verification must fail.
+        let (
+            kc,
+            _state_root,
+            coord_pub_key,
+            poll_id,
+            routing_commitment,
+            ahe_commitment,
+            nullifier,
+            proof,
+        ) = fixture();
+        let bad_root = Uint256::from_u128(12345u128);
+        let ok = verify_hybrid_ballot(
+            &kc,
+            &bad_root,
+            &coord_pub_key,
+            &poll_id,
+            &routing_commitment,
+            &ahe_commitment,
+            &nullifier,
+            &proof,
+        )
+        .unwrap();
+        assert!(!ok, "a tampered public input must be rejected on-chain");
+    }
+}
 
 // Check if the operator has processed all deactivate messages within 15 minutes
 pub fn check_operator_process_time(deps: Deps, env: Env) -> Result<bool, ContractError> {

@@ -15,6 +15,88 @@ pub struct VkeyParams {
     pub add_key_vkey: Groth16VkeyStr,
 }
 
+// Verifying key for the Hybrid MACI + AHE on-chain ballotValidity circuit
+// (BallotValidityOnchain_hybrid_2-1: stateTreeDepth=2, voteOptionTreeDepth=1).
+//
+// This circuit exposes a SINGLE public signal `inputHash` =
+//   SHA256([Kc.x, Kc.y, stateRoot, coordPubKey.x, coordPubKey.y, pollId,
+//           routingCommitment, aheCommitment, nullifier]) mod p
+// which is exactly what `compute_input_hash` reproduces on-chain. `stateIdx`/`pubKey`
+// are private witnesses inside the circuit (only the `nullifier` leaks out), and the
+// circuit re-derives the ECDH shared key from `coordPubKey` to assert the decrypted
+// `routing` message is consistent with `stateIdx`/`aheCommitment`, binding this proof
+// to the exact routing ciphertext the voter published. It also proves
+// `routingEncPubKey === ephemeralPrivKey * G` (`PrivToPubKey` in
+// ballotValidity.circom), so the ephemeral key used for that ECDH derivation
+// really is the one published on-chain alongside the ciphertext.
+// The hex is the circomkit-generated groth16 vkey converted to the uncompressed form
+// this contract's bellman verifier expects (see mpc-coordinator-demo exportHybridVkeyProof.ts).
+pub fn hybrid_ballot_vkey() -> Result<Groth16VkeyStr, ContractError> {
+    let vkey = Groth16VKeyType {
+        vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
+        vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
+        vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+        vk_delta_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+        vk_ic0: "2b2169fda817d1afd01f2e91cb76da2cd8fc0db042bab5daed1feade771f0acd20d65d9bdd874deaf6c4911753b8da2e70b19a51058452f612598457d5042185".to_string(),
+        vk_ic1: "300d82ede0838f73edc1b424bf5b76d9526f9c33aa60f33c7de96c0f343838782d7d6045fe2dcffd77fea063454c75e02fee2ae32c73f94be725efcd30c96403".to_string(),
+    };
+    format_vkey(&vkey)
+}
+
+// Verifying key for the Hybrid MACI + AHE on-chain batch-processing circuit
+// (ProcessHybridMessagesOnchain_hybrid_2-1-5: stateTreeDepth=2,
+// voteOptionTreeDepth=1, batchSize=5 message slots per call).
+//
+// This circuit exposes a SINGLE public signal `inputHash` =
+//   SHA256([coordPubKey.x, coordPubKey.y, batchStartHash, batchEndHash,
+//           currentAggCommitment, newAggCommitment, pollId, stateRoot,
+//           actualCount, currentNonceRoot, newNonceRoot]) mod p
+// — 11 fields in total — which `compute_input_hash` reproduces on-chain, so
+// the contract can verify a coordinator's LWW + homomorphic-aggregation batch
+// proof against the published message hash chain, without ever decrypting a
+// vote.  The two nonce-root fields (`currentNonceRoot` / `newNonceRoot`) bind
+// the cross-batch nonce tree evolution into the proof, preventing a malicious
+// coordinator from skipping LWW across batch boundaries.  `stateRoot` lets
+// the circuit Merkle-authenticate each message's `voterPubKey`
+// (anti-selective-censorship); `actualCount` (<= batchSize) supports partial
+// batches — unused slots are padded and gated off inside the circuit (see
+// `processHybridMessages.circom`'s partial-batch note) — and multi-batch
+// chaining (`batchStartHash`/`currentAggCommitment`/`currentNonceRoot` each
+// pick up where the previous `ProcessHybridBatch` call left off).
+pub fn hybrid_process_vkey() -> Result<Groth16VkeyStr, ContractError> {
+    let vkey = Groth16VKeyType {
+        vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
+        vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
+        vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+        vk_delta_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+        vk_ic0: "0536bb99965d0cb7d5472e75fbee6b81a8d7ff120972376ae721ee01da1b31200858dde306ffb6e727b920218afc9298b3e694ffb43383eef819fd68c575802c".to_string(),
+        vk_ic1: "154549fedaad184ab16b8695c498489eb59d53b9bb5b9f8af458c239d797dd1a203e3f72ab9c1c2cc7059381fb405cbf500f4046679b679132341285c36bdfab".to_string(),
+    };
+    format_vkey(&vkey)
+}
+
+// Verifying key for the Hybrid MACI + AHE on-chain reveal-verification circuit
+// (RevealVerifyOnchain_hybrid_1-2: voteOptionTreeDepth=1 -> 5 options,
+// threshold=2 committee members).
+//
+// This circuit exposes a SINGLE public signal `inputHash` =
+//   SHA256([Kc.x, Kc.y, aggCommitment, resultsCommitment, participantCommitment, pollId]) mod p
+// which `compute_input_hash` reproduces on-chain (see `hybrid_reveal_input` in
+// contract.rs), so `execute_reveal_hybrid_tally` can verify the committee's
+// revealed results are the FAITHFUL threshold decryption of the on-chain
+// aggregate ciphertext, instead of just trusting whatever is submitted.
+pub fn hybrid_reveal_vkey() -> Result<Groth16VkeyStr, ContractError> {
+    let vkey = Groth16VKeyType {
+        vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
+        vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
+        vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+        vk_delta_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
+        vk_ic0: "1dbfb658feea2c7e0eb4208be95e5fc754564708a67a17b781297d371e135d050516b8944a8536b475407a7b997e7ae36afcd67aade8f3f8224ee6efb14b23f5".to_string(),
+        vk_ic1: "27845188b962410e7c0489e860f6d57a0d6af4be171ff7aff20819d81831dea1270197b2af3e4f7986acd0c2d8203de09d03be2e53b4d3245a8957bc10f3ebe3".to_string(),
+    };
+    format_vkey(&vkey)
+}
+
 pub fn format_vkey(groth16_vkey: &Groth16VKeyType) -> Result<Groth16VkeyStr, ContractError> {
     // Create a process_vkeys struct from the process_vkey in the message
     let groth16_vkey_formatted = Groth16VkeyStr {
@@ -90,7 +172,7 @@ fn vkeys_2_1_1_5() -> Result<VkeyParams, ContractError> {
 
 // Build the vkeys for the only supported production circuit: 9-4-3-125.
 fn vkeys_9_4_3_125() -> Result<VkeyParams, ContractError> {
-        let groth16_process_vkey = Groth16VKeyType {
+    let groth16_process_vkey = Groth16VKeyType {
             vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
             vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
             vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
@@ -98,9 +180,9 @@ fn vkeys_9_4_3_125() -> Result<VkeyParams, ContractError> {
             vk_ic0: "0f4ca042d9df017c2277a5348138072354637d7a548ed2432a62b22bd6b0793c14d190e06d249c579f2f3cb9c0d8e5223798931ac8fc645efc96739d34e3a553".to_string(),
             vk_ic1: "0231a17b99604840a6870d1c5ba31394ceb6683af703d083338c30bdb87b88851283ec802a494552bd00732fa61bfc619a4238a0ab6659e5c8fa91b2a5e5143b".to_string(),
         };
-        let groth16_process_vkeys = format_vkey(&groth16_process_vkey)?;
+    let groth16_process_vkeys = format_vkey(&groth16_process_vkey)?;
 
-        let groth16_tally_vkey = Groth16VKeyType {
+    let groth16_tally_vkey = Groth16VKeyType {
             vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
             vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
             vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
@@ -108,9 +190,9 @@ fn vkeys_9_4_3_125() -> Result<VkeyParams, ContractError> {
             vk_ic0: "1840e9af4d2094c190adf2e40468515ee760858a2a41a26aa7916bc38bd7ba9f01ea24bf4adad4d679ddf5858dbcb4587b954a6062b264288f6e191c6d697759".to_string(),
             vk_ic1: "1ed068e3bbc130b6a420efe22b7f26b7372686108ff1935eea7508eb814d3e2e0ab2da2095988387330108bee8d58121be18e61bb594ba9b8982a290cfc2571b".to_string(),
         };
-        let groth16_tally_vkeys = format_vkey(&groth16_tally_vkey)?;
+    let groth16_tally_vkeys = format_vkey(&groth16_tally_vkey)?;
 
-        let groth16_deactivate_vkey = Groth16VKeyType {
+    let groth16_deactivate_vkey = Groth16VKeyType {
             vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
             vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
             vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
@@ -118,9 +200,9 @@ fn vkeys_9_4_3_125() -> Result<VkeyParams, ContractError> {
             vk_ic0: "2341ef299bd50b06e3885f2c95e6e043ac4a9b30263fb5b212b9c5ee443ab28d17b0dd121483ee7a280fe8a82384e8bbd0e52c32be97148dfaecb953ee0b34fe".to_string(),
             vk_ic1: "04c3cdc1e32f4e6eae21adb419ed037dcd5daa9012bc9fe31e4ebedba31c101b00f8483d686d64d0eb7d1c3278b4409f4717dea169970f62505a52e3c08b6d4d".to_string(),
         };
-        let groth16_deactivate_vkeys = format_vkey(&groth16_deactivate_vkey)?;
+    let groth16_deactivate_vkeys = format_vkey(&groth16_deactivate_vkey)?;
 
-        let groth16_add_new_key_vkey = Groth16VKeyType {
+    let groth16_add_new_key_vkey = Groth16VKeyType {
             vk_alpha1: "2d4d9aa7e302d9df41749d5507949d05dbea33fbb16c643b22f599a2be6df2e214bedd503c37ceb061d8ec60209fe345ce89830a19230301f076caff004d1926".to_string(),
             vk_beta_2: "0967032fcbf776d1afc985f88877f182d38480a653f2decaa9794cbc3bf3060c0e187847ad4c798374d0d6732bf501847dd68bc0e071241e0213bc7fc13db7ab304cfbd1e08a704a99f5e847d93f8c3caafddec46b7a0d379da69a4d112346a71739c1b1a457a8c7313123d24d2f9192f896b7c63eea05a9d57f06547ad0cec8".to_string(),
             vk_gamma_2: "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c21800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa".to_string(),
@@ -128,7 +210,7 @@ fn vkeys_9_4_3_125() -> Result<VkeyParams, ContractError> {
             vk_ic0: "0eb39e5aa053d6676afa84d88c23996669b18eda44eb6d97420176ff55c276290ae7df9c85d77b9aef313093fdeada3c53cd1b0cfd7ed04460a719cfff4e5925".to_string(),
             vk_ic1: "200467c396f31ec6b2f3324d5fa38a28e18ce24c1a92742486553e2375204fc82e4feff4af5e2c2ac4acd05af4a64d161edee15e1feef61d2f4977860643c94b".to_string(),
         };
-        let groth16_add_new_key_vkeys = format_vkey(&groth16_add_new_key_vkey)?;
+    let groth16_add_new_key_vkeys = format_vkey(&groth16_add_new_key_vkey)?;
 
     Ok(VkeyParams {
         process_vkey: groth16_process_vkeys,

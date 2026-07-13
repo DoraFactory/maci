@@ -58,5 +58,41 @@
     "template": "TallyVotes",
     "params": [9, 4, 3],
     "pubs": ["inputHash"]
+  },
+  "BallotValidity_hybrid_2-1": {
+    "file": "./hybrid/power/ballotValidity",
+    "template": "BallotValidity",
+    "params": [2, 1],
+    "pubs": ["Kc", "stateRoot", "coordPubKey", "pollId"]
+  },
+  "BallotValidityOnchain_hybrid_2-1": {
+    "file": "./hybrid/power/ballotValidity",
+    "template": "BallotValidityOnchain",
+    "params": [2, 1],
+    "pubs": []
+  },
+  "ProcessHybridMessages_hybrid_2-1-5": {
+    "file": "./hybrid/power/processHybridMessages",
+    "template": "ProcessHybridMessages",
+    "params": [2, 1, 5],
+    "pubs": ["message", "encPubKey", "encC1", "encC2", "stateRoot", "actualCount"]
+  },
+  "ProcessHybridMessagesOnchain_hybrid_2-1-5": {
+    "file": "./hybrid/power/processHybridMessages",
+    "template": "ProcessHybridMessagesOnchain",
+    "params": [2, 1, 5],
+    "pubs": []
+  },
+  "RevealVerify_hybrid_1-2": {
+    "file": "./hybrid/power/revealVerify",
+    "template": "RevealVerify",
+    "params": [1, 2],
+    "pubs": ["Kc", "aggC1", "aggC2", "results", "salt", "participantPubKey", "participantIndex"]
+  },
+  "RevealVerifyOnchain_hybrid_1-2": {
+    "file": "./hybrid/power/revealVerify",
+    "template": "RevealVerifyOnchain",
+    "params": [1, 2],
+    "pubs": []
   }
 }

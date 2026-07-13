@@ -233,4 +233,98 @@ pub enum ContractError {
 
     #[error("A round with no signups must finalize with all-zero results")]
     InvalidEmptyRoundResult {},
+
+    // Hybrid MACI + AHE on-chain flow errors
+    // `ProcessHybridBatch`'s `actual_count` must exactly equal
+    // min(remaining unprocessed messages, HYBRID_BATCH_SIZE) — the contract
+    // computes this deterministically so there's exactly one valid batch
+    // shape at any point in a (possibly multi-call) processing run.
+    #[error("Hybrid batch actual_count mismatch: expected {expected} (min(remaining, batch_size)), got {actual}")]
+    HybridBatchNotReady { expected: Uint256, actual: Uint256 },
+
+    #[error("Hybrid batch has already been processed")]
+    HybridBatchAlreadyProcessed {},
+
+    #[error(
+        "Hybrid aggregate ciphertext must have exactly {expected} option entries, got {actual}"
+    )]
+    HybridAggLengthMismatch { expected: usize, actual: usize },
+
+    #[error(
+        "The submitted coordinator public key does not match the round's registered coordinator"
+    )]
+    HybridCoordinatorMismatch {},
+
+    #[error("Hybrid batch has not been processed yet, nothing to reveal")]
+    HybridNotProcessedYet {},
+
+    #[error("Hybrid tally has already been revealed")]
+    HybridTallyAlreadyRevealed {},
+
+    #[error("Hybrid committee AHE public key (Kc) has already been set for this round")]
+    HybridKcAlreadySet {},
+
+    #[error("Hybrid committee AHE public key (Kc) has not been set yet; call SetHybridKc first")]
+    HybridKcNotSet {},
+
+    #[error("Hybrid AHE ciphertext contains a point that is not on the BabyJubjub curve")]
+    HybridInvalidCiphertextPoint {},
+
+    #[error("Hybrid aggregate ciphertext contains a point that is not on the BabyJubjub curve")]
+    HybridInvalidAggregatePoint {},
+
+    #[error("Hybrid committee config is invalid: {reason}")]
+    HybridCommitteeConfigInvalid { reason: String },
+
+    #[error("vote_option_map length {got} does not match the compiled hybrid circuit's fixed option count {expected}; redeploy with exactly {expected} vote options")]
+    HybridVoteOptionMapMismatch { got: usize, expected: usize },
+
+    #[error("This round requires committee confirmation (ConfirmHybridKc); the admin-only SetHybridKc path is disabled")]
+    HybridCommitteeConfirmationRequired {},
+
+    #[error("This round has no committee configured; use SetHybridKc instead of ConfirmHybridKc")]
+    HybridCommitteeNotConfigured {},
+
+    #[error("Sender is not a member of this round's hybrid committee")]
+    HybridNotCommitteeMember {},
+
+    #[error(
+        "RevealHybridTally results length mismatch: expected {expected} options, got {actual}"
+    )]
+    HybridResultsLengthMismatch { expected: usize, actual: usize },
+
+    #[error("RevealHybridTally requires at least one participant share")]
+    HybridRevealNoParticipants {},
+
+    #[error(
+        "RevealHybridTally participant_pub_keys and participant_indices must have the same length"
+    )]
+    HybridRevealParticipantLengthMismatch {},
+
+    #[error("RevealHybridTally requires exactly {expected} participant shares (this round's committee threshold), got {actual}")]
+    HybridRevealParticipantCountMismatch { expected: usize, actual: usize },
+
+    #[error("RevealHybridTally participant indices must be pairwise distinct")]
+    HybridRevealDuplicateParticipant {},
+
+    #[error("RevealHybridTally participant (index, pub_key) pair is not a registered hybrid committee member")]
+    HybridRevealUnknownParticipant {},
+
+    #[error("Cannot stop the classic processing period: this round has {remaining} hybrid message(s) left to process via ProcessHybridBatch")]
+    HybridMsgLeftProcess { remaining: Uint256 },
+
+    #[error("Cannot stop the classic tallying period: this round's hybrid tally has not been revealed via RevealHybridTally yet")]
+    HybridTallyNotYetRevealed {},
+
+    #[error("Hybrid committee threshold ({committee_threshold}) must equal the compiled RevealVerify circuit's threshold ({circuit_threshold})")]
+    HybridCommitteeThresholdMismatch {
+        committee_threshold: u32,
+        circuit_threshold: usize,
+    },
+
+    #[error("Hybrid participant public key is not a valid BabyJubjub curve point")]
+    HybridInvalidParticipantPubKey {},
+
+    #[error("Arithmetic overflow while updating hybrid round counters")]
+    HybridCounterOverflow {},
 }

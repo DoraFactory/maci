@@ -14,7 +14,13 @@ import {
   adaptToUncompressed,
   unpackElement,
   packElement,
-  computeInputHash
+  computeInputHash,
+  aggregateAhe,
+  aheCommit,
+  recoverAhe,
+  solveDLog,
+  committeePartial,
+  type AheCiphertext
 } from './libs/crypto';
 import { encryptOdevity, decrypt } from './libs/crypto/rerandomize';
 import { poseidon } from './libs/crypto/hashing';
@@ -1887,5 +1893,270 @@ export class OperatorClient {
    */
   getLogs(): LogEntry[] {
     return this.logs;
+  }
+
+  // ==================== Hybrid MACI + AHE Processing ====================
+
+  /**
+   * Process a batch of Hybrid MACI + AHE messages.
+   *
+   * The coordinator holds `coordPrivKey` and, for each message:
+   *   1. ECDH-decrypts ONLY the routing envelope (stateIdx / nonce / pollId /
+   *      newPubKey / signature / aheCommitment) — never the vote content,
+   *   2. verifies the voter's signature over the ballot commitment,
+   *   3. checks the published AHE ciphertext hashes to the signed commitment,
+   *   4. applies plaintext last-write-wins (latest nonce per stateIdx wins), and
+   *   5. homomorphically aggregates surviving ballots per option.
+   *
+   * The result is one aggregate ciphertext per option, still encrypted. Only the
+   * threshold committee (holding shares of Kc) can decrypt the aggregate, and it
+   * only ever sees per-option totals — never a single vote. This is the
+   * off-circuit reference the `processHybridMessages` ZK proof attests to.
+   *
+   * @returns per-message routing view, survivor flags, and the aggregate ciphertexts
+   */
+  processHybridBatch(
+    messages: {
+      routing: bigint[];
+      encPubKey: PubKey;
+      ciphertexts: AheCiphertext[];
+    }[],
+    voterPubKeys: PubKey[],
+    numOptions: number,
+    derivePathParams?: DerivePathParams
+  ): {
+    routingView: {
+      stateIdx: number;
+      nonce: number;
+      pollId: number;
+      aheCommitment: bigint;
+      sigValid: boolean;
+      commitmentValid: boolean;
+      survivor: boolean;
+    }[];
+    aggregate: AheCiphertext[];
+  } {
+    const signer = this.getSigner(derivePathParams);
+
+    // Step 1-3: decrypt routing, verify signature, check commitment binding.
+    const decoded = messages.map((m, i) => {
+      const sharedKey = signer.genEcdhSharedKey(m.encPubKey);
+      const plain = poseidonDecrypt(m.routing, sharedKey, 0n, 7).map((x) => BigInt(x));
+      const packed = plain[0];
+      const nonce = Number(packed & (UINT32 - 1n));
+      const stateIdx = Number((packed >> 32n) & (UINT32 - 1n));
+      const pollId = Number((packed >> 64n) & (UINT32 - 1n));
+      const newPubKey: PubKey = [plain[1], plain[2]];
+      const aheCommitment = plain[3];
+      const signature = { R8: [plain[4], plain[5]] as PubKey, S: plain[6] };
+
+      const msgHash = poseidon([packed, newPubKey[0], newPubKey[1], aheCommitment]);
+      const sigValid = verifySignature(msgHash, signature, voterPubKeys[i]);
+      const commitmentValid = aheCommit(m.ciphertexts) === aheCommitment;
+
+      return { stateIdx, nonce, pollId, aheCommitment, sigValid, commitmentValid };
+    });
+
+    // Step 4: last-write-wins in SUBMISSION order (matches the circuit and MACI's
+    // reverse-order processing): for each stateIdx the LATEST-index message wins.
+    // A message is beaten iff a later-index message shares its stateIdx; the
+    // survivor must additionally have a valid signature. nonce is NOT used to
+    // order — "higher nonce wins" is not MACI semantics.
+    const survivorSet = new Set<number>();
+    decoded.forEach((d, i) => {
+      if (!d.sigValid || !d.commitmentValid) return;
+      const beaten = decoded.some((e, j) => j > i && e.stateIdx === d.stateIdx);
+      if (!beaten) survivorSet.add(i);
+    });
+
+    // Step 5: homomorphic aggregation of surviving ballots per option.
+    const aggregate: AheCiphertext[] = [];
+    for (let opt = 0; opt < numOptions; opt++) {
+      const cts = [...survivorSet].map((i) => messages[i].ciphertexts[opt]);
+      aggregate.push(aggregateAhe(cts));
+    }
+
+    const routingView = decoded.map((d, i) => ({ ...d, survivor: survivorSet.has(i) }));
+
+    return { routingView, aggregate };
+  }
+
+  /**
+   * Decode the ROUTING envelope of a single Hybrid message, exactly as the
+   * coordinator does inside `processHybridBatch` (and as the circuit does).
+   *
+   * The coordinator ECDH-decrypts only the routing scalars (stateIdx / nonce /
+   * pollId / newPubKey / signature / aheCommitment) and verifies the signature
+   * and the commitment binding. It never touches optionIdx or weight — those
+   * live in the AHE ciphertext addressed to the committee key Kc.
+   *
+   * This exists so a demo/UI can show "what the coordinator can actually read
+   * from one message" without running the whole batch.
+   */
+  decodeHybridRouting(
+    message: {
+      routing: bigint[];
+      encPubKey: PubKey;
+      ciphertexts: AheCiphertext[];
+    },
+    voterPubKey: PubKey,
+    derivePathParams?: DerivePathParams
+  ): {
+    packed: bigint;
+    stateIdx: number;
+    nonce: number;
+    pollId: number;
+    newPubKey: PubKey;
+    aheCommitment: bigint;
+    signature: { R8: PubKey; S: bigint };
+    sigValid: boolean;
+    commitmentValid: boolean;
+  } {
+    const signer = this.getSigner(derivePathParams);
+    const sharedKey = signer.genEcdhSharedKey(message.encPubKey);
+    const plain = poseidonDecrypt(message.routing, sharedKey, 0n, 7).map((x) => BigInt(x));
+    const packed = plain[0];
+    const nonce = Number(packed & (UINT32 - 1n));
+    const stateIdx = Number((packed >> 32n) & (UINT32 - 1n));
+    const pollId = Number((packed >> 64n) & (UINT32 - 1n));
+    const newPubKey: PubKey = [plain[1], plain[2]];
+    const aheCommitment = plain[3];
+    const signature = { R8: [plain[4], plain[5]] as PubKey, S: plain[6] };
+
+    const msgHash = poseidon([packed, newPubKey[0], newPubKey[1], aheCommitment]);
+    const sigValid = verifySignature(msgHash, signature, voterPubKey);
+    const commitmentValid = aheCommit(message.ciphertexts) === aheCommitment;
+
+    return { packed, stateIdx, nonce, pollId, newPubKey, aheCommitment, signature, sigValid, commitmentValid };
+  }
+
+  /**
+   * Generate the `processHybridMessages` Groth16 proof attesting that
+   * `processHybridBatch` was executed faithfully (routing decryption, signature
+   * checks, voterPubKey Merkle authentication against `stateRoot`, LWW, and
+   * homomorphic aggregation) without revealing vote content.
+   *
+   * `messages`/`voterPubKeys`/`leaves` describe only the REAL messages in this
+   * batch (`messages.length` may be less than `batchSize` — the circuit's
+   * fixed-size witness arrays); the remaining `[messages.length, batchSize)`
+   * slots are zero-padded automatically and gated off by the circuit's
+   * `actualCount` input, so padding content never affects the proof's
+   * hash-chain position, survivor selection, or aggregate (see
+   * `processHybridMessages.circom`'s partial-batch note).
+   *
+   * `leaves[i]` is the state-leaf witness (voiceCreditBalance/voteOptionTreeRoot
+   * /slNonce/pathElements) needed to Merkle-authenticate `voterPubKeys[i]`
+   * against `stateRoot` at the message's decrypted `stateIdx` — the same leaf
+   * layout `BallotValidity` uses, so callers can reuse whatever they already
+   * pass there.
+   */
+  async proveHybridBatch({
+    messages,
+    voterPubKeys,
+    leaves,
+    stateRoot,
+    batchSize,
+    wasmFile,
+    zkeyFile,
+    derivePathParams
+  }: {
+    messages: {
+      routing: bigint[];
+      encPubKey: PubKey;
+      ciphertexts: AheCiphertext[];
+    }[];
+    voterPubKeys: PubKey[];
+    leaves: {
+      voiceCreditBalance: bigint;
+      voteOptionTreeRoot: bigint;
+      slNonce: bigint;
+      pathElements: bigint[][];
+    }[];
+    stateRoot: bigint;
+    /** Fixed circuit batch size (slot count); defaults to `messages.length` (no padding). */
+    batchSize?: number;
+    wasmFile: ZKArtifact;
+    zkeyFile: ZKArtifact;
+    derivePathParams?: DerivePathParams;
+  }): Promise<{ proof: { a: string; b: string; c: string }; aggC1: bigint[][]; aggC2: bigint[][] }> {
+    const signer = this.getSigner(derivePathParams);
+
+    const numOptions = messages[0]?.ciphertexts.length ?? 0;
+    const actualCount = messages.length;
+    const B = batchSize ?? actualCount;
+    if (actualCount > B) throw new Error('proveHybridBatch: messages.length exceeds batchSize');
+    const stateTreeDepth = leaves[0]?.pathElements.length ?? 0;
+    const leavesPerLevel = stateTreeDepth > 0 ? leaves[0].pathElements[0].length : 0;
+
+    const pad = <T>(arr: T[], fill: T): T[] => arr.concat(Array(B - arr.length).fill(fill));
+    const zeroPath = () =>
+      Array.from({ length: stateTreeDepth }, () => Array(leavesPerLevel).fill(0n));
+
+    const input = {
+      // getFormatedPrivKey() already returns formatPrivKeyForBabyJub(secretKey),
+      // i.e. the exact scalar the circuit expects; do NOT format it again.
+      coordPrivKey: signer.getFormatedPrivKey(),
+      message: pad(
+        messages.map((m) => m.routing),
+        Array(10).fill(0n)
+      ),
+      encPubKey: pad(
+        messages.map((m) => m.encPubKey),
+        [0n, 1n] as PubKey
+      ),
+      voterPubKey: pad(voterPubKeys, [0n, 1n] as PubKey),
+      voiceCreditBalance: pad(leaves.map((l) => l.voiceCreditBalance), 0n),
+      voteOptionTreeRoot: pad(leaves.map((l) => l.voteOptionTreeRoot), 0n),
+      slNonce: pad(leaves.map((l) => l.slNonce), 0n),
+      pathElements: pad(leaves.map((l) => l.pathElements), zeroPath()),
+      stateRoot,
+      actualCount: BigInt(actualCount),
+      encC1: pad(
+        messages.map((m) => m.ciphertexts.map((ct) => ct.c1)),
+        Array(numOptions).fill([0n, 1n])
+      ),
+      encC2: pad(
+        messages.map((m) => m.ciphertexts.map((ct) => ct.c2)),
+        Array(numOptions).fill([0n, 1n])
+      )
+    };
+
+    const { proof, publicSignals } = await groth16.fullProve(input, wasmFile, zkeyFile);
+    const proofHex = await adaptToUncompressed(proof);
+
+    // The circuit's public outputs are [aggC1(2M), aggC2(2M), isReal(B), ...];
+    // publicSignals lists outputs before public inputs.
+    const aggC1: bigint[][] = [];
+    const aggC2: bigint[][] = [];
+    for (let opt = 0; opt < numOptions; opt++) {
+      aggC1.push([BigInt(publicSignals[opt * 2]), BigInt(publicSignals[opt * 2 + 1])]);
+    }
+    const offset = numOptions * 2;
+    for (let opt = 0; opt < numOptions; opt++) {
+      aggC2.push([BigInt(publicSignals[offset + opt * 2]), BigInt(publicSignals[offset + opt * 2 + 1])]);
+    }
+
+    return { proof: proofHex, aggC1, aggC2 };
+  }
+
+  /**
+   * Committee-side threshold decryption of a per-option aggregate ciphertext.
+   *
+   * In production each committee member contributes a partial `kc_i * c1` and the
+   * partials are combined; here a single combined scalar `kc` stands in for the
+   * demo. Returns the plaintext per-option total via bounded discrete-log.
+   */
+  static decryptHybridAggregate(
+    aggregate: AheCiphertext[],
+    kc: bigint,
+    maxTotal: number
+  ): bigint[] {
+    return aggregate.map((ct) => {
+      const shared = committeePartial(ct.c1, kc);
+      const vG = recoverAhe(ct, shared);
+      const total = solveDLog(vG, maxTotal);
+      if (total === null) throw new Error('decryptHybridAggregate: discrete log not found in bound');
+      return total;
+    });
   }
 }

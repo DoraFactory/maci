@@ -231,6 +231,100 @@ pub const PROCESSED_USER_COUNT: Item<Uint256> = Item::new("processed_user_count"
 // Storage for tracking used enc_pub_keys to ensure uniqueness
 pub const USED_ENC_PUB_KEYS: Map<Vec<u8>, bool> = Map::new("used_enc_pub_keys");
 
+// ============================================
+// Hybrid MACI + AHE on-chain flow (routing messages + homomorphic aggregation)
+// ============================================
+//
+// Routing envelopes are format-identical to classic `MessageData` ([Uint256; 10],
+// Poseidon-encrypted), so they reuse the same hash-chain algorithm
+// (`hash_message_and_enc_pub_key`) the classic flow already uses — this hybrid chain
+// is just stored separately so it doesn't interfere with classic PublishMessage/
+// ProcessMessage. The AHE ballot ciphertext (per-option, committee-encrypted; the
+// coordinator can never decrypt it) travels alongside each routing envelope so
+// anyone can re-derive `ProcessHybridBatch`'s witness directly from chain state.
+#[cw_serde]
+pub struct HybridCiphertext {
+    pub c1: Vec<[Uint256; 2]>,
+    pub c2: Vec<[Uint256; 2]>,
+}
+
+#[cw_serde]
+pub struct HybridPublishedMessage {
+    pub routing: MessageData,
+    pub enc_pub_key: PubKey,
+    pub ciphertext: HybridCiphertext,
+}
+
+// Committee-submitted, salted plaintext tally for the hybrid round.
+// `execute_reveal_hybrid_tally` only persists this AFTER verifying a
+// `RevealVerifyOnchain` Groth16 proof that these exact `results` are the
+// threshold-decrypted plaintext of the on-chain aggregate ciphertext — unlike
+// classic StopTallyingPeriod (which never re-derives its `results` from
+// anything on-chain either), this is no longer a bare trust commitment: the
+// contract itself checks the decryption arithmetic before recording it.
+#[cw_serde]
+pub struct HybridTally {
+    pub results: Vec<Uint256>,
+    pub salt: Uint256,
+}
+
+// One committee member: `addr` is their on-chain wallet, used purely for
+// ConfirmHybridKc authentication (a tx signed by this address already IS a
+// cryptographic signature check, performed by the chain before the message
+// ever reaches this contract — no need to reinvent a second, app-level
+// signature scheme). `pubkey` is their DKG/threshold-decryption verification
+// key (BabyJubjub), kept alongside the addr so later stages (e.g. a
+// RevealHybridTally verification circuit) have one canonical place to read
+// "who is on the committee" from, instead of maintaining two separate lists.
+#[cw_serde]
+pub struct HybridCommitteeMember {
+    pub addr: Addr,
+    pub pubkey: PubKey,
+}
+
+// Instantiate-time, immutable committee roster + threshold for confirming
+// Kc (see `ConfirmHybridKc`). Optional: rounds that don't configure this
+// keep the legacy admin-only `SetHybridKc` path, so existing single-admin
+// demos/tests are unaffected.
+#[cw_serde]
+pub struct HybridCommitteeConfig {
+    pub members: Vec<HybridCommitteeMember>,
+    pub threshold: u32,
+}
+
+pub const HYBRID_COMMITTEE: Item<HybridCommitteeConfig> = Item::new("hybrid_committee");
+// Each committee member's currently-confirmed Kc value (overwritten if they
+// re-confirm with a different value before threshold is reached). Kc is
+// finalized once `threshold` members agree on the SAME value.
+pub const HYBRID_KC_CONFIRMATIONS: Map<Addr, [Uint256; 2]> = Map::new("hybrid_kc_confirmations");
+
+// The threshold committee's AHE public key. Set once — either admin-only via
+// `SetHybridKc` (no committee configured) or via `ConfirmHybridKc` reaching
+// threshold (committee configured) — before any message can be published,
+// since every ballotValidity proof binds to this exact value — without it,
+// the contract has nothing fixed to check submitted proofs against.
+pub const HYBRID_KC: Item<[Uint256; 2]> = Item::new("hybrid_kc");
+pub const HYBRID_MSG_HASHES: Map<Vec<u8>, Uint256> = Map::new("hybrid_msg_hashes");
+pub const HYBRID_MSG_CHAIN_LENGTH: Item<Uint256> = Item::new("hybrid_msg_chain_length");
+pub const HYBRID_MESSAGES: Map<Vec<u8>, HybridPublishedMessage> = Map::new("hybrid_messages");
+// Number of published hybrid messages processed so far (monotonically
+// increasing, chained across possibly-multiple ProcessHybridBatch calls — see
+// contract.rs). A round is fully processed once this equals
+// HYBRID_MSG_CHAIN_LENGTH; defaults to 0 (via `may_load`) before the first
+// ProcessHybridBatch call.
+pub const HYBRID_PROCESSED_COUNT: Item<Uint256> = Item::new("hybrid_processed_count");
+// Running homomorphic aggregate (still-encrypted; only the threshold committee that
+// holds Kc's shares can decrypt it), one BabyJubjub point per vote option.
+pub const HYBRID_AGG_C1: Item<Vec<[Uint256; 2]>> = Item::new("hybrid_agg_c1");
+pub const HYBRID_AGG_C2: Item<Vec<[Uint256; 2]>> = Item::new("hybrid_agg_c2");
+pub const HYBRID_TALLY: Item<HybridTally> = Item::new("hybrid_tally");
+// Root of the per-voter nonce tree (quinary, depth = stateTreeDepth, leaves
+// are raw nonce values initialized to zero).  Persists across
+// ProcessHybridBatch calls so the circuit can enforce cross-batch LWW via
+// the classic MACI "currentNonce+1" check.  Initialized to the all-zero
+// quinary tree root in execute_start_process_period.
+pub const HYBRID_NONCE_STATE_ROOT: Item<Uint256> = Item::new("hybrid_nonce_state_root");
+
 pub const DMSG_CHAIN_LENGTH: Item<Uint256> = Item::new("dmsg_chain_length");
 pub const DMSG_HASHES: Map<Vec<u8>, Uint256> = Map::new("dmsg_hashes");
 pub const STATE_ROOT_BY_DMSG: Map<Vec<u8>, Uint256> = Map::new("state_root_by_dmsg");
