@@ -6,8 +6,8 @@ mod tests;
 use anyhow::Result as AnyResult;
 
 use crate::state::{
-    DelayRecords, MaciParameters, MessageData, Period, PubKey, RoundInfo, VoiceCreditMode,
-    VotingTime, FEE_DENOM,
+    DelayRecords, HybridCiphertext, HybridCommitteeConfig, HybridPublishedMessage, HybridTally,
+    MaciParameters, MessageData, Period, PubKey, RoundInfo, VoiceCreditMode, VotingTime, FEE_DENOM,
 };
 use crate::{
     contract::{execute, instantiate, query},
@@ -74,7 +74,14 @@ pub fn create_app() -> App {
         .with_api(dora_mock_api())
         .with_stargate(StargateAccepting)
         .build(|router, _, storage| {
-            for addr in [user1(), user2(), user3(), owner(), operator(), fee_recipient()] {
+            for addr in [
+                user1(),
+                user2(),
+                user3(),
+                owner(),
+                operator(),
+                fee_recipient(),
+            ] {
                 router
                     .bank
                     .init_balance(storage, &addr, coins(TEST_USER_BALANCE, "peaka"))
@@ -407,6 +414,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false, // Default: disabled
+            hybrid_committee: None,
         };
 
         app.instantiate_contract(
@@ -479,6 +487,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: true, // ENABLED for deactivate and add_new_key tests
+            hybrid_committee: None,
         };
 
         app.instantiate_contract(
@@ -889,6 +898,197 @@ impl MaciContract {
     pub fn query_round_info(&self, app: &App) -> StdResult<RoundInfo> {
         app.wrap()
             .query_wasm_smart(self.addr(), &QueryMsg::GetRoundInfo {})
+    }
+
+    /// Hybrid MACI + AHE: query the contract's on-chain ballotValidity verifier
+    /// through the REAL wasm entry point (`query` dispatch), not a direct Rust
+    /// call — this is what a testnet/mainnet client would actually invoke.
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_hybrid_ballot(
+        &self,
+        app: &App,
+        kc: [Uint256; 2],
+        state_root: Uint256,
+        coord_pub_key: [Uint256; 2],
+        poll_id: Uint256,
+        routing_commitment: Uint256,
+        ahe_commitment: Uint256,
+        nullifier: Uint256,
+        proof: Groth16ProofType,
+    ) -> StdResult<bool> {
+        app.wrap().query_wasm_smart(
+            self.addr(),
+            &QueryMsg::VerifyHybridBallot {
+                kc,
+                state_root,
+                coord_pub_key,
+                poll_id,
+                routing_commitment,
+                ahe_commitment,
+                nullifier,
+                proof,
+            },
+        )
+    }
+
+    // ── Hybrid MACI + AHE on-chain flow ──────────────────────────────────────
+    #[track_caller]
+    pub fn set_hybrid_kc(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        kc: [Uint256; 2],
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(sender, self.addr(), &ExecuteMsg::SetHybridKc { kc }, &[])
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[track_caller]
+    pub fn publish_hybrid_message(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        routing: MessageData,
+        enc_pub_key: PubKey,
+        ciphertext: HybridCiphertext,
+        coord_pub_key: [Uint256; 2],
+        nullifier: Uint256,
+        ballot_proof: Groth16ProofType,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::PublishHybridMessage {
+                routing,
+                enc_pub_key,
+                ciphertext,
+                coord_pub_key,
+                nullifier,
+                ballot_proof,
+            },
+            &coins(MESSAGE_FEE.u128(), FEE_DENOM),
+        )
+    }
+
+    #[track_caller]
+    pub fn get_hybrid_kc(&self, app: &App) -> StdResult<Option<[Uint256; 2]>> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridKc {})
+    }
+
+    #[track_caller]
+    pub fn confirm_hybrid_kc(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        kc: [Uint256; 2],
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::ConfirmHybridKc { kc },
+            &[],
+        )
+    }
+
+    pub fn get_hybrid_committee(&self, app: &App) -> StdResult<Option<HybridCommitteeConfig>> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridCommittee {})
+    }
+
+    pub fn get_hybrid_kc_confirmations(
+        &self,
+        app: &App,
+    ) -> StdResult<Vec<HybridKcConfirmationEntry>> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridKcConfirmations {})
+    }
+
+    #[track_caller]
+    #[allow(clippy::too_many_arguments)]
+    pub fn process_hybrid_batch(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        coord_pub_key: [Uint256; 2],
+        actual_count: Uint256,
+        new_agg_c1: Vec<[Uint256; 2]>,
+        new_agg_c2: Vec<[Uint256; 2]>,
+        new_nonce_state_root: Uint256,
+        groth16_proof: Groth16ProofType,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::ProcessHybridBatch {
+                coord_pub_key,
+                actual_count,
+                new_agg_c1,
+                new_agg_c2,
+                new_nonce_state_root,
+                groth16_proof,
+            },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn reveal_hybrid_tally(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        results: Vec<Uint256>,
+        salt: Uint256,
+        participant_pub_keys: Vec<PubKey>,
+        participant_indices: Vec<Uint256>,
+        reveal_proof: Groth16ProofType,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::RevealHybridTally {
+                results,
+                salt,
+                participant_pub_keys,
+                participant_indices,
+                reveal_proof,
+            },
+            &[],
+        )
+    }
+
+    pub fn get_hybrid_msg_chain_length(&self, app: &App) -> StdResult<Uint256> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridMsgChainLength {})
+    }
+
+    pub fn get_hybrid_message(
+        &self,
+        app: &App,
+        index: Uint256,
+    ) -> StdResult<Option<HybridPublishedMessage>> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridMessage { index })
+    }
+
+    pub fn get_hybrid_processed(&self, app: &App) -> StdResult<bool> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridProcessed {})
+    }
+
+    pub fn get_hybrid_processed_count(&self, app: &App) -> StdResult<Uint256> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridProcessedCount {})
+    }
+
+    pub fn get_hybrid_agg_ciphertext(&self, app: &App) -> StdResult<HybridAggResponse> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridAggCiphertext {})
+    }
+
+    pub fn get_hybrid_tally(&self, app: &App) -> StdResult<Option<HybridTally>> {
+        app.wrap()
+            .query_wasm_smart(self.addr(), &QueryMsg::GetHybridTally {})
     }
 
     #[track_caller]
@@ -1501,6 +1701,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false, // Default: disabled
+            hybrid_committee: None,
         };
 
         app.instantiate_contract(
@@ -1557,6 +1758,173 @@ impl MaciContract {
             Uint256::from_u128(0), // groth16
             "MACI Contract",
         )
+    }
+
+    // Like instantiate_default, but with a caller-supplied coordinator pubkey —
+    // needed for the Hybrid MACI + AHE e2e test, whose real Groth16 proof (and
+    // COORDINATORHASH check in ProcessHybridBatch) is bound to a specific
+    // coordinator keypair (see mpc-coordinator-demo/scripts/
+    // exportHybridProcessVkeyProof.ts).
+    #[track_caller]
+    pub fn instantiate_hybrid_default(app: &mut App, coordinator: PubKey) -> AnyResult<Self> {
+        Self::instantiate_hybrid_with_committee(app, coordinator, None)
+    }
+
+    // Same as `instantiate_hybrid_default`, but lets tests configure a
+    // committee roster (see `HybridCommitteeConfig`) to exercise the
+    // `ConfirmHybridKc` threshold-confirmation path instead of the legacy
+    // admin-only `SetHybridKc`.
+    pub fn instantiate_hybrid_with_committee(
+        app: &mut App,
+        coordinator: PubKey,
+        hybrid_committee: Option<HybridCommitteeConfig>,
+    ) -> AnyResult<Self> {
+        let code_id = MaciCodeId::store_code(app);
+        let parameters = MaciParameters {
+            state_tree_depth: Uint256::from_u128(2u128),
+            int_state_tree_depth: Uint256::from_u128(1u128),
+            message_batch_size: Uint256::from_u128(5u128),
+            vote_option_tree_depth: Uint256::from_u128(1u128),
+        };
+        let round_info = RoundInfo {
+            title: String::from("HybridTestRound"),
+            description: String::from("Test Description"),
+            link: String::from("https://github.com"),
+        };
+        let voting_time = VotingTime {
+            start_time: Timestamp::from_nanos(1571797424879000000),
+            end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11),
+        };
+        let init_msg = InstantiateMsg {
+            parameters,
+            coordinator,
+            vote_option_map: vec![
+                "Option 1".to_string(),
+                "Option 2".to_string(),
+                "Option 3".to_string(),
+                "Option 4".to_string(),
+                "Option 5".to_string(),
+            ],
+            round_info,
+            voting_time,
+            circuit_type: Uint256::from_u128(0),         // 1p1v
+            certification_system: Uint256::from_u128(0), // groth16
+            operator: operator(),
+            admin: owner(),
+            fee_recipient: fee_recipient(),
+            poll_id: 1u64,
+            voice_credit_mode: VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                // The 3 demo voters used by e2e_hybrid_full_onchain_flow — the
+                // hybrid_publish_fixture ballot proofs are Merkle-bound to the
+                // state root these 3 sign_up() calls (in this exact order)
+                // produce against a fresh depth-2 state tree.
+                whitelist: WhitelistBase {
+                    users: vec![
+                        WhitelistBaseConfig {
+                            addr: user1(),
+                            voice_credit_amount: None,
+                        },
+                        WhitelistBaseConfig {
+                            addr: user2(),
+                            voice_credit_amount: None,
+                        },
+                        WhitelistBaseConfig {
+                            addr: user3(),
+                            voice_credit_amount: None,
+                        },
+                        // Not signed up by the existing 3-voter fixtures/tests
+                        // (they only call sign_up for user1-3) -- see user4()'s
+                        // doc comment.
+                        WhitelistBaseConfig {
+                            addr: user4(),
+                            voice_credit_amount: None,
+                        },
+                    ],
+                },
+            },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
+            deactivate_enabled: false,
+            hybrid_committee,
+        };
+
+        app.instantiate_contract(
+            code_id.0,
+            Addr::unchecked(owner()),
+            &init_msg,
+            &[],
+            "Hybrid MACI Contract",
+            None,
+        )
+        .map(Self::from)
+    }
+
+    // Attempt to instantiate a hybrid round with a custom (potentially wrong)
+    // `vote_option_map`.  Returns `Err` if the contract rejects it (e.g.
+    // HybridVoteOptionMapMismatch).  Used to test the instantiate-time guard.
+    pub fn try_instantiate_hybrid_with_vote_option_map(
+        app: &mut App,
+        coordinator: PubKey,
+        vote_option_map: Vec<String>,
+    ) -> AnyResult<Self> {
+        let code_id = MaciCodeId::store_code(app);
+        let init_msg = InstantiateMsg {
+            parameters: MaciParameters {
+                state_tree_depth: Uint256::from_u128(2u128),
+                int_state_tree_depth: Uint256::from_u128(1u128),
+                message_batch_size: Uint256::from_u128(5u128),
+                vote_option_tree_depth: Uint256::from_u128(1u128),
+            },
+            coordinator,
+            vote_option_map,
+            round_info: RoundInfo {
+                title: String::from("HybridOptionTest"),
+                description: String::from("test"),
+                link: String::from("https://example.com"),
+            },
+            voting_time: VotingTime {
+                start_time: Timestamp::from_nanos(1571797424879000000),
+                end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11),
+            },
+            circuit_type: Uint256::from_u128(0),
+            certification_system: Uint256::from_u128(0),
+            operator: operator(),
+            admin: owner(),
+            fee_recipient: fee_recipient(),
+            poll_id: 1u64,
+            voice_credit_mode: VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase { users: vec![] },
+            },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
+            deactivate_enabled: false,
+            hybrid_committee: None,
+        };
+        app.instantiate_contract(
+            code_id.0,
+            Addr::unchecked(owner()),
+            &init_msg,
+            &[],
+            "HybridOptionTest",
+            None,
+        )
+        .map(Self::from)
     }
 
     // Helper function to instantiate with deactivate enabled
@@ -1638,6 +2006,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: true, // ENABLED!
+            hybrid_committee: None,
         };
 
         app.instantiate_contract(
@@ -1670,6 +2039,16 @@ pub fn user3() -> Addr {
     dora_mock_api().addr_make("user3")
 }
 
+// A 4th whitelisted (but not signed-up by default) hybrid demo voter --
+// see e2e_hybrid_multi_batch_chaining_preserves_earlier_batch_votes, which
+// signs them up alongside user1-3 to get a real 4th state-tree leaf for its
+// 2nd batch (phase2-multibatch-ec-add's regression coverage for the
+// currentAggC1/C2 chaining fix). Purely additive: existing hybrid tests that
+// only sign up user1-3 are unaffected by this whitelist addition.
+pub fn user4() -> Addr {
+    dora_mock_api().addr_make("user4")
+}
+
 pub fn owner() -> Addr {
     Addr::unchecked("owner")
 }
@@ -1680,6 +2059,18 @@ pub fn fee_recipient() -> Addr {
 
 pub fn operator() -> Addr {
     Addr::unchecked("operator")
+}
+
+pub fn committee1() -> Addr {
+    dora_mock_api().addr_make("committee1")
+}
+
+pub fn committee2() -> Addr {
+    dora_mock_api().addr_make("committee2")
+}
+
+pub fn committee3() -> Addr {
+    dora_mock_api().addr_make("committee3")
 }
 
 // Test data for oracle mode

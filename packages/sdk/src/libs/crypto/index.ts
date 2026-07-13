@@ -10,4 +10,5 @@ export * from './curve';
 export * from './adapter';
 export * from './rerandomize';
 export * from './pack';
+export * from './ahe';
 export type { Keypair, PubKey, PrivKey } from './types';

@@ -17,7 +17,10 @@ import {
   SNARK_FIELD_SIZE,
   adaptToUncompressed,
   packElement,
-  computeInputHash
+  computeInputHash,
+  buildHybridMessageWithSigner,
+  type HybridMessage,
+  type AhePoint
 } from './libs/crypto';
 import { poseidon } from './libs/crypto/hashing';
 import { poseidonEncrypt } from '@zk-kit/poseidon-cipher';
@@ -937,6 +940,184 @@ export class VoterClient {
       msg: string[];
       encPubkeys: string[];
     };
+  }
+
+  // ==================== Hybrid MACI + AHE Methods ====================
+
+  /**
+   * Create a factory for Hybrid MACI + AHE messages.
+   *
+   * A Hybrid message splits the classic MACI command in two:
+   *   - a routing envelope (stateIdx / nonce / pollId / newPubKey / signature /
+   *     aheCommitment) Poseidon-encrypted to the coordinator, exactly like MACI, and
+   *   - the vote content (per-option weights) encrypted with additively-homomorphic
+   *     ElGamal to the decryption committee key `Kc`, which the coordinator can
+   *     aggregate but never decrypt.
+   *
+   * The voter signs `[packed, newPubKey_x, newPubKey_y, aheCommitment]`, binding
+   * the exact ballot to this authorization. This is what solves MACI's B-line
+   * problem: the coordinator processes and tallies without seeing any single vote.
+   *
+   * @param coordPubkey - coordinator public key (decrypts routing only)
+   * @param committeeKey - AHE committee joint public key Kc (decrypts aggregate only)
+   * @param pollId - poll ID for replay protection
+   * @param numOptions - number of vote options
+   */
+  genHybridMessageFactory(
+    coordPubkey: bigint | string | PubKey,
+    committeeKey: AhePoint,
+    pollId: number,
+    numOptions: number,
+    derivePathParams?: DerivePathParams
+  ) {
+    const coordPubKey = this.unpackMaciPubkey(coordPubkey);
+    const signer = this.getSigner(derivePathParams);
+    const voterPubKey = [...signer.getPublicKey().toPoints()] as PubKey;
+
+    return (
+      stateIdx: number,
+      nonce: number,
+      voIdx: number,
+      weight: number,
+      newPubKey?: PubKey
+    ): HybridMessage =>
+      buildHybridMessageWithSigner(
+        {
+          voterPubKey,
+          newPubKey,
+          coordPubKey,
+          Kc: committeeKey,
+          stateIdx,
+          nonce,
+          pollId,
+          voIdx,
+          weight,
+          numOptions
+        },
+        (msgHash) => {
+          const sig = signer.sign(msgHash);
+          return { R8: sig.R8 as [bigint, bigint], S: BigInt(sig.S) };
+        }
+      );
+  }
+
+  /**
+   * Build a batch of Hybrid vote messages. Each option in `plan` becomes one
+   * revision of the ballot; nonces increase so the coordinator's last-write-wins
+   * keeps only the final ballot per voter (demonstrating revote).
+   */
+  buildHybridVotePayload({
+    stateIdx,
+    operatorPubkey,
+    committeeKey,
+    selectedOptions,
+    pollId,
+    numOptions,
+    derivePathParams
+  }: {
+    stateIdx: number;
+    operatorPubkey: bigint | string | PubKey;
+    committeeKey: AhePoint;
+    selectedOptions: { idx: number; vc: number }[];
+    pollId: number;
+    numOptions: number;
+    derivePathParams?: DerivePathParams;
+  }): HybridMessage[] {
+    const plan = this.normalizeVoteOptions(selectedOptions);
+    const genMessage = this.genHybridMessageFactory(
+      operatorPubkey,
+      committeeKey,
+      pollId,
+      numOptions,
+      derivePathParams
+    );
+
+    // All messages use nonce=1 and are submitted in FORWARD order (original
+    // first, revote last).  The nonce tree in ProcessHybridMessages uses a
+    // "first-seen wins" check (cmdNonce==currentNonce+1 with tree starting at 0,
+    // i.e. effectively currentNonce==0).  Combined with REVERSE processing in
+    // the circuit (newest chain index first), only the LATEST submission for
+    // each voter passes the nonce check — the revote wins because it is at a
+    // HIGHER chain index and therefore processed FIRST.  Sequential nonces
+    // (1, 2, ...) would cause all messages to pass the check sequentially,
+    // leading to double-counting in the additive aggregate.
+    return plan.map(([voIdx, vc]) => genMessage(stateIdx, 1, voIdx, vc));
+  }
+
+  /**
+   * Generate the client-side ballotValidity Groth16 proof for a Hybrid message,
+   * proving the published ciphertext is a valid, in-budget, one-hot ballot that
+   * hashes to the signed commitment — without revealing the vote.
+   *
+   * The voice-credit budget is NOT a free input: it comes from the voter's real
+   * state leaf `[pubKey.x, pubKey.y, voiceCreditBalance, voteOptionTreeRoot,
+   * nonce]`, authenticated inside the circuit via a quinary state-tree Merkle
+   * inclusion against the public `stateRoot`. Callers pass the leaf fields plus
+   * the Merkle path (e.g. from the SDK `Tree` helper's `pathElementOf`).
+   *
+   * Anonymity: `stateIdx`/`pubKey` are private witnesses only — the circuit's
+   * public outputs are `nullifier` (an unlinkable-per-round identifier) and
+   * `routingCommitment` instead. The proof also re-derives the ECDH shared key
+   * from `message.ephemeralPrivKey`/`coordPubKey` and decrypts `message.routing`
+   * in-circuit, asserting its embedded stateIdx/aheCommitment match this
+   * ballot's own — see `ballotValidity.circom`'s routing-binding step.
+   */
+  async genBallotValidityProof({
+    message,
+    committeeKey,
+    pubKey,
+    stateIdx,
+    stateRoot,
+    coordPubKey,
+    pollId,
+    voiceCreditBalance,
+    voteOptionTreeRoot = 0n,
+    slNonce = 0n,
+    pathElements,
+    wasmFile,
+    zkeyFile
+  }: {
+    message: HybridMessage;
+    committeeKey: AhePoint;
+    pubKey: PubKey;
+    stateIdx: number | bigint;
+    stateRoot: bigint;
+    // The coordinator key `message.routing` was encrypted to, and the pollId
+    // packed into it — needed so the proof can decrypt-check `routing`
+    // in-circuit and bind to it (see `ballotValidity.circom`'s routing
+    // binding). Both are PUBLIC (folded into inputHash by the on-chain
+    // wrapper), unlike stateIdx/pubKey which stay private.
+    coordPubKey: PubKey;
+    pollId: number | bigint;
+    voiceCreditBalance: number | bigint;
+    voteOptionTreeRoot?: bigint;
+    slNonce?: number | bigint;
+    pathElements: bigint[][];
+    wasmFile: ZKArtifact;
+    zkeyFile: ZKArtifact;
+  }): Promise<{ proof: { a: string; b: string; c: string }; publicSignals: string[] }> {
+    const input = {
+      voteWeights: message.weights,
+      r: message.randomness,
+      voiceCreditBalance: BigInt(voiceCreditBalance),
+      voteOptionTreeRoot: BigInt(voteOptionTreeRoot),
+      slNonce: BigInt(slNonce),
+      pathElements,
+      stateIdx: BigInt(stateIdx),
+      pubKey,
+      ephemeralPrivKey: message.ephemeralPrivKey,
+      routing: message.routing,
+      routingEncPubKey: message.encPubKey,
+      Kc: committeeKey,
+      stateRoot: BigInt(stateRoot),
+      coordPubKey,
+      pollId: BigInt(pollId)
+    };
+
+    const { proof, publicSignals } = await groth16.fullProve(input, wasmFile, zkeyFile);
+    const proofHex = await adaptToUncompressed(proof);
+
+    return { proof: proofHex, publicSignals };
   }
 
   // ==================== Legacy Methods (backward-compat, no pollId) ====================

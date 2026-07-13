@@ -242,6 +242,9 @@ pub fn execute_create_round(
         message_delay: delay_config.message_delay,
         signup_delay: delay_config.signup_delay,
         deactivate_delay: delay_config.deactivate_delay,
+        // Registry-created rounds don't configure a hybrid committee roster
+        // yet; they keep the legacy admin-only SetHybridKc path.
+        hybrid_committee: None,
     };
 
     let amaci_code_id = AMACI_CODE_ID.load(deps.storage)?;

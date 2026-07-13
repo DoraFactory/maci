@@ -1,7 +1,8 @@
 #[allow(unused_imports)] // DelayRecords is used by the #[returns] proc-macro attribute
 use crate::state::{
-    DelayRecords, Groth16VkeyStr, MaciParameters, MessageData, PeriodStatus, PubKey,
-    RegistrationMode, RoundInfo, VoiceCreditMode, VotingTime,
+    DelayRecords, Groth16VkeyStr, HybridCiphertext, HybridCommitteeConfig, HybridPublishedMessage,
+    HybridTally, MaciParameters, MessageData, PeriodStatus, PubKey, RegistrationMode, RoundInfo,
+    VoiceCreditMode, VotingTime,
 };
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Timestamp, Uint128, Uint256};
@@ -57,6 +58,14 @@ pub struct InstantiateMsg {
     pub signup_delay: u64,
     // operator window to process deactivate messages (from first msg received)
     pub deactivate_delay: u64,
+
+    // ── Hybrid MACI + AHE on-chain flow (optional) ────────────────────────────
+    // If set, `SetHybridKc` (admin-only) is disabled and Kc can only be
+    // finalized via `ConfirmHybridKc` once `threshold` listed members agree on
+    // the same value. If omitted, the legacy admin-only `SetHybridKc` path is
+    // used (single-coordinator demos/tests are unaffected).
+    #[serde(default)]
+    pub hybrid_committee: Option<HybridCommitteeConfig>,
 }
 
 #[cw_serde]
@@ -186,6 +195,100 @@ pub enum ExecuteMsg {
         salt: Uint256,
     },
     Claim {},
+
+    // ── Hybrid MACI + AHE on-chain flow ──────────────────────────────────────
+    // Admin-only, one-time setup: bind the threshold committee's AHE public key
+    // (Kc) into contract storage. Must be set before any PublishHybridMessage
+    // call, since every ballotValidity proof is bound to Kc — without a
+    // contract-tracked Kc, the contract has no fixed value to check submitted
+    // proofs against.
+    SetHybridKc {
+        kc: [Uint256; 2],
+    },
+    // Committee-confirmed alternative to `SetHybridKc`, used when
+    // `hybrid_committee` was configured at Instantiate. Each listed committee
+    // member calls this (from their own on-chain address — the tx signature
+    // itself is the "signature confirming this value") with the SAME `kc`;
+    // once `threshold` members have confirmed the same value, it is finalized
+    // into `HYBRID_KC` exactly like `SetHybridKc` would. Rejected if no
+    // committee is configured, if the sender isn't a listed member, or if Kc
+    // has already been finalized.
+    ConfirmHybridKc {
+        kc: [Uint256; 2],
+    },
+    // Publish one Hybrid message: a routing envelope (Poseidon-encrypted to the
+    // coordinator, format-identical to classic MessageData) plus the separately
+    // published AHE ballot ciphertext (per-option, committee-encrypted — the
+    // coordinator can never decrypt vote content). Reuses `message_fee` and the
+    // classic hash-chain algorithm, but stores into its own hybrid chain so it
+    // never interferes with classic PublishMessage/ProcessMessage.
+    //
+    // Anonymity: the signed-up voter this ballot belongs to is NOT revealed in
+    // plaintext any more. `BallotValidityOnchain`'s `stateIdx`/`pubKey` are now
+    // private witnesses; the proof instead outputs `nullifier` (an unlinkable-
+    // per-round identifier, see `ballotValidity.circom`), which is all the
+    // contract ever sees. `coord_pub_key` is the coordinator key the proof used
+    // to decrypt-check `routing` in-circuit (see `BallotValidity`'s routing
+    // binding); the contract cross-checks it against `COORDINATORHASH` so a
+    // prover cannot bind to a fake coordinator. Together with `ballot_proof`,
+    // this lets the contract independently verify — via the on-chain
+    // `BallotValidityOnchain` circuit — that the ballot is one-hot, within the
+    // voter's real Merkle-authenticated voice-credit budget, AND consistent
+    // with the SAME `routing` envelope being published here, all WITHOUT ever
+    // decrypting the vote content or learning which voter it came from.
+    PublishHybridMessage {
+        routing: MessageData,
+        enc_pub_key: PubKey,
+        ciphertext: HybridCiphertext,
+        coord_pub_key: [Uint256; 2],
+        nullifier: Uint256,
+        ballot_proof: Groth16ProofType,
+    },
+    // Coordinator submits ONE Groth16 proof (from ProcessHybridMessagesOnchain)
+    // covering one batch (up to HYBRID_BATCH_SIZE messages) of the hybrid
+    // round: it proves the coordinator faithfully decrypted routing + Merkle-
+    // authenticated each message's voterPubKey against the live state root
+    // (preventing selective censorship) + ran last-write-wins + homomorphically
+    // aggregated the (still-sealed) ballots into `new_agg_c1`/`new_agg_c2`,
+    // without ever seeing any vote's content.
+    //
+    // Partial batch + multi-batch chaining: a round's real message count need
+    // not be an exact multiple of HYBRID_BATCH_SIZE, and may exceed it — this
+    // message can be submitted repeatedly, each call picking up exactly where
+    // the previous one left off (tracked by HYBRID_PROCESSED_COUNT), until all
+    // published messages are processed. `actual_count` is the number of REAL
+    // messages in THIS call's batch (<= HYBRID_BATCH_SIZE, <= remaining
+    // unprocessed messages); the circuit pads the rest of its fixed-size
+    // batch with unconstrained witnesses gated off by `actual_count` (see
+    // `processHybridMessages.circom`'s partial-batch note).
+    ProcessHybridBatch {
+        coord_pub_key: [Uint256; 2],
+        actual_count: Uint256,
+        new_agg_c1: Vec<[Uint256; 2]>,
+        new_agg_c2: Vec<[Uint256; 2]>,
+        /// New nonce tree root after this batch (circuit output). The contract
+        /// stores it and passes it as `currentNonceRoot` to the NEXT batch's
+        /// proof, enforcing cross-batch LWW nonce consistency.
+        new_nonce_state_root: Uint256,
+        groth16_proof: Groth16ProofType,
+    },
+    // Threshold committee reveal: T participants each contributed a partial
+    // decryption share of the final aggregate, and the submitted
+    // `reveal_proof` (RevealVerifyOnchain) proves those T shares Lagrange-
+    // combine into a decryption factor consistent with `results`/`salt` —
+    // i.e. that `results` really is what the on-chain aggregate ciphertext
+    // decrypts to, not just whatever a coordinator/committee member claims.
+    // `participant_pub_keys`/`participant_indices` identify WHICH T
+    // registered `HybridCommitteeConfig` members' shares were used (checked
+    // against the committee roster below; the proof only attests the
+    // decryption ARITHMETIC for whichever pairs are supplied here).
+    RevealHybridTally {
+        results: Vec<Uint256>,
+        salt: Uint256,
+        participant_pub_keys: Vec<PubKey>,
+        participant_indices: Vec<Uint256>,
+        reveal_proof: Groth16ProofType,
+    },
 }
 
 #[cw_serde]
@@ -323,6 +426,92 @@ pub enum QueryMsg {
     /// Returns the stored Groth16 verifying keys for all circuits.
     #[returns(VkeysResponse)]
     GetVkeys {},
+
+    /// Hybrid MACI + AHE: verify a voter's on-chain ballotValidity proof.
+    /// Reconstructs the single SHA256 input hash from the committed public values
+    /// (Kc, stateRoot, coordPubKey, pollId, routingCommitment, aheCommitment,
+    /// nullifier) and runs the Groth16 verifier with the hybrid ballot verifying
+    /// key. Returns true iff the proof is valid — i.e. the voter's voice-credit
+    /// budget is Merkle-authenticated against stateRoot AND the ballot is bound
+    /// to the given routing envelope, without revealing the vote OR which voter
+    /// it belongs to.
+    #[returns(bool)]
+    VerifyHybridBallot {
+        kc: [Uint256; 2],
+        state_root: Uint256,
+        coord_pub_key: [Uint256; 2],
+        poll_id: Uint256,
+        routing_commitment: Uint256,
+        ahe_commitment: Uint256,
+        nullifier: Uint256,
+        proof: Groth16ProofType,
+    },
+
+    // ── Hybrid MACI + AHE on-chain flow ──────────────────────────────────────
+    /// The threshold committee's AHE public key (Kc), if `SetHybridKc` has been
+    /// called yet. Every ballotValidity proof is bound to this value.
+    #[returns(Option<[Uint256; 2]>)]
+    GetHybridKc {},
+
+    /// Number of Hybrid messages published so far (routing-envelope hash chain).
+    #[returns(Uint256)]
+    GetHybridMsgChainLength {},
+
+    /// A published Hybrid message at `index` (1-based, like classic GetMsgHash),
+    /// i.e. the routing envelope + enc pub key + AHE ciphertext anyone can use to
+    /// independently rebuild the ProcessHybridBatch witness.
+    #[returns(Option<HybridPublishedMessage>)]
+    GetHybridMessage { index: Uint256 },
+
+    /// Whether ALL published hybrid messages have been processed yet (i.e.
+    /// `GetHybridProcessedCount == GetHybridMsgChainLength`). A round may take
+    /// several `ProcessHybridBatch` calls to reach this.
+    #[returns(bool)]
+    GetHybridProcessed {},
+
+    /// Number of published hybrid messages processed so far, chained across
+    /// (possibly multiple) `ProcessHybridBatch` calls.
+    #[returns(Uint256)]
+    GetHybridProcessedCount {},
+
+    /// The current running homomorphic aggregate ciphertext (still sealed; only
+    /// the threshold committee holding Kc's shares can decrypt it), one point per
+    /// vote option. Before ProcessHybridBatch this is the identity aggregate.
+    #[returns(HybridAggResponse)]
+    GetHybridAggCiphertext {},
+
+    /// The revealed hybrid tally (plaintext results + salt), if any.
+    #[returns(Option<HybridTally>)]
+    GetHybridTally {},
+
+    /// The committee roster + threshold configured at Instantiate, if any.
+    /// `None` means this round uses the legacy admin-only `SetHybridKc` path.
+    #[returns(Option<HybridCommitteeConfig>)]
+    GetHybridCommittee {},
+
+    /// Per-member Kc confirmations submitted so far via `ConfirmHybridKc`
+    /// (only meaningful once a committee is configured and before Kc is
+    /// finalized; confirmations aren't cleared after finalization).
+    #[returns(Vec<HybridKcConfirmationEntry>)]
+    GetHybridKcConfirmations {},
+
+    /// Current nonce tree root for cross-batch LWW tracking.
+    /// Returns the all-zero tree root before the first ProcessHybridBatch call,
+    /// and evolves with each successful call thereafter.
+    #[returns(Uint256)]
+    GetHybridNonceStateRoot {},
+}
+
+#[cw_serde]
+pub struct HybridKcConfirmationEntry {
+    pub addr: Addr,
+    pub kc: [Uint256; 2],
+}
+
+#[cw_serde]
+pub struct HybridAggResponse {
+    pub agg_c1: Vec<[Uint256; 2]>,
+    pub agg_c2: Vec<[Uint256; 2]>,
 }
 
 // Response type for GetRegistrationConfig query

@@ -156,6 +156,54 @@ mod tests {
         assert_eq!(result1, result2);
     }
 
+    // Parity check for the Hybrid MACI + AHE demo: the demo builds voter state
+    // leaves in TypeScript as poseidon([pubKey.x, pubKey.y, voiceCreditBalance,
+    // voteOptionTreeRoot=0, nonce=0]) via @dorafactory/maci-sdk. cw-amaci's
+    // StateLeaf::hash_state_leaf uses exactly the same hash5 layout, so the demo
+    // state root is byte-compatible with what the contract would compute. The
+    // expected leaf values below are the SDK outputs for the demo voters
+    // (secret keys 100001/200002/300003, balances 40/30/20).
+    #[test]
+    fn test_hybrid_demo_state_leaf_parity() {
+        use std::str::FromStr;
+        let cases: [([&str; 3], &str); 3] = [
+            (
+                [
+                    "8265454795666596656125240298071702470195051017739827855382555757562575706874",
+                    "17651022999329762667923757296737370771210222197193308584995277648551857814833",
+                    "40",
+                ],
+                "1127296107445638511534984671231187737636842790717989554546154860239580059575",
+            ),
+            (
+                [
+                    "4715974401250111127699083746268308937561418528846266811736423255542344838416",
+                    "13441991001099811142680021829094172471601907169188638446991109797401190293411",
+                    "30",
+                ],
+                "4456751364484491928250178809162904196156502392539018532689614272111314165779",
+            ),
+            (
+                [
+                    "4924048713913963616383743613637955931969970144272870671762354653678414365399",
+                    "6826320094766762023406344969915301433742981344912570860537799597515856473618",
+                    "20",
+                ],
+                "8179429274750431279080959931091974060399109775891513209620577539512613902117",
+            ),
+        ];
+        for ([x, y, balance], expected) in cases {
+            let leaf = hash5([
+                Uint256::from_str(x).unwrap(),
+                Uint256::from_str(y).unwrap(),
+                Uint256::from_str(balance).unwrap(),
+                Uint256::zero(),
+                Uint256::zero(),
+            ]);
+            assert_eq!(leaf, Uint256::from_str(expected).unwrap());
+        }
+    }
+
     #[test]
     fn test_hash5_consistency() {
         let data = [
