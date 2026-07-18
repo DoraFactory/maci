@@ -169,6 +169,17 @@
             "deactivate_enabled": {
               "type": "boolean"
             },
+            "max_votes_per_option": {
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "operator": {
               "$ref": "#/definitions/Addr"
             },

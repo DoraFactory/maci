@@ -38,6 +38,8 @@ import {
   RegistrationMode,
   RegistrationConfigInfo,
   TallyDelayInfo,
+  VkeysResponse,
+  Groth16VkeyStr,
   NullableString,
   NullableUint256,
   RegistrationStatus,
@@ -66,6 +68,7 @@ export interface AMaciReadOnlyInterface {
   signuped: ({ pubkey }: { pubkey: PubKey }) => Promise<NullableUint256>;
   voteOptionMap: () => Promise<ArrayOfString>;
   maxVoteOptions: () => Promise<Uint256>;
+  maxVotesPerOption: () => Promise<Uint256>;
   queryCircuitType: () => Promise<Uint256>;
   queryCertSystem: () => Promise<Uint256>;
   queryPreDeactivateRoot: () => Promise<Uint256>;
@@ -93,6 +96,7 @@ export interface AMaciReadOnlyInterface {
   }) => Promise<RegistrationStatus>;
   getFeeConfig: () => Promise<FeeConfigResponse>;
   getDelayConfig: () => Promise<DelayConfigResponse>;
+  getVkeys: () => Promise<VkeysResponse>;
 }
 export class AMaciQueryClient implements AMaciReadOnlyInterface {
   client: CosmWasmClient;
@@ -121,6 +125,7 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.signuped = this.signuped.bind(this);
     this.voteOptionMap = this.voteOptionMap.bind(this);
     this.maxVoteOptions = this.maxVoteOptions.bind(this);
+    this.maxVotesPerOption = this.maxVotesPerOption.bind(this);
     this.queryCircuitType = this.queryCircuitType.bind(this);
     this.queryCertSystem = this.queryCertSystem.bind(this);
     this.queryPreDeactivateRoot = this.queryPreDeactivateRoot.bind(this);
@@ -138,6 +143,7 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
     this.queryRegistrationStatus = this.queryRegistrationStatus.bind(this);
     this.getFeeConfig = this.getFeeConfig.bind(this);
     this.getDelayConfig = this.getDelayConfig.bind(this);
+    this.getVkeys = this.getVkeys.bind(this);
   }
   admin = async (): Promise<Addr> => {
     return this.client.queryContractSmart(this.contractAddress, {
@@ -252,6 +258,11 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
       max_vote_options: {}
     });
   };
+  maxVotesPerOption = async (): Promise<Uint256> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      max_votes_per_option: {}
+    });
+  };
   queryCircuitType = async (): Promise<Uint256> => {
     return this.client.queryContractSmart(this.contractAddress, {
       query_circuit_type: {}
@@ -352,6 +363,11 @@ export class AMaciQueryClient implements AMaciReadOnlyInterface {
   getDelayConfig = async (): Promise<DelayConfigResponse> => {
     return this.client.queryContractSmart(this.contractAddress, {
       get_delay_config: {}
+    });
+  };
+  getVkeys = async (): Promise<VkeysResponse> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      get_vkeys: {}
     });
   };
 }

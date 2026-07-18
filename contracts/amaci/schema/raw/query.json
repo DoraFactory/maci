@@ -310,6 +310,19 @@
     {
       "type": "object",
       "required": [
+        "max_votes_per_option"
+      ],
+      "properties": {
+        "max_votes_per_option": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "query_circuit_type"
       ],
       "properties": {

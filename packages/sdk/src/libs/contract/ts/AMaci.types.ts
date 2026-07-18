@@ -43,6 +43,7 @@ export interface InstantiateMsg {
   deactivate_enabled: boolean;
   deactivate_fee: Uint128;
   fee_recipient: Addr;
+  max_votes_per_option?: Uint256 | null;
   message_delay: number;
   message_fee: Uint128;
   operator: Addr;
@@ -254,6 +255,9 @@ export type QueryMsg =
       max_vote_options: {};
     }
   | {
+      max_votes_per_option: {};
+    }
+  | {
       query_circuit_type: {};
     }
   | {
@@ -310,6 +314,9 @@ export type QueryMsg =
     }
   | {
       get_delay_config: {};
+    }
+  | {
+      get_vkeys: {};
     };
 export type ArrayOfUint256 = Uint256[];
 export type Boolean = boolean;
@@ -363,6 +370,20 @@ export interface TallyDelayInfo {
   msg_chain_length: Uint256;
   num_sign_ups: Uint256;
   total_work: number;
+}
+export interface VkeysResponse {
+  add_key_vkey: Groth16VkeyStr;
+  deactivate_vkey: Groth16VkeyStr;
+  process_vkey: Groth16VkeyStr;
+  tally_vkey: Groth16VkeyStr;
+}
+export interface Groth16VkeyStr {
+  alpha_1: number[];
+  beta_2: number[];
+  delta_2: number[];
+  gamma_2: number[];
+  ic0: number[];
+  ic1: number[];
 }
 export type NullableString = string | null;
 export type NullableUint256 = Uint256 | null;

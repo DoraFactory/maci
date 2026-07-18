@@ -47,6 +47,7 @@ export type ExecuteMsg =
         certification_system: Uint256;
         circuit_type: Uint256;
         deactivate_enabled: boolean;
+        max_votes_per_option?: Uint256 | null;
         operator: Addr;
         registration_mode: RegistrationModeConfig;
         round_info: RoundInfo;

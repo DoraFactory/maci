@@ -146,6 +146,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       certificationSystem,
       circuitType,
       deactivateEnabled,
+      maxVotesPerOption,
       operator,
       registrationMode,
       roundInfo,
@@ -156,6 +157,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
+      maxVotesPerOption?: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -449,6 +451,7 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
       certificationSystem,
       circuitType,
       deactivateEnabled,
+      maxVotesPerOption,
       operator,
       registrationMode,
       roundInfo,
@@ -459,6 +462,7 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
+      maxVotesPerOption?: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -478,6 +482,7 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
           certification_system: certificationSystem,
           circuit_type: circuitType,
           deactivate_enabled: deactivateEnabled,
+          max_votes_per_option: maxVotesPerOption,
           operator,
           registration_mode: registrationMode,
           round_info: roundInfo,
