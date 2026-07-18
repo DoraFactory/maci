@@ -211,6 +211,8 @@ export class OperatorClient {
   public voteOptionTreeDepth?: number;
   public batchSize?: number;
   public maxVoteOptions?: number;
+  // Per-option vote weight cap. 0n = no limit (sentinel, matches circuit)
+  public maxVotesPerOption: bigint = 0n;
   public voSize?: number;
   public numSignUps?: number;
   public isQuadraticCost?: boolean;
@@ -829,6 +831,7 @@ export class OperatorClient {
     voteOptionTreeDepth,
     batchSize,
     maxVoteOptions,
+    maxVotesPerOption = 0n,
     pollId,
     isQuadraticCost = false,
     isAmaci = false,
@@ -839,6 +842,7 @@ export class OperatorClient {
     voteOptionTreeDepth: number;
     batchSize: number;
     maxVoteOptions: number; // Required: must match contract's vote options count
+    maxVotesPerOption?: bigint | number; // Per-option cap, 0 = no limit
     pollId: number; // Required: poll ID for replay attack prevention
     isQuadraticCost?: boolean;
     isAmaci?: boolean;
@@ -851,6 +855,14 @@ export class OperatorClient {
     this.batchSize = batchSize;
     this.voSize = 5 ** voteOptionTreeDepth;
     this.maxVoteOptions = maxVoteOptions;
+    this.maxVotesPerOption = BigInt(maxVotesPerOption);
+    if (this.maxVotesPerOption < 0n || this.maxVotesPerOption >= 1n << 32n) {
+      throw new Error('maxVotesPerOption must fit in 32 bits (0 = no limit)');
+    }
+    if (!isAmaci && this.maxVotesPerOption > 0n) {
+      // Only the AMACI process circuit enforces the per-option cap
+      throw new Error('maxVotesPerOption is only supported in AMACI mode');
+    }
     this.numSignUps = 0; // Auto-increment on each updateStateTree call
     this.isQuadraticCost = isQuadraticCost;
     this.isAmaci = isAmaci;
@@ -1466,7 +1478,8 @@ export class OperatorClient {
           packedVals:
             BigInt(this.maxVoteOptions!) +
             (BigInt(this.numSignUps!) << 32n) +
-            (this.isQuadraticCost ? 1n << 64n : 0n)
+            (this.isQuadraticCost ? 1n << 64n : 0n) +
+            (this.maxVotesPerOption << 96n)
         },
         proof: null
       } as any;
@@ -1573,7 +1586,8 @@ export class OperatorClient {
     const packedVals =
       BigInt(this.maxVoteOptions!) +
       (BigInt(this.numSignUps!) << 32n) +
-      (this.isQuadraticCost ? 1n << 64n : 0n);
+      (this.isQuadraticCost ? 1n << 64n : 0n) +
+      (this.maxVotesPerOption << 96n);
     const batchStartHash = this.messages[batchStartIdx].prevHash;
     const batchEndHash = this.messages[batchEndIdx - 1].hash;
 
@@ -1720,6 +1734,12 @@ export class OperatorClient {
     if (!verified) {
       return 'signature error';
     }
+    // Per-option cap (0n = no limit). Must mirror the circuit's
+    // validVotesPerOption constraint exactly.
+    if (this.maxVotesPerOption > 0n && cmd.newVotes > this.maxVotesPerOption) {
+      return 'votes per option overflow';
+    }
+
     const currVotes = s.voTree.leaf(voIdx);
     if (this.isQuadraticCost) {
       if (s.balance + currVotes * currVotes < cmd.newVotes * cmd.newVotes) {

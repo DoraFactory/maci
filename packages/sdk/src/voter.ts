@@ -241,6 +241,7 @@ export class VoterClient {
     operatorPubkey,
     selectedOptions,
     pollId,
+    maxVotesPerOption,
     derivePathParams
   }: {
     stateIdx: number;
@@ -251,8 +252,25 @@ export class VoterClient {
     }[];
     /** When omitted the legacy message format (no `pollId` in packed element) is used. */
     pollId?: bigint | number;
+    /**
+     * Optional per-option vote weight cap (round's max_votes_per_option).
+     * When provided (> 0), votes exceeding the cap fail fast here instead of
+     * being silently invalidated by the circuit during processing.
+     */
+    maxVotesPerOption?: bigint | number;
     derivePathParams?: DerivePathParams;
   }) {
+    if (maxVotesPerOption !== undefined && BigInt(maxVotesPerOption) > 0n) {
+      const cap = BigInt(maxVotesPerOption);
+      for (const option of selectedOptions) {
+        if (BigInt(option.vc) > cap) {
+          throw new Error(
+            `Vote weight ${option.vc} for option ${option.idx} exceeds max votes per option (${cap})`
+          );
+        }
+      }
+    }
+
     const plan = this.normalizeVoteOptions(selectedOptions);
 
     const payload =

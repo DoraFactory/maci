@@ -23,6 +23,8 @@ export type CreateAMaciRoundParams = {
   deactivateEnabled: boolean;
   registrationMode: RegistrationModeConfig;
   voiceCreditMode: VoiceCreditMode;
+  /** Per-option vote weight cap enforced by the circuit. Omit or "0" = no limit. */
+  maxVotesPerOption?: string | number;
   fee?: number | StdFee | 'auto';
 } & CreateRoundParams;
 

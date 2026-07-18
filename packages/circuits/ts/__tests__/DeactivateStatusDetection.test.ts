@@ -116,6 +116,7 @@ describe('AMACI Deactivate Status Detection', function test() {
         coordPrivKey,
         numSignUps: 1n, // Number of registered users
         maxVoteOptions: 5n,
+        maxVotesPerOption: 0n, // 0 = no limit (sentinel)
         cmdPollId: 1n, // Poll ID from the command
         expectedPollId: 1n, // Expected poll ID for validation
 

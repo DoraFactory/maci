@@ -64,6 +64,7 @@ template ProcessMessages(
     signal numSignUps;
     signal maxVoteOptions;
     signal isQuadraticCost;
+    signal maxVotesPerOption;
 
     signal input batchStartHash;
     signal input batchEndHash;
@@ -147,6 +148,7 @@ template ProcessMessages(
     inputHasher.isQuadraticCost ==> isQuadraticCost;
     inputHasher.maxVoteOptions ==> maxVoteOptions;
     inputHasher.numSignUps ==> numSignUps;
+    inputHasher.maxVotesPerOption ==> maxVotesPerOption;
 
     inputHasher.hash === inputHash;
 
@@ -243,6 +245,7 @@ template ProcessMessages(
 
         processors[i].numSignUps <== numSignUps;
         processors[i].maxVoteOptions <== maxVoteOptions;
+        processors[i].maxVotesPerOption <== maxVotesPerOption;
 
         processors[i].currentStateRoot <== stateRoots[i + 1];
 
@@ -337,6 +340,7 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
     signal input isQuadraticCost;
     signal input numSignUps;
     signal input maxVoteOptions;
+    signal input maxVotesPerOption;
 
     signal input currentStateRoot;
 
@@ -376,6 +380,7 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
     transformer.coordPrivKey                   <== coordPrivKey;
     transformer.numSignUps                     <== numSignUps;
     transformer.maxVoteOptions                 <== maxVoteOptions;
+    transformer.maxVotesPerOption              <== maxVotesPerOption;
     transformer.cmdPollId                      <== cmdPollId;
     transformer.expectedPollId                 <== expectedPollId;
     transformer.slPubKey[STATE_LEAF_PUB_X_IDX] <== stateLeaf[STATE_LEAF_PUB_X_IDX];
@@ -536,7 +541,7 @@ template ProcessOne(stateTreeDepth, voteOptionTreeDepth) {
 /**
  * Hash all public inputs for the ProcessMessages circuit
  * This includes:
- * - packedVals (maxVoteOptions, numSignUps, isQuadraticCost)
+ * - packedVals (maxVoteOptions, numSignUps, isQuadraticCost, maxVotesPerOption)
  * - coordPubKey hash
  * - batch hashes (start and end)
  * - state commitments (current and new)
@@ -569,15 +574,20 @@ template ProcessMessagesInputHasher() {
     signal output isQuadraticCost;
     signal output maxVoteOptions;
     signal output numSignUps;
+    signal output maxVotesPerOption;
     signal output hash;
     
-    // 1. Unpack packedVals and ensure that it is valid
-    component unpack = UnpackElement(3);
+    // 1. Unpack packedVals and ensure that it is valid.
+    // Layout (32-bit slots, low to high):
+    //   bits 0-31: maxVoteOptions, bits 32-63: numSignUps,
+    //   bits 64-95: isQuadraticCost, bits 96-127: maxVotesPerOption
+    component unpack = UnpackElement(4);
     unpack.in <== packedVals;
 
-    maxVoteOptions <== unpack.out[2];
-    numSignUps <== unpack.out[1];
-    isQuadraticCost <== unpack.out[0];
+    maxVoteOptions <== unpack.out[3];
+    numSignUps <== unpack.out[2];
+    isQuadraticCost <== unpack.out[1];
+    maxVotesPerOption <== unpack.out[0];
 
     // 2. Hash coordPubKey
     component pubKeyHasher = HashLeftRight();

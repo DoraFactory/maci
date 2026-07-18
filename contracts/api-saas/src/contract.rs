@@ -126,6 +126,7 @@ pub fn execute(
             deactivate_enabled,
             voice_credit_mode,
             registration_mode,
+            max_votes_per_option,
         } => execute_create_amaci_round(
             deps,
             env,
@@ -139,6 +140,7 @@ pub fn execute(
             deactivate_enabled,
             voice_credit_mode,
             registration_mode,
+            max_votes_per_option,
         ),
         ExecuteMsg::UpdateFeeConfig { config } => execute_update_fee_config(deps, info, config),
         ExecuteMsg::SignUp {
@@ -805,6 +807,7 @@ pub fn execute_create_amaci_round(
     deactivate_enabled: bool,
     voice_credit_mode: VoiceCreditMode,
     registration_mode: RegistrationModeConfig,
+    max_votes_per_option: Option<Uint256>,
 ) -> Result<Response, ContractError> {
     // Only operators can create AMACI rounds via registry
     if !OPERATORS.has(deps.storage, &info.sender) {
@@ -844,6 +847,7 @@ pub fn execute_create_amaci_round(
         deactivate_enabled,
         voice_credit_mode: voice_credit_mode.clone(),
         registration_mode,
+        max_votes_per_option,
     };
 
     // Execute the contract call to registry with the required fee from SaaS balance

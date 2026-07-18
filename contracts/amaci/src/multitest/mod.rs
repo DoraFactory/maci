@@ -407,6 +407,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false, // Default: disabled
+            max_votes_per_option: None,
         };
 
         app.instantiate_contract(
@@ -479,6 +480,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: true, // ENABLED for deactivate and add_new_key tests
+            max_votes_per_option: None,
         };
 
         app.instantiate_contract(
@@ -1501,6 +1503,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false, // Default: disabled
+            max_votes_per_option: None,
         };
 
         app.instantiate_contract(
@@ -1638,6 +1641,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: true, // ENABLED!
+            max_votes_per_option: None,
         };
 
         app.instantiate_contract(

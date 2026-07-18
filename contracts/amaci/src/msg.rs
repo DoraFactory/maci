@@ -22,6 +22,12 @@ pub struct InstantiateMsg {
     pub round_info: RoundInfo,
     pub voting_time: VotingTime,
 
+    // Per-option vote weight cap enforced by the process circuit.
+    // None or 0 = no limit (legacy behavior). Must fit in 32 bits
+    // (packedVals slot width). serde(default) keeps old JSON payloads valid.
+    #[serde(default)]
+    pub max_votes_per_option: Option<Uint256>,
+
     // Circuit configuration
     pub circuit_type: Uint256,         // <0: 1p1v | 1: pv>
     pub certification_system: Uint256, // <0: groth16 | 1: plonk>
@@ -258,6 +264,9 @@ pub enum QueryMsg {
 
     #[returns(Uint256)]
     MaxVoteOptions {},
+
+    #[returns(Uint256)]
+    MaxVotesPerOption {},
 
     #[returns(Uint256)]
     QueryCircuitType {},

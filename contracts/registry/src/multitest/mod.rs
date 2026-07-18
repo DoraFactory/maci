@@ -212,6 +212,7 @@ impl AmaciRegistryContract {
                     users: vec![], // Empty whitelist for open registration
                 },
             },
+            max_votes_per_option: None,
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -276,6 +277,7 @@ impl AmaciRegistryContract {
             registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist,
             },
+            max_votes_per_option: None,
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -340,6 +342,7 @@ impl AmaciRegistryContract {
             registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithStaticWhitelist {
                 whitelist,
             },
+            max_votes_per_option: None,
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -388,6 +391,7 @@ impl AmaciRegistryContract {
             registration_mode: cw_amaci::msg::RegistrationModeConfig::SignUpWithOracle {
                 oracle_pubkey: oracle_whitelist_pubkey,
             },
+            max_votes_per_option: None,
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -438,6 +442,7 @@ impl AmaciRegistryContract {
                 pre_deactivate_root,
                 pre_deactivate_coordinator,
             },
+            max_votes_per_option: None,
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)
@@ -487,6 +492,7 @@ impl AmaciRegistryContract {
                 amount: Uint256::from_u128(100u128),
             },
             registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist { whitelist },
+            max_votes_per_option: None,
         };
 
         app.execute_contract(sender, self.addr(), &msg, send_funds)

@@ -8,10 +8,10 @@ mod test {
     };
     use crate::multitest::certificate_generator::generate_certificate_for_pubkey;
     use crate::multitest::{
-        create_app, owner, test_oracle_pubkey, test_pubkey1, test_pubkey2, test_pubkey3,
-        uint256_from_decimal_string, user1, user2, user3, BASE_DELAY, DEACTIVATE_DELAY,
-        DEACTIVATE_FEE, MESSAGE_FEE, PER_MESSAGE_DELAY, PER_SIGNUP_DELAY, SIGNUP_FEE, MaciCodeId,
-        MaciContract,
+        create_app, fee_recipient, operator, owner, test_oracle_pubkey, test_pubkey1,
+        test_pubkey2, test_pubkey3, uint256_from_decimal_string, user1, user2, user3, BASE_DELAY,
+        DEACTIVATE_DELAY, DEACTIVATE_FEE, MESSAGE_FEE, PER_MESSAGE_DELAY, PER_SIGNUP_DELAY,
+        SIGNUP_FEE, MaciCodeId, MaciContract,
     };
     use crate::state::{
         DelayRecord, DelayRecords, DelayType, MaciParameters, MessageData, Period, PeriodStatus,
@@ -119,13 +119,23 @@ mod test {
         new_deactivate_root: String,
     }
 
+    /// Matches the shape written by `generate-logs.ts` (via the SDK's
+    /// `adaptToUncompressed`): each component is already a single hex string
+    /// (uncompressed G1/G2 point encoding), i.e. exactly what `Groth16ProofType`
+    /// expects. No further conversion is needed beyond field renaming.
     #[derive(Debug, Serialize, Deserialize)]
     struct Groth16Proof {
-        pi_a: Vec<String>,
-        pi_b: Vec<Vec<String>>,
-        pi_c: Vec<String>,
-        protocol: String,
-        curve: String,
+        pi_a: String,
+        pi_b: String,
+        pi_c: String,
+    }
+
+    fn to_groth16_proof_type(proof: &Groth16Proof) -> Groth16ProofType {
+        Groth16ProofType {
+            a: proof.pi_a.clone(),
+            b: proof.pi_b.clone(),
+            c: proof.pi_c.clone(),
+        }
     }
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -2236,6 +2246,140 @@ mod test {
         assert_eq!(enabled, false, "Deactivate should be disabled by default");
     }
 
+    fn max_votes_per_option_init_msg(max_votes_per_option: Option<Uint256>) -> InstantiateMsg {
+        InstantiateMsg {
+            parameters: MaciParameters {
+                state_tree_depth: Uint256::from_u128(2u128),
+                int_state_tree_depth: Uint256::from_u128(1u128),
+                message_batch_size: Uint256::from_u128(5u128),
+                vote_option_tree_depth: Uint256::from_u128(1u128),
+            },
+            coordinator: PubKey {
+                x: uint256_from_decimal_string(
+                    "3557592161792765812904087712812111121909518311142005886657252371904276697771",
+                ),
+                y: uint256_from_decimal_string(
+                    "4363822302427519764561660537570341277214758164895027920046745209970137856681",
+                ),
+            },
+            vote_option_map: vec!["A".to_string(), "B".to_string()],
+            round_info: RoundInfo {
+                title: "MaxVotesPerOption Test".to_string(),
+                description: "".to_string(),
+                link: "".to_string(),
+            },
+            voting_time: VotingTime {
+                start_time: Timestamp::from_nanos(1571797424879000000),
+                end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11),
+            },
+            circuit_type: Uint256::from_u128(0),
+            certification_system: Uint256::from_u128(0),
+            operator: operator(),
+            admin: owner(),
+            fee_recipient: fee_recipient(),
+            poll_id: 1u64,
+            voice_credit_mode: VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase { users: vec![] },
+            },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
+            deactivate_enabled: false,
+            max_votes_per_option,
+        }
+    }
+
+    #[test]
+    fn test_max_votes_per_option_instantiate_and_query() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+
+        // With an explicit cap
+        let contract_addr = app
+            .instantiate_contract(
+                code_id.id(),
+                owner(),
+                &max_votes_per_option_init_msg(Some(Uint256::from_u128(10u128))),
+                &[],
+                "MaxVotesPerOption",
+                None,
+            )
+            .unwrap();
+
+        let cap: Uint256 = app
+            .wrap()
+            .query_wasm_smart(contract_addr, &QueryMsg::MaxVotesPerOption {})
+            .unwrap();
+        assert_eq!(cap, Uint256::from_u128(10u128));
+    }
+
+    #[test]
+    fn test_max_votes_per_option_defaults_to_zero() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+
+        // Omitted (None) => stored as 0 (no limit)
+        let contract_addr = app
+            .instantiate_contract(
+                code_id.id(),
+                owner(),
+                &max_votes_per_option_init_msg(None),
+                &[],
+                "MaxVotesPerOptionDefault",
+                None,
+            )
+            .unwrap();
+
+        let cap: Uint256 = app
+            .wrap()
+            .query_wasm_smart(contract_addr, &QueryMsg::MaxVotesPerOption {})
+            .unwrap();
+        assert_eq!(cap, Uint256::zero());
+    }
+
+    #[test]
+    fn test_max_votes_per_option_rejects_over_32_bits() {
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+
+        // 2^32 does not fit in the 32-bit packedVals slot => rejected
+        let err = app
+            .instantiate_contract(
+                code_id.id(),
+                owner(),
+                &max_votes_per_option_init_msg(Some(Uint256::from_u128(1u128 << 32))),
+                &[],
+                "MaxVotesPerOptionOverflow",
+                None,
+            )
+            .unwrap_err();
+
+        assert_eq!(
+            ContractError::MaxVotesPerOptionExceeded {
+                current: Uint256::from_u128(1u128 << 32),
+            },
+            err.downcast().unwrap()
+        );
+
+        // Max 32-bit value is accepted
+        app.instantiate_contract(
+            code_id.id(),
+            owner(),
+            &max_votes_per_option_init_msg(Some(Uint256::from_u128((1u128 << 32) - 1))),
+            &[],
+            "MaxVotesPerOptionBoundary",
+            None,
+        )
+        .unwrap();
+    }
+
     #[test]
     fn test_publish_deactivate_message_disabled() {
         let mut app = create_app();
@@ -3125,6 +3269,7 @@ mod test {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false,
+            max_votes_per_option: None,
         };
 
         let contract_addr = app
@@ -3992,6 +4137,305 @@ mod test {
             err2.downcast().unwrap(),
             "Second PreAddNewKey with same nullifier and wrong proof must still return \
              InvalidProof, not NewKeyExist — confirms the nullifier was rolled back"
+        );
+    }
+
+    /// End-to-end happy-path test that replays every entry of
+    /// `amaci_test/logs.json` (generated by `generate-logs.ts` from the actual,
+    /// locally-compiled circuits) through the real contract, using the REAL
+    /// Groth16 proofs contained in the fixture (not hardcoded/stale bytes).
+    ///
+    /// This is the primary regression test for the `maxVotesPerOption` circuit
+    /// change: it exercises `ProcessDeactivateMessage`, `AddNewKey`,
+    /// `PublishMessage`, `ProcessMessage`, `ProcessTally` and
+    /// `StopTallyingPeriod` end-to-end against the current on-chain vkeys
+    /// (`vkeys_2_1_1_5`), confirming that circuit / vkey / logs fixture are
+    /// all mutually consistent after regenerating the zkeys.
+    #[test]
+    fn test_amaci_full_round_verifies_real_proofs_from_generated_logs() {
+        use cosmwasm_std::coins;
+
+        // NOTE: deliberately NOT read from `./src/test/user_pubkey.json` — that
+        // fixture belongs to an unrelated, older test dataset and does not match
+        // the voter secret keys (222222n / 555555n) used by `generate-logs.ts` to
+        // build `amaci_test/logs.json`. Using it here would build an on-chain state
+        // tree whose root doesn't match `currentStateRoot`/`newStateCommitment`
+        // baked into the real proofs below (verification would fail).
+        let pubkey0 = PubKey {
+            x: uint256_from_decimal_string(
+                "17399497775960102380565502463631688556400670056228730095262963787053279532078",
+            ),
+            y: uint256_from_decimal_string(
+                "18877551448216649826981805566855898133402281419471365959781518735588655366005",
+            ),
+        };
+        let pubkey1 = PubKey {
+            x: uint256_from_decimal_string(
+                "13803433674260555137344899799385392014418808114966341658474816997307159870057",
+            ),
+            y: uint256_from_decimal_string(
+                "11777832779674825198240044994151418890710853633023664547951328846960155271963",
+            ),
+        };
+
+        let logs_file_path = "./src/test/amaci_test/logs.json";
+        let mut logs_file = fs::File::open(logs_file_path).expect("Failed to open logs.json");
+        let mut logs_content = String::new();
+        logs_file
+            .read_to_string(&mut logs_content)
+            .expect("Failed to read file");
+        let logs_data: Vec<AMaciLogEntry> =
+            serde_json::from_str(&logs_content).expect("Failed to parse JSON");
+
+        let mut app = create_app();
+        let code_id = MaciCodeId::store_code(&mut app);
+
+        // NOTE: unlike the `instantiate_with_voting_time_isqv_amaci` helper (which
+        // hardcodes an unrelated `test_pubkey1()` as the coordinator), the coordinator
+        // pubkey here MUST match the operator secret key (111111n) used by
+        // `generate-logs.ts`, since the circuit's public inputHash commits to the
+        // coordinator pubkey hash. A mismatched coordinator would make every proof
+        // fail verification regardless of correctness.
+        let coordinator_pubkey = PubKey {
+            x: uint256_from_decimal_string(
+                "1421543221206310383340195030620766117814469350837741893103919053409918312818",
+            ),
+            y: uint256_from_decimal_string(
+                "5844095285348097514075616375079349318227570502756036806774906942110501360620",
+            ),
+        };
+        let init_msg = InstantiateMsg {
+            parameters: MaciParameters {
+                state_tree_depth: Uint256::from_u128(2u128),
+                int_state_tree_depth: Uint256::from_u128(1u128),
+                message_batch_size: Uint256::from_u128(5u128),
+                vote_option_tree_depth: Uint256::from_u128(1u128),
+            },
+            coordinator: coordinator_pubkey,
+            vote_option_map: vec![
+                "Option 1".to_string(),
+                "Option 2".to_string(),
+                "Option 3".to_string(),
+                "Option 4".to_string(),
+                "Option 5".to_string(),
+            ],
+            round_info: RoundInfo {
+                title: String::from("full-round-verify"),
+                description: String::from("full-round-verify"),
+                link: String::from("https://baidu.com"),
+            },
+            voting_time: VotingTime {
+                start_time: Timestamp::from_nanos(1571797424879000000),
+                end_time: Timestamp::from_nanos(1571797424879000000).plus_minutes(11),
+            },
+            circuit_type: Uint256::from_u128(1u128),
+            certification_system: Uint256::from_u128(0u128),
+            operator: operator(),
+            admin: owner(),
+            fee_recipient: fee_recipient(),
+            poll_id: 1u64,
+            voice_credit_mode: VoiceCreditMode::Unified {
+                amount: Uint256::from_u128(100u128),
+            },
+            registration_mode: RegistrationModeConfig::SignUpWithStaticWhitelist {
+                whitelist: WhitelistBase {
+                    users: vec![
+                        WhitelistBaseConfig { addr: user1(), voice_credit_amount: None },
+                        WhitelistBaseConfig { addr: user2(), voice_credit_amount: None },
+                        WhitelistBaseConfig { addr: user3(), voice_credit_amount: None },
+                    ],
+                },
+            },
+            message_fee: MESSAGE_FEE,
+            deactivate_fee: DEACTIVATE_FEE,
+            signup_fee: SIGNUP_FEE,
+            base_delay: BASE_DELAY,
+            message_delay: PER_MESSAGE_DELAY,
+            signup_delay: PER_SIGNUP_DELAY,
+            deactivate_delay: DEACTIVATE_DELAY,
+            deactivate_enabled: true,
+            max_votes_per_option: None,
+        };
+        let contract_addr = app
+            .instantiate_contract(
+                u64::from(code_id),
+                owner(),
+                &init_msg,
+                &[],
+                "full-round-verify-test",
+                None,
+            )
+            .expect("instantiate must succeed");
+        let contract = MaciContract::new(contract_addr);
+
+        _ = contract.set_vote_option_map(&mut app, owner());
+        app.update_block(next_block); // Start Voting
+
+        contract
+            .sign_up(&mut app, user1(), pubkey0)
+            .expect("sign_up user1 must succeed");
+        contract
+            .sign_up(&mut app, user2(), pubkey1)
+            .expect("sign_up user2 must succeed");
+        assert_eq!(
+            contract.num_sign_up(&app).unwrap(),
+            Uint256::from_u128(2u128)
+        );
+
+        let mut expected_results: Vec<Uint256> = Vec::new();
+
+        for entry in &logs_data {
+            match entry.log_type.as_str() {
+                "publishDeactivateMessage" => {
+                    let data: PublishDeactivateMessageData = deserialize_data(&entry.data);
+                    let mut msg_data = [Uint256::from_u128(0u128); 10];
+                    for (i, v) in data.message.iter().enumerate().take(10) {
+                        msg_data[i] = uint256_from_decimal_string(v);
+                    }
+                    let message = MessageData { data: msg_data };
+                    let enc_pub = PubKey {
+                        x: uint256_from_decimal_string(&data.enc_pub_key[0]),
+                        y: uint256_from_decimal_string(&data.enc_pub_key[1]),
+                    };
+                    app.execute_contract(
+                        user2(),
+                        contract.addr(),
+                        &ExecuteMsg::PublishDeactivateMessage {
+                            message,
+                            enc_pub_key: enc_pub,
+                        },
+                        &coins(DEACTIVATE_FEE.u128(), "peaka"),
+                    )
+                    .expect("PublishDeactivateMessage must succeed");
+                }
+                "proofDeactivate" => {
+                    let data: ProofDeactivateData = deserialize_data(&entry.data);
+
+                    let size = uint256_from_decimal_string(&data.size);
+                    let new_deactivate_commitment =
+                        uint256_from_decimal_string(&data.new_deactivate_commitment);
+                    let new_deactivate_root =
+                        uint256_from_decimal_string(&data.new_deactivate_root);
+                    let proof = to_groth16_proof_type(&data.proof);
+
+                    contract
+                        .process_deactivate_message(
+                            &mut app,
+                            owner(),
+                            size,
+                            new_deactivate_commitment,
+                            new_deactivate_root,
+                            proof,
+                        )
+                        .expect("ProcessDeactivateMessage with real proof must succeed");
+                }
+                "proofAddNewKey" => {
+                    let data: ProofAddNewKeyData = deserialize_data(&entry.data);
+
+                    let new_key_pub = PubKey {
+                        x: uint256_from_decimal_string(&data.pub_key[0]),
+                        y: uint256_from_decimal_string(&data.pub_key[1]),
+                    };
+                    let d: [Uint256; 4] = [
+                        uint256_from_decimal_string(&data.d[0]),
+                        uint256_from_decimal_string(&data.d[1]),
+                        uint256_from_decimal_string(&data.d[2]),
+                        uint256_from_decimal_string(&data.d[3]),
+                    ];
+                    let nullifier = uint256_from_decimal_string(&data.nullifier);
+                    let proof = to_groth16_proof_type(&data.proof);
+
+                    contract
+                        .add_key(&mut app, owner(), new_key_pub, nullifier, d, proof)
+                        .expect("AddNewKey with real proof must succeed");
+                }
+                "publishMessage" => {
+                    let data: PublishMessageData = deserialize_data(&entry.data);
+
+                    let mut msg_data = [Uint256::from_u128(0u128); 10];
+                    for (i, v) in data.message.iter().enumerate().take(10) {
+                        msg_data[i] = uint256_from_decimal_string(v);
+                    }
+                    let message = MessageData { data: msg_data };
+                    let enc_pub = PubKey {
+                        x: uint256_from_decimal_string(&data.enc_pub_key[0]),
+                        y: uint256_from_decimal_string(&data.enc_pub_key[1]),
+                    };
+                    contract
+                        .publish_message(&mut app, user2(), message, enc_pub)
+                        .expect("PublishMessage must succeed");
+                }
+                "processMessage" => {
+                    let data: ProcessMessageData = deserialize_data(&entry.data);
+
+                    app.update_block(next_block_11_min); // End voting period
+                    app.update_block(next_block);
+                    contract
+                        .start_process(&mut app, owner())
+                        .expect("StartProcessPeriod must succeed");
+
+                    let new_state_commitment =
+                        uint256_from_decimal_string(&data.new_state_commitment);
+                    let proof = to_groth16_proof_type(&data.proof);
+
+                    contract
+                        .process_message(&mut app, owner(), new_state_commitment, proof)
+                        .expect("ProcessMessage with real proof must succeed");
+                }
+                "processTally" => {
+                    let data: ProcessTallyData = deserialize_data(&entry.data);
+
+                    contract
+                        .stop_processing(&mut app, owner())
+                        .expect("StopProcessingPeriod must succeed");
+                    assert_eq!(
+                        Period {
+                            status: PeriodStatus::Tallying
+                        },
+                        contract.get_period(&app).unwrap()
+                    );
+
+                    let new_tally_commitment =
+                        uint256_from_decimal_string(&data.new_tally_commitment);
+                    let proof = to_groth16_proof_type(&data.proof);
+
+                    contract
+                        .process_tally(&mut app, owner(), new_tally_commitment, proof)
+                        .expect("ProcessTally with real proof must succeed");
+                }
+                "stopTallyingPeriod" => {
+                    let data: StopTallyingPeriodData = deserialize_data(&entry.data);
+
+                    expected_results = data
+                        .results
+                        .iter()
+                        .map(|v| uint256_from_decimal_string(v))
+                        .collect();
+                    let salt = uint256_from_decimal_string(&data.salt);
+
+                    app.update_block(next_block_11_min);
+                    contract
+                        .stop_tallying(&mut app, owner(), expected_results.clone(), salt)
+                        .expect("StopTallyingPeriod with matching results/salt must succeed");
+
+                    assert_eq!(
+                        Period {
+                            status: PeriodStatus::Ended
+                        },
+                        contract.get_period(&app).unwrap()
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        assert!(!expected_results.is_empty(), "logs.json must contain a stopTallyingPeriod entry");
+
+        let expected_total: Uint256 = expected_results.iter().fold(Uint256::zero(), |acc, r| acc + *r);
+        assert_eq!(
+            contract.get_all_result(&app).unwrap(),
+            expected_total,
+            "on-chain tally total must match the results recorded in logs.json"
         );
     }
 

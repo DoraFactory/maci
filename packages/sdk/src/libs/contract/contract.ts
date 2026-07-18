@@ -257,6 +257,8 @@ export class Contract {
           },
           voice_credit_mode: params.voiceCreditMode,
           vote_option_map: params.voteOptionMap,
+          max_votes_per_option:
+            params.maxVotesPerOption !== undefined ? params.maxVotesPerOption.toString() : null,
           voting_time: {
             start_time: (BigInt(params.startVoting.getTime()) * 1_000_000n).toString(),
             end_time: (BigInt(params.endVoting.getTime()) * 1_000_000n).toString()

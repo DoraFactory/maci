@@ -18,6 +18,7 @@ template StateLeafTransformer() {
     // For the MessageValidator
     signal input numSignUps;
     signal input maxVoteOptions;
+    signal input maxVotesPerOption;
     
     // For pollId validation in MessageValidator
     signal input cmdPollId;
@@ -66,6 +67,7 @@ template StateLeafTransformer() {
     messageValidator.numSignUps <== numSignUps;
     messageValidator.voteOptionIndex <== cmdVoteOptionIndex;
     messageValidator.maxVoteOptions <== maxVoteOptions;
+    messageValidator.maxVotesPerOption <== maxVotesPerOption;
     messageValidator.originalNonce <== slNonce;
     messageValidator.nonce <== cmdNonce;
     messageValidator.cmdPollId <== cmdPollId;

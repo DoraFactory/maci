@@ -241,6 +241,7 @@ impl SaasContract {
                 deactivate_enabled,
                 voice_credit_mode,
                 registration_mode,
+                max_votes_per_option: None,
             },
             funds,
         )

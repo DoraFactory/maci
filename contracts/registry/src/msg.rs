@@ -52,6 +52,10 @@ pub enum ExecuteMsg {
 
         // Registration Mode: combined access control and state initialization
         registration_mode: RegistrationModeConfig,
+
+        // Per-option vote weight cap (None or 0 = no limit, must fit in 32 bits)
+        #[serde(default)]
+        max_votes_per_option: Option<Uint256>,
     },
     SetValidators {
         addresses: ValidatorSet,

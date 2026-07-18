@@ -8,8 +8,17 @@ import { OperatorClient, VoterClient, stringizing, adaptToUncompressed } from '@
 // CLI options
 //   --local-addkey   Use locally compiled AddNewKey_amaci_2
 //                    artifacts instead of downloading from S3
+//   --local          Use locally compiled artifacts (from circomkit's
+//                    `generate-zkeys`) for ALL 4 circuits (AddNewKey,
+//                    ProcessDeactivateMessages, ProcessMessages, TallyVotes)
+//                    instead of downloading the remote v5 tarball. Required
+//                    whenever the circuits themselves changed (e.g. the
+//                    maxVotesPerOption feature), since the remote v5
+//                    artifacts are built from an older circuit version and
+//                    are incompatible with the current circom/SDK code.
 // ============================================================
-const USE_LOCAL_ADDKEY = process.argv.includes('--local-addkey');
+const USE_LOCAL_ALL = process.argv.includes('--local');
+const USE_LOCAL_ADDKEY = USE_LOCAL_ALL || process.argv.includes('--local-addkey');
 
 // Build paths configuration
 const BUILD_DIR = path.join(__dirname, '../build');
@@ -18,6 +27,23 @@ const BUILD_DIR = path.join(__dirname, '../build');
 const LOCAL_ADDKEY_DIR = path.join(BUILD_DIR, 'AddNewKey_amaci_2');
 const LOCAL_ADDKEY_WASM = path.join(LOCAL_ADDKEY_DIR, 'AddNewKey_amaci_2_js', 'AddNewKey_amaci_2.wasm');
 const LOCAL_ADDKEY_ZKEY = path.join(LOCAL_ADDKEY_DIR, 'AddNewKey_amaci_2.0.zkey');
+
+// ---------- Local compiled artifacts for deactivate/msg/tally ----------
+const LOCAL_DEACTIVATE_DIR = path.join(BUILD_DIR, 'ProcessDeactivateMessages_amaci_2-5');
+const LOCAL_DEACTIVATE_WASM = path.join(
+  LOCAL_DEACTIVATE_DIR,
+  'ProcessDeactivateMessages_amaci_2-5_js',
+  'ProcessDeactivateMessages_amaci_2-5.wasm'
+);
+const LOCAL_DEACTIVATE_ZKEY = path.join(LOCAL_DEACTIVATE_DIR, 'ProcessDeactivateMessages_amaci_2-5.0.zkey');
+
+const LOCAL_MSG_DIR = path.join(BUILD_DIR, 'ProcessMessages_amaci_2-1-5');
+const LOCAL_MSG_WASM = path.join(LOCAL_MSG_DIR, 'ProcessMessages_amaci_2-1-5_js', 'ProcessMessages_amaci_2-1-5.wasm');
+const LOCAL_MSG_ZKEY = path.join(LOCAL_MSG_DIR, 'ProcessMessages_amaci_2-1-5.0.zkey');
+
+const LOCAL_TALLY_DIR = path.join(BUILD_DIR, 'TallyVotes_amaci_2-1-1');
+const LOCAL_TALLY_WASM = path.join(LOCAL_TALLY_DIR, 'TallyVotes_amaci_2-1-1_js', 'TallyVotes_amaci_2-1-1.wasm');
+const LOCAL_TALLY_ZKEY = path.join(LOCAL_TALLY_DIR, 'TallyVotes_amaci_2-1-1.0.zkey');
 
 // ---------- v5 remote zkey/wasm artifacts (amaci_2-1-1-5) ----------
 // The tar https://...amaci_2-1-1-5_v5_zkeys.tar.gz extracts to build/2-1-1-5/
@@ -29,21 +55,18 @@ const ZKEYS_V5_URLS = {
   amaciZkeysTar: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v5_zkeys.tar.gz'
 };
 
-// Deactivate circuit paths
-const DEACTIVATE_WASM = path.join(ZKEYS_V5_BASE, 'deactivate.wasm');
-const DEACTIVATE_ZKEY = path.join(ZKEYS_V5_BASE, 'deactivate.zkey');
+// Deactivate/ProcessMessages/TallyVotes circuit paths – resolved at runtime
+// based on --local flag (remote v5 tar vs locally compiled circomkit artifacts)
+let DEACTIVATE_WASM: string;
+let DEACTIVATE_ZKEY: string;
+let MSG_WASM: string;
+let MSG_ZKEY: string;
+let TALLY_WASM: string;
+let TALLY_ZKEY: string;
 
 // AddKey circuit paths – resolved at runtime based on --local-addkey flag
 let ADDKEY_WASM: string;
 let ADDKEY_ZKEY: string;
-
-// ProcessMessages circuit paths (file name in tar: msg.wasm / msg.zkey)
-const MSG_WASM = path.join(ZKEYS_V5_BASE, 'msg.wasm');
-const MSG_ZKEY = path.join(ZKEYS_V5_BASE, 'msg.zkey');
-
-// TallyVotes circuit paths (file name in tar: tally.wasm / tally.zkey)
-const TALLY_WASM = path.join(ZKEYS_V5_BASE, 'tally.wasm');
-const TALLY_ZKEY = path.join(ZKEYS_V5_BASE, 'tally.zkey');
 
 async function downloadFile(url: string, destPath: string): Promise<void> {
   const res = await fetch(url);
@@ -69,17 +92,48 @@ function checkLocalAddkeyArtifacts(): void {
   console.log(' zkey:', LOCAL_ADDKEY_ZKEY);
 }
 
-const REQUIRED_REMOTE_ARTIFACTS = [
-  { name: 'deactivate.wasm', p: DEACTIVATE_WASM },
-  { name: 'deactivate.zkey', p: DEACTIVATE_ZKEY },
-  { name: 'msg.wasm', p: MSG_WASM },
-  { name: 'msg.zkey', p: MSG_ZKEY },
-  { name: 'tally.wasm', p: TALLY_WASM },
-  { name: 'tally.zkey', p: TALLY_ZKEY }
-];
+function checkLocalAllArtifacts(): void {
+  const localArtifacts = [
+    { name: 'ProcessDeactivateMessages wasm', p: LOCAL_DEACTIVATE_WASM },
+    { name: 'ProcessDeactivateMessages zkey', p: LOCAL_DEACTIVATE_ZKEY },
+    { name: 'ProcessMessages wasm', p: LOCAL_MSG_WASM },
+    { name: 'ProcessMessages zkey', p: LOCAL_MSG_ZKEY },
+    { name: 'TallyVotes wasm', p: LOCAL_TALLY_WASM },
+    { name: 'TallyVotes zkey', p: LOCAL_TALLY_ZKEY }
+  ];
+  const missing = localArtifacts.filter((a) => !fs.existsSync(a.p));
+  if (missing.length > 0) {
+    throw new Error(
+      `--local specified but local circuit artifacts are missing:\n` +
+        missing.map((a) => `  ${a.name}: ${a.p}`).join('\n') +
+        `\nRun "pnpm run circom:build && pnpm run generate-zkeys" in packages/circuits first.`
+    );
+  }
+  console.log('Using local artifacts for deactivate/msg/tally:');
+  console.log(' deactivate wasm:', LOCAL_DEACTIVATE_WASM);
+  console.log(' deactivate zkey:', LOCAL_DEACTIVATE_ZKEY);
+  console.log(' msg wasm       :', LOCAL_MSG_WASM);
+  console.log(' msg zkey       :', LOCAL_MSG_ZKEY);
+  console.log(' tally wasm     :', LOCAL_TALLY_WASM);
+  console.log(' tally zkey     :', LOCAL_TALLY_ZKEY);
+}
+
+// NOTE: built lazily (not at module load time) because DEACTIVATE_WASM /
+// MSG_WASM / TALLY_WASM etc. are only assigned inside ensureArtifacts(),
+// which runs well after this module's top-level code.
+function getRequiredRemoteArtifacts(): { name: string; p: string }[] {
+  return [
+    { name: 'deactivate.wasm', p: DEACTIVATE_WASM },
+    { name: 'deactivate.zkey', p: DEACTIVATE_ZKEY },
+    { name: 'msg.wasm', p: MSG_WASM },
+    { name: 'msg.zkey', p: MSG_ZKEY },
+    { name: 'tally.wasm', p: TALLY_WASM },
+    { name: 'tally.zkey', p: TALLY_ZKEY }
+  ];
+}
 
 function ensureRemoteArtifacts(): void {
-  const missing = REQUIRED_REMOTE_ARTIFACTS.filter((a) => !fs.existsSync(a.p));
+  const missing = getRequiredRemoteArtifacts().filter((a) => !fs.existsSync(a.p));
   if (missing.length === 0) {
     console.log('Remote v5 zkey/wasm present at', ZKEYS_V5_BASE);
     return;
@@ -93,14 +147,13 @@ function ensureRemoteArtifacts(): void {
 }
 
 async function ensureArtifacts(): Promise<void> {
-  fs.mkdirSync(ZKEYS_V5_BASE, { recursive: true });
-
   // Resolve addkey artifacts
   if (USE_LOCAL_ADDKEY) {
     checkLocalAddkeyArtifacts();
     ADDKEY_WASM = LOCAL_ADDKEY_WASM;
     ADDKEY_ZKEY = LOCAL_ADDKEY_ZKEY;
   } else {
+    fs.mkdirSync(ZKEYS_V5_BASE, { recursive: true });
     const remoteAddkeyWasm = path.join(ZKEYS_V5_BASE, 'add-new-key_2-1-1-5_v5.wasm');
     const remoteAddkeyZkey = path.join(ZKEYS_V5_BASE, 'add-new-key_2-1-1-5_v5.zkey');
     if (!fs.existsSync(remoteAddkeyWasm) || !fs.existsSync(remoteAddkeyZkey)) {
@@ -114,19 +167,39 @@ async function ensureArtifacts(): Promise<void> {
     ADDKEY_ZKEY = remoteAddkeyZkey;
   }
 
-  // Download and extract remote amaci tar if deactivate/msg/tally are missing.
-  // The tar extracts directly into BUILD_DIR creating the sub-directory 2-1-1-5/.
-  const missingRemote = REQUIRED_REMOTE_ARTIFACTS.filter((a) => !fs.existsSync(a.p));
-  if (missingRemote.length > 0) {
-    console.log('Downloading amaci v5 zkeys tar (deactivate/msg/tally)...');
-    const tarPath = path.join(BUILD_DIR, 'amaci_2-1-1-5_v5_zkeys.tar.gz');
-    await downloadFile(ZKEYS_V5_URLS.amaciZkeysTar, tarPath);
-    console.log('Extracting amaci zkeys tar...');
-    execSync(`tar -xzf "${tarPath}" -C "${BUILD_DIR}"`, { stdio: 'inherit' });
-    try { fs.unlinkSync(tarPath); } catch { /* ignore */ }
+  // Resolve deactivate/msg/tally artifacts
+  if (USE_LOCAL_ALL) {
+    checkLocalAllArtifacts();
+    DEACTIVATE_WASM = LOCAL_DEACTIVATE_WASM;
+    DEACTIVATE_ZKEY = LOCAL_DEACTIVATE_ZKEY;
+    MSG_WASM = LOCAL_MSG_WASM;
+    MSG_ZKEY = LOCAL_MSG_ZKEY;
+    TALLY_WASM = LOCAL_TALLY_WASM;
+    TALLY_ZKEY = LOCAL_TALLY_ZKEY;
+  } else {
+    fs.mkdirSync(ZKEYS_V5_BASE, { recursive: true });
+    DEACTIVATE_WASM = path.join(ZKEYS_V5_BASE, 'deactivate.wasm');
+    DEACTIVATE_ZKEY = path.join(ZKEYS_V5_BASE, 'deactivate.zkey');
+    MSG_WASM = path.join(ZKEYS_V5_BASE, 'msg.wasm');
+    MSG_ZKEY = path.join(ZKEYS_V5_BASE, 'msg.zkey');
+    TALLY_WASM = path.join(ZKEYS_V5_BASE, 'tally.wasm');
+    TALLY_ZKEY = path.join(ZKEYS_V5_BASE, 'tally.zkey');
+
+    // Download and extract remote amaci tar if deactivate/msg/tally are missing.
+    // The tar extracts directly into BUILD_DIR creating the sub-directory 2-1-1-5/.
+    const missingRemote = getRequiredRemoteArtifacts().filter((a) => !fs.existsSync(a.p));
+    if (missingRemote.length > 0) {
+      console.log('Downloading amaci v5 zkeys tar (deactivate/msg/tally)...');
+      const tarPath = path.join(BUILD_DIR, 'amaci_2-1-1-5_v5_zkeys.tar.gz');
+      await downloadFile(ZKEYS_V5_URLS.amaciZkeysTar, tarPath);
+      console.log('Extracting amaci zkeys tar...');
+      execSync(`tar -xzf "${tarPath}" -C "${BUILD_DIR}"`, { stdio: 'inherit' });
+      try { fs.unlinkSync(tarPath); } catch { /* ignore */ }
+    }
+
+    ensureRemoteArtifacts();
   }
 
-  ensureRemoteArtifacts();
   console.log('All artifacts ready.');
 }
 
