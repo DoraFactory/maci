@@ -4555,6 +4555,134 @@ mod test {
         );
     }
 
+    // ── set_max_votes_per_option permission tests ─────────────────────────────
+    // Mirrors the set_round_info permission tests above: admin-only, and only
+    // allowed strictly before voting starts (same PeriodError boundary).
+
+    #[test]
+    fn test_set_max_votes_per_option_success_before_voting() {
+        let mut app = create_app();
+
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        let result =
+            maci_contract.set_max_votes_per_option(&mut app, owner(), Uint256::from_u128(42u128));
+        assert!(
+            result.is_ok(),
+            "Admin should be able to set max_votes_per_option before voting starts"
+        );
+
+        let cap: Uint256 = app
+            .wrap()
+            .query_wasm_smart(maci_contract.addr(), &QueryMsg::MaxVotesPerOption {})
+            .unwrap();
+        assert_eq!(cap, Uint256::from_u128(42u128));
+    }
+
+    #[test]
+    fn test_set_max_votes_per_option_fails_after_voting_starts() {
+        let mut app = create_app();
+
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Advance to after voting start
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 + 60_000_000_000);
+        });
+
+        let err = maci_contract
+            .set_max_votes_per_option(&mut app, owner(), Uint256::from_u128(42u128))
+            .unwrap_err();
+
+        let contract_err: ContractError = err.downcast().unwrap();
+        assert_eq!(
+            contract_err,
+            ContractError::PeriodError {},
+            "Should not be able to set max_votes_per_option after voting starts"
+        );
+    }
+
+    #[test]
+    fn test_set_max_votes_per_option_fails_exactly_at_voting_start() {
+        let mut app = create_app();
+
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        // Set block time exactly to voting start_time
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000);
+        });
+
+        let err = maci_contract
+            .set_max_votes_per_option(&mut app, owner(), Uint256::from_u128(42u128))
+            .unwrap_err();
+
+        let contract_err: ContractError = err.downcast().unwrap();
+        assert_eq!(
+            contract_err,
+            ContractError::PeriodError {},
+            "Should not be able to set max_votes_per_option at exact voting start time"
+        );
+    }
+
+    #[test]
+    fn test_set_max_votes_per_option_unauthorized() {
+        let mut app = create_app();
+
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        let err = maci_contract
+            .set_max_votes_per_option(&mut app, user1(), Uint256::from_u128(42u128))
+            .unwrap_err();
+
+        let contract_err: ContractError = err.downcast().unwrap();
+        assert_eq!(
+            contract_err,
+            ContractError::Unauthorized {},
+            "Non-admin should not be able to set max_votes_per_option"
+        );
+    }
+
+    #[test]
+    fn test_set_max_votes_per_option_rejects_over_32_bits() {
+        let mut app = create_app();
+
+        app.update_block(|block| {
+            block.time = Timestamp::from_nanos(1571797424879000000 - 60_000_000_000);
+        });
+
+        let maci_contract = MaciContract::instantiate_default(&mut app, false).unwrap();
+
+        let err = maci_contract
+            .set_max_votes_per_option(&mut app, owner(), Uint256::from_u128(1u128 << 32))
+            .unwrap_err();
+
+        let contract_err: ContractError = err.downcast().unwrap();
+        assert_eq!(
+            contract_err,
+            ContractError::MaxVotesPerOptionExceeded {
+                current: Uint256::from_u128(1u128 << 32),
+            },
+            "Values >= 2^32 must still be rejected on update, not just at instantiation"
+        );
+    }
+
     // ============================================================
     // Edge-case behavioral tests
     // ============================================================

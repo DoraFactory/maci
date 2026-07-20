@@ -74,6 +74,12 @@ export type ExecuteMsg =
       };
     }
   | {
+      set_max_votes_per_option: {
+        contract_addr: string;
+        max_votes_per_option: Uint256;
+      };
+    }
+  | {
       publish_message: {
         contract_addr: string;
         enc_pub_keys: EncPubKeyParam[];

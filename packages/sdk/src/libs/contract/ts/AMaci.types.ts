@@ -100,6 +100,11 @@ export type ExecuteMsg =
       };
     }
   | {
+      set_max_votes_per_option: {
+        max_votes_per_option: Uint256;
+      };
+    }
+  | {
       sign_up: {
         amount?: Uint256 | null;
         certificate?: string | null;

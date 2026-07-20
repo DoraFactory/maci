@@ -554,11 +554,7 @@ pub fn instantiate(
     // Per-option vote weight cap (0 = no limit). Must fit in the 32-bit
     // packedVals slot consumed by the process circuit.
     let max_votes_per_option = msg.max_votes_per_option.unwrap_or(Uint256::zero());
-    if max_votes_per_option >= Uint256::from_u128(1u128 << 32) {
-        return Err(ContractError::MaxVotesPerOptionExceeded {
-            current: max_votes_per_option,
-        });
-    }
+    validate_max_votes_per_option(max_votes_per_option)?;
     MAX_VOTES_PER_OPTION.save(deps.storage, &max_votes_per_option)?;
 
     // ============================================
@@ -801,6 +797,9 @@ pub fn execute(
         ExecuteMsg::SetVoteOptionsMap { vote_option_map } => {
             execute_set_vote_options_map(deps, env, info, vote_option_map)
         }
+        ExecuteMsg::SetMaxVotesPerOption {
+            max_votes_per_option,
+        } => execute_set_max_votes_per_option(deps, env, info, max_votes_per_option),
         // ExecuteMsg::StartVotingPeriod {} => execute_start_voting_period(deps, env, info),
         ExecuteMsg::SignUp {
             pubkey,
@@ -895,6 +894,47 @@ pub fn execute_set_round_info(
 
         Ok(Response::new().add_attributes(attributes))
     }
+}
+
+// Shared 32-bit bound check for max_votes_per_option, used both at
+// instantiation and by the post-creation SetMaxVotesPerOption update below.
+// The value must fit in the 32-bit packedVals slot consumed by the process
+// circuit (bits 96-127); anything >= 2^32 would corrupt the packed layout.
+fn validate_max_votes_per_option(max_votes_per_option: Uint256) -> Result<(), ContractError> {
+    if max_votes_per_option >= Uint256::from_u128(1u128 << 32) {
+        return Err(ContractError::MaxVotesPerOptionExceeded {
+            current: max_votes_per_option,
+        });
+    }
+    Ok(())
+}
+
+// Update the round's per-option vote weight cap after creation. Mirrors
+// execute_set_round_info's restrictions exactly: admin-only, and only
+// allowed before voting starts (max_votes_per_option is baked into the
+// process circuit's packedVals/inputHash, so changing it mid-round would
+// make already-signed messages ambiguous about which cap applies to them).
+pub fn execute_set_max_votes_per_option(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    max_votes_per_option: Uint256,
+) -> Result<Response, ContractError> {
+    let voting_time = VOTINGTIME.load(deps.storage)?;
+    if env.block.time >= voting_time.start_time {
+        return Err(ContractError::PeriodError {});
+    }
+
+    if !is_admin(deps.as_ref(), info.sender.as_ref())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    validate_max_votes_per_option(max_votes_per_option)?;
+    MAX_VOTES_PER_OPTION.save(deps.storage, &max_votes_per_option)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "set_max_votes_per_option")
+        .add_attribute("max_votes_per_option", max_votes_per_option.to_string()))
 }
 
 // Helper function to validate registration config update

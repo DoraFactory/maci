@@ -141,6 +141,11 @@ pub enum ExecuteMsg {
     SetVoteOptionsMap {
         vote_option_map: Vec<String>,
     },
+    // Admin-only, only allowed before voting starts (same restriction as
+    // SetRoundInfo). See execute_set_max_votes_per_option for details.
+    SetMaxVotesPerOption {
+        max_votes_per_option: Uint256,
+    },
     SignUp {
         pubkey: PubKey, // user's pubkey
         // Oracle mode parameter (optional for SignUpWithStaticWhitelist mode, required for SignUpWithOracle mode)

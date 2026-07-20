@@ -106,6 +106,12 @@ pub enum ExecuteMsg {
         contract_addr: String,
         vote_option_map: Vec<String>,
     },
+    // Proxy for the amaci round's SetMaxVotesPerOption (admin-only on the
+    // target round, only allowed before voting starts there).
+    SetMaxVotesPerOption {
+        contract_addr: String,
+        max_votes_per_option: Uint256,
+    },
 
     // Proxy vote/deactivate on behalf of users (SAAS contract covers message fees from its balance)
     PublishMessage {

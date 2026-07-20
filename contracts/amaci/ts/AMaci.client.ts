@@ -404,6 +404,16 @@ export interface AMaciInterface extends AMaciReadOnlyInterface {
     memo?: string,
     _funds?: Coin[]
   ) => Promise<ExecuteResult>;
+  setMaxVotesPerOption: (
+    {
+      maxVotesPerOption
+    }: {
+      maxVotesPerOption: Uint256;
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
   signUp: (
     {
       amount,
@@ -550,6 +560,7 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
     this.setRoundInfo = this.setRoundInfo.bind(this);
     this.updateRegistrationConfig = this.updateRegistrationConfig.bind(this);
     this.setVoteOptionsMap = this.setVoteOptionsMap.bind(this);
+    this.setMaxVotesPerOption = this.setMaxVotesPerOption.bind(this);
     this.signUp = this.signUp.bind(this);
     this.startProcessPeriod = this.startProcessPeriod.bind(this);
     this.publishDeactivateMessage = this.publishDeactivateMessage.bind(this);
@@ -625,6 +636,29 @@ export class AMaciClient extends AMaciQueryClient implements AMaciInterface {
       {
         set_vote_options_map: {
           vote_option_map: voteOptionMap
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  setMaxVotesPerOption = async (
+    {
+      maxVotesPerOption
+    }: {
+      maxVotesPerOption: Uint256;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        set_max_votes_per_option: {
+          max_votes_per_option: maxVotesPerOption
         }
       },
       fee,

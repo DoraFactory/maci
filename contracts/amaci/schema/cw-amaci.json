@@ -434,6 +434,27 @@
       {
         "type": "object",
         "required": [
+          "set_max_votes_per_option"
+        ],
+        "properties": {
+          "set_max_votes_per_option": {
+            "type": "object",
+            "required": [
+              "max_votes_per_option"
+            ],
+            "properties": {
+              "max_votes_per_option": {
+                "$ref": "#/definitions/Uint256"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
           "sign_up"
         ],
         "properties": {

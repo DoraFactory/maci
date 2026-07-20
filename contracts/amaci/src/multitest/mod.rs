@@ -644,6 +644,23 @@ impl MaciContract {
     }
 
     #[track_caller]
+    pub fn set_max_votes_per_option(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        max_votes_per_option: Uint256,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::SetMaxVotesPerOption {
+                max_votes_per_option,
+            },
+            &[],
+        )
+    }
+
+    #[track_caller]
     pub fn set_vote_option_map(&self, app: &mut App, sender: Addr) -> AnyResult<AppResponse> {
         app.execute_contract(
             sender,
