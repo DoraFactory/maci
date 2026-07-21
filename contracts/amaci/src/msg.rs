@@ -411,4 +411,11 @@ pub struct InstantiationData {
     // Unified MACI Configuration (for Registry tracking)
     pub voice_credit_mode: VoiceCreditMode,
     pub registration_mode: RegistrationMode,
+
+    // Per-option vote weight cap (None/0 = no limit). Reported back to the
+    // Registry so the `created_round` event can index it. Option + serde(default)
+    // keeps this backward compatible with older amaci code IDs whose reply data
+    // doesn't include this field.
+    #[serde(default)]
+    pub max_votes_per_option: Option<Uint256>,
 }

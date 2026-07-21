@@ -711,6 +711,7 @@ pub fn instantiate(
         // Unified MACI Configuration
         voice_credit_mode: msg.voice_credit_mode.clone(),
         registration_mode,
+        max_votes_per_option: Some(max_votes_per_option),
     };
 
     let mut attributes = vec![

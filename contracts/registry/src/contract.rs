@@ -741,6 +741,16 @@ pub fn reply_created_round(
             "deactivate_enabled",
             &amaci_return_data.deactivate_enabled.to_string(),
         ),
+        // Per-option vote weight cap (0 = no limit). Always emitted so indexers
+        // can distinguish "no limit" from "attribute absent" (older rounds that
+        // predate this feature are indexed with a default of "0" client-side).
+        attr(
+            "max_votes_per_option",
+            amaci_return_data
+                .max_votes_per_option
+                .unwrap_or_else(Uint256::zero)
+                .to_string(),
+        ),
     ];
 
     if amaci_return_data.round_info.description != "" {

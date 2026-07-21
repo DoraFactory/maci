@@ -35,6 +35,8 @@ export type CreateApiSaasAmaciRoundParams = {
   deactivateEnabled: boolean;
   registrationMode: RegistrationModeConfig;
   voiceCreditMode: VoiceCreditMode;
+  /** Per-option vote weight cap enforced by the circuit. Omit or "0" = no limit. */
+  maxVotesPerOption?: string | number;
   gasStation?: boolean;
   fee?: StdFee | 'auto' | number;
 } & CreateRoundParams;
