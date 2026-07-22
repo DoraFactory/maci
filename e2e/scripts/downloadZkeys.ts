@@ -48,16 +48,20 @@ const SKIP_DIRS = new Set(['amaci-2-1-1-5', 'amaci-4-2-2-25', 'maci-2-1-1-5', 'm
  */
 function findExtractedZkeyDir(baseDir: string, segments: string[] = []): string[] | null {
   if (!fs.existsSync(baseDir)) return null;
+
+  // v6+ tarballs may extract flat (artifacts directly inside baseDir, no wrapper
+  // sub-directory) instead of nesting under e.g. "2-1-1-5/". Check baseDir itself first.
+  const hasArtifactsHere =
+    fs.existsSync(path.join(baseDir, 'msg.wasm')) ||
+    fs.existsSync(path.join(baseDir, 'msg.zkey')) ||
+    fs.existsSync(path.join(baseDir, 'processMessages.wasm')) ||
+    fs.existsSync(path.join(baseDir, 'processMessages.zkey'));
+  if (hasArtifactsHere) return segments;
+
   const entries = fs.readdirSync(baseDir, { withFileTypes: true });
   for (const e of entries) {
     if (!e.isDirectory() || SKIP_DIRS.has(e.name)) continue;
     const dirPath = path.join(baseDir, e.name);
-    const hasArtifacts =
-      fs.existsSync(path.join(dirPath, 'msg.wasm')) ||
-      fs.existsSync(path.join(dirPath, 'msg.zkey')) ||
-      fs.existsSync(path.join(dirPath, 'processMessages.wasm')) ||
-      fs.existsSync(path.join(dirPath, 'processMessages.zkey'));
-    if (hasArtifacts) return [...segments, e.name];
     const found = findExtractedZkeyDir(dirPath, [...segments, e.name]);
     if (found) return found;
   }
@@ -105,11 +109,14 @@ async function downloadCircuitConfig(config: CircuitConfig): Promise<void> {
 
   console.log(`   📁 Organizing files...`);
 
-  // Detect actual extracted dir (AMACI tar extracts to a versioned sub-directory, e.g. 2-1-1-5_v6/)
+  // Detect actual extracted dir. AMACI tar may extract to a versioned sub-directory
+  // (e.g. 2-1-1-5_v5/), or flat directly into CIRCUITS_DIR with no wrapper folder (v6+).
   const extractedPrefix = findExtractedZkeyDir(CIRCUITS_DIR);
   const pathPrefix = extractedPrefix ?? config.fileMapping.processMessagesWasm.slice(0, -1);
-  if (extractedPrefix) {
+  if (extractedPrefix && extractedPrefix.length > 0) {
     console.log(`   📂 Found files in: ${extractedPrefix.join('/')}`);
+  } else if (extractedPrefix) {
+    console.log(`   📂 Found files directly in circuits directory (flat archive layout)`);
   }
 
   // v4 tarball uses processMessages.wasm / tallyVotes.wasm; v3 uses msg.wasm / tally.wasm
@@ -166,13 +173,46 @@ async function downloadCircuitConfig(config: CircuitConfig): Promise<void> {
     fs.unlinkSync(tarFilePath);
   }
 
-  // Remove extracted dirs (zkeys, zkey, r1cs, or detected top-level)
-  const extractedDirs = ['zkeys', 'zkey', 'r1cs', ...(extractedPrefix ? [extractedPrefix[0]] : [])];
+  // Remove extracted dirs (zkeys, zkey, r1cs, or the detected wrapper top-level dir).
+  // Only relevant when the tar extracted into a nested sub-directory; a flat archive
+  // (extractedPrefix.length === 0) has no wrapper dir to remove here.
+  const extractedDirs = [
+    'zkeys',
+    'zkey',
+    'r1cs',
+    ...(extractedPrefix && extractedPrefix.length > 0 ? [extractedPrefix[0]] : [])
+  ];
   const toRemove = new Set(extractedDirs);
   for (const dir of toRemove) {
     const dirPath = path.join(CIRCUITS_DIR, dir);
     if (fs.existsSync(dirPath)) {
       fs.rmSync(dirPath, { recursive: true, force: true });
+    }
+  }
+
+  // If the tar extracted flat into CIRCUITS_DIR itself (no wrapper sub-directory),
+  // remove the loose source files we just copied so they don't linger as clutter or
+  // get mistaken for a valid extraction (with stale content) on a future run.
+  if (extractedPrefix && extractedPrefix.length === 0) {
+    const looseFiles = [
+      'msg.wasm',
+      'msg.zkey',
+      'tally.wasm',
+      'tally.zkey',
+      'processMessages.wasm',
+      'processMessages.zkey',
+      'tallyVotes.wasm',
+      'tallyVotes.zkey',
+      'deactivate.wasm',
+      'deactivate.zkey',
+      'addNewKey.wasm',
+      'addNewKey.zkey'
+    ];
+    for (const name of looseFiles) {
+      const filePath = path.join(CIRCUITS_DIR, name);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
   }
 
