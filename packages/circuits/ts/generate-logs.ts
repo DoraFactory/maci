@@ -11,9 +11,9 @@ import { OperatorClient, VoterClient, stringizing, adaptToUncompressed } from '@
 //   --local          Use locally compiled artifacts (from circomkit's
 //                    `generate-zkeys`) for ALL 4 circuits (AddNewKey,
 //                    ProcessDeactivateMessages, ProcessMessages, TallyVotes)
-//                    instead of downloading the remote v5 tarball. Required
+//                    instead of downloading the remote v6 tarball. Required
 //                    whenever the circuits themselves changed (e.g. the
-//                    maxVotesPerOption feature), since the remote v5
+//                    maxVotesPerOption feature), since the remote v6
 //                    artifacts are built from an older circuit version and
 //                    are incompatible with the current circom/SDK code.
 // ============================================================
@@ -45,18 +45,18 @@ const LOCAL_TALLY_DIR = path.join(BUILD_DIR, 'TallyVotes_amaci_2-1-1');
 const LOCAL_TALLY_WASM = path.join(LOCAL_TALLY_DIR, 'TallyVotes_amaci_2-1-1_js', 'TallyVotes_amaci_2-1-1.wasm');
 const LOCAL_TALLY_ZKEY = path.join(LOCAL_TALLY_DIR, 'TallyVotes_amaci_2-1-1.0.zkey');
 
-// ---------- v5 remote zkey/wasm artifacts (amaci_2-1-1-5) ----------
-// The tar https://...amaci_2-1-1-5_v5_zkeys.tar.gz extracts to build/2-1-1-5/
+// ---------- v6 remote zkey/wasm artifacts (amaci_2-1-1-5) ----------
+// The tar https://...amaci_2-1-1-5_v6_zkeys.tar.gz extracts to build/2-1-1-5/
 // with file names: deactivate.wasm/zkey, msg.wasm/zkey, tally.wasm/zkey
-const ZKEYS_V5_BASE = path.join(BUILD_DIR, '2-1-1-5');
-const ZKEYS_V5_URLS = {
-  addNewKeyWasm: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v5.wasm',
-  addNewKeyZkey: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v5.zkey',
-  amaciZkeysTar: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v5_zkeys.tar.gz'
+const ZKEYS_V6_BASE = path.join(BUILD_DIR, '2-1-1-5');
+const ZKEYS_V6_URLS = {
+  addNewKeyWasm: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v6.wasm',
+  addNewKeyZkey: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v6.zkey',
+  amaciZkeysTar: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v6_zkeys.tar.gz'
 };
 
 // Deactivate/ProcessMessages/TallyVotes circuit paths – resolved at runtime
-// based on --local flag (remote v5 tar vs locally compiled circomkit artifacts)
+// based on --local flag (remote v6 tar vs locally compiled circomkit artifacts)
 let DEACTIVATE_WASM: string;
 let DEACTIVATE_ZKEY: string;
 let MSG_WASM: string;
@@ -135,13 +135,13 @@ function getRequiredRemoteArtifacts(): { name: string; p: string }[] {
 function ensureRemoteArtifacts(): void {
   const missing = getRequiredRemoteArtifacts().filter((a) => !fs.existsSync(a.p));
   if (missing.length === 0) {
-    console.log('Remote v5 zkey/wasm present at', ZKEYS_V5_BASE);
+    console.log('Remote v6 zkey/wasm present at', ZKEYS_V6_BASE);
     return;
   }
   throw new Error(
-    `Missing remote v5 artifacts at ${ZKEYS_V5_BASE}: ${missing.map((a) => a.name).join(', ')}.\n` +
-      `Download and extract into ${path.dirname(ZKEYS_V5_BASE)}:\n` +
-      `  ${ZKEYS_V5_URLS.amaciZkeysTar}\n` +
+    `Missing remote v6 artifacts at ${ZKEYS_V6_BASE}: ${missing.map((a) => a.name).join(', ')}.\n` +
+      `Download and extract into ${path.dirname(ZKEYS_V6_BASE)}:\n` +
+      `  ${ZKEYS_V6_URLS.amaciZkeysTar}\n` +
       `(The tar should create a 2-1-1-5/ sub-directory automatically.)`
   );
 }
@@ -153,14 +153,14 @@ async function ensureArtifacts(): Promise<void> {
     ADDKEY_WASM = LOCAL_ADDKEY_WASM;
     ADDKEY_ZKEY = LOCAL_ADDKEY_ZKEY;
   } else {
-    fs.mkdirSync(ZKEYS_V5_BASE, { recursive: true });
-    const remoteAddkeyWasm = path.join(ZKEYS_V5_BASE, 'add-new-key_2-1-1-5_v5.wasm');
-    const remoteAddkeyZkey = path.join(ZKEYS_V5_BASE, 'add-new-key_2-1-1-5_v5.zkey');
+    fs.mkdirSync(ZKEYS_V6_BASE, { recursive: true });
+    const remoteAddkeyWasm = path.join(ZKEYS_V6_BASE, 'add-new-key_2-1-1-5_v6.wasm');
+    const remoteAddkeyZkey = path.join(ZKEYS_V6_BASE, 'add-new-key_2-1-1-5_v6.zkey');
     if (!fs.existsSync(remoteAddkeyWasm) || !fs.existsSync(remoteAddkeyZkey)) {
       console.log('Downloading remote AddNewKey wasm/zkey...');
-      await downloadFile(ZKEYS_V5_URLS.addNewKeyWasm, remoteAddkeyWasm);
+      await downloadFile(ZKEYS_V6_URLS.addNewKeyWasm, remoteAddkeyWasm);
       console.log('Downloaded add-new-key wasm');
-      await downloadFile(ZKEYS_V5_URLS.addNewKeyZkey, remoteAddkeyZkey);
+      await downloadFile(ZKEYS_V6_URLS.addNewKeyZkey, remoteAddkeyZkey);
       console.log('Downloaded add-new-key zkey');
     }
     ADDKEY_WASM = remoteAddkeyWasm;
@@ -177,21 +177,21 @@ async function ensureArtifacts(): Promise<void> {
     TALLY_WASM = LOCAL_TALLY_WASM;
     TALLY_ZKEY = LOCAL_TALLY_ZKEY;
   } else {
-    fs.mkdirSync(ZKEYS_V5_BASE, { recursive: true });
-    DEACTIVATE_WASM = path.join(ZKEYS_V5_BASE, 'deactivate.wasm');
-    DEACTIVATE_ZKEY = path.join(ZKEYS_V5_BASE, 'deactivate.zkey');
-    MSG_WASM = path.join(ZKEYS_V5_BASE, 'msg.wasm');
-    MSG_ZKEY = path.join(ZKEYS_V5_BASE, 'msg.zkey');
-    TALLY_WASM = path.join(ZKEYS_V5_BASE, 'tally.wasm');
-    TALLY_ZKEY = path.join(ZKEYS_V5_BASE, 'tally.zkey');
+    fs.mkdirSync(ZKEYS_V6_BASE, { recursive: true });
+    DEACTIVATE_WASM = path.join(ZKEYS_V6_BASE, 'deactivate.wasm');
+    DEACTIVATE_ZKEY = path.join(ZKEYS_V6_BASE, 'deactivate.zkey');
+    MSG_WASM = path.join(ZKEYS_V6_BASE, 'msg.wasm');
+    MSG_ZKEY = path.join(ZKEYS_V6_BASE, 'msg.zkey');
+    TALLY_WASM = path.join(ZKEYS_V6_BASE, 'tally.wasm');
+    TALLY_ZKEY = path.join(ZKEYS_V6_BASE, 'tally.zkey');
 
     // Download and extract remote amaci tar if deactivate/msg/tally are missing.
     // The tar extracts directly into BUILD_DIR creating the sub-directory 2-1-1-5/.
     const missingRemote = getRequiredRemoteArtifacts().filter((a) => !fs.existsSync(a.p));
     if (missingRemote.length > 0) {
-      console.log('Downloading amaci v5 zkeys tar (deactivate/msg/tally)...');
-      const tarPath = path.join(BUILD_DIR, 'amaci_2-1-1-5_v5_zkeys.tar.gz');
-      await downloadFile(ZKEYS_V5_URLS.amaciZkeysTar, tarPath);
+      console.log('Downloading amaci v6 zkeys tar (deactivate/msg/tally)...');
+      const tarPath = path.join(BUILD_DIR, 'amaci_2-1-1-5_v6_zkeys.tar.gz');
+      await downloadFile(ZKEYS_V6_URLS.amaciZkeysTar, tarPath);
       console.log('Extracting amaci zkeys tar...');
       execSync(`tar -xzf "${tarPath}" -C "${BUILD_DIR}"`, { stdio: 'inherit' });
       try { fs.unlinkSync(tarPath); } catch { /* ignore */ }

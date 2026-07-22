@@ -24,7 +24,7 @@ const CIRCUITS_DIR = path.join(__dirname, '../circuits');
 const CIRCUIT_CONFIGS: CircuitConfig[] = [
   {
     name: 'AMACI',
-    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v5_zkeys.tar.gz',
+    url: 'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/amaci_2-1-1-5_v6_zkeys.tar.gz',
     targetDir: path.join(CIRCUITS_DIR, 'amaci-2-1-1-5'),
     description: 'AMACI (state:2, int:1, vote:1, batch:5)',
     fileMapping: {
@@ -105,7 +105,7 @@ async function downloadCircuitConfig(config: CircuitConfig): Promise<void> {
 
   console.log(`   📁 Organizing files...`);
 
-  // Detect actual extracted dir (AMACI tar extracts to a versioned sub-directory, e.g. 2-1-1-5_v5/)
+  // Detect actual extracted dir (AMACI tar extracts to a versioned sub-directory, e.g. 2-1-1-5_v6/)
   const extractedPrefix = findExtractedZkeyDir(CIRCUITS_DIR);
   const pathPrefix = extractedPrefix ?? config.fileMapping.processMessagesWasm.slice(0, -1);
   if (extractedPrefix) {
@@ -327,15 +327,15 @@ async function downloadAllZkeys(): Promise<void> {
   if (fs.existsSync(addNewKeyWasm) && fs.existsSync(addNewKeyZkey)) {
     console.log('   ✅ AddNewKey files already exist, skipping download');
   } else {
-    console.log('   📥 Downloading addNewKey.wasm (v5)...');
+    console.log('   📥 Downloading addNewKey.wasm (v6)...');
     await downloadFileWithRetry(
-      'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v5.wasm',
+      'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v6.wasm',
       addNewKeyWasm
     );
 
-    console.log('   📥 Downloading addNewKey.zkey (v5)...');
+    console.log('   📥 Downloading addNewKey.zkey (v6)...');
     await downloadFileWithRetry(
-      'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v5.zkey',
+      'https://vota-zkey.s3.ap-southeast-1.amazonaws.com/add-new-key_2-1-1-5_v6.zkey',
       addNewKeyZkey
     );
 
