@@ -200,6 +200,13 @@ export class MaciApiClient {
     return this.fetch('/health', { method: 'GET' });
   }
 
+  /**
+   * Account pool status (orchestrator Redis pool + pre-generated database pool)
+   */
+  async getHealthPools(): Promise<ResponseBody<paths['/health/pools']['get'], 200>> {
+    return this.fetch('/health/pools', { method: 'GET' });
+  }
+
   // ==================== Admin APIs ====================
 
   /**
@@ -315,6 +322,19 @@ export class MaciApiClient {
     data: RequestBody<operations['setVoteOptions']>
   ): Promise<ResponseBody<operations['setVoteOptions'], 202>> {
     return this.fetch('/v1/set-vote-options', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  /**
+   * Set Max Votes Per Option
+   * Per-option vote weight cap (0 = no limit). Only supported for AMACI rounds.
+   */
+  async setMaxVotesPerOption(
+    data: RequestBody<operations['setMaxVotesPerOption']>
+  ): Promise<ResponseBody<operations['setMaxVotesPerOption'], 202>> {
+    return this.fetch('/v1/set-max-votes-per-option', {
       method: 'POST',
       body: JSON.stringify(data)
     });
@@ -439,8 +459,20 @@ export class MaciApiClient {
   // ==================== Pre-deactivate APIs ====================
 
   /**
+   * Get pre-computed deactivate tree pool status per voter scale
+   */
+  async getPreDeactivatePoolStatus(): Promise<
+    ResponseBody<paths['/v1/pre-deactivate/pool/status']['get'], 200>
+  > {
+    return this.fetch('/v1/pre-deactivate/pool/status', { method: 'GET' });
+  }
+
+  /**
    * Get coordinator public key, deactivate root, and voter scale for a round.
-   * Lighter alternative to the full data endpoint when only circuit inputs are needed.
+   * This is now the only metadata endpoint — the legacy full-data endpoint
+   * (which returned the raw `deactivates` leaf array) has been removed from the
+   * API to preserve K-anonymity of individual deactivate leaves. Use
+   * `getPreDeactivateProof` to fetch K-anonymous Merkle proofs for specific leaves.
    */
   async getPreDeactivateMeta(
     params: PathParams<paths['/v1/pre-deactivate/{contractAddress}/meta']['get']>
@@ -497,14 +529,4 @@ export class MaciApiClient {
     });
   }
 
-  /**
-   * Get pre-deactivate data by contract address
-   */
-  async getPreDeactivate(
-    params: PathParams<paths['/v1/pre-deactivate/{contractAddress}']['get']>
-  ): Promise<ResponseBody<paths['/v1/pre-deactivate/{contractAddress}']['get'], 200>> {
-    return this.fetch(`/v1/pre-deactivate/${params.contractAddress}`, {
-      method: 'GET'
-    });
-  }
 }
