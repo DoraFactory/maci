@@ -90,11 +90,11 @@ async function waitForIndexer<T>(
 }
 
 async function main() {
-  // const network = 'mainnet';
-  // const operator = 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4';
+  const network = 'mainnet';
+  const operator = 'dora16nkezrnvw9fzqqqmmqtrdkw3pqes6qthhse2k4';
 
-  const network = 'testnet';
-  const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
+  // const network = 'testnet';
+  // const operator = 'dora149n5yhzgk5gex0eqmnnpnsxh6ys4exg5xyqjzm';
 
   console.log('='.repeat(80));
   console.log('AMACI Round with maxVotesPerOption Complete Test (MaciClient & VoterClient)');
@@ -103,7 +103,8 @@ async function main() {
   // API base configuration
   // const API_BASE_URL = 'http://localhost:8080';
   const API_BASE_URL = undefined;
-  const INDEXER_BASE_URL = 'https://maci-testnet-graphql-1.dorafactory.org';
+  const INDEXER_BASE_URL = undefined;
+  // const INDEXER_BASE_URL = 'https://maci-testnet-graphql.dorafactory.org';
 
   // Only `9-4-3-125` addKey circuit files are actually deployed in the online
   // environment — see NOTE at the top of this file. Do not switch to `2-1-1-5`.
