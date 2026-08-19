@@ -407,6 +407,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false, // Default: disabled
+            max_votes_per_option: None,
         };
 
         app.instantiate_contract(
@@ -479,6 +480,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: true, // ENABLED for deactivate and add_new_key tests
+            max_votes_per_option: None,
         };
 
         app.instantiate_contract(
@@ -637,6 +639,23 @@ impl MaciContract {
             sender,
             self.addr(),
             &ExecuteMsg::UpdateRegistrationConfig { config },
+            &[],
+        )
+    }
+
+    #[track_caller]
+    pub fn set_max_votes_per_option(
+        &self,
+        app: &mut App,
+        sender: Addr,
+        max_votes_per_option: Uint256,
+    ) -> AnyResult<AppResponse> {
+        app.execute_contract(
+            sender,
+            self.addr(),
+            &ExecuteMsg::SetMaxVotesPerOption {
+                max_votes_per_option,
+            },
             &[],
         )
     }
@@ -1501,6 +1520,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: false, // Default: disabled
+            max_votes_per_option: None,
         };
 
         app.instantiate_contract(
@@ -1638,6 +1658,7 @@ impl MaciContract {
             signup_delay: PER_SIGNUP_DELAY,
             deactivate_delay: DEACTIVATE_DELAY,
             deactivate_enabled: true, // ENABLED!
+            max_votes_per_option: None,
         };
 
         app.instantiate_contract(

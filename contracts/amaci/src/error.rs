@@ -93,6 +93,9 @@ pub enum ContractError {
         max_allowed: Uint256,
     },
 
+    #[error("max_votes_per_option must fit in 32 bits, current value is {current}.")]
+    MaxVotesPerOptionExceeded { current: Uint256 },
+
     #[error("Unsupported circuit type.")]
     UnsupportedCircuitType {},
 

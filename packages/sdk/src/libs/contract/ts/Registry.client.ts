@@ -200,6 +200,7 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
       certificationSystem,
       circuitType,
       deactivateEnabled,
+      maxVotesPerOption,
       operator,
       registrationMode,
       roundInfo,
@@ -210,6 +211,7 @@ export interface RegistryInterface extends RegistryReadOnlyInterface {
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
+      maxVotesPerOption?: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -387,6 +389,7 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
       certificationSystem,
       circuitType,
       deactivateEnabled,
+      maxVotesPerOption,
       operator,
       registrationMode,
       roundInfo,
@@ -397,6 +400,7 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
+      maxVotesPerOption?: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -416,6 +420,7 @@ export class RegistryClient extends RegistryQueryClient implements RegistryInter
           certification_system: certificationSystem,
           circuit_type: circuitType,
           deactivate_enabled: deactivateEnabled,
+          max_votes_per_option: maxVotesPerOption,
           operator,
           registration_mode: registrationMode,
           round_info: roundInfo,

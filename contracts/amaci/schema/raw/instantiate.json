@@ -57,6 +57,17 @@
     "fee_recipient": {
       "$ref": "#/definitions/Addr"
     },
+    "max_votes_per_option": {
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "message_delay": {
       "type": "integer",
       "format": "uint64",

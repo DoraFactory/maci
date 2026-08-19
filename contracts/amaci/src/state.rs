@@ -72,6 +72,8 @@ pub const VOICECREDITBALANCE: Map<Vec<u8>, Uint256> = Map::new("voice_credit_bal
 pub const NODES: Map<Vec<u8>, Uint256> = Map::new("nodes");
 
 pub const MAX_VOTE_OPTIONS: Item<Uint256> = Item::new("max_vote_options");
+// Per-option vote weight cap enforced by the process circuit (0 = no limit)
+pub const MAX_VOTES_PER_OPTION: Item<Uint256> = Item::new("max_votes_per_option");
 pub const CURRENT_STATE_COMMITMENT: Item<Uint256> = Item::new("current_state_commitment");
 pub const CURRENT_TALLY_COMMITMENT: Item<Uint256> = Item::new("current_tally_commitment");
 

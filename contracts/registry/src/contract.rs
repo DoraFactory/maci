@@ -105,6 +105,7 @@ pub fn execute(
             deactivate_enabled,
             voice_credit_mode,
             registration_mode,
+            max_votes_per_option,
         } => execute_create_round(
             deps,
             env,
@@ -118,6 +119,7 @@ pub fn execute(
             deactivate_enabled,
             voice_credit_mode,
             registration_mode,
+            max_votes_per_option,
         ),
         ExecuteMsg::SetValidators { addresses } => {
             execute_set_validators(deps, env, info, addresses)
@@ -173,6 +175,7 @@ pub fn execute_create_round(
     deactivate_enabled: bool,
     voice_credit_mode: cw_amaci::state::VoiceCreditMode,
     registration_mode: cw_amaci::msg::RegistrationModeConfig,
+    max_votes_per_option: Option<Uint256>,
 ) -> Result<Response, ContractError> {
     validate_dora_address(operator.as_str())?;
 
@@ -227,6 +230,7 @@ pub fn execute_create_round(
         vote_option_map,
         round_info,
         voting_time,
+        max_votes_per_option,
         circuit_type,
         certification_system,
         poll_id,
@@ -736,6 +740,16 @@ pub fn reply_created_round(
         attr(
             "deactivate_enabled",
             &amaci_return_data.deactivate_enabled.to_string(),
+        ),
+        // Per-option vote weight cap (0 = no limit). Always emitted so indexers
+        // can distinguish "no limit" from "attribute absent" (older rounds that
+        // predate this feature are indexed with a default of "0" client-side).
+        attr(
+            "max_votes_per_option",
+            amaci_return_data
+                .max_votes_per_option
+                .unwrap_or_else(Uint256::zero)
+                .to_string(),
         ),
     ];
 

@@ -86,6 +86,10 @@ pub enum ExecuteMsg {
 
         // Registration Mode: combined access control and state initialization
         registration_mode: RegistrationModeConfig,
+
+        // Per-option vote weight cap (None or 0 = no limit, must fit in 32 bits)
+        #[serde(default)]
+        max_votes_per_option: Option<Uint256>,
     },
 
     // Update local fee config mirror (admin only)
@@ -101,6 +105,12 @@ pub enum ExecuteMsg {
     SetVoteOptionsMap {
         contract_addr: String,
         vote_option_map: Vec<String>,
+    },
+    // Proxy for the amaci round's SetMaxVotesPerOption (admin-only on the
+    // target round, only allowed before voting starts there).
+    SetMaxVotesPerOption {
+        contract_addr: String,
+        max_votes_per_option: Uint256,
     },
 
     // Proxy vote/deactivate on behalf of users (SAAS contract covers message fees from its balance)

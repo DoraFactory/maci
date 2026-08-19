@@ -16,7 +16,8 @@ use crate::state::{
     DMSG_CHAIN_LENGTH, DMSG_HASHES, DNODES, FEE_CONFIG, FEE_DENOM, FEE_RECIPIENT,
     FIRST_DMSG_TIMESTAMP, GROTH16_DEACTIVATE_VKEYS, GROTH16_NEWKEY_VKEYS, GROTH16_PROCESS_VKEYS,
     GROTH16_TALLY_VKEYS, LEAF_IDX_0, MACIPARAMETERS, MACI_OPERATOR,
-    MAX_LEAVES_COUNT, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH, MSG_HASHES, NODES, NULLIFIERS,
+    MAX_LEAVES_COUNT, MAX_VOTES_PER_OPTION, MAX_VOTE_OPTIONS, MSG_CHAIN_LENGTH, MSG_HASHES, NODES,
+    NULLIFIERS,
     NUMSIGNUPS, ORACLE_WHITELIST, PENALTY_RATE, PERIOD, POLL_ID, PRE_DEACTIVATE_COORDINATOR_HASH,
     PRE_DEACTIVATE_ROOT, PROCESSED_DMSG_COUNT, PROCESSED_MSG_COUNT, PROCESSED_USER_COUNT, QTR_LIB,
     REGISTRATION_MODE, RESULT, ROUNDINFO, SIGNUPED, STATE_ROOT_BY_DMSG,
@@ -550,6 +551,12 @@ pub fn instantiate(
         &Uint256::from_u128(msg.vote_option_map.len() as u128),
     )?;
 
+    // Per-option vote weight cap (0 = no limit). Must fit in the 32-bit
+    // packedVals slot consumed by the process circuit.
+    let max_votes_per_option = msg.max_votes_per_option.unwrap_or(Uint256::zero());
+    validate_max_votes_per_option(max_votes_per_option)?;
+    MAX_VOTES_PER_OPTION.save(deps.storage, &max_votes_per_option)?;
+
     // ============================================
     // Process Voice Credit Mode Configuration
     // ============================================
@@ -704,6 +711,7 @@ pub fn instantiate(
         // Unified MACI Configuration
         voice_credit_mode: msg.voice_credit_mode.clone(),
         registration_mode,
+        max_votes_per_option: Some(max_votes_per_option),
     };
 
     let mut attributes = vec![
@@ -720,6 +728,7 @@ pub fn instantiate(
         attr("coordinator_pubkey_x", &msg.coordinator.x.to_string()),
         attr("coordinator_pubkey_y", &msg.coordinator.y.to_string()),
         attr("max_vote_options", &msg.vote_option_map.len().to_string()),
+        attr("max_votes_per_option", &max_votes_per_option.to_string()),
         attr(
             "state_tree_depth",
             &msg.parameters.state_tree_depth.to_string(),
@@ -789,6 +798,9 @@ pub fn execute(
         ExecuteMsg::SetVoteOptionsMap { vote_option_map } => {
             execute_set_vote_options_map(deps, env, info, vote_option_map)
         }
+        ExecuteMsg::SetMaxVotesPerOption {
+            max_votes_per_option,
+        } => execute_set_max_votes_per_option(deps, env, info, max_votes_per_option),
         // ExecuteMsg::StartVotingPeriod {} => execute_start_voting_period(deps, env, info),
         ExecuteMsg::SignUp {
             pubkey,
@@ -883,6 +895,47 @@ pub fn execute_set_round_info(
 
         Ok(Response::new().add_attributes(attributes))
     }
+}
+
+// Shared 32-bit bound check for max_votes_per_option, used both at
+// instantiation and by the post-creation SetMaxVotesPerOption update below.
+// The value must fit in the 32-bit packedVals slot consumed by the process
+// circuit (bits 96-127); anything >= 2^32 would corrupt the packed layout.
+fn validate_max_votes_per_option(max_votes_per_option: Uint256) -> Result<(), ContractError> {
+    if max_votes_per_option >= Uint256::from_u128(1u128 << 32) {
+        return Err(ContractError::MaxVotesPerOptionExceeded {
+            current: max_votes_per_option,
+        });
+    }
+    Ok(())
+}
+
+// Update the round's per-option vote weight cap after creation. Mirrors
+// execute_set_round_info's restrictions exactly: admin-only, and only
+// allowed before voting starts (max_votes_per_option is baked into the
+// process circuit's packedVals/inputHash, so changing it mid-round would
+// make already-signed messages ambiguous about which cap applies to them).
+pub fn execute_set_max_votes_per_option(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    max_votes_per_option: Uint256,
+) -> Result<Response, ContractError> {
+    let voting_time = VOTINGTIME.load(deps.storage)?;
+    if env.block.time >= voting_time.start_time {
+        return Err(ContractError::PeriodError {});
+    }
+
+    if !is_admin(deps.as_ref(), info.sender.as_ref())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    validate_max_votes_per_option(max_votes_per_option)?;
+    MAX_VOTES_PER_OPTION.save(deps.storage, &max_votes_per_option)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "set_max_votes_per_option")
+        .add_attribute("max_votes_per_option", max_votes_per_option.to_string()))
 }
 
 // Helper function to validate registration config update
@@ -1989,18 +2042,19 @@ pub fn execute_process_message(
 
     let num_sign_ups = NUMSIGNUPS.load(deps.storage)?;
     let max_vote_options = MAX_VOTE_OPTIONS.load(deps.storage)?;
+    let max_votes_per_option = MAX_VOTES_PER_OPTION
+        .may_load(deps.storage)?
+        .unwrap_or(Uint256::zero());
 
     let circuit_type = CIRCUITTYPE.load(deps.storage)?;
-    if circuit_type == Uint256::from_u128(0u128) {
-        // 1p1v
-        input[0] = (num_sign_ups << 32) + max_vote_options; // packedVals
-    } else if circuit_type == Uint256::from_u128(1u128) {
-        // qv
-        input[0] = (num_sign_ups << 32) + (circuit_type << 64) + max_vote_options;
-        // packedVals
-    }
-
-    // input[0] = (num_sign_ups << 32) + max_vote_options; // packedVals
+    // packedVals layout (32-bit slots, low to high):
+    //   bits 0-31: maxVoteOptions, bits 32-63: numSignUps,
+    //   bits 64-95: isQuadraticCost, bits 96-127: maxVotesPerOption
+    // circuit_type is 0 (1p1v) or 1 (qv), so shifting it directly is safe.
+    input[0] = (max_votes_per_option << 96)
+        + (circuit_type << 64)
+        + (num_sign_ups << 32)
+        + max_vote_options;
 
     // Load the coordinator's public key hash
     let coordinator_hash = COORDINATORHASH.load(deps.storage)?;
@@ -2671,6 +2725,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::MaxVoteOptions {} => {
             to_json_binary::<Uint256>(&MAX_VOTE_OPTIONS.may_load(deps.storage)?.unwrap_or_default())
         }
+        QueryMsg::MaxVotesPerOption {} => to_json_binary::<Uint256>(
+            &MAX_VOTES_PER_OPTION
+                .may_load(deps.storage)?
+                .unwrap_or_default(),
+        ),
         QueryMsg::QueryCircuitType {} => {
             to_json_binary::<Uint256>(&CIRCUITTYPE.may_load(deps.storage)?.unwrap_or_default())
         }

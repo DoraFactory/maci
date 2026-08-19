@@ -160,6 +160,17 @@ export class Contract {
     });
   }
 
+  /**
+   * Query the round's per-option vote weight cap. Returns "0" (as a decimal
+   * string, matching the contract's Uint256 encoding) when no limit is set.
+   */
+  async getMaxVotesPerOption({ contractAddress }: { contractAddress: string }) {
+    return this.withRetry(async (rpcEndpoint) => {
+      const client = await createAMaciQueryClientBy({ rpcEndpoint, contractAddress });
+      return client.maxVotesPerOption();
+    });
+  }
+
   async isApiSaasOperator({ signer, operator }: { signer: OfflineSigner; operator: string }) {
     return this.withRetry(async (rpcEndpoint) => {
       const client = await createApiSaasClientBy({
@@ -257,6 +268,8 @@ export class Contract {
           },
           voice_credit_mode: params.voiceCreditMode,
           vote_option_map: params.voteOptionMap,
+          max_votes_per_option:
+            params.maxVotesPerOption !== undefined ? params.maxVotesPerOption.toString() : null,
           voting_time: {
             start_time: (BigInt(params.startVoting.getTime()) * 1_000_000n).toString(),
             end_time: (BigInt(params.endVoting.getTime()) * 1_000_000n).toString()
@@ -346,6 +359,54 @@ export class Contract {
         set_vote_options_map: {
           contract_addr: contractAddress,
           vote_option_map: voteOptionMap
+        }
+      };
+
+      const executeMsg: EncodeObject = {
+        typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+        value: {
+          sender: address,
+          contract: this.apiSaasAddress,
+          msg: toUtf8(JSON.stringify(msg)),
+          funds: []
+        }
+      };
+
+      const granter = gasStation ? this.apiSaasAddress : undefined;
+      const stdFee = await resolveFee(signingClient, address, [executeMsg], fee, granter);
+      const txHash = await signingClient.signAndBroadcastSync(address, [executeMsg], stdFee);
+      return { txHash };
+    });
+  }
+
+  /**
+   * Update the per-option vote weight cap (max_votes_per_option) of an amaci
+   * round via the api-saas proxy. Same restriction as setApiSaasMaciRoundInfo:
+   * the target round only accepts this call from its admin and only before
+   * voting starts (max_votes_per_option is baked into the process circuit's
+   * packedVals, so it can no longer change once voting begins).
+   */
+  async setApiSaasMaciRoundMaxVotesPerOption({
+    signer,
+    contractAddress,
+    maxVotesPerOption,
+    gasStation = false,
+    fee = 1.8
+  }: {
+    signer: OfflineSigner;
+    contractAddress: string;
+    maxVotesPerOption: string | number;
+    gasStation?: boolean;
+    fee?: StdFee | 'auto' | number;
+  }): Promise<{ txHash: string }> {
+    return this.withRetry(async (rpcEndpoint) => {
+      const signingClient = await createContractClientByWallet(rpcEndpoint, signer);
+      const [{ address }] = await signer.getAccounts();
+
+      const msg = {
+        set_max_votes_per_option: {
+          contract_addr: contractAddress,
+          max_votes_per_option: maxVotesPerOption.toString()
         }
       };
 
@@ -456,6 +517,8 @@ export class Contract {
           },
           voice_credit_mode: params.voiceCreditMode,
           vote_option_map: params.voteOptionMap,
+          max_votes_per_option:
+            params.maxVotesPerOption !== undefined ? params.maxVotesPerOption.toString() : null,
           voting_time: {
             start_time: (BigInt(params.startVoting.getTime()) * 1_000_000n).toString(),
             end_time: (BigInt(params.endVoting.getTime()) * 1_000_000n).toString()

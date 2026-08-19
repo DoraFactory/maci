@@ -96,11 +96,17 @@ export interface paths {
                 /** @description Percentage of accounts locked */
                 usagePercentage: number;
               };
-              /** @description Pre-generated account pool status (Database) */
-              preGeneratedPool: {
-                /** @description Number of available pre-generated accounts */
-                available: number;
-              };
+              /** @description Pre-computed deactivate tree pool status (Database), grouped by scale */
+              treePool: {
+                /** @description Voter scale */
+                scale: number;
+                /** @description Number of pending trees for this scale */
+                pending: number;
+                /** @description Number of ready trees for this scale */
+                ready: number;
+                /** @description Total trees for this scale */
+                total: number;
+              }[];
             };
           };
         };
@@ -364,6 +370,23 @@ export interface paths {
     put?: never;
     /** Set Vote Options */
     post: operations['setVoteOptions'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/set-max-votes-per-option': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Set Max Votes Per Option */
+    post: operations['setMaxVotesPerOption'];
     delete?: never;
     options?: never;
     head?: never;
@@ -770,61 +793,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/v1/pre-deactivate/{contractAddress}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description Get pre-deactivate data by contract address */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          contractAddress: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Default Response */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'application/json': {
-              /** @description Snapshot or tree ID */
-              id: string;
-              /** @description Contract address */
-              contractAddress: string;
-              /** @description Deactivate root */
-              root: string;
-              /** @description Coordinator public key */
-              coordinator: string;
-              /** @description Merkle tree depth used for proof generation (e.g. 2, 4, or 6) */
-              stateTreeDepth: number;
-              /** @description Array of leaf hashes (deactivateLeafHash) */
-              leaves: string[];
-              /** @description Array of deactivate leaf data arrays */
-              deactivates: string[][];
-              /** @description Creation timestamp */
-              createdAt: string;
-            };
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/v1/rounds/{contractAddress}/claim-key': {
     parameters: {
       query?: never;
@@ -1132,6 +1100,8 @@ export interface operations {
           circuitType?: string;
           /** @description Voice credit amount */
           voiceCreditAmount: number;
+          /** @description Per-option vote weight cap. Omit or 0 = no limit. */
+          maxVotesPerOption?: string | number;
           /** @description Allowlist ID for whitelist. If not provided, pre-deactivate mode will be used automatically */
           allowlistId?: string;
         };
@@ -1266,6 +1236,70 @@ export interface operations {
           contractAddress: string;
           /** @description Array of voting options */
           voteOptionMap: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Default Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Internal request id (ULID/UUID) */
+            id: string;
+            /** @description Transaction hash */
+            txHash: string;
+            /** @description Block height (0 if not available) */
+            height: number;
+            /**
+             * @description Transaction status
+             * @enum {string}
+             */
+            status: 'confirmed' | 'failed';
+            /** @description Contract address (for successful transactions) */
+            contractAddress?: string;
+            /** @description Round ticket (JWT) for accessing round operations */
+            ticket?: string;
+            /** @description Error message (for failed transactions) */
+            error?: string;
+            /** @description Pre-generated accounts (for pre-deactivate mode only) */
+            accounts?: {
+              /** @description Account public key */
+              pubkey: string;
+              /** @description Account secret key */
+              secretKey: string;
+              /** @description Leaf index of this account in the deactivate tree */
+              accountIndex: number;
+            }[];
+            /** @description Pre-deactivate Merkle tree root (for pre-deactivate mode only) */
+            preDeactivateRoot?: string;
+            /** @description Pre-deactivate tree capacity / voter scale (for pre-deactivate mode only) */
+            preDeactivateScale?: number;
+            /** @description Pre-deactivate coordinator public key (for pre-deactivate mode only) */
+            preDeactivateCoordinator?: string;
+            /** @description On-chain poll ID returned by the SDK on round creation */
+            pollId?: string;
+          };
+        };
+      };
+    };
+  };
+  setMaxVotesPerOption: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description MACI contract address */
+          contractAddress: string;
+          /** @description Per-option vote weight cap (0 = no limit) */
+          maxVotesPerOption: string | number;
         };
       };
     };

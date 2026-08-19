@@ -146,6 +146,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       certificationSystem,
       circuitType,
       deactivateEnabled,
+      maxVotesPerOption,
       operator,
       registrationMode,
       roundInfo,
@@ -156,6 +157,7 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
+      maxVotesPerOption?: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -196,6 +198,18 @@ export interface ApiSaasInterface extends ApiSaasReadOnlyInterface {
     }: {
       contractAddr: string;
       voteOptionMap: string[];
+    },
+    fee?: number | StdFee | 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ) => Promise<ExecuteResult>;
+  setMaxVotesPerOption: (
+    {
+      contractAddr,
+      maxVotesPerOption
+    }: {
+      contractAddr: string;
+      maxVotesPerOption: Uint256;
     },
     fee?: number | StdFee | 'auto',
     memo?: string,
@@ -301,6 +315,7 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
     this.updateFeeConfig = this.updateFeeConfig.bind(this);
     this.setRoundInfo = this.setRoundInfo.bind(this);
     this.setVoteOptionsMap = this.setVoteOptionsMap.bind(this);
+    this.setMaxVotesPerOption = this.setMaxVotesPerOption.bind(this);
     this.publishMessage = this.publishMessage.bind(this);
     this.publishDeactivateMessage = this.publishDeactivateMessage.bind(this);
     this.signUp = this.signUp.bind(this);
@@ -449,6 +464,7 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
       certificationSystem,
       circuitType,
       deactivateEnabled,
+      maxVotesPerOption,
       operator,
       registrationMode,
       roundInfo,
@@ -459,6 +475,7 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
       certificationSystem: Uint256;
       circuitType: Uint256;
       deactivateEnabled: boolean;
+      maxVotesPerOption?: Uint256;
       operator: Addr;
       registrationMode: RegistrationModeConfig;
       roundInfo: RoundInfo;
@@ -478,6 +495,7 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
           certification_system: certificationSystem,
           circuit_type: circuitType,
           deactivate_enabled: deactivateEnabled,
+          max_votes_per_option: maxVotesPerOption,
           operator,
           registration_mode: registrationMode,
           round_info: roundInfo,
@@ -559,6 +577,32 @@ export class ApiSaasClient extends ApiSaasQueryClient implements ApiSaasInterfac
         set_vote_options_map: {
           contract_addr: contractAddr,
           vote_option_map: voteOptionMap
+        }
+      },
+      fee,
+      memo,
+      _funds
+    );
+  };
+  setMaxVotesPerOption = async (
+    {
+      contractAddr,
+      maxVotesPerOption
+    }: {
+      contractAddr: string;
+      maxVotesPerOption: Uint256;
+    },
+    fee: number | StdFee | 'auto' = 'auto',
+    memo?: string,
+    _funds?: Coin[]
+  ): Promise<ExecuteResult> => {
+    return await this.client.execute(
+      this.sender,
+      this.contractAddress,
+      {
+        set_max_votes_per_option: {
+          contract_addr: contractAddr,
+          max_votes_per_option: maxVotesPerOption
         }
       },
       fee,

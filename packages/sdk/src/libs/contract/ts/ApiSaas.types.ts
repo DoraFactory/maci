@@ -47,6 +47,7 @@ export type ExecuteMsg =
         certification_system: Uint256;
         circuit_type: Uint256;
         deactivate_enabled: boolean;
+        max_votes_per_option?: Uint256 | null;
         operator: Addr;
         registration_mode: RegistrationModeConfig;
         round_info: RoundInfo;
@@ -70,6 +71,12 @@ export type ExecuteMsg =
       set_vote_options_map: {
         contract_addr: string;
         vote_option_map: string[];
+      };
+    }
+  | {
+      set_max_votes_per_option: {
+        contract_addr: string;
+        max_votes_per_option: Uint256;
       };
     }
   | {

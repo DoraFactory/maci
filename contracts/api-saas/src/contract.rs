@@ -106,6 +106,10 @@ pub fn execute(
             contract_addr,
             vote_option_map,
         } => execute_set_vote_options_map(deps, env, info, contract_addr, vote_option_map),
+        ExecuteMsg::SetMaxVotesPerOption {
+            contract_addr,
+            max_votes_per_option,
+        } => execute_set_max_votes_per_option(deps, env, info, contract_addr, max_votes_per_option),
         ExecuteMsg::PublishMessage {
             contract_addr,
             enc_pub_keys,
@@ -126,6 +130,7 @@ pub fn execute(
             deactivate_enabled,
             voice_credit_mode,
             registration_mode,
+            max_votes_per_option,
         } => execute_create_amaci_round(
             deps,
             env,
@@ -139,6 +144,7 @@ pub fn execute(
             deactivate_enabled,
             voice_credit_mode,
             registration_mode,
+            max_votes_per_option,
         ),
         ExecuteMsg::UpdateFeeConfig { config } => execute_update_fee_config(deps, info, config),
         ExecuteMsg::SignUp {
@@ -464,6 +470,45 @@ pub fn execute_set_round_info(
         .add_attribute("operator", info.sender.to_string())
         .add_attribute("target_contract", contract_addr)
         .add_attribute("round_title", round_info.title))
+}
+
+pub fn execute_set_max_votes_per_option(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    contract_addr: String,
+    max_votes_per_option: Uint256,
+) -> Result<Response, ContractError> {
+    // Only operators can manage Oracle MACI contracts
+    if !OPERATORS.has(deps.storage, &info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Validate the contract address format
+    let target_addr = deps.api.addr_validate(&contract_addr)?;
+
+    // Create Oracle MACI SetMaxVotesPerOption message. The target amaci
+    // round enforces its own admin-only + pre-voting checks; this proxy
+    // only gates who is allowed to trigger the call from the SAAS side.
+    let oracle_maci_msg = serde_json::json!({
+        "set_max_votes_per_option": {
+            "max_votes_per_option": max_votes_per_option
+        }
+    });
+
+    // Execute the contract call
+    let execute_msg = WasmMsg::Execute {
+        contract_addr: target_addr.to_string(),
+        msg: to_json_binary(&oracle_maci_msg)?,
+        funds: vec![],
+    };
+
+    Ok(Response::new()
+        .add_message(execute_msg)
+        .add_attribute("action", "saas_set_max_votes_per_option")
+        .add_attribute("operator", info.sender.to_string())
+        .add_attribute("target_contract", contract_addr)
+        .add_attribute("max_votes_per_option", max_votes_per_option.to_string()))
 }
 
 pub fn execute_set_vote_options_map(
@@ -805,6 +850,7 @@ pub fn execute_create_amaci_round(
     deactivate_enabled: bool,
     voice_credit_mode: VoiceCreditMode,
     registration_mode: RegistrationModeConfig,
+    max_votes_per_option: Option<Uint256>,
 ) -> Result<Response, ContractError> {
     // Only operators can create AMACI rounds via registry
     if !OPERATORS.has(deps.storage, &info.sender) {
@@ -844,6 +890,7 @@ pub fn execute_create_amaci_round(
         deactivate_enabled,
         voice_credit_mode: voice_credit_mode.clone(),
         registration_mode,
+        max_votes_per_option,
     };
 
     // Execute the contract call to registry with the required fee from SaaS balance

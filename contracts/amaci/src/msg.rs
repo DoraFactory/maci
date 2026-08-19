@@ -22,6 +22,12 @@ pub struct InstantiateMsg {
     pub round_info: RoundInfo,
     pub voting_time: VotingTime,
 
+    // Per-option vote weight cap enforced by the process circuit.
+    // None or 0 = no limit (legacy behavior). Must fit in 32 bits
+    // (packedVals slot width). serde(default) keeps old JSON payloads valid.
+    #[serde(default)]
+    pub max_votes_per_option: Option<Uint256>,
+
     // Circuit configuration
     pub circuit_type: Uint256,         // <0: 1p1v | 1: pv>
     pub certification_system: Uint256, // <0: groth16 | 1: plonk>
@@ -134,6 +140,11 @@ pub enum ExecuteMsg {
     },
     SetVoteOptionsMap {
         vote_option_map: Vec<String>,
+    },
+    // Admin-only, only allowed before voting starts (same restriction as
+    // SetRoundInfo). See execute_set_max_votes_per_option for details.
+    SetMaxVotesPerOption {
+        max_votes_per_option: Uint256,
     },
     SignUp {
         pubkey: PubKey, // user's pubkey
@@ -258,6 +269,9 @@ pub enum QueryMsg {
 
     #[returns(Uint256)]
     MaxVoteOptions {},
+
+    #[returns(Uint256)]
+    MaxVotesPerOption {},
 
     #[returns(Uint256)]
     QueryCircuitType {},
@@ -397,4 +411,11 @@ pub struct InstantiationData {
     // Unified MACI Configuration (for Registry tracking)
     pub voice_credit_mode: VoiceCreditMode,
     pub registration_mode: RegistrationMode,
+
+    // Per-option vote weight cap (None/0 = no limit). Reported back to the
+    // Registry so the `created_round` event can index it. Option + serde(default)
+    // keeps this backward compatible with older amaci code IDs whose reply data
+    // doesn't include this field.
+    #[serde(default)]
+    pub max_votes_per_option: Option<Uint256>,
 }

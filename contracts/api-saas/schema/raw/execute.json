@@ -169,6 +169,17 @@
             "deactivate_enabled": {
               "type": "boolean"
             },
+            "max_votes_per_option": {
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "operator": {
               "$ref": "#/definitions/Addr"
             },
@@ -263,6 +274,31 @@
               "items": {
                 "type": "string"
               }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_max_votes_per_option"
+      ],
+      "properties": {
+        "set_max_votes_per_option": {
+          "type": "object",
+          "required": [
+            "contract_addr",
+            "max_votes_per_option"
+          ],
+          "properties": {
+            "contract_addr": {
+              "type": "string"
+            },
+            "max_votes_per_option": {
+              "$ref": "#/definitions/Uint256"
             }
           },
           "additionalProperties": false

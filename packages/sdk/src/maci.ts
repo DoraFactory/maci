@@ -891,4 +891,17 @@ export class MaciClient {
     return await this.saasApiClient.setVoteOptions(params);
   }
 
+  /**
+   * Set max votes per option via SaaS API
+   * Per-option vote weight cap (0 = no limit). Only supported for AMACI rounds.
+   * @param params - Max votes per option parameters
+   */
+  async saasSetMaxVotesPerOption(
+    params: operations['setMaxVotesPerOption']['requestBody']['content']['application/json']
+  ) {
+    if (!this.saasApiClient) {
+      throw new Error('SaaS API client not initialized');
+    }
+    return await this.saasApiClient.setMaxVotesPerOption(params);
+  }
 }

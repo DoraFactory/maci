@@ -71,6 +71,27 @@
     {
       "type": "object",
       "required": [
+        "set_max_votes_per_option"
+      ],
+      "properties": {
+        "set_max_votes_per_option": {
+          "type": "object",
+          "required": [
+            "max_votes_per_option"
+          ],
+          "properties": {
+            "max_votes_per_option": {
+              "$ref": "#/definitions/Uint256"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "sign_up"
       ],
       "properties": {
@@ -136,33 +157,6 @@
             },
             "message": {
               "$ref": "#/definitions/MessageData"
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "upload_deactivate_message"
-      ],
-      "properties": {
-        "upload_deactivate_message": {
-          "type": "object",
-          "required": [
-            "deactivate_message"
-          ],
-          "properties": {
-            "deactivate_message": {
-              "type": "array",
-              "items": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/definitions/Uint256"
-                }
-              }
             }
           },
           "additionalProperties": false

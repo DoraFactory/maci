@@ -241,6 +241,7 @@ export class VoterClient {
     operatorPubkey,
     selectedOptions,
     pollId,
+    maxVotesPerOption,
     derivePathParams
   }: {
     stateIdx: number;
@@ -251,8 +252,25 @@ export class VoterClient {
     }[];
     /** When omitted the legacy message format (no `pollId` in packed element) is used. */
     pollId?: bigint | number;
+    /**
+     * Optional per-option vote weight cap (round's max_votes_per_option).
+     * When provided (> 0), votes exceeding the cap fail fast here instead of
+     * being silently invalidated by the circuit during processing.
+     */
+    maxVotesPerOption?: bigint | number;
     derivePathParams?: DerivePathParams;
   }) {
+    if (maxVotesPerOption !== undefined && BigInt(maxVotesPerOption) > 0n) {
+      const cap = BigInt(maxVotesPerOption);
+      for (const option of selectedOptions) {
+        if (BigInt(option.vc) > cap) {
+          throw new Error(
+            `Vote weight ${option.vc} for option ${option.idx} exceeds max votes per option (${cap})`
+          );
+        }
+      }
+    }
+
     const plan = this.normalizeVoteOptions(selectedOptions);
 
     const payload =
@@ -1318,14 +1336,20 @@ export class VoterClient {
   }
 
   /**
-   * Get pre-deactivate data via SaaS API
+   * Get pre-deactivate metadata (coordinator pubkey, deactivate root, voter scale) via SaaS API.
+   *
+   * Note: the legacy full-data endpoint (which returned the raw `deactivates` leaf array)
+   * has been removed from the API to preserve K-anonymity of individual deactivate leaves.
+   * Use `deactivateIdx` + the returned `scale` with `getPreDeactivateProof` (or
+   * `buildPreAddNewKeyPayload` / `saasPreCreateNewAccount`'s K-anonymous API path) to fetch
+   * a specific leaf's Merkle proof instead of the full tree.
    * @param contractAddress - Contract address
    */
   async saasGetPreDeactivate(contractAddress: string) {
     if (!this.saasApiClient) {
       throw new Error('SaaS API client not initialized');
     }
-    return await this.saasApiClient.getPreDeactivate({ contractAddress });
+    return await this.saasApiClient.getPreDeactivateMeta({ contractAddress });
   }
 
   /**
@@ -1585,6 +1609,7 @@ export class VoterClient {
     ticket,
     pollId,
     stateIdx,
+    maxVotesPerOption,
     derivePathParams
   }: {
     contractAddress: string;
@@ -1597,6 +1622,12 @@ export class VoterClient {
     /** When omitted the legacy message format (no `pollId` in packed element, no salt in command) is used. */
     pollId?: bigint | number;
     stateIdx?: number;
+    /**
+     * Optional per-option vote weight cap (round's `maxVotesPerOption`, AMACI only).
+     * When provided (> 0), votes exceeding the cap fail fast client-side instead of
+     * being silently invalidated by the circuit during processing.
+     */
+    maxVotesPerOption?: bigint | number;
     derivePathParams?: DerivePathParams;
   }) {
     const resolvedStateIdx =
@@ -1613,6 +1644,7 @@ export class VoterClient {
       operatorPubkey,
       selectedOptions,
       pollId,
+      maxVotesPerOption,
       derivePathParams
     });
 

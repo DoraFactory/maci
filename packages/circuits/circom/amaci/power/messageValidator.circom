@@ -2,6 +2,7 @@ pragma circom 2.0.0;
 
 include "../../utils/verifySignature.circom";
 include "../../../node_modules/circomlib/circuits/comparators.circom";
+include "../../../node_modules/circomlib/circuits/mux1.circom";
 
 template MessageValidator() {
     // a) Whether the state leaf index is valid
@@ -66,6 +67,10 @@ template MessageValidator() {
     signal input currentVotesForOption;
     signal input voteWeight;
 
+    // g) Per-option vote weight cap. 0 is a sentinel meaning "no limit"
+    // (a cap of 0 would forbid all votes, so 0 is safe to repurpose).
+    signal input maxVotesPerOption;
+
     signal output newBalance;
 
     // Check that voteWeight is < sqrt(field size), so voteWeight ^ 2 will not
@@ -91,8 +96,22 @@ template MessageValidator() {
 
     newBalance <== currentVoiceCreditBalance + currentCostsForOption.out - cost.out;
 
+    // Per-option cap check: valid when maxVotesPerOption == 0 (unlimited)
+    // or voteWeight <= maxVotesPerOption. Bit width 252 matches
+    // validVoteWeight above, since voteWeight may be up to ~2^127.
+    component capUnlimited = IsZero();
+    capUnlimited.in <== maxVotesPerOption;
+
+    component withinCap = LessEqThan(252);
+    withinCap.in[0] <== voteWeight;
+    withinCap.in[1] <== maxVotesPerOption;
+
+    // OR(capUnlimited, withinCap); both signals are boolean
+    signal validVotesPerOption;
+    validVotesPerOption <== capUnlimited.out + withinCap.out - capUnlimited.out * withinCap.out;
+
     component validUpdate = IsEqual();
-    validUpdate.in[0] <== 7;
+    validUpdate.in[0] <== 8;
     validUpdate.in[1] <== validSignature.valid + 
                           sufficientVoiceCredits.out +
                           validVoteWeight.out +
@@ -100,7 +119,8 @@ template MessageValidator() {
                           validStateLeafIndex.out +
                         //   validTimestamp.out +
                           validVoteOptionIndex.out +
-                          validPollId.out;
+                          validPollId.out +
+                          validVotesPerOption;
     signal output isValid;
     isValid <== validUpdate.out;
 
