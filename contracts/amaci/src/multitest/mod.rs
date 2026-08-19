@@ -57,9 +57,9 @@ pub type App<ExecC = Empty, QueryC = Empty> = cw_multi_test::App<
 
 // 1000 DORA per test user, enough to cover all publish_message fees in any test
 const TEST_USER_BALANCE: u128 = 1_000_000_000_000_000_000_000u128;
-pub const MESSAGE_FEE: Uint128 = Uint128::new(60_000_000_000_000_000);
+pub const MESSAGE_FEE: Uint128 = Uint128::new(121_000_000_000_000_000);
 pub const DEACTIVATE_FEE: Uint128 = Uint128::new(10_000_000_000_000_000_000);
-pub const SIGNUP_FEE: Uint128 = Uint128::new(30_000_000_000_000_000);
+pub const SIGNUP_FEE: Uint128 = Uint128::new(48_000_000_000_000_000);
 pub const BASE_DELAY: u64 = 200;
 pub const PER_MESSAGE_DELAY: u64 = 2;
 pub const PER_SIGNUP_DELAY: u64 = 1;

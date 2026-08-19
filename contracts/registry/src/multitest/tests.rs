@@ -467,7 +467,7 @@ fn create_round_with_reward_should_works() {
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 30_000_000_000_000_000_000u128; // 30 DORA
+    let small_base_payamount = 46_000_000_000_000_000_000u128; // 46 DORA
     let create_round_with_wrong_circuit_type = contract
         .create_round(
             &mut app,
@@ -681,7 +681,7 @@ fn create_round_with_voting_time_qv_amaci_should_works() {
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 30_000_000_000_000_000_000u128; // 30 DORA
+    let small_base_payamount = 46_000_000_000_000_000_000u128; // 46 DORA
 
     // Record balance before creating round
     let creator_balance_before = contract
@@ -1346,7 +1346,7 @@ fn create_round_with_voting_time_qv_amaci_after_4_days_with_no_operator_reward_s
 
     // _ = contract.migrate_v1(&mut app, owner(), amaci_code_id.id()).unwrap();
 
-    let small_base_payamount = 30_000_000_000_000_000_000u128; // 30 DORA
+    let small_base_payamount = 46_000_000_000_000_000_000u128; // 46 DORA
 
     // Record balance before creating the round
     let creator_balance_before = contract
@@ -1995,7 +1995,7 @@ fn create_round_with_qv_oracle_mode_amaci_should_works() {
     let user1_operator_pubkey = contract.get_operator_pubkey(&app, operator()).unwrap();
     assert_eq!(operator_pubkey1(), user1_operator_pubkey);
 
-    let small_base_payamount = 30_000_000_000_000_000_000u128; // 30 DORA
+    let small_base_payamount = 46_000_000_000_000_000_000u128; // 46 DORA
 
     // Record balance before creating round
     let creator_balance_before = contract
@@ -2568,7 +2568,7 @@ fn test_create_round_event_data() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let small_base_payamount = 30_000_000_000_000_000_000u128; // 30 DORA
+    let small_base_payamount = 46_000_000_000_000_000_000u128; // 46 DORA
 
     // Create round and capture response
     let resp = contract
@@ -2695,7 +2695,7 @@ fn test_reply_created_round_event() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let small_base_payamount = 30_000_000_000_000_000_000u128; // 30 DORA
+    let small_base_payamount = 46_000_000_000_000_000_000u128; // 46 DORA
 
     let resp = contract
         .create_round_with_whitelist(
@@ -2861,7 +2861,7 @@ fn test_created_round_event_sign_up_with_static_whitelist() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let pay = 30_000_000_000_000_000_000u128; // 30 DORA
+    let pay = 46_000_000_000_000_000_000u128; // 46 DORA
     let resp = contract
         .create_round_with_whitelist(
             &mut app,
@@ -2938,7 +2938,7 @@ fn test_created_round_event_pre_populated() {
     let pre_deactivate_root = Uint256::from_u128(12345u128);
     let pre_deactivate_coordinator = test_pubkey2();
 
-    let pay = 30_000_000_000_000_000_000u128; // 30 DORA
+    let pay = 46_000_000_000_000_000_000u128; // 46 DORA
     let resp = contract
         .create_round_with_pre_populated(
             &mut app,
@@ -3032,7 +3032,7 @@ fn test_query_registration_status_static_whitelist() {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let pay = 30_000_000_000_000_000_000u128; // 30 DORA
+    let pay = 46_000_000_000_000_000_000u128; // 46 DORA
     let resp = contract
         .create_round_with_whitelist(
             &mut app,
@@ -3172,7 +3172,7 @@ fn test_query_registration_status_oracle() {
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
     let oracle_pubkey = "A9ekxvWjYNpnHTasS008PG+EuF2ssIkUPaDdnn8ZdzTb".to_string();
-    let pay = 30_000_000_000_000_000_000u128; // 30 DORA
+    let pay = 46_000_000_000_000_000_000u128; // 46 DORA
     let resp = contract
         .create_round_with_oracle(
             &mut app,
@@ -3318,7 +3318,7 @@ fn test_query_registration_status_pre_populated() {
     let pre_deactivate_root = Uint256::from_u128(12345u128);
     let pre_deactivate_coordinator = test_pubkey2();
 
-    let pay = 30_000_000_000_000_000_000u128; // 30 DORA
+    let pay = 46_000_000_000_000_000_000u128; // 46 DORA
     let resp = contract
         .create_round_with_pre_populated(
             &mut app,
@@ -3413,7 +3413,7 @@ fn setup_whitelist_round() -> (cw_multi_test::App, MaciContract) {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let pay = 30_000_000_000_000_000_000u128; // 30 DORA
+    let pay = 46_000_000_000_000_000_000u128; // 46 DORA
     let resp = contract
         .create_round_with_whitelist(
             &mut app,
@@ -3926,7 +3926,7 @@ fn setup_voting_round_with_user_balance() -> (App, MaciContract) {
     _ = contract.set_maci_operator(&mut app, user1(), operator());
     _ = contract.set_maci_operator_pubkey(&mut app, operator(), operator_pubkey1());
 
-    let pay = 30_000_000_000_000_000_000u128; // 30 DORA
+    let pay = 46_000_000_000_000_000_000u128; // 46 DORA
     let resp = contract
         .create_round_with_whitelist(
             &mut app,
@@ -4273,7 +4273,7 @@ fn setup_registry_for_scale_test(
 /// Test: small whitelist (3 users) with SignUpWithStaticWhitelist should succeed.
 #[test]
 fn test_static_whitelist_small_scale_2_1_1_5_allowed() {
-    let fee = 30_000_000_000_000_000_000u128; // 30 DORA
+    let fee = 46_000_000_000_000_000_000u128; // 46 DORA
     let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
 
     let whitelist = WhitelistBase {
@@ -4313,7 +4313,7 @@ fn test_static_whitelist_small_scale_2_1_1_5_allowed() {
 /// Test: another small whitelist (3 users) round creation should also succeed.
 #[test]
 fn test_static_whitelist_medium_scale_4_2_2_25_allowed() {
-    let fee = 30_000_000_000_000_000_000u128; // 30 DORA
+    let fee = 46_000_000_000_000_000_000u128; // 46 DORA
     let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
 
     let whitelist = WhitelistBase {
@@ -4357,7 +4357,7 @@ fn test_static_whitelist_medium_scale_4_2_2_25_allowed() {
 /// inside the amaci contract during instantiation.
 #[test]
 fn test_static_whitelist_large_scale_6_3_3_125_rejected() {
-    let fee = 30_000_000_000_000_000_000u128; // 30 DORA
+    let fee = 46_000_000_000_000_000_000u128; // 46 DORA
     let (mut app, contract) = setup_registry_for_scale_test(fee * 2);
 
     // Build a whitelist with 26 entries - exceeds 2-1-1-5 max_leaves (25)

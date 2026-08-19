@@ -758,7 +758,7 @@ fn test_create_amaci_round_success_real() {
         .unwrap();
 
     // Deposit funds to SaaS contract to pay for the round creation
-    let required_fee = 30_000_000_000_000_000_000u128; // 30 DORA (base_fee)
+    let required_fee = 46_000_000_000_000_000_000u128; // 46 DORA (base_fee)
     contract
         .deposit(
             &mut app,
@@ -1224,10 +1224,10 @@ fn test_saas_publish_message_unauthorized() {
 /// rejected with InsufficientBalance before any interaction with the AMACI contract.
 #[test]
 fn test_saas_publish_message_insufficient_balance() {
-    // Deposit 30.03 DORA. Round creation costs 30 DORA, leaving 0.03 DORA which is
-    // less than MESSAGE_FEE (0.06 DORA).
+    // Deposit 46.03 DORA. Round creation costs 46 DORA, leaving 0.03 DORA which is
+    // less than MESSAGE_FEE (0.121 DORA).
     let PublishTestEnv { mut app, saas, amaci_addr } =
-        setup_publish_env(30_030_000_000_000_000_000, false);
+        setup_publish_env(46_030_000_000_000_000_000, false);
 
     let available = saas.query_balance(&app).unwrap();
     assert!(available < MESSAGE_FEE, "pre-condition: SAAS balance must be < MESSAGE_FEE");

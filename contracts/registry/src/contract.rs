@@ -55,10 +55,10 @@ pub fn instantiate(
 
     // NEW: fee amounts config
     let fee_config = FeeConfig {
-        base_fee: Uint128::new(30_000_000_000_000_000_000),       // 30 DORA
-        message_fee: Uint128::new(60_000_000_000_000_000),        // 0.06 DORA
+        base_fee: Uint128::new(46_000_000_000_000_000_000),       // 46 DORA
+        message_fee: Uint128::new(121_000_000_000_000_000),       // 0.121 DORA
         deactivate_fee: Uint128::new(10_000_000_000_000_000_000), // 10 DORA
-        signup_fee: Uint128::new(30_000_000_000_000_000),         // 0.03 DORA
+        signup_fee: Uint128::new(48_000_000_000_000_000),         // 0.048 DORA
     };
     FEE_CONFIG.save(deps.storage, &fee_config)?;
 

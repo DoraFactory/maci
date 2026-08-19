@@ -5,14 +5,14 @@ export const FEE_DENOM = 'peaka';
 // Actual values in production are stored in each round contract's config.
 
 // ── Default Fees ────────────────────────────────────────────────────────────
-// CreateRound base fee: 30 DORA
-export const DEFAULT_BASE_FEE = '30000000000000000000';
-// Per-message fee for PublishMessage: 0.06 DORA = 6 * 10^16 peaka
-export const DEFAULT_MESSAGE_FEE = '60000000000000000';
+// CreateRound base fee: 46 DORA
+export const DEFAULT_BASE_FEE = '46000000000000000000';
+// Per-message fee for PublishMessage: 0.121 DORA = 1.21 * 10^17 peaka
+export const DEFAULT_MESSAGE_FEE = '121000000000000000';
 // Per-message fee for PublishDeactivateMessage: 10 DORA = 10 * 10^18 peaka
 export const DEFAULT_DEACTIVATE_FEE = '10000000000000000000';
-// Registration fee (signup / addNewKey / preAddNewKey): 0.03 DORA = 3 * 10^16 peaka
-export const DEFAULT_SIGNUP_FEE = '30000000000000000';
+// Registration fee (signup / addNewKey / preAddNewKey): 0.048 DORA = 4.8 * 10^16 peaka
+export const DEFAULT_SIGNUP_FEE = '48000000000000000';
 
 // ── Default Delays (seconds) ─────────────────────────────────────────────────
 // Tally base delay: covers first 5^4=625-slot tally batch

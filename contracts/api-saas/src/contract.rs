@@ -64,7 +64,7 @@ pub fn instantiate(
     SAAS_FEE_CONFIG.save(
         deps.storage,
         &SaasFeeConfig {
-            base_fee: Uint128::new(30_000_000_000_000_000_000), // 30 DORA
+            base_fee: Uint128::new(46_000_000_000_000_000_000), // 46 DORA
         },
     )?;
 
