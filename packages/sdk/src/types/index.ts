@@ -501,6 +501,8 @@ export type VoterClientParams = {
   restEndpoints?: string[];
   saasApiEndpoint?: string; // MACI SaaS API endpoint
   saasApiKey?: string; // MACI SaaS API key
+  /** SaaS HTTP timeout in milliseconds (default: 180 000). */
+  saasApiTimeout?: number;
   customFetch?: typeof fetch;
   defaultOptions?: FetchOptions;
   retries?: number;
