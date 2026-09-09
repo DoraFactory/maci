@@ -135,7 +135,8 @@ export class MaciClient {
       this.saasApiClient = new MaciApiClient({
         baseUrl: this.saasApiEndpoint,
         apiKey: saasApiKey,
-        customFetch
+        customFetch,
+        timeout: 180000
       });
     }
   }

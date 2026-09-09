@@ -86,6 +86,7 @@ export class VoterClient {
     restEndpoints,
     saasApiEndpoint,
     saasApiKey,
+    saasApiTimeout,
     registryAddress,
     customFetch,
     defaultOptions,
@@ -124,7 +125,8 @@ export class VoterClient {
     this.saasApiClient = new MaciApiClient({
       baseUrl: this.saasApiEndpoint,
       apiKey: saasApiKey,
-      customFetch
+      customFetch,
+      timeout: saasApiTimeout ?? 180000
     });
 
     // Initialize Contract instance

@@ -11,7 +11,7 @@ export interface MaciApiClientConfig {
   apiKey?: string;
   /** Custom fetch function (optional) */
   customFetch?: typeof fetch;
-  /** Default request timeout in milliseconds */
+  /** Default request timeout in milliseconds (default: 180000) */
   timeout?: number;
   /**
    * API key header type
@@ -80,7 +80,7 @@ export class MaciApiClient {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.apiKey = config.apiKey;
     this.customFetch = config.customFetch || fetch;
-    this.timeout = config.timeout || 120000; // default 120 seconds
+    this.timeout = config.timeout ?? 180000; // default 180 seconds, aligned with ALB idle timeout
     this.apiKeyHeader = config.apiKeyHeader || 'x-api-key';
   }
 
